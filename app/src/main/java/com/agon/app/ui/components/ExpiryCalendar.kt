@@ -88,9 +88,12 @@ fun ExpiryCalendarCard(
         (byExpiry[selected] ?: emptyList()).sortedBy { it.name }
     }
 
+    // 注意：必须从 State（monthValue）读取最新月份再计算，不能用局部 val month。
+    // pointerInput(Unit) 的手势闭包只在首次组合时创建，若捕获普通 val 会永远基于旧值计算，
+    // 导致“滑动只能回到初始月±1”的 bug。
     fun goMonth(delta: Long) {
         direction = if (delta > 0) 1 else -1
-        monthValue = month.plusMonths(delta).toString()
+        monthValue = YearMonth.parse(monthValue).plusMonths(delta).toString()
     }
 
     Column(modifier = modifier) {

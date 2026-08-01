@@ -55,3 +55,4 @@
 - 主题为 MD3 种子色方案（MaterialKolor 生成），配色方案定义在 `ui/theme/Palettes.kt`（AppPalette 枚举）；`Color.kt` 仅保留状态语义色；状态色（安全/临期/过期）通过 `rememberStatusUi()` 获取
 - 所有布尔开关一律使用 `ui/components/Common.kt` 的 `CheckSwitch`（打勾/打叉样式），禁止使用 material3 Switch
 - 构建前确认 `strings.xml` 的 app_name 为“吃了么”，不得回退为占位名
+- **版本号锁定**：设置页“关于”中的版本号固定为 **v1.0**，未经用户明确指示不得更改（用户 2026-07-31 明确要求，此后新增功能不再自行递增版本号）
