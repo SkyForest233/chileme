@@ -15,6 +15,11 @@ val keystoreProperties = Properties().apply {
 }
 val hasReleaseSigning = keystoreProperties.getProperty("storeFile") != null
 
+// 项目内的调试密钥（可选）。CI 环境若未提交该文件，
+// 则不覆盖 debug 签名配置，AGP 会回退到默认调试密钥
+// （~/.android/debug.keystore，不存在时自动生成），保证 CI 可构建。
+val projectDebugKeystore = rootProject.file("debug.keystore")
+
 android {
     namespace = "com.agon.app"
     compileSdk = 36
@@ -30,10 +35,15 @@ android {
 
     signingConfigs {
         getByName("debug") {
-            storeFile = file("${rootProject.projectDir}/debug.keystore")
-            storePassword = "android"
-            keyAlias = "androiddebugkey"
-            keyPassword = "android"
+            // 仅当项目根目录存在 debug.keystore 时才覆盖默认配置；
+            // 否则保留 AGP 默认（~/.android/debug.keystore，自动生成），
+            // 避免 CI 上因文件缺失导致 validateSigning 失败。
+            if (projectDebugKeystore.exists()) {
+                storeFile = projectDebugKeystore
+                storePassword = "android"
+                keyAlias = "androiddebugkey"
+                keyPassword = "android"
+            }
         }
         create("release") {
             // 凭据来自 keystore.properties（不入库）；缺失时回退 debug 签名，
