@@ -1,0 +1,710 @@
+package com.agon.app.ui.screens
+
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ArrowForward
+import androidx.compose.material.icons.rounded.Category
+import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.Cloud
+import androidx.compose.material.icons.rounded.CloudDownload
+import androidx.compose.material.icons.rounded.CloudUpload
+import androidx.compose.material.icons.rounded.FileDownload
+import androidx.compose.material.icons.rounded.FileUpload
+import androidx.compose.material.icons.rounded.History
+import androidx.compose.material.icons.rounded.Place
+import androidx.compose.material.icons.rounded.Schedule
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.agon.app.ui.components.CheckSwitch
+import com.agon.app.ui.theme.AppPalette
+import com.agon.app.viewmodel.AppViewModel
+import com.materialkolor.PaletteStyle
+import com.materialkolor.rememberDynamicColorScheme
+import kotlinx.coroutines.launch
+import java.time.LocalDate
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun SettingsScreen(
+    viewModel: AppViewModel,
+    onOpenArchive: () -> Unit,
+    onOpenThresholds: () -> Unit,
+    onOpenCategories: () -> Unit,
+    onOpenLocations: () -> Unit,
+) {
+    val dynamicColor by viewModel.dynamicColor.collectAsStateWithLifecycle()
+    val darkMode by viewModel.darkMode.collectAsStateWithLifecycle()
+    val paletteName by viewModel.palette.collectAsStateWithLifecycle()
+    val items by viewModel.items.collectAsStateWithLifecycle()
+    val archived by viewModel.archived.collectAsStateWithLifecycle()
+    val categories by viewModel.categories.collectAsStateWithLifecycle()
+    val locations by viewModel.locations.collectAsStateWithLifecycle()
+    val nutstoreAccount by viewModel.nutstoreAccount.collectAsStateWithLifecycle()
+    val nutstorePassword by viewModel.nutstorePassword.collectAsStateWithLifecycle()
+    val lastSync by viewModel.lastSync.collectAsStateWithLifecycle()
+    val syncing by viewModel.syncing.collectAsStateWithLifecycle()
+    val autoSyncDays by viewModel.autoSyncDays.collectAsStateWithLifecycle()
+    var showClearDialog by remember { mutableStateOf(false) }
+    var showNutstoreDialog by remember { mutableStateOf(false) }
+    var showRestoreConfirm by remember { mutableStateOf(false) }
+
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    // ---- Backup export (SAF create document) ----
+    val exportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/json")
+    ) { uri ->
+        if (uri != null) {
+            scope.launch {
+                val ok = runCatching {
+                    val jsonText = viewModel.buildBackupJson()
+                    context.contentResolver.openOutputStream(uri)?.use { out ->
+                        out.write(jsonText.toByteArray(Charsets.UTF_8))
+                    } ?: error("stream null")
+                }.isSuccess
+                snackbarHostState.showSnackbar(if (ok) "备份导出成功 ✅" else "导出失败，请重试")
+            }
+        }
+    }
+
+    // ---- Backup import (SAF open document) ----
+    val importLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            scope.launch {
+                val raw = runCatching {
+                    context.contentResolver.openInputStream(uri)?.use { input ->
+                        input.readBytes().toString(Charsets.UTF_8)
+                    }
+                }.getOrNull()
+                val ok = raw != null && viewModel.importBackupJson(raw)
+                snackbarHostState.showSnackbar(
+                    if (ok) "导入成功，数据已恢复 ✅" else "导入失败：文件格式不正确"
+                )
+            }
+        }
+    }
+
+    Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
+        snackbarHost = {
+            SnackbarHost(snackbarHostState, modifier = Modifier.padding(bottom = 84.dp))
+        },
+        topBar = {
+            TopAppBar(
+                title = { Text("设置", fontWeight = FontWeight.Bold) },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background,
+                ),
+            )
+        },
+    ) { padding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            // ==================== 外观 ====================
+            Surface(
+                shape = MaterialTheme.shapes.large,
+                color = MaterialTheme.colorScheme.surfaceContainer,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Column(Modifier.padding(20.dp)) {
+                    Text(
+                        "外观",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                    Spacer(Modifier.height(16.dp))
+                    Text("深色模式", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
+                    Spacer(Modifier.height(8.dp))
+                    SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+                        listOf("跟随系统", "浅色", "深色").forEachIndexed { index, label ->
+                            SegmentedButton(
+                                selected = darkMode == index,
+                                onClick = { viewModel.setDarkMode(index) },
+                                shape = SegmentedButtonDefaults.itemShape(index = index, count = 3),
+                            ) { Text(label) }
+                        }
+                    }
+                    Spacer(Modifier.height(20.dp))
+                    Text("主题配色", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        if (dynamicColor) "已开启动态取色，主题跟随壁纸；关闭后生效" else "基于 MD3 种子色生成完整主题",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        contentPadding = PaddingValues(horizontal = 2.dp),
+                    ) {
+                        items(AppPalette.entries.toList()) { p ->
+                            PaletteSwatch(
+                                palette = p,
+                                selected = paletteName == p.name && !dynamicColor,
+                                enabled = !dynamicColor,
+                                onClick = { viewModel.setPalette(p.name) },
+                            )
+                        }
+                    }
+                    Spacer(Modifier.height(20.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                "动态取色 (Material You)",
+                                style = MaterialTheme.typography.bodyLarge,
+                                fontWeight = FontWeight.Medium,
+                            )
+                            Text(
+                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S)
+                                    "跟随壁纸颜色，优先于上方配色方案"
+                                else
+                                    "需要 Android 12 及以上",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        CheckSwitch(
+                            checked = dynamicColor,
+                            onCheckedChange = { viewModel.setDynamicColor(it) },
+                            enabled = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S,
+                        )
+                    }
+                }
+            }
+
+            // ==================== 物品管理（统一入口，全部二级页面） ====================
+            Surface(
+                shape = MaterialTheme.shapes.large,
+                color = MaterialTheme.colorScheme.surfaceContainer,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Column(Modifier.padding(vertical = 8.dp)) {
+                    Text(
+                        "物品管理",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(start = 20.dp, top = 12.dp, bottom = 4.dp),
+                    )
+                    SettingsNavRow(
+                        icon = Icons.Rounded.Schedule,
+                        title = "临期提醒阈值",
+                        subtitle = "各分类到期前多少天提醒",
+                        onClick = onOpenThresholds,
+                    )
+                    HorizontalDivider(Modifier.padding(horizontal = 20.dp), color = MaterialTheme.colorScheme.surfaceContainerHighest)
+                    SettingsNavRow(
+                        icon = Icons.Rounded.Category,
+                        title = "分类管理",
+                        subtitle = "共 ${categories.size} 个分类",
+                        onClick = onOpenCategories,
+                    )
+                    HorizontalDivider(Modifier.padding(horizontal = 20.dp), color = MaterialTheme.colorScheme.surfaceContainerHighest)
+                    SettingsNavRow(
+                        icon = Icons.Rounded.Place,
+                        title = "存放位置管理",
+                        subtitle = "共 ${locations.size} 个位置预设",
+                        onClick = onOpenLocations,
+                    )
+                    HorizontalDivider(Modifier.padding(horizontal = 20.dp), color = MaterialTheme.colorScheme.surfaceContainerHighest)
+                    SettingsNavRow(
+                        icon = Icons.Rounded.History,
+                        title = "归档历史",
+                        subtitle = "已归档 ${archived.size} 条，可恢复或彻底删除",
+                        onClick = onOpenArchive,
+                    )
+                }
+            }
+
+            // ==================== 备份与数据 ====================
+            Surface(
+                shape = MaterialTheme.shapes.large,
+                color = MaterialTheme.colorScheme.surfaceContainer,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Column(Modifier.padding(20.dp)) {
+                    Text(
+                        "备份与数据",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        "导出为 JSON 文件，包含库存、归档、消耗记录和设置",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        OutlinedButton(
+                            onClick = {
+                                exportLauncher.launch("吃了么备份_${LocalDate.now()}.json")
+                            },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(50),
+                        ) {
+                            Icon(Icons.Rounded.FileUpload, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text("导出备份")
+                        }
+                        OutlinedButton(
+                            onClick = { importLauncher.launch(arrayOf("application/json", "text/plain", "*/*")) },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(50),
+                        ) {
+                            Icon(Icons.Rounded.FileDownload, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text("导入备份")
+                        }
+                    }
+
+                    // ---- 坚果云云同步 ----
+                    Spacer(Modifier.height(16.dp))
+                    HorizontalDivider(color = MaterialTheme.colorScheme.surfaceContainerHighest)
+                    Spacer(Modifier.height(12.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            Icons.Rounded.Cloud,
+                            contentDescription = null,
+                            modifier = Modifier.size(20.dp),
+                            tint = MaterialTheme.colorScheme.primary,
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                "坚果云同步",
+                                style = MaterialTheme.typography.bodyLarge,
+                                fontWeight = FontWeight.Medium,
+                            )
+                            Text(
+                                if (lastSync.isBlank()) "通过 WebDAV 备份到坚果云" else lastSync,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        TextButton(onClick = { showNutstoreDialog = true }) {
+                            Text(if (nutstoreAccount.isBlank()) "配置" else "修改账号")
+                        }
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        OutlinedButton(
+                            onClick = {
+                                viewModel.syncUpload { _, msg ->
+                                    scope.launch { snackbarHostState.showSnackbar(msg) }
+                                }
+                            },
+                            enabled = !syncing && nutstoreAccount.isNotBlank(),
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(50),
+                        ) {
+                            if (syncing) {
+                                CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                            } else {
+                                Icon(Icons.Rounded.CloudUpload, contentDescription = null, modifier = Modifier.size(16.dp))
+                            }
+                            Spacer(Modifier.width(6.dp))
+                            Text("上传到云端")
+                        }
+                        OutlinedButton(
+                            onClick = { showRestoreConfirm = true },
+                            enabled = !syncing && nutstoreAccount.isNotBlank(),
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(50),
+                        ) {
+                            Icon(Icons.Rounded.CloudDownload, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text("从云端恢复")
+                        }
+                    }
+
+                    // ---- 自动同步间隔 ----
+                    Spacer(Modifier.height(12.dp))
+                    Text(
+                        "自动同步",
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.Medium,
+                    )
+                    Text(
+                        if (autoSyncDays == 0) "已关闭；选择间隔后，每次打开应用时若超过间隔会自动上传"
+                        else "每 $autoSyncDays 天自动上传一次（在打开应用时触发）",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf(0 to "关闭", 1 to "每天", 3 to "3 天", 7 to "每周").forEach { (days, label) ->
+                            FilterChip(
+                                selected = autoSyncDays == days,
+                                onClick = { viewModel.setAutoSyncDays(days) },
+                                enabled = nutstoreAccount.isNotBlank() || days == 0,
+                                label = { Text(label) },
+                                shape = RoundedCornerShape(50),
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                                ),
+                            )
+                        }
+                    }
+
+                    Spacer(Modifier.height(16.dp))
+                    HorizontalDivider(color = MaterialTheme.colorScheme.surfaceContainerHighest)
+                    Spacer(Modifier.height(12.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                "清空库存记录",
+                                style = MaterialTheme.typography.bodyLarge,
+                                fontWeight = FontWeight.Medium,
+                            )
+                            Text(
+                                "当前共 ${items.size} 条食品记录（不影响归档）",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        TextButton(
+                            onClick = { showClearDialog = true },
+                            enabled = items.isNotEmpty(),
+                        ) {
+                            Text("清空", color = MaterialTheme.colorScheme.error)
+                        }
+                    }
+                }
+            }
+
+            // ==================== 关于 ====================
+            Surface(
+                shape = MaterialTheme.shapes.large,
+                color = MaterialTheme.colorScheme.surfaceContainer,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Column(Modifier.padding(20.dp)) {
+                    Text(
+                        "关于",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        "吃了么 v2.2",
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.Medium,
+                    )
+                    Text(
+                        "记录家中零食库存，提醒临期食品，减少食物浪费 🌱",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(80.dp))
+        }
+    }
+
+    if (showClearDialog) {
+        AlertDialog(
+            onDismissRequest = { showClearDialog = false },
+            title = { Text("清空库存记录") },
+            text = { Text("确定要删除全部 ${items.size} 条食品记录吗？建议先导出备份。") },
+            confirmButton = {
+                TextButton(onClick = {
+                    showClearDialog = false
+                    viewModel.clearAll()
+                }) {
+                    Text("清空", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showClearDialog = false }) { Text("取消") }
+            },
+        )
+    }
+
+    // ---- 坚果云账号配置对话框 ----
+    if (showNutstoreDialog) {
+        var accountInput by rememberSaveable { mutableStateOf(nutstoreAccount) }
+        var passwordInput by rememberSaveable { mutableStateOf(nutstorePassword) }
+        AlertDialog(
+            onDismissRequest = { showNutstoreDialog = false },
+            title = { Text("坚果云账号") },
+            text = {
+                Column {
+                    Text(
+                        "在坚果云网页端「账户信息 → 安全选项 → 第三方应用管理」中生成应用密码（不是登录密码）。备份存放于云端 ChiLeMe 文件夹。密码使用系统 Keystore 加密存储。",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    OutlinedTextField(
+                        value = accountInput,
+                        onValueChange = { accountInput = it },
+                        label = { Text("账号（邮箱）") },
+                        singleLine = true,
+                        shape = MaterialTheme.shapes.medium,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = passwordInput,
+                        onValueChange = { passwordInput = it },
+                        label = { Text("应用密码") },
+                        singleLine = true,
+                        visualTransformation = PasswordVisualTransformation(),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                        shape = MaterialTheme.shapes.medium,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.saveNutstoreCredentials(accountInput, passwordInput)
+                    showNutstoreDialog = false
+                    scope.launch { snackbarHostState.showSnackbar("坚果云账号已保存") }
+                }) { Text("保存") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showNutstoreDialog = false }) { Text("取消") }
+            },
+        )
+    }
+
+    // ---- 云端恢复二次确认 ----
+    if (showRestoreConfirm) {
+        AlertDialog(
+            onDismissRequest = { showRestoreConfirm = false },
+            title = { Text("从云端恢复") },
+            text = { Text("云端备份将整体替换本机全部数据（库存、归档、消耗记录和设置）。确定继续吗？") },
+            confirmButton = {
+                TextButton(onClick = {
+                    showRestoreConfirm = false
+                    viewModel.syncDownload { _, msg ->
+                        scope.launch { snackbarHostState.showSnackbar(msg) }
+                    }
+                }) {
+                    Text("恢复", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showRestoreConfirm = false }) { Text("取消") }
+            },
+        )
+    }
+}
+
+/** 设置页导航行：图标 + 标题/副标题 + 尾部箭头，点击进入二级页面 */
+@Composable
+private fun SettingsNavRow(
+    icon: ImageVector,
+    title: String,
+    subtitle: String,
+    onClick: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 20.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            icon,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.primary,
+        )
+        Spacer(Modifier.width(14.dp))
+        Column(Modifier.weight(1f)) {
+            Text(
+                title,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.Medium,
+            )
+            Text(
+                subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Icon(
+            Icons.AutoMirrored.Rounded.ArrowForward,
+            contentDescription = null,
+            modifier = Modifier.size(18.dp),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+/**
+ * 主题色预览按钮：用该方案种子色实时生成 MD3 色板，
+ * 展示 primary / primaryContainer / tertiaryContainer 三色拼盘 + 名称，
+ * 选中态外圈描边 + 打勾角标。
+ */
+@Composable
+private fun PaletteSwatch(
+    palette: AppPalette,
+    selected: Boolean,
+    enabled: Boolean,
+    onClick: () -> Unit,
+) {
+    val dark = isSystemInDarkTheme()
+    val preview = rememberDynamicColorScheme(
+        seedColor = palette.seed,
+        isDark = dark,
+        style = PaletteStyle.TonalSpot,
+    )
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier
+            .clip(MaterialTheme.shapes.medium)
+            .clickable(enabled = enabled) { onClick() }
+            .padding(6.dp),
+    ) {
+        Box {
+            Box(
+                modifier = Modifier
+                    .size(52.dp)
+                    .clip(CircleShape)
+                    .border(
+                        width = if (selected) 3.dp else 1.dp,
+                        color = if (selected) MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.outline.copy(alpha = if (enabled) 0.4f else 0.15f),
+                        shape = CircleShape,
+                    ),
+            ) {
+                Column(Modifier.fillMaxSize()) {
+                    Box(
+                        Modifier
+                            .weight(1f)
+                            .fillMaxWidth()
+                            .background(if (enabled) preview.primary else preview.primary.copy(alpha = 0.35f)),
+                    )
+                    Row(
+                        Modifier
+                            .weight(1f)
+                            .fillMaxWidth(),
+                    ) {
+                        Box(
+                            Modifier
+                                .weight(1f)
+                                .fillMaxSize()
+                                .background(
+                                    if (enabled) preview.primaryContainer
+                                    else preview.primaryContainer.copy(alpha = 0.35f)
+                                ),
+                        )
+                        Box(
+                            Modifier
+                                .weight(1f)
+                                .fillMaxSize()
+                                .background(
+                                    if (enabled) preview.tertiaryContainer
+                                    else preview.tertiaryContainer.copy(alpha = 0.35f)
+                                ),
+                        )
+                    }
+                }
+            }
+            if (selected) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .size(18.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.primary),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        Icons.Rounded.Check,
+                        contentDescription = "已选中",
+                        modifier = Modifier.size(12.dp),
+                        tint = MaterialTheme.colorScheme.onPrimary,
+                    )
+                }
+            }
+        }
+        Spacer(Modifier.height(6.dp))
+        Text(
+            "${palette.emoji} ${palette.label}",
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+            color = if (selected) MaterialTheme.colorScheme.primary
+            else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = if (enabled) 1f else 0.5f),
+        )
+    }
+}

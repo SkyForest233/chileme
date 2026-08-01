@@ -1,0 +1,25 @@
+# Gradle
+.gradle/
+build/
+app/build/
+
+# Local config
+local.properties
+
+# 签名文件与密钥 —— 绝不提交
+# （debug.keystore 为公开默认调试密钥，显式保留）
+keystore.properties
+*.keystore
+*.jks
+!debug.keystore
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# OS
+.DS_Store
+
+# Logs
+*.log
