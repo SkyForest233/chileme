@@ -77,7 +77,9 @@ app/src/main/java/com/agon/app/
 - **消耗记录**：`changeQuantity(id, delta)` 在 delta<0 时自动写 ConsumptionRecord，调用方无需额外处理
 - **吃完自动归档（v2.4）**：`changeQuantity` 在消耗导致数量归零时自动移入归档（CONSUMED）并返回 true；UI 可依此提示/返回
 - **OCR（v2.4）**：`recognizeDates()` 返回 `OcrDates(production, expiry)`；正则按优先级匹配并占用文本区间防重复；日期前 14 字符上下文匹配 EXP/MFG 等语义标记分类角色
-- **坚果云同步（v2.4）**：`NutstoreSync` 单例（OkHttp），WebDAV MKCOL+PUT/GET；账号存 DataStore（nutstore_account / last_sync_time）；**密码经 `SecureStore`（Android Keystore AES-GCM）加密后存 `nutstore_password_enc`，启动时 `migratePlaintextPassword()` 自动迁移旧明文**；上传内容即 buildBackupJson() 产物，下载走 importBackupJson()
+- **坚果云同步（v2.4，v2.7 多版本轮转）**：`NutstoreSync` 单例（OkHttp），WebDAV MKCOL+PUT/GET/PROPFIND/DELETE；账号存 DataStore（nutstore_account / last_sync_time）；**密码经 `SecureStore`（Android Keystore AES-GCM）加密后存 `nutstore_password_enc`，启动时 `migratePlaintextPassword()` 自动迁移旧明文**；上传内容即 buildBackupJson() 产物，下载走 importBackupJson()
+  - **多版本轮转（v2.7）**：上传文件名 `chileme_backup_yyyyMMdd_HHmmss.json`，上传后 PROPFIND 列目录、自动 DELETE 多余旧版本，云端保留最近 `CLOUD_BACKUP_KEEP`（=3）份；自动同步走同一 upload 入口，同样轮转
+  - **恢复选择（v2.7）**：`listBackups()` 返回 `CloudBackup(fileName, sizeBytes)` 列表（新→旧），UI 弹窗选择具体版本后 `download(fileName)` 恢复；旧版单文件 `chileme_backup.json` 兼容显示在列表末尾且不参与轮转删除
 - **自动同步（v2.4）**：`auto_sync_days`（0=关/1/3/7）+ `last_auto_sync_epoch_day`；ViewModel init 时 `maybeAutoSync()` —— 间隔到且凭据完整则静默上传，成功后 Home 页 Snackbar 提示，失败静默下次重试；无 WorkManager 无后台任务
 - **孤儿图片清理（v2.4）**：启动时 `cleanupOrphanCovers()` 删除 covers/ 中不被库存/归档引用的文件
 - **消耗记录压缩（v2.4）**：`compactConsumption()` —— 近 90 天逐笔保留，更早按「月×名称」聚合；禁止恢复 take(N) 粗暴裁剪

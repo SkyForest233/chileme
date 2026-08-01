@@ -12,6 +12,7 @@ import com.agon.app.data.DefaultLocations
 import com.agon.app.data.FoodItem
 import com.agon.app.data.FoodRepository
 import com.agon.app.data.HistoryEntry
+import com.agon.app.data.CloudBackup
 import com.agon.app.data.NutstoreSync
 import com.agon.app.data.cleanupOrphanCovers
 import com.agon.app.data.daysLeft
@@ -265,8 +266,37 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         )
     }
 
-    /** 从坚果云下载并恢复数据（整体替换）。 */
-    fun syncDownload(onResult: (Boolean, String) -> Unit) = viewModelScope.launch {
+    // ---- 云端备份列表（恢复时选择版本） ----
+
+    private val _cloudBackups = MutableStateFlow<List<CloudBackup>>(emptyList())
+    val cloudBackups: StateFlow<List<CloudBackup>> = _cloudBackups.asStateFlow()
+
+    private val _loadingBackups = MutableStateFlow(false)
+    val loadingBackups: StateFlow<Boolean> = _loadingBackups.asStateFlow()
+
+    /** 拉取云端备份列表，供用户选择恢复哪一份。 */
+    fun loadCloudBackups(onResult: (Boolean, String) -> Unit) = viewModelScope.launch {
+        val account = nutstoreAccount.value
+        val password = nutstorePassword.value
+        if (account.isBlank() || password.isBlank()) {
+            onResult(false, "请先填写并保存坚果云账号和应用密码")
+            return@launch
+        }
+        _loadingBackups.value = true
+        val result = NutstoreSync.listBackups(account, password)
+        _loadingBackups.value = false
+        result.fold(
+            onSuccess = { list ->
+                _cloudBackups.value = list
+                if (list.isEmpty()) onResult(false, "云端暂无备份，请先上传")
+                else onResult(true, "")
+            },
+            onFailure = { onResult(false, it.message ?: "获取备份列表失败") },
+        )
+    }
+
+    /** 从坚果云下载指定备份并恢复（整体替换）。 */
+    fun syncDownload(fileName: String, onResult: (Boolean, String) -> Unit) = viewModelScope.launch {
         val account = nutstoreAccount.value
         val password = nutstorePassword.value
         if (account.isBlank() || password.isBlank()) {
@@ -274,7 +304,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             return@launch
         }
         _syncing.value = true
-        val result = NutstoreSync.download(account, password)
+        val result = NutstoreSync.download(account, password, fileName)
         _syncing.value = false
         result.fold(
             onSuccess = { raw ->

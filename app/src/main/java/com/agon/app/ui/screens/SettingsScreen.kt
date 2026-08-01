@@ -76,6 +76,8 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.agon.app.data.CLOUD_BACKUP_KEEP
+import com.agon.app.data.CloudBackup
 import com.agon.app.ui.components.CheckSwitch
 import com.agon.app.ui.theme.AppPalette
 import com.agon.app.viewmodel.AppViewModel
@@ -105,9 +107,12 @@ fun SettingsScreen(
     val lastSync by viewModel.lastSync.collectAsStateWithLifecycle()
     val syncing by viewModel.syncing.collectAsStateWithLifecycle()
     val autoSyncDays by viewModel.autoSyncDays.collectAsStateWithLifecycle()
+    val cloudBackups by viewModel.cloudBackups.collectAsStateWithLifecycle()
+    val loadingBackups by viewModel.loadingBackups.collectAsStateWithLifecycle()
     var showClearDialog by remember { mutableStateOf(false) }
     var showNutstoreDialog by remember { mutableStateOf(false) }
-    var showRestoreConfirm by remember { mutableStateOf(false) }
+    var showBackupPicker by remember { mutableStateOf(false) }
+    var restoreCandidate by remember { mutableStateOf<CloudBackup?>(null) }
 
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -380,16 +385,34 @@ fun SettingsScreen(
                             Text("上传到云端")
                         }
                         OutlinedButton(
-                            onClick = { showRestoreConfirm = true },
-                            enabled = !syncing && nutstoreAccount.isNotBlank(),
+                            onClick = {
+                                showBackupPicker = true
+                                viewModel.loadCloudBackups { ok, msg ->
+                                    if (!ok) {
+                                        showBackupPicker = false
+                                        scope.launch { snackbarHostState.showSnackbar(msg) }
+                                    }
+                                }
+                            },
+                            enabled = !syncing && !loadingBackups && nutstoreAccount.isNotBlank(),
                             modifier = Modifier.weight(1f),
                             shape = RoundedCornerShape(50),
                         ) {
-                            Icon(Icons.Rounded.CloudDownload, contentDescription = null, modifier = Modifier.size(16.dp))
+                            if (loadingBackups) {
+                                CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                            } else {
+                                Icon(Icons.Rounded.CloudDownload, contentDescription = null, modifier = Modifier.size(16.dp))
+                            }
                             Spacer(Modifier.width(6.dp))
                             Text("从云端恢复")
                         }
                     }
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        "云端自动保留最近 $CLOUD_BACKUP_KEEP 次备份，恢复时可选择任意一份",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
 
                     // ---- 自动同步间隔 ----
                     Spacer(Modifier.height(12.dp))
@@ -545,24 +568,103 @@ fun SettingsScreen(
         )
     }
 
-    // ---- 云端恢复二次确认 ----
-    if (showRestoreConfirm) {
+    // ---- 云端备份选择（恢复哪一份） ----
+    if (showBackupPicker) {
         AlertDialog(
-            onDismissRequest = { showRestoreConfirm = false },
-            title = { Text("从云端恢复") },
-            text = { Text("云端备份将整体替换本机全部数据（库存、归档、消耗记录和设置）。确定继续吗？") },
+            onDismissRequest = { if (!loadingBackups) showBackupPicker = false },
+            title = { Text("选择要恢复的备份") },
+            text = {
+                if (loadingBackups) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 16.dp),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                        Spacer(Modifier.width(10.dp))
+                        Text("正在获取云端备份列表…")
+                    }
+                } else {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(
+                            "云端共 ${cloudBackups.size} 份备份，新的在前：",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        cloudBackups.forEachIndexed { index, backup ->
+                            Surface(
+                                onClick = {
+                                    showBackupPicker = false
+                                    restoreCandidate = backup
+                                },
+                                shape = RoundedCornerShape(16.dp),
+                                color = if (index == 0) MaterialTheme.colorScheme.primaryContainer
+                                else MaterialTheme.colorScheme.surfaceContainerHigh,
+                                modifier = Modifier.fillMaxWidth(),
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Icon(
+                                        Icons.Rounded.CloudDownload,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(18.dp),
+                                        tint = if (index == 0) MaterialTheme.colorScheme.onPrimaryContainer
+                                        else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                    Spacer(Modifier.width(10.dp))
+                                    Column(Modifier.weight(1f)) {
+                                        Text(
+                                            backup.displayTime,
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            fontWeight = FontWeight.Medium,
+                                        )
+                                        Text(
+                                            (if (index == 0 && !backup.isLegacy) "最新 · " else "") + backup.displaySize,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = { showBackupPicker = false }) { Text("取消") }
+            },
+        )
+    }
+
+    // ---- 恢复二次确认（针对选中的备份） ----
+    restoreCandidate?.let { candidate ->
+        AlertDialog(
+            onDismissRequest = { restoreCandidate = null },
+            title = { Text("确认恢复") },
+            text = {
+                Text(
+                    "将恢复备份：\n${candidate.displayTime}\n\n" +
+                        "此操作会整体替换本机全部数据（库存、归档、消耗记录和设置）。确定继续吗？"
+                )
+            },
             confirmButton = {
                 TextButton(onClick = {
-                    showRestoreConfirm = false
-                    viewModel.syncDownload { _, msg ->
+                    val fileName = candidate.fileName
+                    restoreCandidate = null
+                    viewModel.syncDownload(fileName) { _, msg ->
                         scope.launch { snackbarHostState.showSnackbar(msg) }
                     }
                 }) {
-                    Text("恢复", color = MaterialTheme.colorScheme.error)
+                    Text("恢复这一份", color = MaterialTheme.colorScheme.error)
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showRestoreConfirm = false }) { Text("取消") }
+                TextButton(onClick = { restoreCandidate = null }) { Text("取消") }
             },
         )
     }
