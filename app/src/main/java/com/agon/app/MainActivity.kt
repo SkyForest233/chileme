@@ -60,7 +60,6 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import top.yukonga.miuix.kmp.basic.Button as MiuixButton
 import top.yukonga.miuix.kmp.basic.ButtonDefaults as MiuixButtonDefaults
 import top.yukonga.miuix.kmp.basic.FloatingActionButton as MiuixFloatingActionButton
@@ -502,7 +501,7 @@ private fun BatchActionBar(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                BatchCancelButton(isMiuix = isMiuix, floating = true, onClick = onCancel)
+                BatchCancelButton(isMiuix = isMiuix, onClick = onCancel)
                 BatchArchiveButton(isMiuix = isMiuix, count = count, onClick = onArchive)
             }
         }
@@ -520,7 +519,7 @@ private fun BatchActionBar(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                BatchCancelButton(isMiuix = isMiuix, floating = false, onClick = onCancel, modifier = Modifier.weight(1f))
+                BatchCancelButton(isMiuix = isMiuix, onClick = onCancel, modifier = Modifier.weight(1f))
                 BatchArchiveButton(isMiuix = isMiuix, count = count, onClick = onArchive, modifier = Modifier.weight(2f))
             }
         }
@@ -530,26 +529,19 @@ private fun BatchActionBar(
 @Composable
 private fun BatchCancelButton(
     isMiuix: Boolean,
-    floating: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     if (isMiuix) {
+        // Miuix 标准文字按钮
         MiuixTextButton(
             text = "取消",
             onClick = onClick,
             modifier = modifier,
             minHeight = 48.dp,
         )
-    } else if (floating) {
-        // 悬浮态用无边框文字按钮，避免与容器胶囊叠出双层胶囊
-        TextButton(
-            onClick = onClick,
-            modifier = modifier.defaultMinSize(minHeight = 48.dp),
-        ) {
-            Text("取消")
-        }
     } else {
+        // MD3 标准描边按钮（胶囊边框背景）
         OutlinedButton(
             onClick = onClick,
             modifier = modifier.defaultMinSize(minHeight = 48.dp),
@@ -563,11 +555,11 @@ private fun BatchCancelButton(
 @Composable
 private fun BatchArchiveButton(isMiuix: Boolean, count: Int, onClick: () -> Unit, modifier: Modifier = Modifier) {
     if (isMiuix) {
+        // Miuix 标准实心按钮（默认 16dp 圆角）
         MiuixButton(
             onClick = onClick,
             modifier = modifier,
             minHeight = 48.dp,
-            cornerRadius = 50.dp,
             colors = MiuixButtonDefaults.buttonColors(
                 color = MiuixTheme.colorScheme.error,
                 contentColor = MiuixTheme.colorScheme.onError,
