@@ -76,6 +76,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     val themeStyle: StateFlow<String> =
         repo.themeStyleFlow.stateIn(viewModelScope, SharingStarted.Eagerly, "MATERIAL3")
 
+    val floatingNav: StateFlow<Boolean> =
+        repo.floatingNavFlow.stateIn(viewModelScope, SharingStarted.Eagerly, true)
+
     val nutstoreAccount: StateFlow<String> =
         repo.nutstoreAccountFlow.stateIn(viewModelScope, SharingStarted.Eagerly, "")
 
@@ -98,7 +101,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
      * 避免启动时先用默认主题/空列表渲染一帧再“闪”成真实内容。
      */
     val ready: StateFlow<Boolean> =
-        combine(repo.itemsFlow, repo.paletteFlow, repo.darkModeFlow, repo.themeStyleFlow) { _, _, _, _ -> true }
+        combine(repo.itemsFlow, repo.paletteFlow, repo.darkModeFlow, repo.themeStyleFlow, repo.floatingNavFlow) { _, _, _, _, _ -> true }
             .stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
     /** 临时 UI 状态：Snackbar 展示“撤销”时隐藏 FAB，避免挡住撤销按钮 */
@@ -238,6 +241,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun setPalette(name: String) = viewModelScope.launch { repo.setPalette(name) }
 
     fun setThemeStyle(name: String) = viewModelScope.launch { repo.setThemeStyle(name) }
+
+    fun setFloatingNav(enabled: Boolean) = viewModelScope.launch { repo.setFloatingNav(enabled) }
 
     suspend fun buildBackupJson(): String = repo.buildBackupJson()
 

@@ -40,6 +40,7 @@ fun MiuixSettingsScreen(
     val dynamicColor by viewModel.dynamicColor.collectAsStateWithLifecycle()
     val darkMode by viewModel.darkMode.collectAsStateWithLifecycle()
     val themeStyleName by viewModel.themeStyle.collectAsStateWithLifecycle()
+    val floatingNav by viewModel.floatingNav.collectAsStateWithLifecycle()
     val categories by viewModel.categories.collectAsStateWithLifecycle()
     val locations by viewModel.locations.collectAsStateWithLifecycle()
     val archived by viewModel.archived.collectAsStateWithLifecycle()
@@ -78,6 +79,12 @@ fun MiuixSettingsScreen(
                         summary = "需要 Android 12 及以上，优先于配色方案",
                         checked = dynamicColor,
                         onCheckedChange = { viewModel.setDynamicColor(it) },
+                    )
+                    SwitchPreference(
+                        title = "悬浮导航",
+                        summary = "关闭后底部导航改为全宽常驻底栏",
+                        checked = floatingNav,
+                        onCheckedChange = { viewModel.setFloatingNav(it) },
                     )
                 }
             }

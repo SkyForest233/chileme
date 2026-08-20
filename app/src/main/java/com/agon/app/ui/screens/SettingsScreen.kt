@@ -100,6 +100,7 @@ fun SettingsScreen(
     val darkMode by viewModel.darkMode.collectAsStateWithLifecycle()
     val paletteName by viewModel.palette.collectAsStateWithLifecycle()
     val themeStyleName by viewModel.themeStyle.collectAsStateWithLifecycle()
+    val floatingNav by viewModel.floatingNav.collectAsStateWithLifecycle()
     val items by viewModel.items.collectAsStateWithLifecycle()
     val archived by viewModel.archived.collectAsStateWithLifecycle()
     val categories by viewModel.categories.collectAsStateWithLifecycle()
@@ -268,6 +269,25 @@ fun SettingsScreen(
                             checked = dynamicColor,
                             onCheckedChange = { viewModel.setDynamicColor(it) },
                             enabled = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S,
+                        )
+                    }
+                    Spacer(Modifier.height(12.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                "悬浮导航",
+                                style = MaterialTheme.typography.bodyLarge,
+                                fontWeight = FontWeight.Medium,
+                            )
+                            Text(
+                                "关闭后底部导航改为全宽常驻底栏",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        CheckSwitch(
+                            checked = floatingNav,
+                            onCheckedChange = { viewModel.setFloatingNav(it) },
                         )
                     }
                 }

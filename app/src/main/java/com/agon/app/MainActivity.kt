@@ -47,9 +47,17 @@ import androidx.compose.material.icons.automirrored.rounded.ListAlt
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import top.yukonga.miuix.kmp.basic.FloatingActionButton as MiuixFloatingActionButton
+import top.yukonga.miuix.kmp.basic.FloatingNavigationBar as MiuixFloatingNavigationBar
+import top.yukonga.miuix.kmp.basic.FloatingNavigationBarItem as MiuixFloatingNavigationBarItem
+import top.yukonga.miuix.kmp.basic.Icon as MiuixIcon
+import top.yukonga.miuix.kmp.basic.NavigationBar as MiuixNavigationBar
+import top.yukonga.miuix.kmp.basic.NavigationBarItem as MiuixNavigationBarItem
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -174,6 +182,9 @@ fun MainApp(viewModel: AppViewModel) {
     val showChrome = currentRoute in tabRoutes && scrollChromeVisible
     // Snackbar 展示“撤销”期间隐藏 FAB，避免挡住撤销按钮
     val fabSuppressed by viewModel.fabSuppressed.collectAsStateWithLifecycle()
+    // 悬浮导航开关 + 主题风格：决定底栏与 FAB 用哪套组件
+    val floatingNav by viewModel.floatingNav.collectAsStateWithLifecycle()
+    val isMiuix = LocalThemeStyle.current == ThemeStyle.MIUIX
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
@@ -186,7 +197,12 @@ fun MainApp(viewModel: AppViewModel) {
                 exit = slideOutVertically(tween(200, easing = EmphasizedAccelerate)) { it } +
                     fadeOut(tween(200, easing = EmphasizedAccelerate)),
             ) {
-                FloatingPillNav(navController, currentRoute)
+                when {
+                    isMiuix && floatingNav -> MiuixFloatingNav(navController, currentRoute)
+                    isMiuix -> MiuixBottomNav(navController, currentRoute)
+                    floatingNav -> FloatingPillNav(navController, currentRoute)
+                    else -> Md3BottomNav(navController, currentRoute)
+                }
             }
         },
         floatingActionButton = {
@@ -199,13 +215,19 @@ fun MainApp(viewModel: AppViewModel) {
                     fadeOut(tween(200, easing = EmphasizedAccelerate)) +
                     slideOutVertically(tween(200, easing = EmphasizedAccelerate)) { it / 2 },
             ) {
-                FloatingActionButton(
-                    onClick = { navController.navigate("edit") },
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = MaterialTheme.colorScheme.onPrimary,
-                    shape = RoundedCornerShape(50),
-                ) {
-                    Icon(Icons.Rounded.Add, contentDescription = "添加食品")
+                if (isMiuix) {
+                    MiuixFloatingActionButton(onClick = { navController.navigate("edit") }) {
+                        MiuixIcon(Icons.Rounded.Add, contentDescription = "添加食品")
+                    }
+                } else {
+                    FloatingActionButton(
+                        onClick = { navController.navigate("edit") },
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary,
+                        shape = RoundedCornerShape(50),
+                    ) {
+                        Icon(Icons.Rounded.Add, contentDescription = "添加食品")
+                    }
                 }
             }
         },
@@ -367,6 +389,73 @@ fun MainApp(viewModel: AppViewModel) {
     }
 }
 
+/** 底部导航共享 Tab 定义（MD3 / MIUIX 共用）。 */
+private val MainTabs = listOf(
+    TabSpec("home", "首页", Icons.Rounded.Home),
+    TabSpec("list?filter={filter}", "食品", Icons.AutoMirrored.Rounded.ListAlt),
+    TabSpec("stats", "统计", Icons.Rounded.PieChart),
+    TabSpec("settings", "设置", Icons.Rounded.Settings),
+)
+
+private fun tabTarget(route: String): String =
+    if (route == "list?filter={filter}") "list" else route
+
+private fun NavHostController.navigateToTab(route: String) {
+    val target = tabTarget(route)
+    navigate(target) {
+        popUpTo("home") { inclusive = target == "home" }
+        launchSingleTop = true
+    }
+}
+
+/** MIUIX：全宽图标+文字底栏（HyperOS 风格）。 */
+@Composable
+private fun MiuixBottomNav(navController: NavHostController, currentRoute: String?) {
+    MiuixNavigationBar {
+        MainTabs.forEach { tab ->
+            val selected = tab.route == currentRoute
+            MiuixNavigationBarItem(
+                selected = selected,
+                onClick = { if (!selected) navController.navigateToTab(tab.route) },
+                icon = tab.icon,
+                label = tab.label,
+            )
+        }
+    }
+}
+
+/** MIUIX：居中悬浮底栏（仅图标）。 */
+@Composable
+private fun MiuixFloatingNav(navController: NavHostController, currentRoute: String?) {
+    MiuixFloatingNavigationBar {
+        MainTabs.forEach { tab ->
+            val selected = tab.route == currentRoute
+            MiuixFloatingNavigationBarItem(
+                selected = selected,
+                onClick = { if (!selected) navController.navigateToTab(tab.route) },
+                icon = tab.icon,
+                label = tab.label,
+            )
+        }
+    }
+}
+
+/** Material 3：全宽图标+文字底栏（非悬浮态）。 */
+@Composable
+private fun Md3BottomNav(navController: NavHostController, currentRoute: String?) {
+    NavigationBar(containerColor = MaterialTheme.colorScheme.surfaceContainer) {
+        MainTabs.forEach { tab ->
+            val selected = tab.route == currentRoute
+            NavigationBarItem(
+                selected = selected,
+                onClick = { if (!selected) navController.navigateToTab(tab.route) },
+                icon = { Icon(tab.icon, contentDescription = null) },
+                label = { Text(tab.label) },
+            )
+        }
+    }
+}
+
 /**
  * 居中悬浮胶囊导航栏（带滑动指示器）：
  * 等宽槽位 + 背后一枚 primary 胶囊指示器，切换 Tab 时用 spring 动画滑到目标槽位。
@@ -375,12 +464,7 @@ fun MainApp(viewModel: AppViewModel) {
  */
 @Composable
 private fun FloatingPillNav(navController: NavHostController, currentRoute: String?) {
-    val tabs = listOf(
-        TabSpec("home", "首页", Icons.Rounded.Home),
-        TabSpec("list?filter={filter}", "食品", Icons.AutoMirrored.Rounded.ListAlt),
-        TabSpec("stats", "统计", Icons.Rounded.PieChart),
-        TabSpec("settings", "设置", Icons.Rounded.Settings),
-    )
+    val tabs = MainTabs
     val slotWidth = 76.dp
     val slotHeight = 48.dp
     val selectedIndex = tabs.indexOfFirst { it.route == currentRoute }.coerceAtLeast(0)
@@ -414,7 +498,7 @@ private fun FloatingPillNav(navController: NavHostController, currentRoute: Stri
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     tabs.forEachIndexed { index, tab ->
                         val selected = index == selectedIndex
-                        val target = if (tab.route == "list?filter={filter}") "list" else tab.route
+                        val target = tabTarget(tab.route)
                         val contentColor by animateColorAsState(
                             targetValue = if (selected) MaterialTheme.colorScheme.onPrimary
                             else MaterialTheme.colorScheme.onPrimaryContainer,

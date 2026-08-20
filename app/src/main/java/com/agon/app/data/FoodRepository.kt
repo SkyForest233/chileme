@@ -96,6 +96,8 @@ class FoodRepository(private val context: Context) {
 
     val themeStyleFlow: Flow<String> = context.dataStore.data.map { it[themeStyleKey] ?: "MATERIAL3" }
 
+    val floatingNavFlow: Flow<Boolean> = context.dataStore.data.map { it[floatingNavKey] ?: true }
+
     val nutstoreAccountFlow: Flow<String> = context.dataStore.data.map { it[nutstoreAccountKey] ?: "" }
 
     /**
@@ -322,6 +324,10 @@ class FoodRepository(private val context: Context) {
 
     suspend fun setThemeStyle(name: String) {
         context.dataStore.edit { it[themeStyleKey] = name }
+    }
+
+    suspend fun setFloatingNav(enabled: Boolean) {
+        context.dataStore.edit { it[floatingNavKey] = enabled }
     }
 
     suspend fun setNutstoreCredentials(account: String, password: String) {
