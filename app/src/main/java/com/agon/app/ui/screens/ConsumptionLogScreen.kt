@@ -131,7 +131,7 @@ fun ConsumptionLogScreen(
                             record = record,
                             emoji = categories.byId(record.category).emoji,
                             onDelete = {
-                                viewModel.deleteConsumption(record.id ?: return@items)
+                                record.id?.let { viewModel.deleteConsumption(it) }
                             },
                         )
                     }
