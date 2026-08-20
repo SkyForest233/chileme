@@ -288,6 +288,24 @@ class FoodRepository(private val context: Context) {
         return QuantityChangeResult(autoArchived, consumptionId)
     }
 
+    /** 删除单条消耗记录（修正误触/错误统计；仅删记录，不回滚库存数量）。 */
+    suspend fun deleteConsumption(id: String) {
+        context.dataStore.edit { prefs ->
+            val records = decodeConsumption(prefs[consumptionKey])
+            prefs[consumptionKey] = json.encodeToString(records.filterNot { it.id == id })
+        }
+    }
+
+    /** 重新插入一条消耗记录（撤销删除用）。 */
+    suspend fun addConsumption(record: ConsumptionRecord) {
+        context.dataStore.edit { prefs ->
+            val records = decodeConsumption(prefs[consumptionKey])
+            prefs[consumptionKey] = json.encodeToString(
+                compactConsumption(listOf(record) + records)
+            )
+        }
+    }
+
     /**
      * 撤销一次减少消耗：删除对应消耗记录，并把该食品数量 +1。
      * 若该食品因减到 0 已被自动归档，则从归档恢复为数量 1。

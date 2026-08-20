@@ -145,6 +145,28 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         repo.undoConsumption(request.itemId, request.consumptionId)
     }
 
+    /** 删除消耗记录后的「撤销」状态：保存被删记录，供恢复。 */
+    private val _deletedConsumption = MutableStateFlow<ConsumptionRecord?>(null)
+    val deletedConsumption: StateFlow<ConsumptionRecord?> = _deletedConsumption.asStateFlow()
+
+    fun consumeDeletedConsumption() {
+        _deletedConsumption.value = null
+    }
+
+    /** 删除单条消耗记录（修正统计），并记录被删内容供撤销。 */
+    fun deleteConsumption(id: String) = viewModelScope.launch {
+        val record = consumption.value.firstOrNull { it.id == id } ?: return@launch
+        repo.deleteConsumption(id)
+        _deletedConsumption.value = record
+    }
+
+    /** 撤销删除消耗记录：重新插回。 */
+    fun undoDeleteConsumption() = viewModelScope.launch {
+        val record = _deletedConsumption.value ?: return@launch
+        repo.addConsumption(record)
+        _deletedConsumption.value = null
+    }
+
     init {
         viewModelScope.launch {
             repo.seedIfNeeded()

@@ -101,6 +101,7 @@ import androidx.navigation.compose.rememberNavController
 import com.agon.app.data.ArchiveReason
 import com.agon.app.ui.screens.ArchiveScreen
 import com.agon.app.ui.screens.CategoryManageScreen
+import com.agon.app.ui.screens.ConsumptionLogScreen
 import com.agon.app.ui.screens.EditFoodScreen
 import com.agon.app.ui.screens.LocationManageScreen
 import com.agon.app.ui.screens.ThresholdManageScreen
@@ -109,6 +110,7 @@ import com.agon.app.ui.screens.FoodListScreen
 import com.agon.app.ui.screens.HomeScreen
 import com.agon.app.ui.screens.MiuixArchiveScreen
 import com.agon.app.ui.screens.MiuixCategoryManageScreen
+import com.agon.app.ui.screens.MiuixConsumptionLogScreen
 import com.agon.app.ui.screens.MiuixFoodDetailScreen
 import com.agon.app.ui.screens.MiuixFoodListScreen
 import com.agon.app.ui.screens.MiuixHomeScreen
@@ -409,11 +411,26 @@ fun MainApp(viewModel: AppViewModel) {
                     MiuixStatsScreen(
                         viewModel = viewModel,
                         onOpenItem = { id -> navController.navigate("detail/$id") },
+                        onOpenConsumption = { navController.navigate("consumption") },
                     )
                 } else {
                     StatsScreen(
                         viewModel = viewModel,
                         onOpenItem = { id -> navController.navigate("detail/$id") },
+                        onOpenConsumption = { navController.navigate("consumption") },
+                    )
+                }
+            }
+            composable("consumption") {
+                if (LocalThemeStyle.current == ThemeStyle.MIUIX) {
+                    MiuixConsumptionLogScreen(
+                        viewModel = viewModel,
+                        onBack = { navController.popBackStack() },
+                    )
+                } else {
+                    ConsumptionLogScreen(
+                        viewModel = viewModel,
+                        onBack = { navController.popBackStack() },
                     )
                 }
             }

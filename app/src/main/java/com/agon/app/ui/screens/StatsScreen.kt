@@ -20,7 +20,11 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.History
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -78,6 +82,7 @@ private fun rememberChartColors(): List<Color> {
 fun StatsScreen(
     viewModel: AppViewModel,
     onOpenItem: (String) -> Unit = {},
+    onOpenConsumption: () -> Unit = {},
 ) {
     val items by viewModel.items.collectAsStateWithLifecycle()
     val consumption by viewModel.consumption.collectAsStateWithLifecycle()
@@ -128,6 +133,15 @@ fun StatsScreen(
         topBar = {
             TopAppBar(
                 title = { Text("统计", fontWeight = FontWeight.Bold) },
+                actions = {
+                    IconButton(onClick = onOpenConsumption) {
+                        Icon(
+                            Icons.Rounded.History,
+                            contentDescription = "消耗记录",
+                            tint = MaterialTheme.colorScheme.primary,
+                        )
+                    }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.background,
                 ),

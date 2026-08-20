@@ -20,6 +20,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.History
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -47,9 +49,12 @@ import com.agon.app.viewmodel.AppViewModel
 import java.time.LocalDate
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
+import top.yukonga.miuix.kmp.basic.Icon
+import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.TopAppBar
+import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /**
  * 统计页的 Miuix（HyperOS）实现（v2.8）。
@@ -63,6 +68,7 @@ import top.yukonga.miuix.kmp.basic.TopAppBar
 fun MiuixStatsScreen(
     viewModel: AppViewModel,
     onOpenItem: (String) -> Unit = {},
+    onOpenConsumption: () -> Unit = {},
 ) {
     val items by viewModel.items.collectAsStateWithLifecycle()
     val consumption by viewModel.consumption.collectAsStateWithLifecycle()
@@ -108,7 +114,20 @@ fun MiuixStatsScreen(
     val chartColors = rememberChartColorsMiuix()
 
     Scaffold(
-        topBar = { TopAppBar(title = "统计") },
+        topBar = {
+            TopAppBar(
+                title = "统计",
+                actions = {
+                    IconButton(onClick = onOpenConsumption) {
+                        Icon(
+                            Icons.Rounded.History,
+                            contentDescription = "消耗记录",
+                            tint = MiuixTheme.colorScheme.primary,
+                        )
+                    }
+                },
+            )
+        },
     ) { padding ->
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
