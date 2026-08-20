@@ -32,6 +32,7 @@ class FoodRepository(private val context: Context) {
     private val darkModeKey = intPreferencesKey("dark_mode")
     private val paletteKey = stringPreferencesKey("palette")
     private val themeStyleKey = stringPreferencesKey("theme_style")
+    private val floatingNavKey = booleanPreferencesKey("floating_nav")
     private val nutstoreAccountKey = stringPreferencesKey("nutstore_account")
     private val nutstorePasswordKey = stringPreferencesKey("nutstore_password")
     private val nutstorePasswordEncKey = stringPreferencesKey("nutstore_password_enc")
