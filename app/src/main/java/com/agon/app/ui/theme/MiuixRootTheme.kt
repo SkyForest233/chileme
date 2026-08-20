@@ -57,7 +57,10 @@ fun miuixColorsToMd3ColorScheme(c: Colors): ColorScheme = ColorScheme(
     surface = c.surface,
     onSurface = c.onSurface,
     surfaceVariant = c.surfaceVariant,
-    onSurfaceVariant = c.onSurfaceVariantSummary,
+    // onSurfaceVariant 在 MD3 中用于 chip 未选中文字、辅助文字等「中等强调」场景，
+    // 对应 Miuix 的 onSurfaceSecondary（80% 黑），而非 onSurfaceVariantSummary（60% 黑，
+    // 仅作摘要文字）。用 summary 会导致 chip/辅助文字过灰难读。
+    onSurfaceVariant = c.onSurfaceSecondary,
     surfaceTint = c.primary,
     inverseSurface = c.onSurface,
     inverseOnSurface = c.surface,
