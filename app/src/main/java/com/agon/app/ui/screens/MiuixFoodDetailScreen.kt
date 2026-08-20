@@ -113,7 +113,7 @@ fun MiuixFoodDetailScreen(
             ) {
                 Text("该食品已归档或移除", style = MiuixTheme.textStyles.body1)
                 Spacer(Modifier.height(12.dp))
-                Button(onClick = onBack, cornerRadius = 50.dp) {
+                Button(onClick = onBack) {
                     Text("返回", color = MiuixTheme.colorScheme.onSecondaryVariant)
                 }
             }
@@ -248,7 +248,6 @@ fun MiuixFoodDetailScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(60.dp),
-                cornerRadius = 50.dp,
                 colors = ButtonDefaults.buttonColorsPrimary(),
             ) {
                 Text("😋", fontSize = 22.sp, color = MiuixTheme.colorScheme.onPrimary)
@@ -324,7 +323,6 @@ fun MiuixFoodDetailScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(52.dp),
-                cornerRadius = 50.dp,
                 colors = ButtonDefaults.buttonColors(
                     color = MiuixTheme.colorScheme.secondaryVariant,
                     contentColor = MiuixTheme.colorScheme.onSecondaryVariant,
