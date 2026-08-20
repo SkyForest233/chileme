@@ -85,7 +85,6 @@ import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Add
 import top.yukonga.miuix.kmp.icon.extended.Location
 import top.yukonga.miuix.kmp.icon.extended.Ok
-import top.yukonga.miuix.kmp.icon.extended.Remove
 import top.yukonga.miuix.kmp.icon.extended.Report
 import top.yukonga.miuix.kmp.icon.extended.Timer
 import top.yukonga.miuix.kmp.utils.PressFeedbackType
@@ -353,7 +352,8 @@ fun QuantityStepper(
                     onClick = { onChange(-1) },
                     enabled = quantity > 0,
                 ) {
-                    MiuixIcon(MiuixIcons.Remove, contentDescription = "减少", modifier = Modifier.size(18.dp), tint = fg)
+                    // Miuix 无「减号」图标（Remove 是「移除/退出」形状），减号回退 material
+                    MiuixIcon(Icons.Rounded.Remove, contentDescription = "减少", modifier = Modifier.size(18.dp), tint = fg)
                 }
                 AnimatedContent(targetState = quantity, label = "qty") { q ->
                     MiuixText(
