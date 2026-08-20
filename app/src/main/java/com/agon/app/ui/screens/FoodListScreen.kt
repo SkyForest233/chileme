@@ -1,5 +1,6 @@
 package com.agon.app.ui.screens
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
@@ -100,6 +101,11 @@ fun FoodListScreen(
     // ---- 长按多选（批量归档，选中状态提升到 ViewModel，供 MainActivity 批量操作栏共用）----
     val selectedIds by viewModel.selectedIds.collectAsStateWithLifecycle()
     val selectionMode = selectedIds.isNotEmpty()
+
+    // 系统返回键：多选时只退出多选，不切页（在 NavHost 内部，优先级高于导航返回）
+    BackHandler(enabled = selectionMode) {
+        viewModel.clearSelection()
+    }
 
     val usedLocations = remember(items) {
         items.map { it.location }.filter { it.isNotBlank() }.distinct().sorted()

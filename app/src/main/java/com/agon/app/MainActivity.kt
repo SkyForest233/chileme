@@ -2,7 +2,6 @@ package com.agon.app
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
-import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
@@ -60,6 +59,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import top.yukonga.miuix.kmp.basic.Button as MiuixButton
 import top.yukonga.miuix.kmp.basic.ButtonDefaults as MiuixButtonDefaults
 import top.yukonga.miuix.kmp.basic.FloatingActionButton as MiuixFloatingActionButton
@@ -217,11 +217,6 @@ fun MainApp(viewModel: AppViewModel) {
     val snackbarHostState = remember { SnackbarHostState() }
     val miuixSnackbarHostState = remember { MiuixSnackbarHostState() }
 
-    // 系统返回键退出多选模式
-    BackHandler(enabled = selectionMode) {
-        viewModel.clearSelection()
-    }
-
     fun archiveSelected() {
         val ids = selectedIds
         if (ids.isEmpty()) return
@@ -328,16 +323,19 @@ fun MainApp(viewModel: AppViewModel) {
                     .widthIn(max = 840.dp)
                     .fillMaxSize()
                     .nestedScroll(chromeScrollConnection),
-            // 页面切换用纯水平平移（push/pop），MD3 与 MIUIX 两主题一致。
-            // 进入：从右全宽滑入；退出：向左全宽滑出；返回方向相反。
+            // 页面切换转场：复刻 Miuix NavTransitions.MiuixDefault（Hyper-pick-up-code 同款）。
+            // 进入页从右全宽滑入覆盖；被覆盖页视差左移 1/4 宽 + 轻微变暗至 90%；返回反向。
+            // MD3 与 MIUIX 两主题一致（NavHost 转场在 MainApp 层）。
             enterTransition = {
                 slideInHorizontally(tween(300, easing = EmphasizedDecelerate)) { it }
             },
             exitTransition = {
-                slideOutHorizontally(tween(300, easing = EmphasizedAccelerate)) { -it }
+                slideOutHorizontally(tween(300, easing = EmphasizedAccelerate)) { -it / 4 } +
+                    fadeOut(tween(300, easing = EmphasizedAccelerate), targetAlpha = 0.9f)
             },
             popEnterTransition = {
-                slideInHorizontally(tween(300, easing = EmphasizedDecelerate)) { -it }
+                slideInHorizontally(tween(300, easing = EmphasizedDecelerate)) { -it / 4 } +
+                    fadeIn(tween(300, easing = EmphasizedDecelerate), initialAlpha = 0.9f)
             },
             popExitTransition = {
                 slideOutHorizontally(tween(300, easing = EmphasizedAccelerate)) { it }
@@ -491,7 +489,8 @@ private fun BatchActionBar(
     onArchive: () -> Unit,
 ) {
     if (floating) {
-        // 悬浮：居中悬浮胶囊（与底部导航悬浮态一致的观感）
+        // 悬浮：居中悬浮胶囊（与底部导航悬浮态一致的观感）。
+        // 「取消」为无边框文字按钮，「归档」为唯一实心胶囊，避免胶囊套胶囊。
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -505,11 +504,11 @@ private fun BatchActionBar(
                 shadowElevation = 6.dp,
             ) {
                 Row(
-                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp),
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
-                    BatchCancelButton(isMiuix = isMiuix, onClick = onCancel)
+                    BatchCancelButton(isMiuix = isMiuix, floating = true, onClick = onCancel)
                     BatchArchiveButton(isMiuix = isMiuix, count = count, onClick = onArchive)
                 }
             }
@@ -528,7 +527,7 @@ private fun BatchActionBar(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                BatchCancelButton(isMiuix = isMiuix, onClick = onCancel, modifier = Modifier.weight(1f))
+                BatchCancelButton(isMiuix = isMiuix, floating = false, onClick = onCancel, modifier = Modifier.weight(1f))
                 BatchArchiveButton(isMiuix = isMiuix, count = count, onClick = onArchive, modifier = Modifier.weight(2f))
             }
         }
@@ -536,9 +535,19 @@ private fun BatchActionBar(
 }
 
 @Composable
-private fun BatchCancelButton(isMiuix: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
+private fun BatchCancelButton(
+    isMiuix: Boolean,
+    floating: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     if (isMiuix) {
         MiuixTextButton(text = "取消", onClick = onClick, modifier = modifier)
+    } else if (floating) {
+        // 悬浮态用无边框文字按钮，避免与容器胶囊叠出双层胶囊
+        TextButton(onClick = onClick, modifier = modifier) {
+            Text("取消")
+        }
     } else {
         OutlinedButton(onClick = onClick, modifier = modifier, shape = RoundedCornerShape(50)) {
             Text("取消")
