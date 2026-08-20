@@ -91,8 +91,8 @@ fun MiuixThresholdManageScreen(viewModel: AppViewModel, onBack: () -> Unit) {
             item {
                 Text(
                     "各分类到期前多少天视为“临期”，单个食品可在编辑页覆盖",
-                    fontSize = 12.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MiuixTheme.textStyles.footnote2,
+                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                     modifier = Modifier.padding(bottom = 6.dp),
                 )
             }
@@ -112,7 +112,7 @@ fun MiuixThresholdManageScreen(viewModel: AppViewModel, onBack: () -> Unit) {
                         Spacer(Modifier.width(10.dp))
                         Text(
                             cat.label,
-                            fontSize = 16.sp,
+                            style = MiuixTheme.textStyles.body1,
                             fontWeight = FontWeight.Medium,
                             modifier = Modifier.weight(1f),
                         )
@@ -132,7 +132,7 @@ fun MiuixThresholdManageScreen(viewModel: AppViewModel, onBack: () -> Unit) {
                                 }
                                 Text(
                                     "$value 天",
-                                    fontSize = 14.sp,
+                                    style = MiuixTheme.textStyles.body2,
                                     fontWeight = FontWeight.Bold,
                                     modifier = Modifier.padding(horizontal = 6.dp),
                                 )
@@ -188,12 +188,12 @@ fun MiuixCategoryManageScreen(viewModel: AppViewModel, onBack: () -> Unit) {
                         Text(cat.emoji, fontSize = 20.sp)
                         Spacer(Modifier.width(10.dp))
                         Column(Modifier.weight(1f)) {
-                            Text(cat.label, fontSize = 16.sp, fontWeight = FontWeight.Medium)
+                            Text(cat.label, style = MiuixTheme.textStyles.body1, fontWeight = FontWeight.Medium)
                             if (inUse > 0) {
                                 Text(
                                     "$inUse 条食品使用中",
-                                    fontSize = 12.sp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    style = MiuixTheme.textStyles.footnote2,
+                                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                                 )
                             }
                         }
@@ -375,12 +375,12 @@ fun MiuixLocationManageScreen(viewModel: AppViewModel, onBack: () -> Unit) {
                         )
                         Spacer(Modifier.width(10.dp))
                         Column(Modifier.weight(1f)) {
-                            Text(loc, fontSize = 16.sp, fontWeight = FontWeight.Medium)
+                            Text(loc, style = MiuixTheme.textStyles.body1, fontWeight = FontWeight.Medium)
                             if (inUse > 0) {
                                 Text(
                                     "$inUse 条食品使用中",
-                                    fontSize = 12.sp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    style = MiuixTheme.textStyles.footnote2,
+                                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                                 )
                             }
                         }

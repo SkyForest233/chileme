@@ -50,6 +50,7 @@ import com.agon.app.viewmodel.AppViewModel
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import top.yukonga.miuix.kmp.basic.Button
+import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.Scaffold
@@ -158,12 +159,13 @@ fun MiuixHomeScreen(
                             }
                         },
                         modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColorsPrimary(),
                     ) {
                         Icon(
                             Icons.Rounded.CleaningServices,
                             contentDescription = null,
                             modifier = Modifier.size(18.dp),
-                            tint = MiuixTheme.colorScheme.onSecondaryVariant,
+                            tint = MiuixTheme.colorScheme.onPrimary,
                         )
                         Spacer(Modifier.width(8.dp))
                         Text("一键清理 $expired 件过期食品", fontWeight = FontWeight.SemiBold)
@@ -180,7 +182,7 @@ fun MiuixHomeScreen(
                 ) {
                     Text(
                         "需要处理",
-                        fontSize = 16.sp,
+                        style = MiuixTheme.textStyles.title4,
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier.weight(1f),
                     )
@@ -193,7 +195,7 @@ fun MiuixHomeScreen(
                     ) {
                         Text(
                             "全部食品",
-                            fontSize = 14.sp,
+                            style = MiuixTheme.textStyles.body2,
                             color = MiuixTheme.colorScheme.primary,
                         )
                         Spacer(Modifier.width(4.dp))
@@ -247,8 +249,8 @@ private fun StatCard(
         Column(Modifier.padding(14.dp)) {
             Text(emoji, fontSize = 22.sp)
             Spacer(Modifier.height(8.dp))
-            Text("$value", fontSize = 28.sp, fontWeight = FontWeight.ExtraBold)
-            Text(label, fontSize = 12.sp)
+            Text("$value", style = MiuixTheme.textStyles.title2, fontWeight = FontWeight.ExtraBold)
+            Text(label, style = MiuixTheme.textStyles.footnote2)
         }
     }
 }
@@ -283,12 +285,12 @@ private fun FreshnessBanner(total: Int, expiring: Int, expired: Int) {
             Column {
                 Text(
                     "今日提醒",
-                    fontSize = 12.sp,
+                    style = MiuixTheme.textStyles.footnote2,
                     color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                 )
                 Text(
                     message,
-                    fontSize = 14.sp,
+                    style = MiuixTheme.textStyles.body2,
                     fontWeight = FontWeight.Medium,
                 )
             }
@@ -311,12 +313,12 @@ private fun UrgentRow(item: FoodItem, emoji: String, status: FoodStatus, onClick
             Column(Modifier.weight(1f)) {
                 Text(
                     item.name,
-                    fontSize = 14.sp,
+                    style = MiuixTheme.textStyles.body2,
                     fontWeight = FontWeight.SemiBold,
                 )
                 Text(
                     "${item.remainingText} · ${item.quantity} ${item.unit}",
-                    fontSize = 12.sp,
+                    style = MiuixTheme.textStyles.footnote2,
                     color = ui.content,
                 )
             }

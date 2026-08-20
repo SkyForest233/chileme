@@ -36,7 +36,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.agon.app.data.CLOUD_BACKUP_KEEP
 import com.agon.app.data.CloudBackup
@@ -372,8 +371,8 @@ fun MiuixSettingsScreen(
             Column {
                 Text(
                     "在坚果云网页端「账户信息 → 安全选项 → 第三方应用管理」中生成应用密码（不是登录密码）。备份存放于云端 ChiLeMe 文件夹。密码使用系统 Keystore 加密存储。",
-                    fontSize = 12.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MiuixTheme.textStyles.footnote2,
+                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                 )
                 Spacer(Modifier.height(12.dp))
                 OutlinedTextField(
@@ -430,14 +429,14 @@ fun MiuixSettingsScreen(
                     horizontalArrangement = Arrangement.Center,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text("正在获取云端备份列表…", fontSize = 14.sp)
+                    Text("正在获取云端备份列表…", style = MiuixTheme.textStyles.body2)
                 }
             } else {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(
                         "云端共 ${cloudBackups.size} 份备份，新的在前：",
-                        fontSize = 12.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MiuixTheme.textStyles.footnote2,
+                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                     )
                     cloudBackups.forEachIndexed { index, backup ->
                         Surface(
@@ -455,14 +454,14 @@ fun MiuixSettingsScreen(
                             ) {
                                 Text(
                                     backup.displayTime,
-                                    fontSize = 14.sp,
+                                    style = MiuixTheme.textStyles.body2,
                                     fontWeight = FontWeight.Medium,
                                 )
                                 Text(
                                     (if (index == 0 && !backup.isLegacy) "最新 · " else "") + backup.displaySize,
-                                    fontSize = 12.sp,
+                                    style = MiuixTheme.textStyles.footnote2,
                                     color = if (index == 0) MiuixTheme.colorScheme.onPrimaryContainer
-                                    else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    else MiuixTheme.colorScheme.onSurfaceVariantSummary,
                                 )
                             }
                         }

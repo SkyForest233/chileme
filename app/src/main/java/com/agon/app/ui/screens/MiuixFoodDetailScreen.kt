@@ -244,18 +244,15 @@ fun MiuixFoodDetailScreen(
                     .fillMaxWidth()
                     .height(60.dp),
                 cornerRadius = 50.dp,
-                colors = ButtonDefaults.buttonColors(
-                    color = MiuixTheme.colorScheme.secondaryContainer,
-                    contentColor = MiuixTheme.colorScheme.onSecondaryContainer,
-                ),
+                colors = ButtonDefaults.buttonColorsPrimary(),
             ) {
-                Text("😋", fontSize = 22.sp, color = MiuixTheme.colorScheme.onSecondaryContainer)
+                Text("😋", fontSize = 22.sp, color = MiuixTheme.colorScheme.onPrimary)
                 Spacer(Modifier.width(10.dp))
                 Text(
                     if (item.quantity > 0) "吃掉一份！" else "已经吃光啦",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
-                    color = MiuixTheme.colorScheme.onSecondaryContainer,
+                    color = MiuixTheme.colorScheme.onPrimary,
                 )
                 if (burstCount > 0) {
                     Spacer(Modifier.width(8.dp))
@@ -263,7 +260,7 @@ fun MiuixFoodDetailScreen(
                         "×$burstCount",
                         style = MaterialTheme.typography.labelLarge,
                         fontWeight = FontWeight.Bold,
-                        color = MiuixTheme.colorScheme.onSecondaryContainer,
+                        color = MiuixTheme.colorScheme.onPrimary,
                     )
                 }
             }
