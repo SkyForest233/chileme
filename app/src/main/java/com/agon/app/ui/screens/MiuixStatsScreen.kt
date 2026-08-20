@@ -23,7 +23,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.History
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -49,6 +48,7 @@ import com.agon.app.viewmodel.AppViewModel
 import java.time.LocalDate
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
+import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Scaffold
@@ -198,7 +198,7 @@ fun MiuixStatsScreen(
                                     if (amount > 0) {
                                         Text(
                                             "$amount",
-                                            style = MaterialTheme.typography.labelSmall,
+                                            style = MiuixTheme.textStyles.footnote2,
                                             fontWeight = FontWeight.Bold,
                                             color = MaterialTheme.colorScheme.primary,
                                         )
@@ -223,7 +223,7 @@ fun MiuixStatsScreen(
                                     Spacer(Modifier.height(6.dp))
                                     Text(
                                         "${date.monthValue}/${date.dayOfMonth}",
-                                        style = MaterialTheme.typography.labelSmall,
+                                        style = MiuixTheme.textStyles.footnote2,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     )
                                 }
@@ -240,7 +240,7 @@ fun MiuixStatsScreen(
                         if (categoryShare.isEmpty()) {
                             Text(
                                 "暂无库存数据",
-                                style = MaterialTheme.typography.bodyMedium,
+                                style = MiuixTheme.textStyles.body2,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         } else {
@@ -301,7 +301,7 @@ fun MiuixStatsScreen(
                                     ) {
                                         Text(
                                             "${index + 1}",
-                                            style = MaterialTheme.typography.titleSmall,
+                                            style = MiuixTheme.textStyles.subtitle,
                                             fontWeight = FontWeight.Bold,
                                             color = MaterialTheme.colorScheme.primary,
                                             modifier = Modifier.width(20.dp),
@@ -311,7 +311,7 @@ fun MiuixStatsScreen(
                                         Column(Modifier.weight(1f)) {
                                             Text(
                                                 name,
-                                                style = MaterialTheme.typography.bodyMedium,
+                                                style = MiuixTheme.textStyles.body2,
                                                 fontWeight = FontWeight.Medium,
                                                 maxLines = 1,
                                                 overflow = TextOverflow.Ellipsis,
@@ -328,7 +328,7 @@ fun MiuixStatsScreen(
                                         Spacer(Modifier.width(12.dp))
                                         Text(
                                             "×$amount",
-                                            style = MaterialTheme.typography.labelLarge,
+                                            style = MiuixTheme.textStyles.body2,
                                             fontWeight = FontWeight.Bold,
                                             color = MaterialTheme.colorScheme.primary,
                                         )
@@ -376,8 +376,8 @@ private fun MiuixMiniStat(
         Column(Modifier.padding(14.dp)) {
             Text(emoji, fontSize = 20.sp)
             Spacer(Modifier.height(6.dp))
-            Text(value, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.ExtraBold)
-            Text(label, style = MaterialTheme.typography.labelMedium)
+            Text(value, style = MiuixTheme.textStyles.title2, fontWeight = FontWeight.ExtraBold)
+            Text(label, style = MiuixTheme.textStyles.footnote2)
         }
     }
 }
@@ -414,10 +414,10 @@ private fun MiuixDonutChart(
             }
         }
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(centerLabel, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.ExtraBold)
+            Text(centerLabel, style = MiuixTheme.textStyles.title2, fontWeight = FontWeight.ExtraBold)
             Text(
                 centerSub,
-                style = MaterialTheme.typography.labelSmall,
+                style = MiuixTheme.textStyles.footnote2,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
@@ -439,14 +439,14 @@ private fun MiuixLegendRow(color: Color, category: CategoryDef, qty: Int, percen
         Spacer(Modifier.width(10.dp))
         Text(
             "${category.emoji} ${category.label}",
-            style = MaterialTheme.typography.bodyMedium,
+            style = MiuixTheme.textStyles.body2,
             fontWeight = FontWeight.Medium,
             maxLines = 1,
             modifier = Modifier.weight(1f),
         )
         Text(
             "$qty 件 · $percent%",
-            style = MaterialTheme.typography.bodyMedium,
+            style = MiuixTheme.textStyles.body2,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1,
         )

@@ -25,7 +25,6 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -65,6 +64,7 @@ import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SnackbarHost
 import top.yukonga.miuix.kmp.basic.SnackbarHostState
+import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
@@ -106,7 +106,7 @@ fun MiuixFoodDetailScreen(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center,
             ) {
-                Text("该食品已归档或移除", style = MaterialTheme.typography.titleMedium)
+                Text("该食品已归档或移除", style = MiuixTheme.textStyles.body1)
                 Spacer(Modifier.height(12.dp))
                 Button(onClick = onBack, cornerRadius = 50.dp) {
                     Text("返回", color = MiuixTheme.colorScheme.onSecondaryVariant)
@@ -196,7 +196,7 @@ fun MiuixFoodDetailScreen(
                     Spacer(Modifier.height(12.dp))
                     Text(
                         item.name,
-                        style = MaterialTheme.typography.headlineSmall,
+                        style = MiuixTheme.textStyles.title2,
                         fontWeight = FontWeight.Bold,
                         color = ui.content,
                     )
@@ -215,7 +215,7 @@ fun MiuixFoodDetailScreen(
                     Spacer(Modifier.height(8.dp))
                     Text(
                         item.remainingText,
-                        style = MaterialTheme.typography.titleMedium,
+                        style = MiuixTheme.textStyles.body1,
                         fontWeight = FontWeight.Bold,
                         color = ui.content,
                     )
@@ -250,7 +250,7 @@ fun MiuixFoodDetailScreen(
                 Spacer(Modifier.width(10.dp))
                 Text(
                     if (item.quantity > 0) "吃掉一份！" else "已经吃光啦",
-                    style = MaterialTheme.typography.titleMedium,
+                    style = MiuixTheme.textStyles.body1,
                     fontWeight = FontWeight.Bold,
                     color = MiuixTheme.colorScheme.onPrimary,
                 )
@@ -258,7 +258,7 @@ fun MiuixFoodDetailScreen(
                     Spacer(Modifier.width(8.dp))
                     Text(
                         "×$burstCount",
-                        style = MaterialTheme.typography.labelLarge,
+                        style = MiuixTheme.textStyles.body2,
                         fontWeight = FontWeight.Bold,
                         color = MiuixTheme.colorScheme.onPrimary,
                     )
@@ -305,12 +305,12 @@ fun MiuixFoodDetailScreen(
                     Column(Modifier.weight(1f)) {
                         Text(
                             "库存数量",
-                            style = MaterialTheme.typography.titleSmall,
+                            style = MiuixTheme.textStyles.subtitle,
                             fontWeight = FontWeight.SemiBold,
                         )
                         Text(
                             "减少会计入消耗统计",
-                            style = MaterialTheme.typography.bodySmall,
+                            style = MiuixTheme.textStyles.footnote2,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
@@ -380,13 +380,13 @@ private fun DetailRow(label: String, value: String) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text(
             label,
-            style = MaterialTheme.typography.bodyMedium,
+            style = MiuixTheme.textStyles.body2,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.width(88.dp),
         )
         Text(
             value,
-            style = MaterialTheme.typography.bodyLarge,
+            style = MiuixTheme.textStyles.body1,
             fontWeight = FontWeight.Medium,
         )
     }

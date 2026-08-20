@@ -34,7 +34,6 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -61,6 +60,7 @@ import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.InputField
 import top.yukonga.miuix.kmp.basic.Scaffold
+import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
@@ -226,7 +226,7 @@ fun MiuixFoodListScreen(
                             FilterChip(
                                 selected = statusFilter == f,
                                 onClick = { statusFilter = f },
-                                label = { Text(f.label) },
+                                label = { Text(f.label, style = MiuixTheme.textStyles.body2) },
                                 shape = RoundedCornerShape(50),
                                 colors = FilterChipDefaults.filterChipColors(
                                     selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
@@ -245,7 +245,7 @@ fun MiuixFoodListScreen(
                             FilterChip(
                                 selected = categoryFilter == c.id,
                                 onClick = { categoryFilter = if (categoryFilter == c.id) null else c.id },
-                                label = { Text("${c.emoji} ${c.label}") },
+                                label = { Text("${c.emoji} ${c.label}", style = MiuixTheme.textStyles.body2) },
                                 shape = RoundedCornerShape(50),
                                 colors = FilterChipDefaults.filterChipColors(
                                     selectedContainerColor = MaterialTheme.colorScheme.secondaryContainer,
@@ -264,7 +264,7 @@ fun MiuixFoodListScreen(
                                 FilterChip(
                                     selected = locationFilter == loc,
                                     onClick = { locationFilter = if (locationFilter == loc) null else loc },
-                                    label = { Text(loc) },
+                                    label = { Text(loc, style = MiuixTheme.textStyles.body2) },
                                     shape = RoundedCornerShape(50),
                                     colors = FilterChipDefaults.filterChipColors(
                                         selectedContainerColor = MaterialTheme.colorScheme.tertiaryContainer,
@@ -337,7 +337,7 @@ fun MiuixFoodListScreen(
                                 Spacer(Modifier.width(6.dp))
                                 Text(
                                     "归档中找到 ${archivedMatches.size} 条",
-                                    style = MaterialTheme.typography.labelMedium,
+                                    style = MiuixTheme.textStyles.footnote2,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
                             }
@@ -359,14 +359,14 @@ fun MiuixFoodListScreen(
                                     Column(Modifier.weight(1f)) {
                                         Text(
                                             entry.item.name,
-                                            style = MaterialTheme.typography.titleSmall,
+                                            style = MiuixTheme.textStyles.subtitle,
                                             fontWeight = FontWeight.SemiBold,
                                             maxLines = 1,
                                             overflow = TextOverflow.Ellipsis,
                                         )
                                         Text(
                                             "${entry.reason.emoji} ${entry.reason.label}",
-                                            style = MaterialTheme.typography.bodySmall,
+                                            style = MiuixTheme.textStyles.footnote2,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         )
                                     }
@@ -399,7 +399,7 @@ fun MiuixFoodListScreen(
 private fun FilterSectionLabel(text: String) {
     Text(
         text,
-        style = MaterialTheme.typography.labelSmall,
+        style = MiuixTheme.textStyles.footnote2,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier.padding(start = 24.dp, bottom = 4.dp),
     )
@@ -436,7 +436,7 @@ private fun FilterToggle(
                 Spacer(Modifier.width(4.dp))
                 Text(
                     "$activeCount",
-                    style = MaterialTheme.typography.labelMedium,
+                    style = MiuixTheme.textStyles.footnote2,
                     fontWeight = FontWeight.Bold,
                 )
             }
