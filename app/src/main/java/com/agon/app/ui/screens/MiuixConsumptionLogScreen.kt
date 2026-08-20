@@ -22,7 +22,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -34,7 +33,7 @@ import com.agon.app.data.byId
 import com.agon.app.data.cn
 import com.agon.app.ui.components.EmptyState
 import com.agon.app.viewmodel.AppViewModel
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.filterNotNull
 import java.time.LocalDate
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
@@ -63,22 +62,22 @@ fun MiuixConsumptionLogScreen(
         consumption.sortedByDescending { it.epochDay }
     }
 
-    // 删除后的撤销提示
-    val deleted by viewModel.deletedConsumption.collectAsStateWithLifecycle()
-    LaunchedEffect(deleted) {
-        val record = deleted ?: return@LaunchedEffect
-        viewModel.consumeDeletedConsumption()
-        val result = snackbarHostState.showSnackbar(
-            message = "已删除「${record.name}」的消耗记录",
-            actionLabel = "撤销",
-        )
-        if (result == SnackbarResult.ActionPerformed) {
-            viewModel.undoDeleteConsumption()
+    // 删除后的撤销提示（collect 模式避免 consume 改变 key 取消协程）
+    LaunchedEffect(Unit) {
+        viewModel.deletedConsumption.filterNotNull().collect { record ->
+            viewModel.consumeDeletedConsumption()
+            val result = snackbarHostState.showSnackbar(
+                message = "已删除「${record.name}」的消耗记录",
+                actionLabel = "撤销",
+            )
+            if (result == SnackbarResult.ActionPerformed) {
+                viewModel.undoDeleteConsumption()
+            }
         }
     }
 
     Scaffold(
-        snackbarHost = { SnackbarHost(snackbarHostState, modifier = Modifier.padding(bottom = 84.dp)) },
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = "消耗记录",

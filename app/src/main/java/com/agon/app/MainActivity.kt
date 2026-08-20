@@ -79,6 +79,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -127,6 +128,7 @@ import com.agon.app.ui.theme.MiuixRootTheme
 import com.agon.app.ui.theme.MotionEasing
 import com.agon.app.ui.theme.ThemeStyle
 import com.agon.app.viewmodel.AppViewModel
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.launch
 
 // MD3 motion easing tokens 统一从 ui/theme/Motion.kt 引用
@@ -219,24 +221,27 @@ fun MainApp(viewModel: AppViewModel) {
     val snackbarHostState = remember { SnackbarHostState() }
     val miuixSnackbarHostState = remember { MiuixSnackbarHostState() }
 
-    // 列表页步进器减号触发的「撤销消耗」：弹撤销 Snackbar（MD3 / MIUIX 两套样式）
-    val undoRequest by viewModel.undoRequest.collectAsStateWithLifecycle()
-    LaunchedEffect(undoRequest) {
-        val request = undoRequest ?: return@LaunchedEffect
-        viewModel.consumeUndoRequest()
-        val undone = if (isMiuix) {
-            miuixSnackbarHostState.showSnackbar(
-                message = "已减少一件并计入消耗",
-                actionLabel = "撤销",
-            ) == MiuixSnackbarResult.ActionPerformed
-        } else {
-            snackbarHostState.showSnackbar(
-                message = "已减少一件并计入消耗",
-                actionLabel = "撤销",
-            ) == SnackbarResult.ActionPerformed
-        }
-        if (undone) {
-            viewModel.undoConsumption(request)
+    // 列表页步进器减号触发的「撤销消耗」：弹撤销 Snackbar（MD3 / MIUIX 两套样式）。
+    // 用 LaunchedEffect(Unit)+collect 而非 LaunchedEffect(key)：consume 会改变 key，导致协程被取消、
+    // showSnackbar 中断（MD3 撤销不出现的根因）。
+    val currentIsMiuix by rememberUpdatedState(isMiuix)
+    LaunchedEffect(Unit) {
+        viewModel.undoRequest.filterNotNull().collect { request ->
+            viewModel.consumeUndoRequest()
+            val undone = if (currentIsMiuix) {
+                miuixSnackbarHostState.showSnackbar(
+                    message = "已减少一件并计入消耗",
+                    actionLabel = "撤销",
+                ) == MiuixSnackbarResult.ActionPerformed
+            } else {
+                snackbarHostState.showSnackbar(
+                    message = "已减少一件并计入消耗",
+                    actionLabel = "撤销",
+                ) == SnackbarResult.ActionPerformed
+            }
+            if (undone) {
+                viewModel.undoConsumption(request)
+            }
         }
     }
 
@@ -272,11 +277,11 @@ fun MainApp(viewModel: AppViewModel) {
         modifier = Modifier.fillMaxSize(),
         containerColor = MaterialTheme.colorScheme.background,
         snackbarHost = {
-            // 上移避免被底栏遮挡
+            // Scaffold 会自动把 Snackbar 定位在 bottomBar 之上（跟随底栏状态），无需手动偏移。
             if (isMiuix) {
-                MiuixSnackbarHost(miuixSnackbarHostState, modifier = Modifier.padding(bottom = 84.dp))
+                MiuixSnackbarHost(miuixSnackbarHostState)
             } else {
-                SnackbarHost(snackbarHostState, modifier = Modifier.padding(bottom = 84.dp))
+                SnackbarHost(snackbarHostState)
             }
         },
         bottomBar = {
