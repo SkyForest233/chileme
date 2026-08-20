@@ -83,12 +83,14 @@ import com.agon.app.ui.screens.ThresholdManageScreen
 import com.agon.app.ui.screens.FoodDetailScreen
 import com.agon.app.ui.screens.FoodListScreen
 import com.agon.app.ui.screens.HomeScreen
+import com.agon.app.ui.screens.MiuixHomeScreen
 import com.agon.app.ui.screens.MiuixSettingsScreen
 import com.agon.app.ui.screens.SettingsScreen
 import com.agon.app.ui.screens.StatsScreen
 import com.agon.app.ui.theme.AgonAppTheme
 import com.agon.app.ui.theme.AppPalette
 import com.agon.app.ui.theme.LocalThemeStyle
+import com.agon.app.ui.theme.MiuixRootTheme
 import com.agon.app.ui.theme.MotionEasing
 import com.agon.app.ui.theme.ThemeStyle
 import com.agon.app.viewmodel.AppViewModel
@@ -121,13 +123,19 @@ class MainActivity : ComponentActivity() {
                 else -> isSystemInDarkTheme()
             }
             val themeStyle = ThemeStyle.fromName(themeStyleName)
-            AgonAppTheme(
-                darkTheme = darkTheme,
-                dynamicColor = dynamicColor,
-                palette = AppPalette.fromName(paletteName),
-            ) {
-                CompositionLocalProvider(LocalThemeStyle provides themeStyle) {
-                    MainApp(viewModel)
+            CompositionLocalProvider(LocalThemeStyle provides themeStyle) {
+                if (themeStyle == ThemeStyle.MIUIX) {
+                    MiuixRootTheme(darkMode = darkMode, dynamicColor = dynamicColor) {
+                        MainApp(viewModel)
+                    }
+                } else {
+                    AgonAppTheme(
+                        darkTheme = darkTheme,
+                        dynamicColor = dynamicColor,
+                        palette = AppPalette.fromName(paletteName),
+                    ) {
+                        MainApp(viewModel)
+                    }
                 }
             }
         }
@@ -231,16 +239,29 @@ fun MainApp(viewModel: AppViewModel) {
             },
         ) {
             composable("home") {
-                HomeScreen(
-                    viewModel = viewModel,
-                    onOpenList = { filter ->
-                        navController.navigate(if (filter == null) "list" else "list?filter=$filter") {
-                            popUpTo("home")
-                            launchSingleTop = true
-                        }
-                    },
-                    onOpenItem = { id -> navController.navigate("detail/$id") },
-                )
+                if (LocalThemeStyle.current == ThemeStyle.MIUIX) {
+                    MiuixHomeScreen(
+                        viewModel = viewModel,
+                        onOpenList = { filter ->
+                            navController.navigate(if (filter == null) "list" else "list?filter=$filter") {
+                                popUpTo("home")
+                                launchSingleTop = true
+                            }
+                        },
+                        onOpenItem = { id -> navController.navigate("detail/$id") },
+                    )
+                } else {
+                    HomeScreen(
+                        viewModel = viewModel,
+                        onOpenList = { filter ->
+                            navController.navigate(if (filter == null) "list" else "list?filter=$filter") {
+                                popUpTo("home")
+                                launchSingleTop = true
+                            }
+                        },
+                        onOpenItem = { id -> navController.navigate("detail/$id") },
+                    )
+                }
             }
             composable("list?filter={filter}") { backStackEntry ->
                 FoodListScreen(

@@ -28,9 +28,9 @@ app/src/main/java/com/agon/app/
 ├─ viewmodel/
 │   └─ AppViewModel.kt          # 全局共享 VM（AndroidViewModel），StateFlow 暴露
 └─ ui/
-    ├─ theme/                   # Palettes.kt（种子色方案）/ Color.kt（仅状态语义色）/ Theme.kt（MaterialKolor 生成）/ ThemeStyle.kt（MATERIAL3/MIUIX 风格枚举 + LocalThemeStyle）
+    ├─ theme/                   # Palettes.kt（种子色方案）/ Color.kt（仅状态语义色）/ Theme.kt（MaterialKolor 生成）/ ThemeStyle.kt（MATERIAL3/MIUIX 风格枚举 + LocalThemeStyle）/ MiuixRootTheme.kt（MiuixTheme + MaterialTheme 桥接，v2.8）
     ├─ components/Common.kt     # 复用组件：StatusBadge/FoodAvatar/FoodCard/QuantityStepper/EmptyState/LocationTag
-    └─ screens/                 # 每屏一文件，自带 Scaffold；MiuixSettingsScreen.kt 为设置页的 Miuix 实现（v2.8）
+    └─ screens/                 # 每屏一文件，自带 Scaffold；MiuixSettingsScreen.kt / MiuixHomeScreen.kt 为设置页、首页的 Miuix 实现（v2.8）
 ```
 
 **规则**：UI → ViewModel → Repository → DataStore，单向依赖；UI 绝不直接访问 DataStore；所有写操作在 `viewModelScope` 内执行。

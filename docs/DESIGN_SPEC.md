@@ -138,6 +138,7 @@ StatusUi 提供三个颜色槽位，按用途严格区分：
 - App 支持两套「主题风格」：**Material 3**（默认，现状）与 **MIUIX**（小米 HyperOS 风格）。
 - 状态：`ThemeStyle` 枚举（`ui/theme/ThemeStyle.kt`）+ DataStore key `theme_style`；`LocalThemeStyle` CompositionLocal 由 MainActivity 下发。
 - 切换入口：设置页「外观」分组的「主题风格」——MD3 侧用 SegmentedButton，Miuix 侧用 RadioButtonPreference。
-- 渐进迁移策略：当前仅**设置页**有 Miuix 实现（`MiuixSettingsScreen`，用 Miuix `Scaffold/TopAppBar/SmallTitle/Card/SwitchPreference/ArrowPreference/RadioButtonPreference/OverlayDropdownPreference`）；其余页面仍为 MD3，属预期中间态。
+- **根级主题切换 + MaterialTheme 桥接（阶段二起）**：MainActivity 在 MIUIX 模式下包 `MiuixRootTheme`（`MiuixTheme` + 桥接 `MaterialTheme`），让未迁移的 MD3 页面与 Common.kt 复用组件仍可经 `MaterialTheme.colorScheme` 取到 Miuix 配色；桥接映射见 `ui/theme/MiuixRootTheme.kt`（缺失角色用最接近角色近似）。
+- 渐进迁移：已迁移页面有**设置页**（`MiuixSettingsScreen`）与**首页**（`MiuixHomeScreen`），用 Miuix `Scaffold/TopAppBar/SmallTitle/Card/Button/SnackbarHost` + Preference 组件；其余页面仍为 MD3（配色已统一 Miuix），属预期中间态。
 - Miuix 主题由 `ThemeController` 驱动，语义对齐 MD3 侧：动态取色→Monet（keyColor=null 跟随壁纸），否则按 darkMode 映射 System/Light/Dark。
 - Miuix 组件 API 一律以 `.claude/skills/miuix` pinned source（v0.9.4-rc01）为准，禁止凭 MD3 记忆臆造参数/颜色 token。
