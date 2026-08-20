@@ -83,6 +83,7 @@ import com.agon.app.ui.screens.ThresholdManageScreen
 import com.agon.app.ui.screens.FoodDetailScreen
 import com.agon.app.ui.screens.FoodListScreen
 import com.agon.app.ui.screens.HomeScreen
+import com.agon.app.ui.screens.MiuixFoodListScreen
 import com.agon.app.ui.screens.MiuixHomeScreen
 import com.agon.app.ui.screens.MiuixSettingsScreen
 import com.agon.app.ui.screens.SettingsScreen
@@ -264,12 +265,21 @@ fun MainApp(viewModel: AppViewModel) {
                 }
             }
             composable("list?filter={filter}") { backStackEntry ->
-                FoodListScreen(
-                    viewModel = viewModel,
-                    initialFilter = backStackEntry.arguments?.getString("filter"),
-                    onOpenItem = { id -> navController.navigate("detail/$id") },
-                    onOpenArchive = { navController.navigate("archive") },
-                )
+                if (LocalThemeStyle.current == ThemeStyle.MIUIX) {
+                    MiuixFoodListScreen(
+                        viewModel = viewModel,
+                        initialFilter = backStackEntry.arguments?.getString("filter"),
+                        onOpenItem = { id -> navController.navigate("detail/$id") },
+                        onOpenArchive = { navController.navigate("archive") },
+                    )
+                } else {
+                    FoodListScreen(
+                        viewModel = viewModel,
+                        initialFilter = backStackEntry.arguments?.getString("filter"),
+                        onOpenItem = { id -> navController.navigate("detail/$id") },
+                        onOpenArchive = { navController.navigate("archive") },
+                    )
+                }
             }
             composable("stats") {
                 StatsScreen(
