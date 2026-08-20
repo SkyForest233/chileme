@@ -20,7 +20,6 @@ import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Place
 import androidx.compose.material.icons.rounded.Remove
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -107,8 +106,8 @@ fun MiuixThresholdManageScreen(viewModel: AppViewModel, onBack: () -> Unit) {
                 val cat = categories[index]
                 val value = thresholds[cat.id] ?: DEFAULT_EXPIRING_THRESHOLD
                 Surface(
-                    shape = MaterialTheme.shapes.large,
-                    color = MaterialTheme.colorScheme.surfaceContainer,
+                    shape = RoundedCornerShape(24.dp),
+                    color = MiuixTheme.colorScheme.surfaceContainer,
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     Row(
@@ -125,7 +124,7 @@ fun MiuixThresholdManageScreen(viewModel: AppViewModel, onBack: () -> Unit) {
                         )
                         Surface(
                             shape = RoundedCornerShape(50),
-                            color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                            color = MiuixTheme.colorScheme.surfaceContainerHighest,
                         ) {
                             Row(
                                 modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
@@ -184,8 +183,8 @@ fun MiuixCategoryManageScreen(viewModel: AppViewModel, onBack: () -> Unit) {
                 val cat = categories[index]
                 val inUse = items.count { it.category == cat.id }
                 Surface(
-                    shape = MaterialTheme.shapes.large,
-                    color = MaterialTheme.colorScheme.surfaceContainer,
+                    shape = RoundedCornerShape(24.dp),
+                    color = MiuixTheme.colorScheme.surfaceContainer,
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     Row(
@@ -221,7 +220,7 @@ fun MiuixCategoryManageScreen(viewModel: AppViewModel, onBack: () -> Unit) {
                                 contentDescription = "删除 ${cat.label}",
                                 modifier = Modifier.size(18.dp),
                                 tint = if (categories.size > 1) MiuixTheme.colorScheme.error
-                                else MaterialTheme.colorScheme.outlineVariant,
+                                else MiuixTheme.colorScheme.dividerLine,
                             )
                         }
                     }
@@ -369,8 +368,8 @@ fun MiuixLocationManageScreen(viewModel: AppViewModel, onBack: () -> Unit) {
                 val loc = locations[index]
                 val inUse = items.count { it.location == loc }
                 Surface(
-                    shape = MaterialTheme.shapes.large,
-                    color = MaterialTheme.colorScheme.surfaceContainer,
+                    shape = RoundedCornerShape(24.dp),
+                    color = MiuixTheme.colorScheme.surfaceContainer,
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     Row(
@@ -381,7 +380,7 @@ fun MiuixLocationManageScreen(viewModel: AppViewModel, onBack: () -> Unit) {
                             MiuixIcons.Location,
                             contentDescription = null,
                             modifier = Modifier.size(18.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                         )
                         Spacer(Modifier.width(10.dp))
                         Column(Modifier.weight(1f)) {

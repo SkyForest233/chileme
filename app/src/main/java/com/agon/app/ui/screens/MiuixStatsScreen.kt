@@ -22,7 +22,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.History
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -149,24 +148,24 @@ fun MiuixStatsScreen(
                         emoji = "😋",
                         value = "$consumedThisWeek",
                         label = "本周消耗",
-                        container = MaterialTheme.colorScheme.primaryContainer,
-                        content = MaterialTheme.colorScheme.onPrimaryContainer,
+                        container = MiuixTheme.colorScheme.primaryContainer,
+                        content = MiuixTheme.colorScheme.onPrimaryContainer,
                     )
                     MiuixMiniStat(
                         modifier = Modifier.weight(1f),
                         emoji = "📅",
                         value = "$consumedThisMonth",
                         label = "本月消耗",
-                        container = MaterialTheme.colorScheme.secondaryContainer,
-                        content = MaterialTheme.colorScheme.onSecondaryContainer,
+                        container = MiuixTheme.colorScheme.secondaryContainer,
+                        content = MiuixTheme.colorScheme.onSecondaryContainer,
                     )
                     MiuixMiniStat(
                         modifier = Modifier.weight(1f),
                         emoji = "🗑️",
                         value = "$wastedTotal",
                         label = "过期浪费",
-                        container = MaterialTheme.colorScheme.errorContainer,
-                        content = MaterialTheme.colorScheme.onErrorContainer,
+                        container = MiuixTheme.colorScheme.errorContainer,
+                        content = MiuixTheme.colorScheme.onErrorContainer,
                     )
                 }
             }
@@ -202,7 +201,7 @@ fun MiuixStatsScreen(
                                             "$amount",
                                             style = MiuixTheme.textStyles.footnote2,
                                             fontWeight = FontWeight.Bold,
-                                            color = MaterialTheme.colorScheme.primary,
+                                            color = MiuixTheme.colorScheme.primary,
                                         )
                                         Spacer(Modifier.height(2.dp))
                                     }
@@ -218,15 +217,15 @@ fun MiuixStatsScreen(
                                             .height((84 * animRatio).dp.coerceAtLeast(if (amount > 0) 14.dp else 8.dp))
                                             .clip(RoundedCornerShape(50))
                                             .background(
-                                                if (amount > 0) MaterialTheme.colorScheme.primary
-                                                else MaterialTheme.colorScheme.surfaceContainerHighest
+                                                if (amount > 0) MiuixTheme.colorScheme.primary
+                                                else MiuixTheme.colorScheme.surfaceContainerHighest
                                             ),
                                     )
                                     Spacer(Modifier.height(6.dp))
                                     Text(
                                         "${date.monthValue}/${date.dayOfMonth}",
                                         style = MiuixTheme.textStyles.footnote2,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                                     )
                                 }
                             }
@@ -243,7 +242,7 @@ fun MiuixStatsScreen(
                             Text(
                                 "暂无库存数据",
                                 style = MiuixTheme.textStyles.body2,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                             )
                         } else {
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -305,7 +304,7 @@ fun MiuixStatsScreen(
                                             "${index + 1}",
                                             style = MiuixTheme.textStyles.subtitle,
                                             fontWeight = FontWeight.Bold,
-                                            color = MaterialTheme.colorScheme.primary,
+                                            color = MiuixTheme.colorScheme.primary,
                                             modifier = Modifier.width(20.dp),
                                         )
                                         Text(categories.byId(cat).emoji, fontSize = 18.sp)
@@ -324,7 +323,7 @@ fun MiuixStatsScreen(
                                                     .fillMaxWidth(amount.toFloat() / maxAmount)
                                                     .height(10.dp)
                                                     .clip(RoundedCornerShape(50))
-                                                    .background(MaterialTheme.colorScheme.primaryContainer),
+                                                    .background(MiuixTheme.colorScheme.primaryContainer),
                                             )
                                         }
                                         Spacer(Modifier.width(12.dp))
@@ -332,7 +331,7 @@ fun MiuixStatsScreen(
                                             "×$amount",
                                             style = MiuixTheme.textStyles.body2,
                                             fontWeight = FontWeight.Bold,
-                                            color = MaterialTheme.colorScheme.primary,
+                                            color = MiuixTheme.colorScheme.primary,
                                         )
                                     }
                                 }
@@ -347,17 +346,18 @@ fun MiuixStatsScreen(
 
 @Composable
 private fun rememberChartColorsMiuix(): List<Color> {
-    val cs = MaterialTheme.colorScheme
+    // Miuix Colors 无 tertiary / inversePrimary 字段，用其容器色/前景色替代，保持图表多色可辨。
+    val cs = MiuixTheme.colorScheme
     return remember(cs) {
         listOf(
             cs.primary,
-            cs.tertiary,
             cs.secondary,
-            cs.inversePrimary,
             cs.primaryContainer,
-            cs.tertiaryContainer,
             cs.secondaryContainer,
-            cs.outline,
+            cs.tertiaryContainer,
+            cs.onPrimaryContainer,
+            cs.onSecondaryContainer,
+            cs.onTertiaryContainer,
         )
     }
 }
@@ -420,7 +420,7 @@ private fun MiuixDonutChart(
             Text(
                 centerSub,
                 style = MiuixTheme.textStyles.footnote2,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
             )
         }
     }
@@ -449,7 +449,7 @@ private fun MiuixLegendRow(color: Color, category: CategoryDef, qty: Int, percen
         Text(
             "$qty 件 · $percent%",
             style = MiuixTheme.textStyles.body2,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
             maxLines = 1,
         )
     }

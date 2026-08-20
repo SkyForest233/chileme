@@ -32,7 +32,6 @@ import androidx.compose.material.icons.rounded.RestartAlt
 import androidx.compose.material.icons.rounded.SelectAll
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -238,8 +237,8 @@ fun MiuixFoodListScreen(
                                 label = { Text(f.label, style = MiuixTheme.textStyles.body2) },
                                 shape = RoundedCornerShape(50),
                                 colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                                    selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    selectedContainerColor = MiuixTheme.colorScheme.primaryContainer,
+                                    selectedLabelColor = MiuixTheme.colorScheme.onPrimaryContainer,
                                 ),
                             )
                         }
@@ -257,7 +256,7 @@ fun MiuixFoodListScreen(
                                 label = { Text("${c.emoji} ${c.label}", style = MiuixTheme.textStyles.body2) },
                                 shape = RoundedCornerShape(50),
                                 colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = MaterialTheme.colorScheme.secondaryContainer,
+                                    selectedContainerColor = MiuixTheme.colorScheme.secondaryContainer,
                                 ),
                             )
                         }
@@ -276,7 +275,7 @@ fun MiuixFoodListScreen(
                                     label = { Text(loc, style = MiuixTheme.textStyles.body2) },
                                     shape = RoundedCornerShape(50),
                                     colors = FilterChipDefaults.filterChipColors(
-                                        selectedContainerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                                        selectedContainerColor = MiuixTheme.colorScheme.tertiaryContainer,
                                     ),
                                 )
                             }
@@ -347,7 +346,7 @@ fun MiuixFoodListScreen(
                                 Text(
                                     "归档中找到 ${archivedMatches.size} 条",
                                     style = MiuixTheme.textStyles.footnote2,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                                 )
                             }
                         }
@@ -374,7 +373,7 @@ fun MiuixFoodListScreen(
                                         Text(
                                             "${entry.reason.emoji} ${entry.reason.label}",
                                             style = MiuixTheme.textStyles.footnote2,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                                         )
                                     }
                                     IconButton(onClick = { viewModel.restoreArchived(entry.item.id) }) {
@@ -407,7 +406,7 @@ private fun FilterSectionLabel(text: String) {
     Text(
         text,
         style = MiuixTheme.textStyles.footnote2,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
         modifier = Modifier.padding(start = 24.dp, bottom = 4.dp),
     )
 }
@@ -420,13 +419,13 @@ private fun FilterToggle(
 ) {
     // Miuix Icon 读 Miuix 的 LocalContentColor，而此容器是 MD3 Surface（读 MD3 LocalContentColor），
     // 故图标显式 tint，避免取到错误默认色。
-    val iconTint = if (activeCount > 0) MaterialTheme.colorScheme.onPrimaryContainer
-    else MaterialTheme.colorScheme.onSurfaceVariant
+    val iconTint = if (activeCount > 0) MiuixTheme.colorScheme.onPrimaryContainer
+    else MiuixTheme.colorScheme.onSurfaceVariantSummary
     Surface(
         onClick = onClick,
         shape = RoundedCornerShape(50),
-        color = if (activeCount > 0) MaterialTheme.colorScheme.primaryContainer
-        else MaterialTheme.colorScheme.surfaceContainerHigh,
+        color = if (activeCount > 0) MiuixTheme.colorScheme.primaryContainer
+        else MiuixTheme.colorScheme.surfaceContainerHigh,
         contentColor = iconTint,
     ) {
         Row(

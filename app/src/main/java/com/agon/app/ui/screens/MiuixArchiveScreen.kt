@@ -21,7 +21,6 @@ import androidx.compose.material.icons.rounded.DeleteForever
 import androidx.compose.material.icons.rounded.RestartAlt
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -139,8 +138,8 @@ fun MiuixArchiveScreen(
                         label = { Text(r?.let { "${it.emoji} ${it.label}" } ?: "全部", style = MiuixTheme.textStyles.body2) },
                         shape = RoundedCornerShape(50),
                         colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                            selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                            selectedContainerColor = MiuixTheme.colorScheme.primaryContainer,
+                            selectedLabelColor = MiuixTheme.colorScheme.onPrimaryContainer,
                         ),
                     )
                 }
@@ -238,7 +237,7 @@ private fun MiuixArchiveRow(
                 Text(
                     "${entry.reason.emoji} ${entry.reason.label} · ${LocalDate.ofEpochDay(entry.archivedEpochDay).cn()}",
                     style = MiuixTheme.textStyles.footnote2,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                 )
             }
             IconButton(onClick = onRestore) {

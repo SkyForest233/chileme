@@ -20,7 +20,6 @@ import androidx.compose.material.icons.rounded.CloudDownload
 import androidx.compose.material.icons.rounded.CloudUpload
 import androidx.compose.material.icons.rounded.FileDownload
 import androidx.compose.material.icons.rounded.FileUpload
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -388,7 +387,7 @@ fun MiuixSettingsScreen(
                     onValueChange = { accountInput = it },
                     label = { Text("账号（邮箱）") },
                     singleLine = true,
-                    shape = MaterialTheme.shapes.medium,
+                    shape = RoundedCornerShape(16.dp),
                     modifier = Modifier.fillMaxWidth(),
                 )
                 OutlinedTextField(
@@ -398,7 +397,7 @@ fun MiuixSettingsScreen(
                     singleLine = true,
                     visualTransformation = PasswordVisualTransformation(),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                    shape = MaterialTheme.shapes.medium,
+                    shape = RoundedCornerShape(16.dp),
                     modifier = Modifier.fillMaxWidth(),
                 )
                 // 按钮区与表单区之间额外留白，避免紧贴密码框

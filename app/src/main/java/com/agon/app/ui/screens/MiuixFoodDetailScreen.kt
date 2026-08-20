@@ -21,7 +21,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Edit
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -189,7 +188,7 @@ fun MiuixFoodDetailScreen(
                             item,
                             categoryDef.emoji,
                             size = 80.dp,
-                            background = MaterialTheme.colorScheme.surface,
+                            background = MiuixTheme.colorScheme.surface,
                             modifier = Modifier.scale(bounceScale.value),
                         )
                         Text(
@@ -215,7 +214,7 @@ fun MiuixFoodDetailScreen(
                         height = 8.dp,
                         colors = ProgressIndicatorDefaults.progressIndicatorColors(
                             foregroundColor = ui.content,
-                            backgroundColor = MaterialTheme.colorScheme.surface,
+                            backgroundColor = MiuixTheme.colorScheme.surface,
                         ),
                     )
                     Spacer(Modifier.height(8.dp))
@@ -309,7 +308,7 @@ fun MiuixFoodDetailScreen(
                         Text(
                             "减少会计入消耗统计",
                             style = MiuixTheme.textStyles.footnote2,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                         )
                     }
                     QuantityStepper(
@@ -379,7 +378,7 @@ private fun DetailRow(label: String, value: String) {
         Text(
             label,
             style = MiuixTheme.textStyles.body2,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
             modifier = Modifier.width(88.dp),
         )
         Text(
