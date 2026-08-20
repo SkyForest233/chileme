@@ -34,7 +34,7 @@ fun rememberMiuixController(darkMode: Int, dynamicColor: Boolean): ThemeControll
  * `MaterialTheme.colorScheme` 取色；桥接后它们在 MIUIX 模式下也能取到协调的 Miuix 配色，
  * 属于渐进迁移的过渡层。
  *
- * Miuix 无 tertiary/inverse*/surfaceTint 等独立角色，用最接近的角色近似；
+ * Miuix 无 tertiary / inverse / surfaceTint 等独立角色，用最接近的角色近似；
  * 缺失角色不影响核心可读性（primary/surface/error 系列均已精确映射）。
  */
 @Composable
