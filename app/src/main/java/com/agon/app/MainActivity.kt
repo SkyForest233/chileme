@@ -83,6 +83,7 @@ import com.agon.app.ui.screens.ThresholdManageScreen
 import com.agon.app.ui.screens.FoodDetailScreen
 import com.agon.app.ui.screens.FoodListScreen
 import com.agon.app.ui.screens.HomeScreen
+import com.agon.app.ui.screens.MiuixArchiveScreen
 import com.agon.app.ui.screens.MiuixFoodDetailScreen
 import com.agon.app.ui.screens.MiuixFoodListScreen
 import com.agon.app.ui.screens.MiuixHomeScreen
@@ -321,10 +322,17 @@ fun MainApp(viewModel: AppViewModel) {
                 )
             }
             composable("archive") {
-                ArchiveScreen(
-                    viewModel = viewModel,
-                    onBack = { navController.popBackStack() },
-                )
+                if (LocalThemeStyle.current == ThemeStyle.MIUIX) {
+                    MiuixArchiveScreen(
+                        viewModel = viewModel,
+                        onBack = { navController.popBackStack() },
+                    )
+                } else {
+                    ArchiveScreen(
+                        viewModel = viewModel,
+                        onBack = { navController.popBackStack() },
+                    )
+                }
             }
             composable("settings") {
                 if (LocalThemeStyle.current == ThemeStyle.MIUIX) {
