@@ -28,6 +28,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -489,8 +490,7 @@ private fun BatchActionBar(
     onArchive: () -> Unit,
 ) {
     if (floating) {
-        // 悬浮：居中悬浮胶囊（与底部导航悬浮态一致的观感）。
-        // 「取消」为无边框文字按钮，「归档」为唯一实心胶囊，避免胶囊套胶囊。
+        // 悬浮：仅按钮本身悬浮（无外层胶囊背景），「取消」文字 + 「归档」实心胶囊独立悬浮。
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -498,19 +498,12 @@ private fun BatchActionBar(
                 .padding(bottom = 12.dp, top = 4.dp),
             contentAlignment = Alignment.Center,
         ) {
-            Surface(
-                shape = RoundedCornerShape(50),
-                color = MaterialTheme.colorScheme.surfaceContainer,
-                shadowElevation = 6.dp,
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                ) {
-                    BatchCancelButton(isMiuix = isMiuix, floating = true, onClick = onCancel)
-                    BatchArchiveButton(isMiuix = isMiuix, count = count, onClick = onArchive)
-                }
+                BatchCancelButton(isMiuix = isMiuix, floating = true, onClick = onCancel)
+                BatchArchiveButton(isMiuix = isMiuix, count = count, onClick = onArchive)
             }
         }
     } else {
@@ -542,14 +535,26 @@ private fun BatchCancelButton(
     modifier: Modifier = Modifier,
 ) {
     if (isMiuix) {
-        MiuixTextButton(text = "取消", onClick = onClick, modifier = modifier)
+        MiuixTextButton(
+            text = "取消",
+            onClick = onClick,
+            modifier = modifier,
+            minHeight = 48.dp,
+        )
     } else if (floating) {
         // 悬浮态用无边框文字按钮，避免与容器胶囊叠出双层胶囊
-        TextButton(onClick = onClick, modifier = modifier) {
+        TextButton(
+            onClick = onClick,
+            modifier = modifier.defaultMinSize(minHeight = 48.dp),
+        ) {
             Text("取消")
         }
     } else {
-        OutlinedButton(onClick = onClick, modifier = modifier, shape = RoundedCornerShape(50)) {
+        OutlinedButton(
+            onClick = onClick,
+            modifier = modifier.defaultMinSize(minHeight = 48.dp),
+            shape = RoundedCornerShape(50),
+        ) {
             Text("取消")
         }
     }
@@ -561,6 +566,8 @@ private fun BatchArchiveButton(isMiuix: Boolean, count: Int, onClick: () -> Unit
         MiuixButton(
             onClick = onClick,
             modifier = modifier,
+            minHeight = 48.dp,
+            cornerRadius = 50.dp,
             colors = MiuixButtonDefaults.buttonColors(
                 color = MiuixTheme.colorScheme.error,
                 contentColor = MiuixTheme.colorScheme.onError,
@@ -582,7 +589,7 @@ private fun BatchArchiveButton(isMiuix: Boolean, count: Int, onClick: () -> Unit
     } else {
         Button(
             onClick = onClick,
-            modifier = modifier,
+            modifier = modifier.defaultMinSize(minHeight = 48.dp),
             shape = RoundedCornerShape(50),
             colors = ButtonDefaults.buttonColors(
                 containerColor = MaterialTheme.colorScheme.error,
