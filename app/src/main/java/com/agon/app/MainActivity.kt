@@ -273,17 +273,17 @@ fun MainApp(viewModel: AppViewModel) {
         }
     }
 
+    // Snackbar 底部偏移：跟随底栏可见状态平滑过渡（不瞬移）。
+    val snackbarOffset by animateDpAsState(
+        targetValue = if (showChrome) 84.dp else 8.dp,
+        animationSpec = tween(250, easing = MotionEasing.Standard),
+        label = "snackbarOffset",
+    )
+
+    Box(modifier = Modifier.fillMaxSize()) {
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         containerColor = MaterialTheme.colorScheme.background,
-        snackbarHost = {
-            // Scaffold 会自动把 Snackbar 定位在 bottomBar 之上（跟随底栏状态），无需手动偏移。
-            if (isMiuix) {
-                MiuixSnackbarHost(miuixSnackbarHostState)
-            } else {
-                SnackbarHost(snackbarHostState)
-            }
-        },
         bottomBar = {
             if (selectionMode) {
                 // 多选：批量操作栏替换底部导航，形态跟随悬浮/非悬浮
@@ -526,6 +526,21 @@ fun MainApp(viewModel: AppViewModel) {
             }
             }
         }
+    }
+
+    // Snackbar 覆盖层（自定义定位：底栏可见→悬浮导航上方，隐藏→贴底，平滑过渡不瞬移）
+    Box(
+        modifier = Modifier
+            .align(Alignment.BottomCenter)
+            .navigationBarsPadding()
+            .padding(bottom = snackbarOffset),
+    ) {
+        if (isMiuix) {
+            MiuixSnackbarHost(miuixSnackbarHostState)
+        } else {
+            SnackbarHost(snackbarHostState)
+        }
+    }
     }
 }
 
