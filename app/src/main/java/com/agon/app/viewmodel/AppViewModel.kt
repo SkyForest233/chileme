@@ -172,6 +172,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             repo.seedIfNeeded()
             // 安全迁移：旧版明文密码 → Keystore 加密密文
             repo.migratePlaintextPassword()
+            // 迁移：旧消耗记录补 id（供删除/撤销定位）
+            repo.migrateConsumptionIds()
             // 启动时清理孤儿封面图片（未被库存/归档引用的文件）
             val referenced = buildSet {
                 repo.itemsFlow.first().forEach { if (it.photoPath.isNotBlank()) add(it.photoPath) }

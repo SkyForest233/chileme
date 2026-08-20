@@ -133,6 +133,18 @@ class FoodRepository(private val context: Context) {
         }
     }
 
+    /** 启动时迁移：给无 id 的旧消耗记录补 UUID，供删除/撤销精确定位。 */
+    suspend fun migrateConsumptionIds() {
+        context.dataStore.edit { prefs ->
+            val records = decodeConsumption(prefs[consumptionKey])
+            if (records.any { it.id == null }) {
+                prefs[consumptionKey] = json.encodeToString(
+                    records.map { if (it.id == null) it.copy(id = UUID.randomUUID().toString()) else it }
+                )
+            }
+        }
+    }
+
     suspend fun seedIfNeeded() {
         context.dataStore.edit { prefs ->
             if (prefs[seededKey] == true) return@edit
