@@ -31,6 +31,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.agon.app.data.ConsumptionRecord
 import com.agon.app.data.byId
+import com.agon.app.data.cn
 import com.agon.app.ui.components.EmptyState
 import com.agon.app.viewmodel.AppViewModel
 import kotlinx.coroutines.launch
