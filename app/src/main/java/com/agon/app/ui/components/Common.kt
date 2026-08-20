@@ -5,6 +5,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
@@ -69,7 +70,16 @@ import com.agon.app.data.expiryDate
 import com.agon.app.data.effectiveThreshold
 import com.agon.app.data.productionDate
 import com.agon.app.data.remainingText
+import com.agon.app.ui.theme.LocalThemeStyle
 import com.agon.app.ui.theme.MotionEasing
+import com.agon.app.ui.theme.ThemeStyle
+import top.yukonga.miuix.kmp.basic.Card as MiuixCard
+import top.yukonga.miuix.kmp.basic.CardDefaults as MiuixCardDefaults
+import top.yukonga.miuix.kmp.basic.Icon as MiuixIcon
+import top.yukonga.miuix.kmp.basic.IconButton as MiuixIconButton
+import top.yukonga.miuix.kmp.basic.Surface as MiuixSurface
+import top.yukonga.miuix.kmp.basic.Text as MiuixText
+import top.yukonga.miuix.kmp.utils.PressFeedbackType
 import com.agon.app.ui.theme.DangerContainerDark
 import com.agon.app.ui.theme.DangerContainerLight
 import com.agon.app.ui.theme.DangerContentDark
@@ -167,19 +177,37 @@ fun urgencyDotColor(urgency: ExpiryUrgency): Color {
 @Composable
 fun StatusBadge(status: FoodStatus, modifier: Modifier = Modifier) {
     val ui = rememberStatusUi(status)
-    Surface(
-        modifier = modifier,
-        color = ui.container,
-        contentColor = ui.content,
-        shape = RoundedCornerShape(50),
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-            verticalAlignment = Alignment.CenterVertically,
+    if (LocalThemeStyle.current == ThemeStyle.MIUIX) {
+        MiuixSurface(
+            modifier = modifier,
+            color = ui.container,
+            contentColor = ui.content,
+            shape = RoundedCornerShape(50),
         ) {
-            Icon(ui.icon, contentDescription = null, modifier = Modifier.size(14.dp))
-            Spacer(Modifier.width(4.dp))
-            Text(ui.label, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold)
+            Row(
+                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                MiuixIcon(ui.icon, contentDescription = null, modifier = Modifier.size(14.dp))
+                Spacer(Modifier.width(4.dp))
+                MiuixText(ui.label, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+            }
+        }
+    } else {
+        Surface(
+            modifier = modifier,
+            color = ui.container,
+            contentColor = ui.content,
+            shape = RoundedCornerShape(50),
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(ui.icon, contentDescription = null, modifier = Modifier.size(14.dp))
+                Spacer(Modifier.width(4.dp))
+                Text(ui.label, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold)
+            }
         }
     }
 }
@@ -241,27 +269,52 @@ fun EmojiAvatar(
 @Composable
 fun LocationTag(location: String, modifier: Modifier = Modifier) {
     if (location.isBlank()) return
-    Surface(
-        modifier = modifier,
-        shape = RoundedCornerShape(50),
-        color = MaterialTheme.colorScheme.surfaceContainerHighest,
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
-            verticalAlignment = Alignment.CenterVertically,
+    val bg = MaterialTheme.colorScheme.surfaceContainerHighest
+    val fg = MaterialTheme.colorScheme.onSurfaceVariant
+    if (LocalThemeStyle.current == ThemeStyle.MIUIX) {
+        MiuixSurface(
+            modifier = modifier,
+            shape = RoundedCornerShape(50),
+            color = bg,
+            contentColor = fg,
         ) {
-            Icon(
-                Icons.Rounded.Place,
-                contentDescription = null,
-                modifier = Modifier.size(12.dp),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Spacer(Modifier.width(3.dp))
-            Text(
-                location,
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            Row(
+                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                MiuixIcon(
+                    Icons.Rounded.Place,
+                    contentDescription = null,
+                    modifier = Modifier.size(12.dp),
+                    tint = fg,
+                )
+                Spacer(Modifier.width(3.dp))
+                MiuixText(location, fontSize = 11.sp, color = fg)
+            }
+        }
+    } else {
+        Surface(
+            modifier = modifier,
+            shape = RoundedCornerShape(50),
+            color = MaterialTheme.colorScheme.surfaceContainerHighest,
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(
+                    Icons.Rounded.Place,
+                    contentDescription = null,
+                    modifier = Modifier.size(12.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.width(3.dp))
+                Text(
+                    location,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
     }
 }
@@ -273,33 +326,70 @@ fun QuantityStepper(
     onChange: (Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Surface(
-        modifier = modifier,
-        shape = RoundedCornerShape(50),
-        color = MaterialTheme.colorScheme.surfaceContainerHighest,
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
-            verticalAlignment = Alignment.CenterVertically,
+    val bg = MaterialTheme.colorScheme.surfaceContainerHighest
+    val fg = MaterialTheme.colorScheme.onSurface
+    if (LocalThemeStyle.current == ThemeStyle.MIUIX) {
+        MiuixSurface(
+            modifier = modifier,
+            shape = RoundedCornerShape(50),
+            color = bg,
+            contentColor = fg,
         ) {
-            IconButton(
-                onClick = { onChange(-1) },
-                enabled = quantity > 0,
+            Row(
+                modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Icon(Icons.Rounded.Remove, contentDescription = "减少", modifier = Modifier.size(18.dp))
+                MiuixIconButton(
+                    onClick = { onChange(-1) },
+                    enabled = quantity > 0,
+                ) {
+                    MiuixIcon(Icons.Rounded.Remove, contentDescription = "减少", modifier = Modifier.size(18.dp), tint = fg)
+                }
+                AnimatedContent(targetState = quantity, label = "qty") { q ->
+                    MiuixText(
+                        "$q $unit",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = fg,
+                        modifier = Modifier.padding(horizontal = 6.dp),
+                    )
+                }
+                MiuixIconButton(
+                    onClick = { onChange(1) },
+                ) {
+                    MiuixIcon(Icons.Rounded.Add, contentDescription = "增加", modifier = Modifier.size(18.dp), tint = fg)
+                }
             }
-            AnimatedContent(targetState = quantity, label = "qty") { q ->
-                Text(
-                    "$q $unit",
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(horizontal = 6.dp),
-                )
-            }
-            IconButton(
-                onClick = { onChange(1) },
+        }
+    } else {
+        Surface(
+            modifier = modifier,
+            shape = RoundedCornerShape(50),
+            color = MaterialTheme.colorScheme.surfaceContainerHighest,
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Icon(Icons.Rounded.Add, contentDescription = "增加", modifier = Modifier.size(18.dp))
+                IconButton(
+                    onClick = { onChange(-1) },
+                    enabled = quantity > 0,
+                ) {
+                    Icon(Icons.Rounded.Remove, contentDescription = "减少", modifier = Modifier.size(18.dp))
+                }
+                AnimatedContent(targetState = quantity, label = "qty") { q ->
+                    Text(
+                        "$q $unit",
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 6.dp),
+                    )
+                }
+                IconButton(
+                    onClick = { onChange(1) },
+                ) {
+                    Icon(Icons.Rounded.Add, contentDescription = "增加", modifier = Modifier.size(18.dp))
+                }
             }
         }
     }
@@ -329,92 +419,184 @@ fun FoodCard(
         animationSpec = tween(200, easing = MotionEasing.Standard),
         label = "cardBorder",
     )
-    Card(
-        modifier = modifier
-            .fillMaxWidth()
-            .clip(MaterialTheme.shapes.large)
-            .combinedClickable(
-                onClick = onClick,
-                onLongClick = onLongClick,
-            ),
-        shape = MaterialTheme.shapes.large,
-        colors = CardDefaults.cardColors(
-            containerColor = if (selected) MaterialTheme.colorScheme.surfaceContainerHigh
-            else MaterialTheme.colorScheme.surfaceContainer,
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-        border = BorderStroke(2.dp, borderColor),
-    ) {
-        Column(Modifier.padding(16.dp)) {
-            Row(verticalAlignment = Alignment.Top) {
-                AnimatedVisibility(visible = selectionMode) {
-                    Row {
-                        SelectIndicator(selected = selected)
-                        Spacer(Modifier.width(10.dp))
+    val containerColor = if (selected) MaterialTheme.colorScheme.surfaceContainerHigh
+    else MaterialTheme.colorScheme.surfaceContainer
+
+    if (LocalThemeStyle.current == ThemeStyle.MIUIX) {
+        MiuixCard(
+            modifier = modifier
+                .fillMaxWidth()
+                .then(
+                    if (selected) {
+                        Modifier.border(BorderStroke(2.dp, borderColor), RoundedCornerShape(MiuixCardDefaults.CornerRadius))
+                    } else {
+                        Modifier
                     }
-                }
-                FoodAvatar(item, category.emoji, background = ui.container)
-                Spacer(Modifier.width(12.dp))
-                Column(Modifier.weight(1f)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            item.name,
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f, fill = false),
+                ),
+            colors = MiuixCardDefaults.defaultColors(color = containerColor),
+            pressFeedbackType = PressFeedbackType.Sink,
+            onClick = onClick,
+            onLongPress = onLongClick,
+        ) {
+            Column(Modifier.padding(16.dp)) {
+                Row(verticalAlignment = Alignment.Top) {
+                    AnimatedVisibility(visible = selectionMode) {
+                        Row {
+                            SelectIndicator(selected = selected)
+                            Spacer(Modifier.width(10.dp))
+                        }
+                    }
+                    FoodAvatar(item, category.emoji, background = ui.container)
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            MiuixText(
+                                item.name,
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f, fill = false),
+                            )
+                            Spacer(Modifier.width(6.dp))
+                            LocationTag(item.location)
+                        }
+                        Spacer(Modifier.height(2.dp))
+                        MiuixText(
+                            "${category.label} · 生产 ${item.productionDate.cn()}",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
-                        Spacer(Modifier.width(6.dp))
-                        LocationTag(item.location)
+                        MiuixText(
+                            "到期 ${item.expiryDate.cn()}",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                     }
-                    Spacer(Modifier.height(2.dp))
-                    Text(
-                        "${category.label} · 生产 ${item.productionDate.cn()}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    Spacer(Modifier.width(8.dp))
+                    StatusBadge(status)
+                }
+                Spacer(Modifier.height(14.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    // 正相关进度：时间过去多少，进度条就走多少
+                    LinearProgressIndicator(
+                        progress = { item.elapsedRatio },
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(6.dp)
+                            .clip(RoundedCornerShape(50)),
+                        color = ui.content,
+                        trackColor = ui.container,
                     )
-                    Text(
-                        "到期 ${item.expiryDate.cn()}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    Spacer(Modifier.width(12.dp))
+                    MiuixText(
+                        item.remainingText,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = ui.content,
                     )
                 }
-                Spacer(Modifier.width(8.dp))
-                StatusBadge(status)
+                Spacer(Modifier.height(10.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    MiuixText(
+                        "库存数量",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.weight(1f),
+                    )
+                    QuantityStepper(quantity = item.quantity, unit = item.unit, onChange = onQuantityChange)
+                }
             }
-            Spacer(Modifier.height(14.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                // 正相关进度：时间过去多少，进度条就走多少
-                LinearProgressIndicator(
-                    progress = { item.elapsedRatio },
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(6.dp)
-                        .clip(RoundedCornerShape(50)),
-                    color = ui.content,
-                    trackColor = ui.container,
-                )
-                Spacer(Modifier.width(12.dp))
-                Text(
-                    item.remainingText,
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = ui.content,
-                )
-            }
-            Spacer(Modifier.height(10.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    "库存数量",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.weight(1f),
-                )
-                QuantityStepper(quantity = item.quantity, unit = item.unit, onChange = onQuantityChange)
+        }
+    } else {
+        Card(
+            modifier = modifier
+                .fillMaxWidth()
+                .clip(MaterialTheme.shapes.large)
+                .combinedClickable(
+                    onClick = onClick,
+                    onLongClick = onLongClick,
+                ),
+            shape = MaterialTheme.shapes.large,
+            colors = CardDefaults.cardColors(containerColor = containerColor),
+            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+            border = BorderStroke(2.dp, borderColor),
+        ) {
+            Column(Modifier.padding(16.dp)) {
+                Row(verticalAlignment = Alignment.Top) {
+                    AnimatedVisibility(visible = selectionMode) {
+                        Row {
+                            SelectIndicator(selected = selected)
+                            Spacer(Modifier.width(10.dp))
+                        }
+                    }
+                    FoodAvatar(item, category.emoji, background = ui.container)
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                item.name,
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f, fill = false),
+                            )
+                            Spacer(Modifier.width(6.dp))
+                            LocationTag(item.location)
+                        }
+                        Spacer(Modifier.height(2.dp))
+                        Text(
+                            "${category.label} · 生产 ${item.productionDate.cn()}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Text(
+                            "到期 ${item.expiryDate.cn()}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    StatusBadge(status)
+                }
+                Spacer(Modifier.height(14.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    // 正相关进度：时间过去多少，进度条就走多少
+                    LinearProgressIndicator(
+                        progress = { item.elapsedRatio },
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(6.dp)
+                            .clip(RoundedCornerShape(50)),
+                        color = ui.content,
+                        trackColor = ui.container,
+                    )
+                    Spacer(Modifier.width(12.dp))
+                    Text(
+                        item.remainingText,
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = ui.content,
+                    )
+                }
+                Spacer(Modifier.height(10.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        "库存数量",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.weight(1f),
+                    )
+                    QuantityStepper(quantity = item.quantity, unit = item.unit, onChange = onQuantityChange)
+                }
             }
         }
     }
@@ -545,15 +727,28 @@ fun EmptyState(
             .padding(vertical = 48.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text(emoji, fontSize = 56.sp)
-        Spacer(Modifier.height(16.dp))
-        Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-        Spacer(Modifier.height(4.dp))
-        Text(
-            subtitle,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center,
-        )
+        if (LocalThemeStyle.current == ThemeStyle.MIUIX) {
+            MiuixText(emoji, fontSize = 56.sp)
+            Spacer(Modifier.height(16.dp))
+            MiuixText(title, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+            Spacer(Modifier.height(4.dp))
+            MiuixText(
+                subtitle,
+                fontSize = 14.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+            )
+        } else {
+            Text(emoji, fontSize = 56.sp)
+            Spacer(Modifier.height(16.dp))
+            Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            Spacer(Modifier.height(4.dp))
+            Text(
+                subtitle,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+            )
+        }
     }
 }
