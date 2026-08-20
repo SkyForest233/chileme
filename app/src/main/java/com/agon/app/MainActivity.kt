@@ -51,6 +51,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -82,11 +83,14 @@ import com.agon.app.ui.screens.ThresholdManageScreen
 import com.agon.app.ui.screens.FoodDetailScreen
 import com.agon.app.ui.screens.FoodListScreen
 import com.agon.app.ui.screens.HomeScreen
+import com.agon.app.ui.screens.MiuixSettingsScreen
 import com.agon.app.ui.screens.SettingsScreen
 import com.agon.app.ui.screens.StatsScreen
 import com.agon.app.ui.theme.AgonAppTheme
 import com.agon.app.ui.theme.AppPalette
+import com.agon.app.ui.theme.LocalThemeStyle
 import com.agon.app.ui.theme.MotionEasing
+import com.agon.app.ui.theme.ThemeStyle
 import com.agon.app.viewmodel.AppViewModel
 
 // MD3 motion easing tokens 统一从 ui/theme/Motion.kt 引用
@@ -108,6 +112,7 @@ class MainActivity : ComponentActivity() {
             val dynamicColor by viewModel.dynamicColor.collectAsStateWithLifecycle()
             val darkMode by viewModel.darkMode.collectAsStateWithLifecycle()
             val paletteName by viewModel.palette.collectAsStateWithLifecycle()
+            val themeStyleName by viewModel.themeStyle.collectAsStateWithLifecycle()
             LaunchedEffect(ready) { if (ready) contentReady = true }
             if (!ready) return@setContent
             val darkTheme = when (darkMode) {
@@ -115,12 +120,15 @@ class MainActivity : ComponentActivity() {
                 2 -> true
                 else -> isSystemInDarkTheme()
             }
+            val themeStyle = ThemeStyle.fromName(themeStyleName)
             AgonAppTheme(
                 darkTheme = darkTheme,
                 dynamicColor = dynamicColor,
                 palette = AppPalette.fromName(paletteName),
             ) {
-                MainApp(viewModel)
+                CompositionLocalProvider(LocalThemeStyle provides themeStyle) {
+                    MainApp(viewModel)
+                }
             }
         }
     }
@@ -278,13 +286,23 @@ fun MainApp(viewModel: AppViewModel) {
                 )
             }
             composable("settings") {
-                SettingsScreen(
-                    viewModel = viewModel,
-                    onOpenArchive = { navController.navigate("archive") },
-                    onOpenThresholds = { navController.navigate("manage_thresholds") },
-                    onOpenCategories = { navController.navigate("manage_categories") },
-                    onOpenLocations = { navController.navigate("manage_locations") },
-                )
+                if (LocalThemeStyle.current == ThemeStyle.MIUIX) {
+                    MiuixSettingsScreen(
+                        viewModel = viewModel,
+                        onOpenArchive = { navController.navigate("archive") },
+                        onOpenThresholds = { navController.navigate("manage_thresholds") },
+                        onOpenCategories = { navController.navigate("manage_categories") },
+                        onOpenLocations = { navController.navigate("manage_locations") },
+                    )
+                } else {
+                    SettingsScreen(
+                        viewModel = viewModel,
+                        onOpenArchive = { navController.navigate("archive") },
+                        onOpenThresholds = { navController.navigate("manage_thresholds") },
+                        onOpenCategories = { navController.navigate("manage_categories") },
+                        onOpenLocations = { navController.navigate("manage_locations") },
+                    )
+                }
             }
             composable("manage_thresholds") {
                 ThresholdManageScreen(viewModel = viewModel, onBack = { navController.popBackStack() })

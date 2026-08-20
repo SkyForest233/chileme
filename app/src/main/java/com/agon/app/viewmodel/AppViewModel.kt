@@ -73,6 +73,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     val palette: StateFlow<String> =
         repo.paletteFlow.stateIn(viewModelScope, SharingStarted.Eagerly, "MINT")
 
+    val themeStyle: StateFlow<String> =
+        repo.themeStyleFlow.stateIn(viewModelScope, SharingStarted.Eagerly, "MATERIAL3")
+
     val nutstoreAccount: StateFlow<String> =
         repo.nutstoreAccountFlow.stateIn(viewModelScope, SharingStarted.Eagerly, "")
 
@@ -95,7 +98,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
      * 避免启动时先用默认主题/空列表渲染一帧再“闪”成真实内容。
      */
     val ready: StateFlow<Boolean> =
-        combine(repo.itemsFlow, repo.paletteFlow, repo.darkModeFlow) { _, _, _ -> true }
+        combine(repo.itemsFlow, repo.paletteFlow, repo.darkModeFlow, repo.themeStyleFlow) { _, _, _, _ -> true }
             .stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
     /** 临时 UI 状态：Snackbar 展示“撤销”时隐藏 FAB，避免挡住撤销按钮 */
@@ -233,6 +236,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun setDarkMode(mode: Int) = viewModelScope.launch { repo.setDarkMode(mode) }
 
     fun setPalette(name: String) = viewModelScope.launch { repo.setPalette(name) }
+
+    fun setThemeStyle(name: String) = viewModelScope.launch { repo.setThemeStyle(name) }
 
     suspend fun buildBackupJson(): String = repo.buildBackupJson()
 

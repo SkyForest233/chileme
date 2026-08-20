@@ -31,6 +31,7 @@ class FoodRepository(private val context: Context) {
     private val dynamicColorKey = booleanPreferencesKey("dynamic_color")
     private val darkModeKey = intPreferencesKey("dark_mode")
     private val paletteKey = stringPreferencesKey("palette")
+    private val themeStyleKey = stringPreferencesKey("theme_style")
     private val nutstoreAccountKey = stringPreferencesKey("nutstore_account")
     private val nutstorePasswordKey = stringPreferencesKey("nutstore_password")
     private val nutstorePasswordEncKey = stringPreferencesKey("nutstore_password_enc")
@@ -92,6 +93,8 @@ class FoodRepository(private val context: Context) {
     val darkModeFlow: Flow<Int> = context.dataStore.data.map { it[darkModeKey] ?: 0 }
 
     val paletteFlow: Flow<String> = context.dataStore.data.map { it[paletteKey] ?: "MINT" }
+
+    val themeStyleFlow: Flow<String> = context.dataStore.data.map { it[themeStyleKey] ?: "MATERIAL3" }
 
     val nutstoreAccountFlow: Flow<String> = context.dataStore.data.map { it[nutstoreAccountKey] ?: "" }
 
@@ -315,6 +318,10 @@ class FoodRepository(private val context: Context) {
 
     suspend fun setPalette(name: String) {
         context.dataStore.edit { it[paletteKey] = name }
+    }
+
+    suspend fun setThemeStyle(name: String) {
+        context.dataStore.edit { it[themeStyleKey] = name }
     }
 
     suspend fun setNutstoreCredentials(account: String, password: String) {

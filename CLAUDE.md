@@ -24,6 +24,7 @@
 ## 2.5 已安装 Skill 与审计
 
 - `.claude/skills/material-3/`：Material Design 3 实现与审计 skill（hamen/material-3-skill v1.1.1）。做 UI 相关任务时可参考其 SKILL.md 与 references/。
+- `.claude/skills/miuix/`：Miuix（HyperOS）Compose UI skill（limczhh/miuix-skill，证据基线 v0.9.4-rc01 @ 4a6b750b）。做「主题风格切换 / Miuix 组件」相关任务时参考其 SKILL.md 与 references/（组件 API 一律以 pinned source 为准，禁止凭 MD3 记忆臆造 Miuix 参数）。
 - 审计报告存放于 `docs/audits/`（如 `2026-07-31-md3-audit.md`）。修复审计问题时对照报告的 file:line 引用与优先级列表。
 
 ## 3. 开发日志（devlog/）
@@ -49,10 +50,11 @@
 
 - 代码包名（namespace）固定 `com.agon.app`，所有 Kotlin 文件必须在此包或子包下；applicationId 为 `com.chileme.pantry`，不要混淆
 - FileProvider authority 一律用 `${applicationId}.fileprovider`（Manifest）/ `${context.packageName}.fileprovider`（代码），禁止硬编码
-- 只用 material3，禁止混用 material2 导入
+- 只用 material3 + Miuix 两套 UI 体系（v2.8 起），禁止混用 material2 导入；主题风格由 `ui/theme/ThemeStyle.kt` 的 `ThemeStyle` 枚举（MATERIAL3 / MIUIX）控制，经 `LocalThemeStyle` 下发，设置页据此切换两套实现
 - 数据持久化统一走 `FoodRepository`（DataStore + kotlinx-serialization），UI 不直接碰 DataStore
 - 删除类操作一律走归档（Archive），不直接物理删除库存记录
 - 主题为 MD3 种子色方案（MaterialKolor 生成），配色方案定义在 `ui/theme/Palettes.kt`（AppPalette 枚举）；`Color.kt` 仅保留状态语义色；状态色（安全/临期/过期）通过 `rememberStatusUi()` 获取
+- 渐进 Miuix 迁移（v2.8 阶段一）：仅设置页有 Miuix 实现（`MiuixSettingsScreen`），其余页面仍为 MD3；Miuix 组件 API 一律以 `.claude/skills/miuix` 的 pinned source（v0.9.4-rc01）为准，不得凭记忆臆造
 - 所有布尔开关一律使用 `ui/components/Common.kt` 的 `CheckSwitch`（打勾/打叉样式），禁止使用 material3 Switch
 - 构建前确认 `strings.xml` 的 app_name 为“吃了么”，不得回退为占位名
 - **版本号锁定**：设置页“关于”中的版本号固定为 **v1.0**，未经用户明确指示不得更改（用户 2026-07-31 明确要求，此后新增功能不再自行递增版本号）

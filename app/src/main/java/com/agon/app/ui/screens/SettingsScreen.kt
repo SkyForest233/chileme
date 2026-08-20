@@ -80,6 +80,7 @@ import com.agon.app.data.CLOUD_BACKUP_KEEP
 import com.agon.app.data.CloudBackup
 import com.agon.app.ui.components.CheckSwitch
 import com.agon.app.ui.theme.AppPalette
+import com.agon.app.ui.theme.ThemeStyle
 import com.agon.app.viewmodel.AppViewModel
 import com.materialkolor.PaletteStyle
 import com.materialkolor.rememberDynamicColorScheme
@@ -98,6 +99,7 @@ fun SettingsScreen(
     val dynamicColor by viewModel.dynamicColor.collectAsStateWithLifecycle()
     val darkMode by viewModel.darkMode.collectAsStateWithLifecycle()
     val paletteName by viewModel.palette.collectAsStateWithLifecycle()
+    val themeStyleName by viewModel.themeStyle.collectAsStateWithLifecycle()
     val items by viewModel.items.collectAsStateWithLifecycle()
     val archived by viewModel.archived.collectAsStateWithLifecycle()
     val categories by viewModel.categories.collectAsStateWithLifecycle()
@@ -199,6 +201,28 @@ fun SettingsScreen(
                                 onClick = { viewModel.setDarkMode(index) },
                                 shape = SegmentedButtonDefaults.itemShape(index = index, count = 3),
                             ) { Text(label) }
+                        }
+                    }
+                    Spacer(Modifier.height(20.dp))
+                    Text("主题风格", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        if (themeStyleName == ThemeStyle.MIUIX.name) "MIUIX：设置页使用小米 HyperOS 组件渲染"
+                        else "Material 3：默认风格",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+                        ThemeStyle.entries.forEachIndexed { index, style ->
+                            SegmentedButton(
+                                selected = themeStyleName == style.name,
+                                onClick = { viewModel.setThemeStyle(style.name) },
+                                shape = SegmentedButtonDefaults.itemShape(
+                                    index = index,
+                                    count = ThemeStyle.entries.size,
+                                ),
+                            ) { Text(style.label) }
                         }
                     }
                     Spacer(Modifier.height(20.dp))
