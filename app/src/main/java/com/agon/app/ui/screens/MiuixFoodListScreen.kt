@@ -79,7 +79,7 @@ import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
-private enum class StatusFilter(val label: String) {
+private enum class MiuixStatusFilter(val label: String) {
     ALL("全部"), SAFE("安全"), EXPIRING("临期"), EXPIRED("已过期")
 }
 
@@ -105,9 +105,9 @@ fun MiuixFoodListScreen(
     var statusFilter by rememberSaveable(initialFilter) {
         mutableStateOf(
             when (initialFilter) {
-                "expiring" -> StatusFilter.EXPIRING
-                "expired" -> StatusFilter.EXPIRED
-                else -> StatusFilter.ALL
+                "expiring" -> MiuixStatusFilter.EXPIRING
+                "expired" -> MiuixStatusFilter.EXPIRED
+                else -> MiuixStatusFilter.ALL
             }
         )
     }
@@ -157,7 +157,7 @@ fun MiuixFoodListScreen(
     }
 
     val activeFilterCount =
-        (if (statusFilter != StatusFilter.ALL) 1 else 0) +
+        (if (statusFilter != MiuixStatusFilter.ALL) 1 else 0) +
             (if (categoryFilter != null) 1 else 0) +
             (if (locationFilter != null) 1 else 0)
 
@@ -166,10 +166,10 @@ fun MiuixFoodListScreen(
             .filter { query.isBlank() || it.name.contains(query.trim(), ignoreCase = true) }
             .filter {
                 when (statusFilter) {
-                    StatusFilter.ALL -> true
-                    StatusFilter.SAFE -> it.statusFor(thresholds) == FoodStatus.SAFE
-                    StatusFilter.EXPIRING -> it.statusFor(thresholds) == FoodStatus.EXPIRING
-                    StatusFilter.EXPIRED -> it.statusFor(thresholds) == FoodStatus.EXPIRED
+                    MiuixStatusFilter.ALL -> true
+                    MiuixStatusFilter.SAFE -> it.statusFor(thresholds) == FoodStatus.SAFE
+                    MiuixStatusFilter.EXPIRING -> it.statusFor(thresholds) == FoodStatus.EXPIRING
+                    MiuixStatusFilter.EXPIRED -> it.statusFor(thresholds) == FoodStatus.EXPIRED
                 }
             }
             .filter { categoryFilter == null || it.category == categoryFilter }
@@ -315,7 +315,7 @@ fun MiuixFoodListScreen(
                         contentPadding = PaddingValues(horizontal = 20.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                        items(StatusFilter.entries.toList()) { f ->
+                        items(MiuixStatusFilter.entries.toList()) { f ->
                             FilterChip(
                                 selected = statusFilter == f,
                                 onClick = { statusFilter = f },
