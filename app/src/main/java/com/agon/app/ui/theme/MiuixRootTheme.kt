@@ -47,7 +47,10 @@ fun miuixColorsToMd3ColorScheme(c: Colors): ColorScheme = ColorScheme(
     secondary = c.secondary,
     onSecondary = c.onSecondary,
     secondaryContainer = c.secondaryContainer,
-    onSecondaryContainer = c.onSecondaryContainer,
+    // onSecondaryContainer 在 Miuix 是浅灰 #A9A9A9，但 MD3 里 FilterChip 选中态默认用它做
+    // label 色（项目多处把 selectedContainerColor 设为 secondaryContainer/tertiaryContainer）。
+    // 映射为蓝（onTertiaryContainer）保证浅灰底蓝字可读，而非灰底灰字。
+    onSecondaryContainer = c.onTertiaryContainer,
     tertiary = c.tertiaryContainer,
     onTertiary = c.onTertiaryContainer,
     tertiaryContainer = c.tertiaryContainer,

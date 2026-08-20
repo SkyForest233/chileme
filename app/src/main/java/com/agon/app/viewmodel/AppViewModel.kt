@@ -25,6 +25,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.util.UUID
 
@@ -110,6 +111,22 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setFabSuppressed(suppressed: Boolean) {
         _fabSuppressed.value = suppressed
+    }
+
+    /** 多选模式选中的食品 id 集合（v2.8 提升到 VM，供 MainActivity 批量操作栏与列表页共用） */
+    private val _selectedIds = MutableStateFlow<Set<String>>(emptySet())
+    val selectedIds: StateFlow<Set<String>> = _selectedIds.asStateFlow()
+
+    fun toggleSelection(id: String) {
+        _selectedIds.update { if (id in it) it - id else it + id }
+    }
+
+    fun setSelection(ids: Set<String>) {
+        _selectedIds.value = ids
+    }
+
+    fun clearSelection() {
+        _selectedIds.value = emptySet()
     }
 
     init {

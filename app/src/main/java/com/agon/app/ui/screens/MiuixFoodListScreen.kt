@@ -1,14 +1,11 @@
 package com.agon.app.ui.screens
 
-import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -17,7 +14,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -27,7 +23,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.DeleteForever
 import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.FilterList
@@ -40,11 +35,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -53,9 +46,7 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.agon.app.data.ArchiveReason
 import com.agon.app.data.FoodStatus
 import com.agon.app.data.byId
 import com.agon.app.data.daysLeft
@@ -65,17 +56,10 @@ import com.agon.app.ui.components.FoodAvatar
 import com.agon.app.ui.components.FoodCard
 import com.agon.app.ui.theme.MotionEasing
 import com.agon.app.viewmodel.AppViewModel
-import kotlinx.coroutines.launch
-import top.yukonga.miuix.kmp.basic.Button
-import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.InputField
 import top.yukonga.miuix.kmp.basic.Scaffold
-import top.yukonga.miuix.kmp.basic.SnackbarHost
-import top.yukonga.miuix.kmp.basic.SnackbarHostState
-import top.yukonga.miuix.kmp.basic.SnackbarResult
-import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
@@ -116,41 +100,9 @@ fun MiuixFoodListScreen(
     var filtersExpanded by rememberSaveable(initialFilter) {
         mutableStateOf(initialFilter != null)
     }
-    val snackbarHostState = remember { SnackbarHostState() }
-    val scope = rememberCoroutineScope()
-
-    // ---- 长按多选（批量归档）----
-    var selectedIds by remember { mutableStateOf(setOf<String>()) }
+    // ---- 长按多选（批量归档，选中状态提升到 ViewModel，供 MainActivity 批量操作栏共用）----
+    val selectedIds by viewModel.selectedIds.collectAsStateWithLifecycle()
     val selectionMode = selectedIds.isNotEmpty()
-
-    LaunchedEffect(selectionMode) {
-        viewModel.setFabSuppressed(selectionMode)
-    }
-
-    BackHandler(enabled = selectionMode) {
-        selectedIds = emptySet()
-    }
-
-    fun archiveSelected() {
-        val ids = selectedIds
-        if (ids.isEmpty()) return
-        selectedIds = emptySet()
-        viewModel.archiveBatch(ids, ArchiveReason.DELETED)
-        scope.launch {
-            viewModel.setFabSuppressed(true)
-            try {
-                val result = snackbarHostState.showSnackbar(
-                    message = "已将 ${ids.size} 件食品移入归档",
-                    actionLabel = "撤销",
-                )
-                if (result == SnackbarResult.ActionPerformed) {
-                    viewModel.restoreArchivedBatch(ids)
-                }
-            } finally {
-                viewModel.setFabSuppressed(false)
-            }
-        }
-    }
 
     val usedLocations = remember(items) {
         items.map { it.location }.filter { it.isNotBlank() }.distinct().sorted()
@@ -183,22 +135,21 @@ fun MiuixFoodListScreen(
     }
 
     Scaffold(
-        snackbarHost = {
-            SnackbarHost(snackbarHostState, modifier = Modifier.padding(bottom = 84.dp))
-        },
         topBar = {
             if (selectionMode) {
                 TopAppBar(
                     title = "已选 ${selectedIds.size} 项",
                     navigationIcon = {
-                        IconButton(onClick = { selectedIds = emptySet() }) {
+                        IconButton(onClick = { viewModel.clearSelection() }) {
                             Icon(Icons.Rounded.Close, contentDescription = "退出多选")
                         }
                     },
                     actions = {
                         IconButton(onClick = {
-                            selectedIds = if (selectedIds.size == filtered.size) emptySet()
-                            else filtered.map { it.id }.toSet()
+                            viewModel.setSelection(
+                                if (selectedIds.size == filtered.size) emptySet()
+                                else filtered.map { it.id }.toSet()
+                            )
                         }) {
                             Icon(
                                 Icons.Rounded.SelectAll,
@@ -221,56 +172,6 @@ fun MiuixFoodListScreen(
                         }
                     },
                 )
-            }
-        },
-        bottomBar = {
-            AnimatedVisibility(
-                visible = selectionMode,
-                enter = slideInVertically(tween(250, easing = MotionEasing.EmphasizedDecelerate)) { it } +
-                    fadeIn(tween(250, easing = MotionEasing.EmphasizedDecelerate)),
-                exit = slideOutVertically(tween(200, easing = MotionEasing.EmphasizedAccelerate)) { it } +
-                    fadeOut(tween(200, easing = MotionEasing.EmphasizedAccelerate)),
-            ) {
-                Surface(
-                    color = MaterialTheme.colorScheme.surfaceContainer,
-                    shadowElevation = 8.dp,
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .navigationBarsPadding()
-                            .padding(horizontal = 20.dp, vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    ) {
-                        TextButton(
-                            text = "取消",
-                            onClick = { selectedIds = emptySet() },
-                            modifier = Modifier.weight(1f),
-                        )
-                        Button(
-                            onClick = { archiveSelected() },
-                            modifier = Modifier.weight(2f),
-                            colors = ButtonDefaults.buttonColors(
-                                color = MiuixTheme.colorScheme.error,
-                                contentColor = MiuixTheme.colorScheme.onError,
-                            ),
-                        ) {
-                            Icon(
-                                Icons.Rounded.Delete,
-                                contentDescription = null,
-                                modifier = Modifier.size(18.dp),
-                                tint = MiuixTheme.colorScheme.onError,
-                            )
-                            Spacer(Modifier.width(6.dp))
-                            Text(
-                                "归档 ${selectedIds.size} 项",
-                                fontWeight = FontWeight.SemiBold,
-                                color = MiuixTheme.colorScheme.onError,
-                            )
-                        }
-                    }
-                }
             }
         },
     ) { padding ->
@@ -323,6 +224,7 @@ fun MiuixFoodListScreen(
                                 shape = RoundedCornerShape(50),
                                 colors = FilterChipDefaults.filterChipColors(
                                     selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                                    selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
                                 ),
                             )
                         }
@@ -395,15 +297,13 @@ fun MiuixFoodListScreen(
                             selected = item.id in selectedIds,
                             onClick = {
                                 if (selectionMode) {
-                                    selectedIds = if (item.id in selectedIds) selectedIds - item.id
-                                    else selectedIds + item.id
+                                    viewModel.toggleSelection(item.id)
                                 } else {
                                     onOpenItem(item.id)
                                 }
                             },
                             onLongClick = {
-                                selectedIds = if (item.id in selectedIds) selectedIds - item.id
-                                else selectedIds + item.id
+                                viewModel.toggleSelection(item.id)
                             },
                             onQuantityChange = { delta -> viewModel.changeQuantity(item.id, delta) },
                             modifier = Modifier.animateItem(

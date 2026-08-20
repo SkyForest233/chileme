@@ -424,6 +424,7 @@ fun EditFoodScreen(
                             shape = RoundedCornerShape(50),
                             colors = FilterChipDefaults.filterChipColors(
                                 selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                                selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
                             ),
                         )
                     }

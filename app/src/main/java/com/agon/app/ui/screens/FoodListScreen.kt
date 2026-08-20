@@ -1,14 +1,11 @@
 package com.agon.app.ui.screens
 
-import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,7 +15,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -28,7 +24,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.DeleteForever
 import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.FilterList
@@ -36,8 +31,6 @@ import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.RestartAlt
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.SelectAll
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
@@ -46,20 +39,14 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -69,7 +56,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.agon.app.data.ArchiveReason
 import com.agon.app.data.FoodStatus
 import com.agon.app.data.byId
 import com.agon.app.data.daysLeft
@@ -79,7 +65,6 @@ import com.agon.app.ui.theme.MotionEasing
 import com.agon.app.ui.components.FoodAvatar
 import com.agon.app.ui.components.FoodCard
 import com.agon.app.viewmodel.AppViewModel
-import kotlinx.coroutines.launch
 
 private enum class StatusFilter(val label: String) {
     ALL("全部"), SAFE("安全"), EXPIRING("临期"), EXPIRED("已过期")
@@ -112,43 +97,9 @@ fun FoodListScreen(
     var filtersExpanded by rememberSaveable(initialFilter) {
         mutableStateOf(initialFilter != null)
     }
-    val snackbarHostState = remember { SnackbarHostState() }
-    val scope = rememberCoroutineScope()
-
-    // ---- 长按多选（批量归档）----
-    var selectedIds by remember { mutableStateOf(setOf<String>()) }
+    // ---- 长按多选（批量归档，选中状态提升到 ViewModel，供 MainActivity 批量操作栏共用）----
+    val selectedIds by viewModel.selectedIds.collectAsStateWithLifecycle()
     val selectionMode = selectedIds.isNotEmpty()
-
-    // 多选模式下隐藏 FAB，避免遮挡底部批量操作栏
-    LaunchedEffect(selectionMode) {
-        viewModel.setFabSuppressed(selectionMode)
-    }
-
-    // 系统返回键退出多选模式
-    BackHandler(enabled = selectionMode) {
-        selectedIds = emptySet()
-    }
-
-    fun archiveSelected() {
-        val ids = selectedIds
-        if (ids.isEmpty()) return
-        selectedIds = emptySet()
-        viewModel.archiveBatch(ids, ArchiveReason.DELETED)
-        scope.launch {
-            viewModel.setFabSuppressed(true)
-            try {
-                val result = snackbarHostState.showSnackbar(
-                    message = "已将 ${ids.size} 件食品移入归档",
-                    actionLabel = "撤销",
-                )
-                if (result == SnackbarResult.ActionPerformed) {
-                    viewModel.restoreArchivedBatch(ids)
-                }
-            } finally {
-                viewModel.setFabSuppressed(false)
-            }
-        }
-    }
 
     val usedLocations = remember(items) {
         items.map { it.location }.filter { it.isNotBlank() }.distinct().sorted()
@@ -184,13 +135,6 @@ fun FoodListScreen(
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
-        snackbarHost = {
-            // 上移 Snackbar，避免被悬浮胶囊导航栏遮挡
-            SnackbarHost(
-                snackbarHostState,
-                modifier = Modifier.padding(bottom = 84.dp),
-            )
-        },
         topBar = {
             if (selectionMode) {
                 TopAppBar(
@@ -198,15 +142,17 @@ fun FoodListScreen(
                         Text("已选 ${selectedIds.size} 项", fontWeight = FontWeight.Bold)
                     },
                     navigationIcon = {
-                        IconButton(onClick = { selectedIds = emptySet() }) {
+                        IconButton(onClick = { viewModel.clearSelection() }) {
                             Icon(Icons.Rounded.Close, contentDescription = "退出多选")
                         }
                     },
                     actions = {
                         // 全选 / 取消全选
                         IconButton(onClick = {
-                            selectedIds = if (selectedIds.size == filtered.size) emptySet()
-                            else filtered.map { it.id }.toSet()
+                            viewModel.setSelection(
+                                if (selectedIds.size == filtered.size) emptySet()
+                                else filtered.map { it.id }.toSet()
+                            )
                         }) {
                             Icon(
                                 Icons.Rounded.SelectAll,
@@ -235,51 +181,6 @@ fun FoodListScreen(
                         containerColor = MaterialTheme.colorScheme.background,
                     ),
                 )
-            }
-        },
-        bottomBar = {
-            // 批量操作栏：多选模式时从底部滑入
-            AnimatedVisibility(
-                visible = selectionMode,
-                enter = slideInVertically(tween(250, easing = MotionEasing.EmphasizedDecelerate)) { it } +
-                    fadeIn(tween(250, easing = MotionEasing.EmphasizedDecelerate)),
-                exit = slideOutVertically(tween(200, easing = MotionEasing.EmphasizedAccelerate)) { it } +
-                    fadeOut(tween(200, easing = MotionEasing.EmphasizedAccelerate)),
-            ) {
-                Surface(
-                    color = MaterialTheme.colorScheme.surfaceContainer,
-                    shadowElevation = 8.dp,
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .navigationBarsPadding()
-                            .padding(horizontal = 20.dp, vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    ) {
-                        OutlinedButton(
-                            onClick = { selectedIds = emptySet() },
-                            modifier = Modifier.weight(1f),
-                            shape = RoundedCornerShape(50),
-                        ) {
-                            Text("取消")
-                        }
-                        Button(
-                            onClick = { archiveSelected() },
-                            modifier = Modifier.weight(2f),
-                            shape = RoundedCornerShape(50),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = MaterialTheme.colorScheme.error,
-                                contentColor = MaterialTheme.colorScheme.onError,
-                            ),
-                        ) {
-                            Icon(Icons.Rounded.Delete, contentDescription = null, modifier = Modifier.size(18.dp))
-                            Spacer(Modifier.width(6.dp))
-                            Text("归档 ${selectedIds.size} 项", fontWeight = FontWeight.SemiBold)
-                        }
-                    }
-                }
             }
         },
     ) { padding ->
@@ -332,6 +233,7 @@ fun FoodListScreen(
                                 shape = RoundedCornerShape(50),
                                 colors = FilterChipDefaults.filterChipColors(
                                     selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                                    selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
                                 ),
                             )
                         }
@@ -404,15 +306,13 @@ fun FoodListScreen(
                             selected = item.id in selectedIds,
                             onClick = {
                                 if (selectionMode) {
-                                    selectedIds = if (item.id in selectedIds) selectedIds - item.id
-                                    else selectedIds + item.id
+                                    viewModel.toggleSelection(item.id)
                                 } else {
                                     onOpenItem(item.id)
                                 }
                             },
                             onLongClick = {
-                                selectedIds = if (item.id in selectedIds) selectedIds - item.id
-                                else selectedIds + item.id
+                                viewModel.toggleSelection(item.id)
                             },
                             onQuantityChange = { delta -> viewModel.changeQuantity(item.id, delta) },
                             modifier = Modifier.animateItem(

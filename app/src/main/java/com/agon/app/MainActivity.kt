@@ -2,6 +2,7 @@ package com.agon.app
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
@@ -40,30 +41,45 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.PieChart
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.automirrored.rounded.ListAlt
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import top.yukonga.miuix.kmp.basic.Button as MiuixButton
+import top.yukonga.miuix.kmp.basic.ButtonDefaults as MiuixButtonDefaults
 import top.yukonga.miuix.kmp.basic.FloatingActionButton as MiuixFloatingActionButton
 import top.yukonga.miuix.kmp.basic.FloatingNavigationBar as MiuixFloatingNavigationBar
 import top.yukonga.miuix.kmp.basic.FloatingNavigationBarItem as MiuixFloatingNavigationBarItem
 import top.yukonga.miuix.kmp.basic.Icon as MiuixIcon
 import top.yukonga.miuix.kmp.basic.NavigationBar as MiuixNavigationBar
 import top.yukonga.miuix.kmp.basic.NavigationBarItem as MiuixNavigationBarItem
+import top.yukonga.miuix.kmp.basic.SnackbarHost as MiuixSnackbarHost
+import top.yukonga.miuix.kmp.basic.SnackbarHostState as MiuixSnackbarHostState
+import top.yukonga.miuix.kmp.basic.SnackbarResult as MiuixSnackbarResult
+import top.yukonga.miuix.kmp.basic.TextButton as MiuixTextButton
+import top.yukonga.miuix.kmp.theme.MiuixTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -83,6 +99,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.agon.app.data.ArchiveReason
 import com.agon.app.ui.screens.ArchiveScreen
 import com.agon.app.ui.screens.CategoryManageScreen
 import com.agon.app.ui.screens.EditFoodScreen
@@ -108,6 +125,7 @@ import com.agon.app.ui.theme.MiuixRootTheme
 import com.agon.app.ui.theme.MotionEasing
 import com.agon.app.ui.theme.ThemeStyle
 import com.agon.app.viewmodel.AppViewModel
+import kotlinx.coroutines.launch
 
 // MD3 motion easing tokens 统一从 ui/theme/Motion.kt 引用
 private val EmphasizedDecelerate = MotionEasing.EmphasizedDecelerate
@@ -188,29 +206,86 @@ fun MainApp(viewModel: AppViewModel) {
     // 悬浮导航开关 + 主题风格：决定底栏与 FAB 用哪套组件
     val floatingNav by viewModel.floatingNav.collectAsStateWithLifecycle()
     val isMiuix = LocalThemeStyle.current == ThemeStyle.MIUIX
+    // 多选模式：选中状态提升到 VM，多选时用批量操作栏替换底部导航
+    val selectedIds by viewModel.selectedIds.collectAsStateWithLifecycle()
+    val selectionMode = selectedIds.isNotEmpty()
+    val scope = rememberCoroutineScope()
+    val snackbarHostState = remember { SnackbarHostState() }
+    val miuixSnackbarHostState = remember { MiuixSnackbarHostState() }
+
+    // 系统返回键退出多选模式
+    BackHandler(enabled = selectionMode) {
+        viewModel.clearSelection()
+    }
+
+    fun archiveSelected() {
+        val ids = selectedIds
+        if (ids.isEmpty()) return
+        viewModel.clearSelection()
+        viewModel.archiveBatch(ids, ArchiveReason.DELETED)
+        scope.launch {
+            viewModel.setFabSuppressed(true)
+            try {
+                val undone = if (isMiuix) {
+                    miuixSnackbarHostState.showSnackbar(
+                        message = "已将 ${ids.size} 件食品移入归档",
+                        actionLabel = "撤销",
+                    ) == MiuixSnackbarResult.ActionPerformed
+                } else {
+                    snackbarHostState.showSnackbar(
+                        message = "已将 ${ids.size} 件食品移入归档",
+                        actionLabel = "撤销",
+                    ) == SnackbarResult.ActionPerformed
+                }
+                if (undone) {
+                    viewModel.restoreArchivedBatch(ids)
+                }
+            } finally {
+                viewModel.setFabSuppressed(false)
+            }
+        }
+    }
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         containerColor = MaterialTheme.colorScheme.background,
+        snackbarHost = {
+            // 上移避免被底栏遮挡
+            if (isMiuix) {
+                MiuixSnackbarHost(miuixSnackbarHostState, modifier = Modifier.padding(bottom = 84.dp))
+            } else {
+                SnackbarHost(snackbarHostState, modifier = Modifier.padding(bottom = 84.dp))
+            }
+        },
         bottomBar = {
-            AnimatedVisibility(
-                visible = showChrome,
-                enter = slideInVertically(tween(250, easing = EmphasizedDecelerate)) { it } +
-                    fadeIn(tween(250, easing = EmphasizedDecelerate)),
-                exit = slideOutVertically(tween(200, easing = EmphasizedAccelerate)) { it } +
-                    fadeOut(tween(200, easing = EmphasizedAccelerate)),
-            ) {
-                when {
-                    isMiuix && floatingNav -> MiuixFloatingNav(navController, currentRoute)
-                    isMiuix -> MiuixBottomNav(navController, currentRoute)
-                    floatingNav -> FloatingPillNav(navController, currentRoute)
-                    else -> Md3BottomNav(navController, currentRoute)
+            if (selectionMode) {
+                // 多选：批量操作栏替换底部导航
+                BatchActionBar(
+                    count = selectedIds.size,
+                    isMiuix = isMiuix,
+                    onCancel = { viewModel.clearSelection() },
+                    onArchive = { archiveSelected() },
+                )
+            } else {
+                AnimatedVisibility(
+                    visible = showChrome,
+                    enter = slideInVertically(tween(250, easing = EmphasizedDecelerate)) { it } +
+                        fadeIn(tween(250, easing = EmphasizedDecelerate)),
+                    exit = slideOutVertically(tween(200, easing = EmphasizedAccelerate)) { it } +
+                        fadeOut(tween(200, easing = EmphasizedAccelerate)),
+                ) {
+                    when {
+                        isMiuix && floatingNav -> MiuixFloatingNav(navController, currentRoute)
+                        isMiuix -> MiuixBottomNav(navController, currentRoute)
+                        floatingNav -> FloatingPillNav(navController, currentRoute)
+                        else -> Md3BottomNav(navController, currentRoute)
+                    }
                 }
             }
         },
         floatingActionButton = {
             AnimatedVisibility(
-                visible = showChrome && !fabSuppressed && currentRoute != "settings" && currentRoute != "stats",
+                visible = showChrome && !fabSuppressed && !selectionMode && currentRoute != "settings" && currentRoute != "stats",
                 enter = scaleIn(tween(250, easing = EmphasizedDecelerate)) +
                     fadeIn(tween(250, easing = EmphasizedDecelerate)) +
                     slideInVertically(tween(250, easing = EmphasizedDecelerate)) { it / 2 },
@@ -399,6 +474,79 @@ fun MainApp(viewModel: AppViewModel) {
                     LocationManageScreen(viewModel = viewModel, onBack = { navController.popBackStack() })
                 }
             }
+            }
+        }
+    }
+}
+
+/** 多选批量操作栏：取消 + 归档 N 项（多选时替换底部导航，MD3 / MIUIX 两套按钮）。 */
+@Composable
+private fun BatchActionBar(
+    count: Int,
+    isMiuix: Boolean,
+    onCancel: () -> Unit,
+    onArchive: () -> Unit,
+) {
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceContainer,
+        shadowElevation = 8.dp,
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .padding(horizontal = 20.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            if (isMiuix) {
+                MiuixTextButton(
+                    text = "取消",
+                    onClick = onCancel,
+                    modifier = Modifier.weight(1f),
+                )
+                MiuixButton(
+                    onClick = onArchive,
+                    modifier = Modifier.weight(2f),
+                    colors = MiuixButtonDefaults.buttonColors(
+                        color = MiuixTheme.colorScheme.error,
+                        contentColor = MiuixTheme.colorScheme.onError,
+                    ),
+                ) {
+                    MiuixIcon(
+                        Icons.Rounded.Delete,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                        tint = MiuixTheme.colorScheme.onError,
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        "归档 $count 项",
+                        fontWeight = FontWeight.SemiBold,
+                        color = MiuixTheme.colorScheme.onError,
+                    )
+                }
+            } else {
+                OutlinedButton(
+                    onClick = onCancel,
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(50),
+                ) {
+                    Text("取消")
+                }
+                Button(
+                    onClick = onArchive,
+                    modifier = Modifier.weight(2f),
+                    shape = RoundedCornerShape(50),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.error,
+                        contentColor = MaterialTheme.colorScheme.onError,
+                    ),
+                ) {
+                    Icon(Icons.Rounded.Delete, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("归档 $count 项", fontWeight = FontWeight.SemiBold)
+                }
             }
         }
     }
