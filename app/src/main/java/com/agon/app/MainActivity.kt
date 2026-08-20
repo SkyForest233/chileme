@@ -92,10 +92,13 @@ import com.agon.app.ui.screens.FoodDetailScreen
 import com.agon.app.ui.screens.FoodListScreen
 import com.agon.app.ui.screens.HomeScreen
 import com.agon.app.ui.screens.MiuixArchiveScreen
+import com.agon.app.ui.screens.MiuixCategoryManageScreen
 import com.agon.app.ui.screens.MiuixFoodDetailScreen
 import com.agon.app.ui.screens.MiuixFoodListScreen
 import com.agon.app.ui.screens.MiuixHomeScreen
+import com.agon.app.ui.screens.MiuixLocationManageScreen
 import com.agon.app.ui.screens.MiuixSettingsScreen
+import com.agon.app.ui.screens.MiuixThresholdManageScreen
 import com.agon.app.ui.screens.SettingsScreen
 import com.agon.app.ui.screens.StatsScreen
 import com.agon.app.ui.theme.AgonAppTheme
@@ -376,13 +379,25 @@ fun MainApp(viewModel: AppViewModel) {
                 }
             }
             composable("manage_thresholds") {
-                ThresholdManageScreen(viewModel = viewModel, onBack = { navController.popBackStack() })
+                if (LocalThemeStyle.current == ThemeStyle.MIUIX) {
+                    MiuixThresholdManageScreen(viewModel = viewModel, onBack = { navController.popBackStack() })
+                } else {
+                    ThresholdManageScreen(viewModel = viewModel, onBack = { navController.popBackStack() })
+                }
             }
             composable("manage_categories") {
-                CategoryManageScreen(viewModel = viewModel, onBack = { navController.popBackStack() })
+                if (LocalThemeStyle.current == ThemeStyle.MIUIX) {
+                    MiuixCategoryManageScreen(viewModel = viewModel, onBack = { navController.popBackStack() })
+                } else {
+                    CategoryManageScreen(viewModel = viewModel, onBack = { navController.popBackStack() })
+                }
             }
             composable("manage_locations") {
-                LocationManageScreen(viewModel = viewModel, onBack = { navController.popBackStack() })
+                if (LocalThemeStyle.current == ThemeStyle.MIUIX) {
+                    MiuixLocationManageScreen(viewModel = viewModel, onBack = { navController.popBackStack() })
+                } else {
+                    LocationManageScreen(viewModel = viewModel, onBack = { navController.popBackStack() })
+                }
             }
             }
         }
