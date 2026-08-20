@@ -83,6 +83,7 @@ import com.agon.app.ui.screens.ThresholdManageScreen
 import com.agon.app.ui.screens.FoodDetailScreen
 import com.agon.app.ui.screens.FoodListScreen
 import com.agon.app.ui.screens.HomeScreen
+import com.agon.app.ui.screens.MiuixFoodDetailScreen
 import com.agon.app.ui.screens.MiuixFoodListScreen
 import com.agon.app.ui.screens.MiuixHomeScreen
 import com.agon.app.ui.screens.MiuixSettingsScreen
@@ -289,12 +290,21 @@ fun MainApp(viewModel: AppViewModel) {
             }
             composable("detail/{id}") { backStackEntry ->
                 val id = backStackEntry.arguments?.getString("id") ?: ""
-                FoodDetailScreen(
-                    viewModel = viewModel,
-                    itemId = id,
-                    onEdit = { editId -> navController.navigate("edit?id=$editId") },
-                    onBack = { navController.popBackStack() },
-                )
+                if (LocalThemeStyle.current == ThemeStyle.MIUIX) {
+                    MiuixFoodDetailScreen(
+                        viewModel = viewModel,
+                        itemId = id,
+                        onEdit = { editId -> navController.navigate("edit?id=$editId") },
+                        onBack = { navController.popBackStack() },
+                    )
+                } else {
+                    FoodDetailScreen(
+                        viewModel = viewModel,
+                        itemId = id,
+                        onEdit = { editId -> navController.navigate("edit?id=$editId") },
+                        onBack = { navController.popBackStack() },
+                    )
+                }
             }
             composable("edit?id={id}") { backStackEntry ->
                 EditFoodScreen(
