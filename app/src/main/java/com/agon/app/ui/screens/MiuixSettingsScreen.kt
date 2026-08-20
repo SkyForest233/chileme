@@ -11,11 +11,15 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Cloud
+import androidx.compose.material.icons.rounded.CloudDownload
+import androidx.compose.material.icons.rounded.CloudUpload
+import androidx.compose.material.icons.rounded.FileDownload
+import androidx.compose.material.icons.rounded.FileUpload
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.runtime.Composable
@@ -40,9 +44,10 @@ import com.agon.app.ui.theme.ThemeStyle
 import com.agon.app.viewmodel.AppViewModel
 import kotlinx.coroutines.launch
 import java.time.LocalDate
-import top.yukonga.miuix.kmp.basic.Button
+import top.yukonga.miuix.kmp.basic.BasicComponentDefaults
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.Icon as MiuixIcon
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.SnackbarHost
@@ -214,47 +219,75 @@ fun MiuixSettingsScreen(
             item(key = "backup") {
                 SmallTitle(text = "备份与数据")
                 Card(modifier = Modifier.padding(12.dp)) {
-                    Column(Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
-                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            Button(
-                                onClick = { exportLauncher.launch("吃了么备份_${LocalDate.now()}.json") },
-                                modifier = Modifier.weight(1f),
-                            ) {
-                                Text("导出备份")
-                            }
-                            Button(
-                                onClick = { importLauncher.launch(arrayOf("application/json", "text/plain", "*/*")) },
-                                modifier = Modifier.weight(1f),
-                            ) {
-                                Text("导入备份")
-                            }
-                        }
-                        Text(
-                            "导出为 JSON 文件，包含库存、归档、消耗记录和设置",
-                            fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(top = 8.dp),
-                        )
-                    }
-
+                    ArrowPreference(
+                        title = "导出备份",
+                        summary = "导出为 JSON 文件，含库存、归档、消耗记录与设置",
+                        startAction = {
+                            MiuixIcon(
+                                Icons.Rounded.FileUpload,
+                                contentDescription = null,
+                                tint = MiuixTheme.colorScheme.primary,
+                            )
+                        },
+                        onClick = { exportLauncher.launch("吃了么备份_${LocalDate.now()}.json") },
+                    )
+                    ArrowPreference(
+                        title = "导入备份",
+                        summary = "从 JSON 文件整体恢复数据",
+                        startAction = {
+                            MiuixIcon(
+                                Icons.Rounded.FileDownload,
+                                contentDescription = null,
+                                tint = MiuixTheme.colorScheme.primary,
+                            )
+                        },
+                        onClick = { importLauncher.launch(arrayOf("application/json", "text/plain", "*/*")) },
+                    )
                     ArrowPreference(
                         title = "坚果云同步",
-                        summary = if (lastSync.isBlank()) "通过 WebDAV 备份到坚果云" else lastSync,
+                        summary = when {
+                            nutstoreAccount.isBlank() -> "未配置，点击设置 WebDAV 账号"
+                            lastSync.isNotBlank() -> lastSync
+                            else -> "已配置，尚未同步"
+                        },
+                        startAction = {
+                            MiuixIcon(
+                                Icons.Rounded.Cloud,
+                                contentDescription = null,
+                                tint = MiuixTheme.colorScheme.primary,
+                            )
+                        },
                         onClick = { showNutstoreDialog = true },
                     )
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Button(
+                    if (nutstoreAccount.isNotBlank()) {
+                        ArrowPreference(
+                            title = "上传到云端",
+                            summary = if (syncing) "正在上传…" else "立即手动上传当前数据",
+                            startAction = {
+                                MiuixIcon(
+                                    Icons.Rounded.CloudUpload,
+                                    contentDescription = null,
+                                    tint = MiuixTheme.colorScheme.primary,
+                                )
+                            },
+                            enabled = !syncing,
                             onClick = {
                                 viewModel.syncUpload { _, msg ->
                                     scope.launch { snackbarHostState.showSnackbar(msg) }
                                 }
                             },
-                            enabled = !syncing && nutstoreAccount.isNotBlank(),
-                            modifier = Modifier.weight(1f),
-                        ) {
-                            Text(if (syncing) "上传中…" else "上传到云端")
-                        }
-                        Button(
+                        )
+                        ArrowPreference(
+                            title = "从云端恢复",
+                            summary = "选择备份版本（云端保留最近 $CLOUD_BACKUP_KEEP 次）",
+                            startAction = {
+                                MiuixIcon(
+                                    Icons.Rounded.CloudDownload,
+                                    contentDescription = null,
+                                    tint = MiuixTheme.colorScheme.primary,
+                                )
+                            },
+                            enabled = !syncing && !loadingBackups,
                             onClick = {
                                 showBackupPicker = true
                                 viewModel.loadCloudBackups { ok, msg ->
@@ -264,19 +297,8 @@ fun MiuixSettingsScreen(
                                     }
                                 }
                             },
-                            enabled = !syncing && !loadingBackups && nutstoreAccount.isNotBlank(),
-                            modifier = Modifier.weight(1f),
-                        ) {
-                            Text(if (loadingBackups) "获取中…" else "从云端恢复")
-                        }
+                        )
                     }
-                    Text(
-                        "云端自动保留最近 $CLOUD_BACKUP_KEEP 次备份，恢复时可选择任意一份",
-                        fontSize = 12.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(top = 4.dp),
-                    )
-
                     OverlayDropdownPreference(
                         title = "自动同步",
                         items = listOf("关闭", "每天", "3 天", "每周"),
@@ -290,10 +312,10 @@ fun MiuixSettingsScreen(
                             viewModel.setAutoSyncDays(listOf(0, 1, 3, 7)[idx])
                         },
                     )
-
                     ArrowPreference(
                         title = "清空库存记录",
                         summary = "当前共 ${items.size} 条食品记录（不影响归档）",
+                        titleColor = BasicComponentDefaults.titleColor(color = MiuixTheme.colorScheme.error),
                         onClick = { showClearDialog = true },
                     )
                 }
