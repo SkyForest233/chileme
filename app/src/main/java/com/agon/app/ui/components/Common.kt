@@ -81,6 +81,14 @@ import top.yukonga.miuix.kmp.basic.Surface as MiuixSurface
 import top.yukonga.miuix.kmp.basic.Text as MiuixText
 import top.yukonga.miuix.kmp.basic.LinearProgressIndicator as MiuixLinearProgressIndicator
 import top.yukonga.miuix.kmp.basic.ProgressIndicatorDefaults
+import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.extended.Add
+import top.yukonga.miuix.kmp.icon.extended.Check
+import top.yukonga.miuix.kmp.icon.extended.Location
+import top.yukonga.miuix.kmp.icon.extended.Ok
+import top.yukonga.miuix.kmp.icon.extended.Remove
+import top.yukonga.miuix.kmp.icon.extended.Report
+import top.yukonga.miuix.kmp.icon.extended.Timer
 import top.yukonga.miuix.kmp.utils.PressFeedbackType
 import com.agon.app.ui.theme.DangerContainerDark
 import com.agon.app.ui.theme.DangerContainerLight
@@ -121,26 +129,27 @@ fun rememberStatusUi(status: FoodStatus): StatusUi {
     // 用当前主题背景亮度判断深浅色，而非 isSystemInDarkTheme()：
     // App 支持在设置中强制浅色/深色，两者不一致时会取错色套。
     val dark = MaterialTheme.colorScheme.background.luminance() < 0.5f
+    val isMiuix = LocalThemeStyle.current == ThemeStyle.MIUIX
     return when (status) {
         FoodStatus.SAFE -> StatusUi(
             container = if (dark) SafeContainerDark else SafeContainerLight,
             content = if (dark) SafeContentDark else SafeContentLight,
             label = "安全",
-            icon = Icons.Rounded.CheckCircle,
+            icon = if (isMiuix) MiuixIcons.Ok else Icons.Rounded.CheckCircle,
             dot = if (dark) SafeDotDark else SafeDotLight,
         )
         FoodStatus.EXPIRING -> StatusUi(
             container = if (dark) WarnContainerDark else WarnContainerLight,
             content = if (dark) WarnContentDark else WarnContentLight,
             label = "临期",
-            icon = Icons.Rounded.Schedule,
+            icon = if (isMiuix) MiuixIcons.Timer else Icons.Rounded.Schedule,
             dot = if (dark) WarnDotDark else WarnDotLight,
         )
         FoodStatus.EXPIRED -> StatusUi(
             container = if (dark) DangerContainerDark else DangerContainerLight,
             content = if (dark) DangerContentDark else DangerContentLight,
             label = "已过期",
-            icon = Icons.Rounded.ErrorOutline,
+            icon = if (isMiuix) MiuixIcons.Report else Icons.Rounded.ErrorOutline,
             dot = if (dark) DangerDotDark else DangerDotLight,
         )
     }
@@ -285,7 +294,7 @@ fun LocationTag(location: String, modifier: Modifier = Modifier) {
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 MiuixIcon(
-                    Icons.Rounded.Place,
+                    MiuixIcons.Location,
                     contentDescription = null,
                     modifier = Modifier.size(12.dp),
                     tint = fg,
@@ -345,7 +354,7 @@ fun QuantityStepper(
                     onClick = { onChange(-1) },
                     enabled = quantity > 0,
                 ) {
-                    MiuixIcon(Icons.Rounded.Remove, contentDescription = "减少", modifier = Modifier.size(18.dp), tint = fg)
+                    MiuixIcon(MiuixIcons.Remove, contentDescription = "减少", modifier = Modifier.size(18.dp), tint = fg)
                 }
                 AnimatedContent(targetState = quantity, label = "qty") { q ->
                     MiuixText(
@@ -359,7 +368,7 @@ fun QuantityStepper(
                 MiuixIconButton(
                     onClick = { onChange(1) },
                 ) {
-                    MiuixIcon(Icons.Rounded.Add, contentDescription = "增加", modifier = Modifier.size(18.dp), tint = fg)
+                    MiuixIcon(MiuixIcons.Add, contentDescription = "增加", modifier = Modifier.size(18.dp), tint = fg)
                 }
             }
         }
@@ -621,12 +630,21 @@ fun SelectIndicator(selected: Boolean, modifier: Modifier = Modifier) {
         contentAlignment = Alignment.Center,
     ) {
         if (selected) {
-            Icon(
-                Icons.Rounded.Check,
-                contentDescription = "已选中",
-                modifier = Modifier.size(16.dp),
-                tint = MaterialTheme.colorScheme.onPrimary,
-            )
+            if (LocalThemeStyle.current == ThemeStyle.MIUIX) {
+                MiuixIcon(
+                    MiuixIcons.Ok,
+                    contentDescription = "已选中",
+                    modifier = Modifier.size(16.dp),
+                    tint = MaterialTheme.colorScheme.onPrimary,
+                )
+            } else {
+                Icon(
+                    Icons.Rounded.Check,
+                    contentDescription = "已选中",
+                    modifier = Modifier.size(16.dp),
+                    tint = MaterialTheme.colorScheme.onPrimary,
+                )
+            }
         }
     }
 }

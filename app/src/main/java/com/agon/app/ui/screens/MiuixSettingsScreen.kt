@@ -60,6 +60,11 @@ import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
 import top.yukonga.miuix.kmp.preference.RadioButtonPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
+import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.extended.CloudFill
+import top.yukonga.miuix.kmp.icon.extended.Download
+import top.yukonga.miuix.kmp.icon.extended.FileDownloads
+import top.yukonga.miuix.kmp.icon.extended.UploadCloud
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /**
@@ -233,7 +238,7 @@ fun MiuixSettingsScreen(
                         summary = "导出为 JSON 文件，含库存、归档、消耗记录与设置",
                         startAction = {
                             MiuixIcon(
-                                Icons.Rounded.FileUpload,
+                                MiuixIcons.UploadCloud,
                                 contentDescription = null,
                                 tint = MiuixTheme.colorScheme.primary,
                             )
@@ -245,7 +250,7 @@ fun MiuixSettingsScreen(
                         summary = "从 JSON 文件整体恢复数据",
                         startAction = {
                             MiuixIcon(
-                                Icons.Rounded.FileDownload,
+                                MiuixIcons.FileDownloads,
                                 contentDescription = null,
                                 tint = MiuixTheme.colorScheme.primary,
                             )
@@ -261,7 +266,7 @@ fun MiuixSettingsScreen(
                         },
                         startAction = {
                             MiuixIcon(
-                                Icons.Rounded.Cloud,
+                                MiuixIcons.CloudFill,
                                 contentDescription = null,
                                 tint = MiuixTheme.colorScheme.primary,
                             )
@@ -274,7 +279,7 @@ fun MiuixSettingsScreen(
                             summary = if (syncing) "正在上传…" else "立即手动上传当前数据",
                             startAction = {
                                 MiuixIcon(
-                                    Icons.Rounded.CloudUpload,
+                                    MiuixIcons.UploadCloud,
                                     contentDescription = null,
                                     tint = MiuixTheme.colorScheme.primary,
                                 )
@@ -291,7 +296,7 @@ fun MiuixSettingsScreen(
                             summary = "选择备份版本（云端保留最近 $CLOUD_BACKUP_KEEP 次）",
                             startAction = {
                                 MiuixIcon(
-                                    Icons.Rounded.CloudDownload,
+                                    MiuixIcons.Download,
                                     contentDescription = null,
                                     tint = MiuixTheme.colorScheme.primary,
                                 )

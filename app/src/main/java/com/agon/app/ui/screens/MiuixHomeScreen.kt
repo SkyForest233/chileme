@@ -18,7 +18,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowForward
 import androidx.compose.material.icons.rounded.CleaningServices
 import androidx.compose.material.icons.rounded.Inventory2
 import androidx.compose.material3.Icon
@@ -58,6 +57,8 @@ import top.yukonga.miuix.kmp.basic.SnackbarHost
 import top.yukonga.miuix.kmp.basic.SnackbarHostState
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TopAppBar
+import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.extended.Forward
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /**
@@ -200,7 +201,7 @@ fun MiuixHomeScreen(
                         )
                         Spacer(Modifier.width(4.dp))
                         Icon(
-                            Icons.AutoMirrored.Rounded.ArrowForward,
+                            MiuixIcons.Forward,
                             contentDescription = null,
                             modifier = Modifier.size(16.dp),
                             tint = MiuixTheme.colorScheme.primary,

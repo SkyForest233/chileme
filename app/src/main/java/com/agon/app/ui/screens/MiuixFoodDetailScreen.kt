@@ -70,6 +70,10 @@ import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
+import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.extended.Back
+import top.yukonga.miuix.kmp.icon.extended.Delete
+import top.yukonga.miuix.kmp.icon.extended.Edit
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /**
@@ -144,16 +148,16 @@ fun MiuixFoodDetailScreen(
                 title = "食品详情",
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "返回")
+                        Icon(MiuixIcons.Back, contentDescription = "返回")
                     }
                 },
                 actions = {
                     IconButton(onClick = { onEdit(item.id) }) {
-                        Icon(Icons.Rounded.Edit, contentDescription = "编辑")
+                        Icon(MiuixIcons.Edit, contentDescription = "编辑")
                     }
                     IconButton(onClick = { showDeleteDialog = true }) {
                         Icon(
-                            Icons.Rounded.Delete,
+                            MiuixIcons.Delete,
                             contentDescription = "删除",
                             tint = MiuixTheme.colorScheme.error,
                         )
@@ -328,7 +332,7 @@ fun MiuixFoodDetailScreen(
                 ),
             ) {
                 Icon(
-                    Icons.Rounded.Edit,
+                    MiuixIcons.Edit,
                     contentDescription = null,
                     modifier = Modifier.size(18.dp),
                     tint = MiuixTheme.colorScheme.onSecondaryVariant,

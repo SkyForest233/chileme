@@ -56,6 +56,10 @@ import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
+import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.extended.Back
+import top.yukonga.miuix.kmp.icon.extended.Delete
+import top.yukonga.miuix.kmp.icon.extended.Refresh
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /**
@@ -90,14 +94,14 @@ fun MiuixArchiveScreen(
                 title = "归档历史",
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "返回")
+                        Icon(MiuixIcons.Back, contentDescription = "返回")
                     }
                 },
                 actions = {
                     if (archived.isNotEmpty()) {
                         IconButton(onClick = { showClearDialog = true }) {
                             Icon(
-                                Icons.Rounded.DeleteForever,
+                                MiuixIcons.Delete,
                                 contentDescription = "清空归档",
                                 tint = MiuixTheme.colorScheme.error,
                             )
@@ -239,14 +243,14 @@ private fun MiuixArchiveRow(
             }
             IconButton(onClick = onRestore) {
                 Icon(
-                    Icons.Rounded.RestartAlt,
+                    MiuixIcons.Refresh,
                     contentDescription = "恢复",
                     tint = MiuixTheme.colorScheme.primary,
                 )
             }
             IconButton(onClick = onDelete) {
                 Icon(
-                    Icons.Rounded.DeleteForever,
+                    MiuixIcons.Delete,
                     contentDescription = "彻底删除",
                     modifier = Modifier.size(20.dp),
                     tint = MiuixTheme.colorScheme.error,

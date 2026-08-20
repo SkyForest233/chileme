@@ -45,6 +45,13 @@ import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
+import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.extended.Add
+import top.yukonga.miuix.kmp.icon.extended.Back
+import top.yukonga.miuix.kmp.icon.extended.Delete
+import top.yukonga.miuix.kmp.icon.extended.Edit
+import top.yukonga.miuix.kmp.icon.extended.Location
+import top.yukonga.miuix.kmp.icon.extended.Remove
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /** 通用二级管理页脚手架（Miuix）。 */
@@ -60,7 +67,7 @@ private fun MiuixManageScaffold(
                 title = title,
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "返回")
+                        Icon(MiuixIcons.Back, contentDescription = "返回")
                     }
                 },
             )
@@ -128,7 +135,7 @@ fun MiuixThresholdManageScreen(viewModel: AppViewModel, onBack: () -> Unit) {
                                     onClick = { viewModel.setCategoryThreshold(cat.id, value - 1) },
                                     enabled = value > 1,
                                 ) {
-                                    Icon(Icons.Rounded.Remove, contentDescription = "减少 ${cat.label} 阈值", modifier = Modifier.size(18.dp))
+                                    Icon(MiuixIcons.Remove, contentDescription = "减少 ${cat.label} 阈值", modifier = Modifier.size(18.dp))
                                 }
                                 Text(
                                     "$value 天",
@@ -140,7 +147,7 @@ fun MiuixThresholdManageScreen(viewModel: AppViewModel, onBack: () -> Unit) {
                                     onClick = { viewModel.setCategoryThreshold(cat.id, value + 1) },
                                     enabled = value < 365,
                                 ) {
-                                    Icon(Icons.Rounded.Add, contentDescription = "增加 ${cat.label} 阈值", modifier = Modifier.size(18.dp))
+                                    Icon(MiuixIcons.Add, contentDescription = "增加 ${cat.label} 阈值", modifier = Modifier.size(18.dp))
                                 }
                             }
                         }
@@ -199,7 +206,7 @@ fun MiuixCategoryManageScreen(viewModel: AppViewModel, onBack: () -> Unit) {
                         }
                         IconButton(onClick = { editing = cat }) {
                             Icon(
-                                Icons.Rounded.Edit,
+                                MiuixIcons.Edit,
                                 contentDescription = "编辑 ${cat.label}",
                                 modifier = Modifier.size(18.dp),
                                 tint = MiuixTheme.colorScheme.primary,
@@ -210,7 +217,7 @@ fun MiuixCategoryManageScreen(viewModel: AppViewModel, onBack: () -> Unit) {
                             enabled = categories.size > 1,
                         ) {
                             Icon(
-                                Icons.Rounded.Delete,
+                                MiuixIcons.Delete,
                                 contentDescription = "删除 ${cat.label}",
                                 modifier = Modifier.size(18.dp),
                                 tint = if (categories.size > 1) MiuixTheme.colorScheme.error
@@ -371,7 +378,7 @@ fun MiuixLocationManageScreen(viewModel: AppViewModel, onBack: () -> Unit) {
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Icon(
-                            Icons.Rounded.Place,
+                            MiuixIcons.Location,
                             contentDescription = null,
                             modifier = Modifier.size(18.dp),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -389,7 +396,7 @@ fun MiuixLocationManageScreen(viewModel: AppViewModel, onBack: () -> Unit) {
                         }
                         IconButton(onClick = { viewModel.deleteLocation(loc) }) {
                             Icon(
-                                Icons.Rounded.Delete,
+                                MiuixIcons.Delete,
                                 contentDescription = "删除位置 $loc",
                                 modifier = Modifier.size(18.dp),
                                 tint = MiuixTheme.colorScheme.error,

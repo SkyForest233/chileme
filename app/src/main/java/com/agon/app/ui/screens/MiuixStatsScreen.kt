@@ -54,6 +54,8 @@ import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.TopAppBar
+import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.extended.Recent
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /**
@@ -120,7 +122,7 @@ fun MiuixStatsScreen(
                 actions = {
                     IconButton(onClick = onOpenConsumption) {
                         Icon(
-                            Icons.Rounded.History,
+                            MiuixIcons.Recent,
                             contentDescription = "消耗记录",
                             tint = MiuixTheme.colorScheme.primary,
                         )

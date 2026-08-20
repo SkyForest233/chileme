@@ -63,6 +63,14 @@ import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.Surface
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TopAppBar
+import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.extended.Close
+import top.yukonga.miuix.kmp.icon.extended.Delete
+import top.yukonga.miuix.kmp.icon.extended.ExpandMore
+import top.yukonga.miuix.kmp.icon.extended.Filter
+import top.yukonga.miuix.kmp.icon.extended.Recent
+import top.yukonga.miuix.kmp.icon.extended.Refresh
+import top.yukonga.miuix.kmp.icon.extended.SelectAll
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 private enum class MiuixStatusFilter(val label: String) {
@@ -148,7 +156,7 @@ fun MiuixFoodListScreen(
                     title = "已选 ${selectedIds.size} 项",
                     navigationIcon = {
                         IconButton(onClick = { viewModel.clearSelection() }) {
-                            Icon(Icons.Rounded.Close, contentDescription = "退出多选")
+                            Icon(MiuixIcons.Close, contentDescription = "退出多选")
                         }
                     },
                     actions = {
@@ -159,7 +167,7 @@ fun MiuixFoodListScreen(
                             )
                         }) {
                             Icon(
-                                Icons.Rounded.SelectAll,
+                                MiuixIcons.SelectAll,
                                 contentDescription = if (selectedIds.size == filtered.size) "取消全选" else "全选",
                                 tint = MiuixTheme.colorScheme.primary,
                             )
@@ -172,7 +180,7 @@ fun MiuixFoodListScreen(
                     actions = {
                         IconButton(onClick = onOpenArchive) {
                             Icon(
-                                Icons.Rounded.History,
+                                MiuixIcons.Recent,
                                 contentDescription = "归档历史",
                                 tint = MiuixTheme.colorScheme.primary,
                             )
@@ -330,7 +338,7 @@ fun MiuixFoodListScreen(
                                     .animateItem(),
                             ) {
                                 Icon(
-                                    Icons.Rounded.History,
+                                    MiuixIcons.Recent,
                                     contentDescription = null,
                                     modifier = Modifier.size(16.dp),
                                     tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
@@ -371,14 +379,14 @@ fun MiuixFoodListScreen(
                                     }
                                     IconButton(onClick = { viewModel.restoreArchived(entry.item.id) }) {
                                         Icon(
-                                            Icons.Rounded.RestartAlt,
+                                            MiuixIcons.Refresh,
                                             contentDescription = "恢复 ${entry.item.name}",
                                             tint = MiuixTheme.colorScheme.primary,
                                         )
                                     }
                                     IconButton(onClick = { viewModel.deleteArchived(entry.item.id) }) {
                                         Icon(
-                                            Icons.Rounded.DeleteForever,
+                                            MiuixIcons.Delete,
                                             contentDescription = "彻底删除 ${entry.item.name}",
                                             modifier = Modifier.size(20.dp),
                                             tint = MiuixTheme.colorScheme.error,
@@ -426,7 +434,7 @@ private fun FilterToggle(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(
-                Icons.Rounded.FilterList,
+                MiuixIcons.Filter,
                 contentDescription = "筛选",
                 modifier = Modifier.size(18.dp),
                 tint = iconTint,
@@ -441,7 +449,7 @@ private fun FilterToggle(
             }
             Spacer(Modifier.width(2.dp))
             Icon(
-                Icons.Rounded.ExpandMore,
+                MiuixIcons.ExpandMore,
                 contentDescription = null,
                 modifier = Modifier
                     .size(16.dp)

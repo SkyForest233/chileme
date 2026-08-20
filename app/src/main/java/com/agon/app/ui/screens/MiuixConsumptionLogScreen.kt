@@ -41,6 +41,9 @@ import top.yukonga.miuix.kmp.basic.SnackbarResult
 import top.yukonga.miuix.kmp.basic.Surface
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TopAppBar
+import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.extended.Back
+import top.yukonga.miuix.kmp.icon.extended.Delete
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /**
@@ -81,7 +84,7 @@ fun MiuixConsumptionLogScreen(
                 title = "消耗记录",
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "返回")
+                        Icon(MiuixIcons.Back, contentDescription = "返回")
                     }
                 },
             )
@@ -169,7 +172,7 @@ private fun MiuixConsumptionRow(
             Spacer(Modifier.width(4.dp))
             IconButton(onClick = onDelete) {
                 Icon(
-                    Icons.Rounded.DeleteForever,
+                    MiuixIcons.Delete,
                     contentDescription = "删除 ${record.name} 的消耗记录",
                     modifier = Modifier.size(20.dp),
                     tint = MiuixTheme.colorScheme.error,
