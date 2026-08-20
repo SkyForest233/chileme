@@ -53,7 +53,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -541,11 +540,15 @@ private fun BatchCancelButton(
             minHeight = 48.dp,
         )
     } else {
-        // MD3 标准描边按钮（胶囊边框背景）
-        OutlinedButton(
+        // MD3 实心胶囊（中性色），与归档实心胶囊视觉统一
+        Button(
             onClick = onClick,
             modifier = modifier.defaultMinSize(minHeight = 48.dp),
             shape = RoundedCornerShape(50),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                contentColor = MaterialTheme.colorScheme.onSurface,
+            ),
         ) {
             Text("取消")
         }
