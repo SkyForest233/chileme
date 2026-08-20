@@ -2,7 +2,6 @@ import java.util.Properties
 
 plugins {
     id("com.android.application")
-    id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
     id("org.jetbrains.kotlin.plugin.serialization")
 }
@@ -92,7 +91,7 @@ android {
 // AGP 9 起 kotlinOptions DSL 已移除，改用 KGP 的 compilerOptions。
 kotlin {
     compilerOptions {
-        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+        jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17
     }
 }
 
@@ -121,8 +120,9 @@ dependencies {
     implementation("androidx.datastore:datastore-preferences:1.2.0")
 
     // Miuix（HyperOS 风格 Compose 组件库），版本对齐 skill 基线 v0.9.4-rc01。
-    implementation("top.yukonga.miuix.kmp:miuix-ui-android:0.9.4-rc01")
-    implementation("top.yukonga.miuix.kmp:miuix-preference-android:0.9.4-rc01")
+    // 使用 common 坐标，Gradle Module Metadata 会自动解析到 android 变体。
+    implementation("top.yukonga.miuix.kmp:miuix-ui:0.9.4-rc01")
+    implementation("top.yukonga.miuix.kmp:miuix-preference:0.9.4-rc01")
 
     implementation("com.materialkolor:material-kolor:4.0.1")
 
