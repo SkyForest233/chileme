@@ -54,7 +54,7 @@
 - 数据持久化统一走 `FoodRepository`（DataStore + kotlinx-serialization），UI 不直接碰 DataStore
 - 删除类操作一律走归档（Archive），不直接物理删除库存记录
 - 主题为 MD3 种子色方案（MaterialKolor 生成），配色方案定义在 `ui/theme/Palettes.kt`（AppPalette 枚举）；`Color.kt` 仅保留状态语义色；状态色（安全/临期/过期）通过 `rememberStatusUi()` 获取
-- 渐进 Miuix 迁移（v2.8 阶段一）：仅设置页有 Miuix 实现（`MiuixSettingsScreen`），其余页面仍为 MD3；Miuix 组件 API 一律以 `.claude/skills/miuix` 的 pinned source（v0.9.4-rc01）为准，不得凭记忆臆造
+- 渐进 Miuix 迁移（v2.8）：已 Miuix 化的页面见 `docs/DESIGN_SPEC.md` §7；编辑页/统计页/CheckSwitch 刻意保留 MD3+桥接（有明确理由，勿擅自迁移）；新增「悬浮导航」开关（`floating_nav`）；Miuix 组件 API 一律以 `.claude/skills/miuix` 的 pinned source（v0.9.4-rc01）为准，不得凭记忆臆造
 - 所有布尔开关一律使用 `ui/components/Common.kt` 的 `CheckSwitch`（打勾/打叉样式），禁止使用 material3 Switch
 - 构建前确认 `strings.xml` 的 app_name 为“吃了么”，不得回退为占位名
 - **版本号锁定**：设置页“关于”中的版本号固定为 **v1.0**，未经用户明确指示不得更改（用户 2026-07-31 明确要求，此后新增功能不再自行递增版本号）

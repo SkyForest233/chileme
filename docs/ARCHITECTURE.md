@@ -30,7 +30,9 @@ app/src/main/java/com/agon/app/
 └─ ui/
     ├─ theme/                   # Palettes.kt（种子色方案）/ Color.kt（仅状态语义色）/ Theme.kt（MaterialKolor 生成）/ ThemeStyle.kt（MATERIAL3/MIUIX 风格枚举 + LocalThemeStyle）/ MiuixRootTheme.kt（MiuixTheme + MaterialTheme 桥接，v2.8）
     ├─ components/Common.kt     # 复用组件：StatusBadge/FoodAvatar/FoodCard/QuantityStepper/EmptyState/LocationTag
-    └─ screens/                 # 每屏一文件，自带 Scaffold；MiuixSettingsScreen.kt / MiuixHomeScreen.kt 为设置页、首页的 Miuix 实现（v2.8）
+    └─ screens/                 # 每屏一文件，自带 Scaffold；Miuix*Screen.kt 为各页的 Miuix 实现（v2.8）：
+                                # MiuixSettings/Home/FoodList/FoodDetail/Archive/ManageScreens（阈值/分类/位置）
+                                # 编辑页(EditFoodScreen)与统计页(StatsScreen)刻意保留 MD3+桥接（DatePicker 无 Miuix 对应 / 图表自绘）
 ```
 
 **规则**：UI → ViewModel → Repository → DataStore，单向依赖；UI 绝不直接访问 DataStore；所有写操作在 `viewModelScope` 内执行。
@@ -48,7 +50,7 @@ app/src/main/java/com/agon/app/
 | `Map<String,Int>` | `category_thresholds` | 分类临期阈值；key 为 FoodCategory.name |
 | `BackupData` | （导出文件） | 以上全部数据的聚合，version=2（含 categories/locations；v1 文件可兼容导入） |
 
-其他 key：`seeded`(Boolean)、`dynamic_color`(Boolean)、`dark_mode`(Int: 0跟随/1浅/2深)、`palette`(String: AppPalette 枚举名，默认 "MINT")、`theme_style`(String: ThemeStyle 枚举名，默认 "MATERIAL3"，v2.8)。
+其他 key：`seeded`(Boolean)、`dynamic_color`(Boolean)、`dark_mode`(Int: 0跟随/1浅/2深)、`palette`(String: AppPalette 枚举名，默认 "MINT")、`theme_style`(String: ThemeStyle 枚举名，默认 "MATERIAL3")、`floating_nav`(Boolean: 悬浮导航开关，默认 true)（v2.8）。
 
 **状态判定逻辑**（FoodModels.kt）：`statusFor(thresholds)` — 过期: daysLeft<0；临期: daysLeft<=有效阈值；有效阈值 = 单条覆盖 ?: 分类设置 ?: 7。UI 一律用 `statusFor`，不要自行比较天数。
 
