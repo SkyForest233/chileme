@@ -124,6 +124,8 @@ dependencies {
     // 使用 common 坐标，Gradle Module Metadata 会自动解析到 android 变体。
     implementation("top.yukonga.miuix.kmp:miuix-ui:0.9.4-rc01")
     implementation("top.yukonga.miuix.kmp:miuix-preference:0.9.4-rc01")
+    // 图标库：仅 MIUIX 主题使用（MD3 主题继续用 material-icons-extended）。
+    implementation("top.yukonga.miuix.kmp:miuix-icons:0.9.4-rc01")
 
     implementation("com.materialkolor:material-kolor:4.0.1")
 
