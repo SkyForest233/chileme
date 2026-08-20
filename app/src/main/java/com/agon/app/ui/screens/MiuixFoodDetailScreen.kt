@@ -345,32 +345,32 @@ fun MiuixFoodDetailScreen(
 
             Spacer(Modifier.height(24.dp))
         }
-    }
 
-    OverlayDialog(
-        title = "移入归档",
-        summary = "确定要将“${item.name}”移入归档吗？可在“归档历史”中恢复。",
-        show = showDeleteDialog,
-        onDismissRequest = { showDeleteDialog = false },
-    ) {
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            TextButton(
-                text = "取消",
-                onClick = { showDeleteDialog = false },
-                modifier = Modifier.weight(1f),
-            )
-            TextButton(
-                text = "移入归档",
-                onClick = {
-                    showDeleteDialog = false
-                    viewModel.archive(item.id, ArchiveReason.DELETED)
-                    onBack()
-                },
-                modifier = Modifier.weight(1f),
-                colors = ButtonDefaults.textButtonColors(
-                    textColor = MiuixTheme.colorScheme.error,
-                ),
-            )
+        OverlayDialog(
+            title = "移入归档",
+            summary = "确定要将“${item.name}”移入归档吗？可在“归档历史”中恢复。",
+            show = showDeleteDialog,
+            onDismissRequest = { showDeleteDialog = false },
+        ) {
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                TextButton(
+                    text = "取消",
+                    onClick = { showDeleteDialog = false },
+                    modifier = Modifier.weight(1f),
+                )
+                TextButton(
+                    text = "移入归档",
+                    onClick = {
+                        showDeleteDialog = false
+                        viewModel.archive(item.id, ArchiveReason.DELETED)
+                        onBack()
+                    },
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.textButtonColors(
+                        textColor = MiuixTheme.colorScheme.error,
+                    ),
+                )
+            }
         }
     }
 }

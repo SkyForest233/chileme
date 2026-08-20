@@ -230,60 +230,60 @@ fun MiuixCategoryManageScreen(viewModel: AppViewModel, onBack: () -> Unit) {
                 )
             }
         }
-    }
 
-    MiuixCategoryEditDialog(
-        show = showAdd,
-        title = "添加分类",
-        initialLabel = "",
-        initialEmoji = "",
-        onConfirm = { label, emoji ->
-            viewModel.addCategory(label, emoji)
-            showAdd = false
-        },
-        onDismiss = { showAdd = false },
-    )
-    MiuixCategoryEditDialog(
-        show = editing != null,
-        title = "编辑分类",
-        initialLabel = editing?.label ?: "",
-        initialEmoji = editing?.emoji ?: "",
-        onConfirm = { label, emoji ->
-            val cat = editing
-            if (cat != null) {
-                viewModel.updateCategory(cat.copy(label = label.trim(), emoji = emoji.trim().ifBlank { cat.emoji }))
+        MiuixCategoryEditDialog(
+            show = showAdd,
+            title = "添加分类",
+            initialLabel = "",
+            initialEmoji = "",
+            onConfirm = { label, emoji ->
+                viewModel.addCategory(label, emoji)
+                showAdd = false
+            },
+            onDismiss = { showAdd = false },
+        )
+        MiuixCategoryEditDialog(
+            show = editing != null,
+            title = "编辑分类",
+            initialLabel = editing?.label ?: "",
+            initialEmoji = editing?.emoji ?: "",
+            onConfirm = { label, emoji ->
+                val cat = editing
+                if (cat != null) {
+                    viewModel.updateCategory(cat.copy(label = label.trim(), emoji = emoji.trim().ifBlank { cat.emoji }))
+                }
+                editing = null
+            },
+            onDismiss = { editing = null },
+        )
+        OverlayDialog(
+            title = "删除分类",
+            summary = deleting?.let { cat ->
+                val inUse = items.count { it.category == cat.id }
+                if (inUse > 0)
+                    "有 $inUse 条食品记录正在使用「${cat.emoji} ${cat.label}」，删除后这些记录将显示为“其他”。确定删除吗？"
+                else
+                    "确定要删除分类「${cat.emoji} ${cat.label}」吗？"
+            },
+            show = deleting != null,
+            onDismissRequest = { deleting = null },
+        ) {
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                TextButton(
+                    text = "取消",
+                    onClick = { deleting = null },
+                    modifier = Modifier.weight(1f),
+                )
+                TextButton(
+                    text = "删除",
+                    onClick = {
+                        deleting?.let { viewModel.deleteCategory(it.id) }
+                        deleting = null
+                    },
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.textButtonColors(textColor = MiuixTheme.colorScheme.error),
+                )
             }
-            editing = null
-        },
-        onDismiss = { editing = null },
-    )
-    OverlayDialog(
-        title = "删除分类",
-        summary = deleting?.let { cat ->
-            val inUse = items.count { it.category == cat.id }
-            if (inUse > 0)
-                "有 $inUse 条食品记录正在使用「${cat.emoji} ${cat.label}」，删除后这些记录将显示为“其他”。确定删除吗？"
-            else
-                "确定要删除分类「${cat.emoji} ${cat.label}」吗？"
-        },
-        show = deleting != null,
-        onDismissRequest = { deleting = null },
-    ) {
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            TextButton(
-                text = "取消",
-                onClick = { deleting = null },
-                modifier = Modifier.weight(1f),
-            )
-            TextButton(
-                text = "删除",
-                onClick = {
-                    deleting?.let { viewModel.deleteCategory(it.id) }
-                    deleting = null
-                },
-                modifier = Modifier.weight(1f),
-                colors = ButtonDefaults.textButtonColors(textColor = MiuixTheme.colorScheme.error),
-            )
         }
     }
 }
@@ -408,34 +408,34 @@ fun MiuixLocationManageScreen(viewModel: AppViewModel, onBack: () -> Unit) {
                 )
             }
         }
-    }
 
-    val locState = remember(showAdd) { TextFieldState("") }
-    OverlayDialog(
-        title = "添加存放位置",
-        show = showAdd,
-        onDismissRequest = { showAdd = false },
-    ) {
-        TextField(
-            state = locState,
-            label = "位置名称",
-            useLabelAsPlaceholder = true,
-        )
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            TextButton(
-                text = "取消",
-                onClick = { showAdd = false },
-                modifier = Modifier.weight(1f),
+        val locState = remember(showAdd) { TextFieldState("") }
+        OverlayDialog(
+            title = "添加存放位置",
+            show = showAdd,
+            onDismissRequest = { showAdd = false },
+        ) {
+            TextField(
+                state = locState,
+                label = "位置名称",
+                useLabelAsPlaceholder = true,
             )
-            TextButton(
-                text = "添加",
-                onClick = {
-                    viewModel.addLocation(locState.text.toString().take(12))
-                    showAdd = false
-                },
-                modifier = Modifier.weight(1f),
-                enabled = locState.text.toString().isNotBlank(),
-            )
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                TextButton(
+                    text = "取消",
+                    onClick = { showAdd = false },
+                    modifier = Modifier.weight(1f),
+                )
+                TextButton(
+                    text = "添加",
+                    onClick = {
+                        viewModel.addLocation(locState.text.toString().take(12))
+                        showAdd = false
+                    },
+                    modifier = Modifier.weight(1f),
+                    enabled = locState.text.toString().isNotBlank(),
+                )
+            }
         }
     }
 }
