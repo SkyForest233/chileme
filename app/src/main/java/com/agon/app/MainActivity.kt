@@ -114,6 +114,7 @@ import com.agon.app.ui.screens.MiuixFoodListScreen
 import com.agon.app.ui.screens.MiuixHomeScreen
 import com.agon.app.ui.screens.MiuixLocationManageScreen
 import com.agon.app.ui.screens.MiuixSettingsScreen
+import com.agon.app.ui.screens.MiuixStatsScreen
 import com.agon.app.ui.screens.MiuixThresholdManageScreen
 import com.agon.app.ui.screens.SettingsScreen
 import com.agon.app.ui.screens.StatsScreen
@@ -215,6 +216,27 @@ fun MainApp(viewModel: AppViewModel) {
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
     val miuixSnackbarHostState = remember { MiuixSnackbarHostState() }
+
+    // 列表页步进器减号触发的「撤销消耗」：弹撤销 Snackbar（MD3 / MIUIX 两套样式）
+    val undoRequest by viewModel.undoRequest.collectAsStateWithLifecycle()
+    LaunchedEffect(undoRequest) {
+        val request = undoRequest ?: return@LaunchedEffect
+        viewModel.consumeUndoRequest()
+        val undone = if (isMiuix) {
+            miuixSnackbarHostState.showSnackbar(
+                message = "已减少一件并计入消耗",
+                actionLabel = "撤销",
+            ) == MiuixSnackbarResult.ActionPerformed
+        } else {
+            snackbarHostState.showSnackbar(
+                message = "已减少一件并计入消耗",
+                actionLabel = "撤销",
+            ) == SnackbarResult.ActionPerformed
+        }
+        if (undone) {
+            viewModel.undoConsumption(request)
+        }
+    }
 
     fun archiveSelected() {
         val ids = selectedIds
@@ -383,10 +405,17 @@ fun MainApp(viewModel: AppViewModel) {
                 }
             }
             composable("stats") {
-                StatsScreen(
-                    viewModel = viewModel,
-                    onOpenItem = { id -> navController.navigate("detail/$id") },
-                )
+                if (LocalThemeStyle.current == ThemeStyle.MIUIX) {
+                    MiuixStatsScreen(
+                        viewModel = viewModel,
+                        onOpenItem = { id -> navController.navigate("detail/$id") },
+                    )
+                } else {
+                    StatsScreen(
+                        viewModel = viewModel,
+                        onOpenItem = { id -> navController.navigate("detail/$id") },
+                    )
+                }
             }
             composable("detail/{id}") { backStackEntry ->
                 val id = backStackEntry.arguments?.getString("id") ?: ""

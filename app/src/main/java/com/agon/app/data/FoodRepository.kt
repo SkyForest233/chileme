@@ -246,16 +246,18 @@ class FoodRepository(private val context: Context) {
     /**
      * 调整数量；减少时自动记录消耗。
      * 吃完（数量减到 0）时自动移入归档（原因：已吃完）。
-     * @return 若本次操作触发了自动归档则返回 true。
+     * @return 本次操作的结果（是否触发自动归档 + 新写的消耗记录 id，供撤销）。
      */
-    suspend fun changeQuantity(id: String, delta: Int): Boolean {
+    suspend fun changeQuantity(id: String, delta: Int): QuantityChangeResult {
         var autoArchived = false
+        var consumptionId: String? = null
         context.dataStore.edit { prefs ->
             val current = decodeItems(prefs[itemsKey])
             val item = current.find { it.id == id } ?: return@edit
             val newQty = (item.quantity + delta).coerceAtLeast(0)
             val consumed = if (delta < 0) item.quantity - newQty else 0
             if (consumed > 0) {
+                consumptionId = UUID.randomUUID().toString()
                 val records = decodeConsumption(prefs[consumptionKey])
                 val record = ConsumptionRecord(
                     name = item.name,
@@ -263,6 +265,7 @@ class FoodRepository(private val context: Context) {
                     amount = consumed,
                     unit = item.unit,
                     epochDay = LocalDate.now().toEpochDay(),
+                    id = consumptionId,
                 )
                 prefs[consumptionKey] = json.encodeToString(
                     compactConsumption(listOf(record) + records)
@@ -282,7 +285,35 @@ class FoodRepository(private val context: Context) {
                 )
             }
         }
-        return autoArchived
+        return QuantityChangeResult(autoArchived, consumptionId)
+    }
+
+    /**
+     * 撤销一次减少消耗：删除对应消耗记录，并把该食品数量 +1。
+     * 若该食品因减到 0 已被自动归档，则从归档恢复为数量 1。
+     */
+    suspend fun undoConsumption(itemId: String, consumptionId: String) {
+        context.dataStore.edit { prefs ->
+            val records = decodeConsumption(prefs[consumptionKey])
+            prefs[consumptionKey] = json.encodeToString(records.filterNot { it.id == consumptionId })
+
+            val items = decodeItems(prefs[itemsKey])
+            val item = items.find { it.id == itemId }
+            if (item != null) {
+                prefs[itemsKey] = json.encodeToString(
+                    items.map { if (it.id == itemId) it.copy(quantity = it.quantity + 1) else it }
+                )
+            } else {
+                // 已被自动归档（减到 0），从归档恢复为数量 1
+                val archive = decodeArchive(prefs[archiveKey])
+                val entry = archive.find { it.item.id == itemId }
+                if (entry != null) {
+                    val restored = entry.item.copy(quantity = 1)
+                    prefs[itemsKey] = json.encodeToString(listOf(restored) + items)
+                    prefs[archiveKey] = json.encodeToString(archive.filterNot { it.item.id == itemId })
+                }
+            }
+        }
     }
 
     suspend fun setCategoryThreshold(categoryId: String, days: Int) {

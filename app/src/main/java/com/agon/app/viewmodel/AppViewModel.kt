@@ -14,6 +14,7 @@ import com.agon.app.data.FoodRepository
 import com.agon.app.data.HistoryEntry
 import com.agon.app.data.CloudBackup
 import com.agon.app.data.NutstoreSync
+import com.agon.app.data.QuantityChangeResult
 import com.agon.app.data.cleanupOrphanCovers
 import com.agon.app.data.daysLeft
 import com.agon.app.data.toHistoryEntry
@@ -129,6 +130,21 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         _selectedIds.value = emptySet()
     }
 
+    /** 「撤销一次消耗」请求：列表页减少数量后，供 MainActivity 弹撤销 Snackbar。 */
+    data class UndoRequest(val itemId: String, val consumptionId: String)
+
+    private val _undoRequest = MutableStateFlow<UndoRequest?>(null)
+    val undoRequest: StateFlow<UndoRequest?> = _undoRequest.asStateFlow()
+
+    fun consumeUndoRequest() {
+        _undoRequest.value = null
+    }
+
+    /** 撤销最近一次减少消耗：删消耗记录 + 数量回滚。 */
+    fun undoConsumption(request: UndoRequest) = viewModelScope.launch {
+        repo.undoConsumption(request.itemId, request.consumptionId)
+    }
+
     init {
         viewModelScope.launch {
             repo.seedIfNeeded()
@@ -207,12 +223,20 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     /**
      * 调整数量；吃完（减到 0）时仓库层会自动归档。
      * @param onAutoArchived 自动归档发生时回调（用于 UI 提示）
+     * @param withUndo 减少时是否暴露「撤销」请求（列表页步进器减号用，详情页吃掉一份走 consumeOne 不用）
      */
-    fun changeQuantity(id: String, delta: Int, onAutoArchived: (() -> Unit)? = null) =
-        viewModelScope.launch {
-            val archived = repo.changeQuantity(id, delta)
-            if (archived) onAutoArchived?.invoke()
+    fun changeQuantity(
+        id: String,
+        delta: Int,
+        onAutoArchived: (() -> Unit)? = null,
+        withUndo: Boolean = false,
+    ) = viewModelScope.launch {
+        val result: QuantityChangeResult = repo.changeQuantity(id, delta)
+        if (result.autoArchived) onAutoArchived?.invoke()
+        if (withUndo && delta < 0 && result.consumptionId != null) {
+            _undoRequest.value = UndoRequest(id, result.consumptionId!!)
         }
+    }
 
     fun consumeOne(id: String, onAutoArchived: (() -> Unit)? = null) =
         changeQuantity(id, -1, onAutoArchived)

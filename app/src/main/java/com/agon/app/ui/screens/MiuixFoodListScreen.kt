@@ -311,7 +311,7 @@ fun MiuixFoodListScreen(
                             onLongClick = {
                                 viewModel.toggleSelection(item.id)
                             },
-                            onQuantityChange = { delta -> viewModel.changeQuantity(item.id, delta) },
+                            onQuantityChange = { delta -> viewModel.changeQuantity(item.id, delta, withUndo = delta < 0) },
                             modifier = Modifier.animateItem(
                                 fadeInSpec = tween(280, easing = MotionEasing.EmphasizedDecelerate),
                                 fadeOutSpec = tween(200, easing = MotionEasing.EmphasizedAccelerate),
