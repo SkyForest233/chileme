@@ -21,8 +21,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Edit
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
@@ -59,7 +57,10 @@ import com.agon.app.viewmodel.AppViewModel
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
+import top.yukonga.miuix.kmp.basic.HorizontalDivider
 import top.yukonga.miuix.kmp.basic.Icon
+import top.yukonga.miuix.kmp.basic.LinearProgressIndicator
+import top.yukonga.miuix.kmp.basic.ProgressIndicatorDefaults
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SnackbarHost
@@ -204,13 +205,12 @@ fun MiuixFoodDetailScreen(
                     StatusBadge(status)
                     Spacer(Modifier.height(16.dp))
                     LinearProgressIndicator(
-                        progress = { item.elapsedRatio },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(8.dp)
-                            .clip(RoundedCornerShape(50)),
-                        color = ui.content,
-                        trackColor = MaterialTheme.colorScheme.surface,
+                        progress = item.elapsedRatio,
+                        height = 8.dp,
+                        colors = ProgressIndicatorDefaults.progressIndicatorColors(
+                            foregroundColor = ui.content,
+                            backgroundColor = MaterialTheme.colorScheme.surface,
+                        ),
                     )
                     Spacer(Modifier.height(8.dp))
                     Text(

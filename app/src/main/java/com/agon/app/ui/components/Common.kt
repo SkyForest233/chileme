@@ -79,6 +79,8 @@ import top.yukonga.miuix.kmp.basic.Icon as MiuixIcon
 import top.yukonga.miuix.kmp.basic.IconButton as MiuixIconButton
 import top.yukonga.miuix.kmp.basic.Surface as MiuixSurface
 import top.yukonga.miuix.kmp.basic.Text as MiuixText
+import top.yukonga.miuix.kmp.basic.LinearProgressIndicator as MiuixLinearProgressIndicator
+import top.yukonga.miuix.kmp.basic.ProgressIndicatorDefaults
 import top.yukonga.miuix.kmp.utils.PressFeedbackType
 import com.agon.app.ui.theme.DangerContainerDark
 import com.agon.app.ui.theme.DangerContainerLight
@@ -480,14 +482,14 @@ fun FoodCard(
                 Spacer(Modifier.height(14.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     // 正相关进度：时间过去多少，进度条就走多少
-                    LinearProgressIndicator(
-                        progress = { item.elapsedRatio },
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(6.dp)
-                            .clip(RoundedCornerShape(50)),
-                        color = ui.content,
-                        trackColor = ui.container,
+                    MiuixLinearProgressIndicator(
+                        progress = item.elapsedRatio,
+                        modifier = Modifier.weight(1f),
+                        height = 6.dp,
+                        colors = ProgressIndicatorDefaults.progressIndicatorColors(
+                            foregroundColor = ui.content,
+                            backgroundColor = ui.container,
+                        ),
                     )
                     Spacer(Modifier.width(12.dp))
                     MiuixText(

@@ -372,13 +372,12 @@ fun MiuixSettingsScreen(
             show = showNutstoreDialog,
             onDismissRequest = { showNutstoreDialog = false },
         ) {
-            Column {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(
                     "在坚果云网页端「账户信息 → 安全选项 → 第三方应用管理」中生成应用密码（不是登录密码）。备份存放于云端 ChiLeMe 文件夹。密码使用系统 Keystore 加密存储。",
                     style = MiuixTheme.textStyles.footnote2,
                     color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                 )
-                Spacer(Modifier.height(12.dp))
                 OutlinedTextField(
                     value = accountInput,
                     onValueChange = { accountInput = it },
@@ -387,7 +386,6 @@ fun MiuixSettingsScreen(
                     shape = MaterialTheme.shapes.medium,
                     modifier = Modifier.fillMaxWidth(),
                 )
-                Spacer(Modifier.height(8.dp))
                 OutlinedTextField(
                     value = passwordInput,
                     onValueChange = { passwordInput = it },
@@ -398,6 +396,8 @@ fun MiuixSettingsScreen(
                     shape = MaterialTheme.shapes.medium,
                     modifier = Modifier.fillMaxWidth(),
                 )
+                // 按钮区与表单区之间额外留白，避免紧贴密码框
+                Spacer(Modifier.height(4.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     TextButton(
                         text = "取消",
