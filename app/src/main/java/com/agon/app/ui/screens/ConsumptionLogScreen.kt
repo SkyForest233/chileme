@@ -11,7 +11,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
@@ -126,7 +126,8 @@ fun ConsumptionLogScreen(
                     ),
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
-                    items(sorted, key = { it.id ?: "${it.name}-${it.epochDay}-${it.amount}" }) { record ->
+                    // key 用 index 兜底：旧数据 id=null，若同天同名同数量会出现 key 冲突崩溃
+                    itemsIndexed(sorted, key = { index, record -> record.id ?: "idx-$index" }) { _, record ->
                         ConsumptionRow(
                             record = record,
                             emoji = categories.byId(record.category).emoji,
