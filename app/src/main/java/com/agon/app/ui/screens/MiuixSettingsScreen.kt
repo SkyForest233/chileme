@@ -23,11 +23,11 @@ import androidx.compose.material.icons.rounded.FileUpload
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -101,6 +101,16 @@ fun MiuixSettingsScreen(
     var showNutstoreDialog by remember { mutableStateOf(false) }
     var showBackupPicker by remember { mutableStateOf(false) }
     var restoreCandidate by remember { mutableStateOf<CloudBackup?>(null) }
+
+    // 坚果云账号输入（提升到顶层，打开对话框时同步当前值）
+    var accountInput by remember { mutableStateOf("") }
+    var passwordInput by remember { mutableStateOf("") }
+    LaunchedEffect(showNutstoreDialog, nutstoreAccount, nutstorePassword) {
+        if (showNutstoreDialog) {
+            accountInput = nutstoreAccount
+            passwordInput = nutstorePassword
+        }
+    }
 
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -333,178 +343,172 @@ fun MiuixSettingsScreen(
     }
 
     // ---- 清空库存确认 ----
-    if (showClearDialog) {
-        OverlayDialog(
-            title = "清空库存记录",
-            summary = "确定要删除全部 ${items.size} 条食品记录吗？建议先导出备份。",
-            show = showClearDialog,
-            onDismissRequest = { showClearDialog = false },
-        ) {
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                TextButton(
-                    text = "取消",
-                    onClick = { showClearDialog = false },
-                    modifier = Modifier.weight(1f),
-                )
-                TextButton(
-                    text = "清空",
-                    onClick = {
-                        showClearDialog = false
-                        viewModel.clearAll()
-                    },
-                    modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.textButtonColors(textColor = MiuixTheme.colorScheme.error),
-                )
-            }
+    OverlayDialog(
+        title = "清空库存记录",
+        summary = "确定要删除全部 ${items.size} 条食品记录吗？建议先导出备份。",
+        show = showClearDialog,
+        onDismissRequest = { showClearDialog = false },
+    ) {
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            TextButton(
+                text = "取消",
+                onClick = { showClearDialog = false },
+                modifier = Modifier.weight(1f),
+            )
+            TextButton(
+                text = "清空",
+                onClick = {
+                    showClearDialog = false
+                    viewModel.clearAll()
+                },
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.textButtonColors(textColor = MiuixTheme.colorScheme.error),
+            )
         }
     }
 
     // ---- 坚果云账号配置 ----
-    if (showNutstoreDialog) {
-        var accountInput by rememberSaveable { mutableStateOf(nutstoreAccount) }
-        var passwordInput by rememberSaveable { mutableStateOf(nutstorePassword) }
-        OverlayDialog(
-            title = "坚果云账号",
-            show = showNutstoreDialog,
-            onDismissRequest = { showNutstoreDialog = false },
-        ) {
-            Column {
-                Text(
-                    "在坚果云网页端「账户信息 → 安全选项 → 第三方应用管理」中生成应用密码（不是登录密码）。备份存放于云端 ChiLeMe 文件夹。密码使用系统 Keystore 加密存储。",
-                    style = MiuixTheme.textStyles.footnote2,
-                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+    OverlayDialog(
+        title = "坚果云账号",
+        show = showNutstoreDialog,
+        onDismissRequest = { showNutstoreDialog = false },
+    ) {
+        Column {
+            Text(
+                "在坚果云网页端「账户信息 → 安全选项 → 第三方应用管理」中生成应用密码（不是登录密码）。备份存放于云端 ChiLeMe 文件夹。密码使用系统 Keystore 加密存储。",
+                style = MiuixTheme.textStyles.footnote2,
+                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+            )
+            Spacer(Modifier.height(12.dp))
+            OutlinedTextField(
+                value = accountInput,
+                onValueChange = { accountInput = it },
+                label = { Text("账号（邮箱）") },
+                singleLine = true,
+                shape = MaterialTheme.shapes.medium,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Spacer(Modifier.height(8.dp))
+            OutlinedTextField(
+                value = passwordInput,
+                onValueChange = { passwordInput = it },
+                label = { Text("应用密码") },
+                singleLine = true,
+                visualTransformation = PasswordVisualTransformation(),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                shape = MaterialTheme.shapes.medium,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                TextButton(
+                    text = "取消",
+                    onClick = { showNutstoreDialog = false },
+                    modifier = Modifier.weight(1f),
                 )
-                Spacer(Modifier.height(12.dp))
-                OutlinedTextField(
-                    value = accountInput,
-                    onValueChange = { accountInput = it },
-                    label = { Text("账号（邮箱）") },
-                    singleLine = true,
-                    shape = MaterialTheme.shapes.medium,
-                    modifier = Modifier.fillMaxWidth(),
+                TextButton(
+                    text = "保存",
+                    onClick = {
+                        viewModel.saveNutstoreCredentials(accountInput, passwordInput)
+                        showNutstoreDialog = false
+                        scope.launch { snackbarHostState.showSnackbar("坚果云账号已保存") }
+                    },
+                    modifier = Modifier.weight(1f),
                 )
-                Spacer(Modifier.height(8.dp))
-                OutlinedTextField(
-                    value = passwordInput,
-                    onValueChange = { passwordInput = it },
-                    label = { Text("应用密码") },
-                    singleLine = true,
-                    visualTransformation = PasswordVisualTransformation(),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                    shape = MaterialTheme.shapes.medium,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    TextButton(
-                        text = "取消",
-                        onClick = { showNutstoreDialog = false },
-                        modifier = Modifier.weight(1f),
-                    )
-                    TextButton(
-                        text = "保存",
-                        onClick = {
-                            viewModel.saveNutstoreCredentials(accountInput, passwordInput)
-                            showNutstoreDialog = false
-                            scope.launch { snackbarHostState.showSnackbar("坚果云账号已保存") }
-                        },
-                        modifier = Modifier.weight(1f),
-                    )
-                }
             }
         }
     }
 
     // ---- 云端备份选择（恢复哪一份） ----
-    if (showBackupPicker) {
-        OverlayDialog(
-            title = "选择要恢复的备份",
-            show = showBackupPicker,
-            onDismissRequest = { if (!loadingBackups) showBackupPicker = false },
-        ) {
-            if (loadingBackups) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 16.dp),
-                    horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text("正在获取云端备份列表…", style = MiuixTheme.textStyles.body2)
-                }
-            } else {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(
-                        "云端共 ${cloudBackups.size} 份备份，新的在前：",
-                        style = MiuixTheme.textStyles.footnote2,
-                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                    )
-                    cloudBackups.forEachIndexed { index, backup ->
-                        Surface(
-                            onClick = {
-                                showBackupPicker = false
-                                restoreCandidate = backup
-                            },
-                            shape = RoundedCornerShape(16.dp),
-                            color = if (index == 0) MiuixTheme.colorScheme.primaryContainer
-                            else MiuixTheme.colorScheme.surfaceContainerHigh,
-                            modifier = Modifier.fillMaxWidth(),
+    OverlayDialog(
+        title = "选择要恢复的备份",
+        show = showBackupPicker,
+        onDismissRequest = { if (!loadingBackups) showBackupPicker = false },
+    ) {
+        if (loadingBackups) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 16.dp),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("正在获取云端备份列表…", style = MiuixTheme.textStyles.body2)
+            }
+        } else {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    "云端共 ${cloudBackups.size} 份备份，新的在前：",
+                    style = MiuixTheme.textStyles.footnote2,
+                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                )
+                cloudBackups.forEachIndexed { index, backup ->
+                    Surface(
+                        onClick = {
+                            showBackupPicker = false
+                            restoreCandidate = backup
+                        },
+                        shape = RoundedCornerShape(16.dp),
+                        color = if (index == 0) MiuixTheme.colorScheme.primaryContainer
+                        else MiuixTheme.colorScheme.surfaceContainerHigh,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
                         ) {
-                            Column(
-                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
-                            ) {
-                                Text(
-                                    backup.displayTime,
-                                    style = MiuixTheme.textStyles.body2,
-                                    fontWeight = FontWeight.Medium,
-                                )
-                                Text(
-                                    (if (index == 0 && !backup.isLegacy) "最新 · " else "") + backup.displaySize,
-                                    style = MiuixTheme.textStyles.footnote2,
-                                    color = if (index == 0) MiuixTheme.colorScheme.onPrimaryContainer
-                                    else MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                                )
-                            }
+                            Text(
+                                backup.displayTime,
+                                style = MiuixTheme.textStyles.body2,
+                                fontWeight = FontWeight.Medium,
+                            )
+                            Text(
+                                (if (index == 0 && !backup.isLegacy) "最新 · " else "") + backup.displaySize,
+                                style = MiuixTheme.textStyles.footnote2,
+                                color = if (index == 0) MiuixTheme.colorScheme.onPrimaryContainer
+                                else MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                            )
                         }
                     }
                 }
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                TextButton(
-                    text = "取消",
-                    onClick = { showBackupPicker = false },
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            TextButton(
+                text = "取消",
+                onClick = { showBackupPicker = false },
+                modifier = Modifier.fillMaxWidth(),
+            )
         }
     }
 
     // ---- 恢复二次确认 ----
-    restoreCandidate?.let { candidate ->
-        OverlayDialog(
-            title = "确认恢复",
-            summary = "将恢复备份：\n${candidate.displayTime}\n\n此操作会整体替换本机全部数据（库存、归档、消耗记录和设置）。确定继续吗？",
-            show = true,
-            onDismissRequest = { restoreCandidate = null },
-        ) {
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                TextButton(
-                    text = "取消",
-                    onClick = { restoreCandidate = null },
-                    modifier = Modifier.weight(1f),
-                )
-                TextButton(
-                    text = "恢复这一份",
-                    onClick = {
-                        val fileName = candidate.fileName
-                        restoreCandidate = null
+    OverlayDialog(
+        title = "确认恢复",
+        summary = restoreCandidate?.let {
+            "将恢复备份：\n${it.displayTime}\n\n此操作会整体替换本机全部数据（库存、归档、消耗记录和设置）。确定继续吗？"
+        },
+        show = restoreCandidate != null,
+        onDismissRequest = { restoreCandidate = null },
+    ) {
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            TextButton(
+                text = "取消",
+                onClick = { restoreCandidate = null },
+                modifier = Modifier.weight(1f),
+            )
+            TextButton(
+                text = "恢复这一份",
+                onClick = {
+                    val fileName = restoreCandidate?.fileName
+                    restoreCandidate = null
+                    if (fileName != null) {
                         viewModel.syncDownload(fileName) { _, msg ->
                             scope.launch { snackbarHostState.showSnackbar(msg) }
                         }
-                    },
-                    modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.textButtonColors(textColor = MiuixTheme.colorScheme.error),
-                )
-            }
+                    }
+                },
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.textButtonColors(textColor = MiuixTheme.colorScheme.error),
+            )
         }
     }
 }

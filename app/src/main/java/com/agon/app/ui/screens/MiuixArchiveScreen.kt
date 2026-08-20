@@ -182,31 +182,29 @@ fun MiuixArchiveScreen(
         }
     }
 
-    if (showClearDialog) {
-        OverlayDialog(
-            title = "清空归档",
-            summary = "确定要彻底删除全部 ${archived.size} 条归档记录吗？此操作无法撤销。",
-            show = showClearDialog,
-            onDismissRequest = { showClearDialog = false },
-        ) {
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                TextButton(
-                    text = "取消",
-                    onClick = { showClearDialog = false },
-                    modifier = Modifier.weight(1f),
-                )
-                TextButton(
-                    text = "清空",
-                    onClick = {
-                        showClearDialog = false
-                        viewModel.clearArchive()
-                    },
-                    modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.textButtonColors(
-                        textColor = MiuixTheme.colorScheme.error,
-                    ),
-                )
-            }
+    OverlayDialog(
+        title = "清空归档",
+        summary = "确定要彻底删除全部 ${archived.size} 条归档记录吗？此操作无法撤销。",
+        show = showClearDialog,
+        onDismissRequest = { showClearDialog = false },
+    ) {
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            TextButton(
+                text = "取消",
+                onClick = { showClearDialog = false },
+                modifier = Modifier.weight(1f),
+            )
+            TextButton(
+                text = "清空",
+                onClick = {
+                    showClearDialog = false
+                    viewModel.clearArchive()
+                },
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.textButtonColors(
+                    textColor = MiuixTheme.colorScheme.error,
+                ),
+            )
         }
     }
 }

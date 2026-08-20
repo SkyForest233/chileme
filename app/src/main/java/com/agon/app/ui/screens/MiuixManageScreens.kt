@@ -232,74 +232,77 @@ fun MiuixCategoryManageScreen(viewModel: AppViewModel, onBack: () -> Unit) {
         }
     }
 
-    if (showAdd) {
-        MiuixCategoryEditDialog(
-            title = "添加分类",
-            initialLabel = "",
-            initialEmoji = "",
-            onConfirm = { label, emoji ->
-                viewModel.addCategory(label, emoji)
-                showAdd = false
-            },
-            onDismiss = { showAdd = false },
-        )
-    }
-    editing?.let { cat ->
-        MiuixCategoryEditDialog(
-            title = "编辑分类",
-            initialLabel = cat.label,
-            initialEmoji = cat.emoji,
-            onConfirm = { label, emoji ->
+    MiuixCategoryEditDialog(
+        show = showAdd,
+        title = "添加分类",
+        initialLabel = "",
+        initialEmoji = "",
+        onConfirm = { label, emoji ->
+            viewModel.addCategory(label, emoji)
+            showAdd = false
+        },
+        onDismiss = { showAdd = false },
+    )
+    MiuixCategoryEditDialog(
+        show = editing != null,
+        title = "编辑分类",
+        initialLabel = editing?.label ?: "",
+        initialEmoji = editing?.emoji ?: "",
+        onConfirm = { label, emoji ->
+            val cat = editing
+            if (cat != null) {
                 viewModel.updateCategory(cat.copy(label = label.trim(), emoji = emoji.trim().ifBlank { cat.emoji }))
-                editing = null
-            },
-            onDismiss = { editing = null },
-        )
-    }
-    deleting?.let { cat ->
-        val inUse = items.count { it.category == cat.id }
-        OverlayDialog(
-            title = "删除分类",
-            summary = if (inUse > 0)
+            }
+            editing = null
+        },
+        onDismiss = { editing = null },
+    )
+    OverlayDialog(
+        title = "删除分类",
+        summary = deleting?.let { cat ->
+            val inUse = items.count { it.category == cat.id }
+            if (inUse > 0)
                 "有 $inUse 条食品记录正在使用「${cat.emoji} ${cat.label}」，删除后这些记录将显示为“其他”。确定删除吗？"
             else
-                "确定要删除分类「${cat.emoji} ${cat.label}」吗？",
-            show = true,
-            onDismissRequest = { deleting = null },
-        ) {
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                TextButton(
-                    text = "取消",
-                    onClick = { deleting = null },
-                    modifier = Modifier.weight(1f),
-                )
-                TextButton(
-                    text = "删除",
-                    onClick = {
-                        viewModel.deleteCategory(cat.id)
-                        deleting = null
-                    },
-                    modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.textButtonColors(textColor = MiuixTheme.colorScheme.error),
-                )
-            }
+                "确定要删除分类「${cat.emoji} ${cat.label}」吗？"
+        },
+        show = deleting != null,
+        onDismissRequest = { deleting = null },
+    ) {
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            TextButton(
+                text = "取消",
+                onClick = { deleting = null },
+                modifier = Modifier.weight(1f),
+            )
+            TextButton(
+                text = "删除",
+                onClick = {
+                    deleting?.let { viewModel.deleteCategory(it.id) }
+                    deleting = null
+                },
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.textButtonColors(textColor = MiuixTheme.colorScheme.error),
+            )
         }
     }
 }
 
 @Composable
 private fun MiuixCategoryEditDialog(
+    show: Boolean,
     title: String,
     initialLabel: String,
     initialEmoji: String,
     onConfirm: (label: String, emoji: String) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    val labelState = remember { TextFieldState(initialLabel) }
-    val emojiState = remember { TextFieldState(initialEmoji) }
+    // show/initial 变化时重建输入状态（打开时清空/同步，编辑不同分类时更新）
+    val labelState = remember(show, initialLabel) { TextFieldState(initialLabel) }
+    val emojiState = remember(show, initialEmoji) { TextFieldState(initialEmoji) }
     OverlayDialog(
         title = title,
-        show = true,
+        show = show,
         onDismissRequest = onDismiss,
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -407,34 +410,32 @@ fun MiuixLocationManageScreen(viewModel: AppViewModel, onBack: () -> Unit) {
         }
     }
 
-    if (showAdd) {
-        val locState = remember { TextFieldState("") }
-        OverlayDialog(
-            title = "添加存放位置",
-            show = true,
-            onDismissRequest = { showAdd = false },
-        ) {
-            TextField(
-                state = locState,
-                label = "位置名称",
-                useLabelAsPlaceholder = true,
+    val locState = remember(showAdd) { TextFieldState("") }
+    OverlayDialog(
+        title = "添加存放位置",
+        show = showAdd,
+        onDismissRequest = { showAdd = false },
+    ) {
+        TextField(
+            state = locState,
+            label = "位置名称",
+            useLabelAsPlaceholder = true,
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            TextButton(
+                text = "取消",
+                onClick = { showAdd = false },
+                modifier = Modifier.weight(1f),
             )
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                TextButton(
-                    text = "取消",
-                    onClick = { showAdd = false },
-                    modifier = Modifier.weight(1f),
-                )
-                TextButton(
-                    text = "添加",
-                    onClick = {
-                        viewModel.addLocation(locState.text.toString().take(12))
-                        showAdd = false
-                    },
-                    modifier = Modifier.weight(1f),
-                    enabled = locState.text.toString().isNotBlank(),
-                )
-            }
+            TextButton(
+                text = "添加",
+                onClick = {
+                    viewModel.addLocation(locState.text.toString().take(12))
+                    showAdd = false
+                },
+                modifier = Modifier.weight(1f),
+                enabled = locState.text.toString().isNotBlank(),
+            )
         }
     }
 }
