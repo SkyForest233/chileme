@@ -71,6 +71,11 @@ import top.yukonga.miuix.kmp.basic.SnackbarHost as MiuixSnackbarHost
 import top.yukonga.miuix.kmp.basic.SnackbarHostState as MiuixSnackbarHostState
 import top.yukonga.miuix.kmp.basic.SnackbarResult as MiuixSnackbarResult
 import top.yukonga.miuix.kmp.basic.TextButton as MiuixTextButton
+import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.extended.GridView
+import top.yukonga.miuix.kmp.icon.extended.Home
+import top.yukonga.miuix.kmp.icon.extended.ListView
+import top.yukonga.miuix.kmp.icon.extended.Settings
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -664,12 +669,20 @@ private fun BatchArchiveButton(isMiuix: Boolean, count: Int, onClick: () -> Unit
     }
 }
 
-/** 底部导航共享 Tab 定义（MD3 / MIUIX 共用）。 */
+/** 底部导航共享 Tab 定义（MD3 / MIUIX 共用路由与标签；图标按主题分流）。 */
 private val MainTabs = listOf(
     TabSpec("home", "首页", Icons.Rounded.Home),
     TabSpec("list?filter={filter}", "食品", Icons.AutoMirrored.Rounded.ListAlt),
     TabSpec("stats", "统计", Icons.Rounded.PieChart),
     TabSpec("settings", "设置", Icons.Rounded.Settings),
+)
+
+/** MIUIX 主题的底部导航图标（MiuixIcons.Regular；统计用 GridView 替代无对应的 PieChart）。 */
+private val MiuixMainTabs = listOf(
+    TabSpec("home", "首页", MiuixIcons.Home),
+    TabSpec("list?filter={filter}", "食品", MiuixIcons.ListView),
+    TabSpec("stats", "统计", MiuixIcons.GridView),
+    TabSpec("settings", "设置", MiuixIcons.Settings),
 )
 
 private fun tabTarget(route: String): String =
@@ -687,7 +700,7 @@ private fun NavHostController.navigateToTab(route: String) {
 @Composable
 private fun MiuixBottomNav(navController: NavHostController, currentRoute: String?) {
     MiuixNavigationBar {
-        MainTabs.forEach { tab ->
+        MiuixMainTabs.forEach { tab ->
             val selected = tab.route == currentRoute
             MiuixNavigationBarItem(
                 selected = selected,
@@ -703,7 +716,7 @@ private fun MiuixBottomNav(navController: NavHostController, currentRoute: Strin
 @Composable
 private fun MiuixFloatingNav(navController: NavHostController, currentRoute: String?) {
     MiuixFloatingNavigationBar {
-        MainTabs.forEach { tab ->
+        MiuixMainTabs.forEach { tab ->
             val selected = tab.route == currentRoute
             MiuixFloatingNavigationBarItem(
                 selected = selected,
