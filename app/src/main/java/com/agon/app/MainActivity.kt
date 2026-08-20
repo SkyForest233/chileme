@@ -200,6 +200,10 @@ fun MainApp(viewModel: AppViewModel) {
     }
     // 切换页面时恢复显示
     LaunchedEffect(currentRoute) { scrollChromeVisible = true }
+    // 离开食品列表页时清除多选，避免批量操作栏残留到其他页面
+    LaunchedEffect(currentRoute) {
+        if (currentRoute != "list?filter={filter}") viewModel.clearSelection()
+    }
     val showChrome = currentRoute in tabRoutes && scrollChromeVisible
     // Snackbar 展示“撤销”期间隐藏 FAB，避免挡住撤销按钮
     val fabSuppressed by viewModel.fabSuppressed.collectAsStateWithLifecycle()
@@ -259,10 +263,11 @@ fun MainApp(viewModel: AppViewModel) {
         },
         bottomBar = {
             if (selectionMode) {
-                // 多选：批量操作栏替换底部导航
+                // 多选：批量操作栏替换底部导航，形态跟随悬浮/非悬浮
                 BatchActionBar(
                     count = selectedIds.size,
                     isMiuix = isMiuix,
+                    floating = floatingNav,
                     onCancel = { viewModel.clearSelection() },
                     onArchive = { archiveSelected() },
                 )
@@ -323,22 +328,19 @@ fun MainApp(viewModel: AppViewModel) {
                     .widthIn(max = 840.dp)
                     .fillMaxSize()
                     .nestedScroll(chromeScrollConnection),
-            // MD3 进入：emphasized decelerate 400ms；退出：emphasized accelerate 200ms
+            // 页面切换用纯水平平移（push/pop），MD3 与 MIUIX 两主题一致。
+            // 进入：从右全宽滑入；退出：向左全宽滑出；返回方向相反。
             enterTransition = {
-                slideInHorizontally(tween(400, easing = EmphasizedDecelerate)) { it / 4 } +
-                    fadeIn(tween(400, easing = EmphasizedDecelerate))
+                slideInHorizontally(tween(300, easing = EmphasizedDecelerate)) { it }
             },
             exitTransition = {
-                slideOutHorizontally(tween(200, easing = EmphasizedAccelerate)) { -it / 6 } +
-                    fadeOut(tween(200, easing = EmphasizedAccelerate))
+                slideOutHorizontally(tween(300, easing = EmphasizedAccelerate)) { -it }
             },
             popEnterTransition = {
-                slideInHorizontally(tween(400, easing = EmphasizedDecelerate)) { -it / 6 } +
-                    fadeIn(tween(400, easing = EmphasizedDecelerate))
+                slideInHorizontally(tween(300, easing = EmphasizedDecelerate)) { -it }
             },
             popExitTransition = {
-                slideOutHorizontally(tween(200, easing = EmphasizedAccelerate)) { it / 4 } +
-                    fadeOut(tween(200, easing = EmphasizedAccelerate))
+                slideOutHorizontally(tween(300, easing = EmphasizedAccelerate)) { it }
             },
         ) {
             composable("home") {
@@ -479,75 +481,108 @@ fun MainApp(viewModel: AppViewModel) {
     }
 }
 
-/** 多选批量操作栏：取消 + 归档 N 项（多选时替换底部导航，MD3 / MIUIX 两套按钮）。 */
+/** 多选批量操作栏：取消 + 归档 N 项（多选时替换底部导航，MD3 / MIUIX 两套按钮，跟随悬浮/非悬浮）。 */
 @Composable
 private fun BatchActionBar(
     count: Int,
     isMiuix: Boolean,
+    floating: Boolean,
     onCancel: () -> Unit,
     onArchive: () -> Unit,
 ) {
-    Surface(
-        color = MaterialTheme.colorScheme.surfaceContainer,
-        shadowElevation = 8.dp,
-    ) {
-        Row(
+    if (floating) {
+        // 悬浮：居中悬浮胶囊（与底部导航悬浮态一致的观感）
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .navigationBarsPadding()
-                .padding(horizontal = 20.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                .padding(bottom = 12.dp, top = 4.dp),
+            contentAlignment = Alignment.Center,
         ) {
-            if (isMiuix) {
-                MiuixTextButton(
-                    text = "取消",
-                    onClick = onCancel,
-                    modifier = Modifier.weight(1f),
-                )
-                MiuixButton(
-                    onClick = onArchive,
-                    modifier = Modifier.weight(2f),
-                    colors = MiuixButtonDefaults.buttonColors(
-                        color = MiuixTheme.colorScheme.error,
-                        contentColor = MiuixTheme.colorScheme.onError,
-                    ),
+            Surface(
+                shape = RoundedCornerShape(50),
+                color = MaterialTheme.colorScheme.surfaceContainer,
+                shadowElevation = 6.dp,
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    MiuixIcon(
-                        Icons.Rounded.Delete,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp),
-                        tint = MiuixTheme.colorScheme.onError,
-                    )
-                    Spacer(Modifier.width(6.dp))
-                    Text(
-                        "归档 $count 项",
-                        fontWeight = FontWeight.SemiBold,
-                        color = MiuixTheme.colorScheme.onError,
-                    )
-                }
-            } else {
-                OutlinedButton(
-                    onClick = onCancel,
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(50),
-                ) {
-                    Text("取消")
-                }
-                Button(
-                    onClick = onArchive,
-                    modifier = Modifier.weight(2f),
-                    shape = RoundedCornerShape(50),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.error,
-                        contentColor = MaterialTheme.colorScheme.onError,
-                    ),
-                ) {
-                    Icon(Icons.Rounded.Delete, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(6.dp))
-                    Text("归档 $count 项", fontWeight = FontWeight.SemiBold)
+                    BatchCancelButton(isMiuix = isMiuix, onClick = onCancel)
+                    BatchArchiveButton(isMiuix = isMiuix, count = count, onClick = onArchive)
                 }
             }
+        }
+    } else {
+        // 非悬浮：全宽常驻操作栏
+        Surface(
+            color = MaterialTheme.colorScheme.surfaceContainer,
+            shadowElevation = 8.dp,
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .navigationBarsPadding()
+                    .padding(horizontal = 20.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                BatchCancelButton(isMiuix = isMiuix, onClick = onCancel, modifier = Modifier.weight(1f))
+                BatchArchiveButton(isMiuix = isMiuix, count = count, onClick = onArchive, modifier = Modifier.weight(2f))
+            }
+        }
+    }
+}
+
+@Composable
+private fun BatchCancelButton(isMiuix: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    if (isMiuix) {
+        MiuixTextButton(text = "取消", onClick = onClick, modifier = modifier)
+    } else {
+        OutlinedButton(onClick = onClick, modifier = modifier, shape = RoundedCornerShape(50)) {
+            Text("取消")
+        }
+    }
+}
+
+@Composable
+private fun BatchArchiveButton(isMiuix: Boolean, count: Int, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    if (isMiuix) {
+        MiuixButton(
+            onClick = onClick,
+            modifier = modifier,
+            colors = MiuixButtonDefaults.buttonColors(
+                color = MiuixTheme.colorScheme.error,
+                contentColor = MiuixTheme.colorScheme.onError,
+            ),
+        ) {
+            MiuixIcon(
+                Icons.Rounded.Delete,
+                contentDescription = null,
+                modifier = Modifier.size(18.dp),
+                tint = MiuixTheme.colorScheme.onError,
+            )
+            Spacer(Modifier.width(6.dp))
+            Text(
+                "归档 $count 项",
+                fontWeight = FontWeight.SemiBold,
+                color = MiuixTheme.colorScheme.onError,
+            )
+        }
+    } else {
+        Button(
+            onClick = onClick,
+            modifier = modifier,
+            shape = RoundedCornerShape(50),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.error,
+                contentColor = MaterialTheme.colorScheme.onError,
+            ),
+        ) {
+            Icon(Icons.Rounded.Delete, contentDescription = null, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(6.dp))
+            Text("归档 $count 项", fontWeight = FontWeight.SemiBold)
         }
     }
 }
