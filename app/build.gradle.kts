@@ -133,6 +133,24 @@ android {
         // 报告输出给 CI 上传为 artifact
         htmlReport = true
         textReport = true
+        // 同时把文本报告打到 stdout，这样在 Actions 日志里能直接看到违规条目，
+        // 不必下载 artifact（沙箱/受限网络下 artifact 常常拿不到）。
+        textOutput = File("stdout")
+    }
+}
+
+// 让 lint 的 text 报告在 CI 日志中以 ::error:: 形式再输出一份，
+// 便于通过 annotations API 读取。仅在 CI 上启用，不影响本地。
+tasks.matching { it.name == "lintDebug" }.configureEach {
+    doLast {
+        if (System.getenv("GITHUB_ACTIONS") == null) return@doLast
+        val txt = layout.buildDirectory.file("reports/lint-results-debug.txt")
+            .get().asFile
+        if (!txt.exists()) return@doLast
+        txt.readLines()
+            .filter { it.contains(": Error:") || it.contains(": Warning:") }
+            .take(80)
+            .forEach { println("::error::LINT $it") }
     }
 }
 
