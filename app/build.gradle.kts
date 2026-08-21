@@ -108,7 +108,8 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.10.0")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.10.0")
 
-    implementation("androidx.navigation:navigation-compose:2.9.7")
+    // 二级页路由与预测性返回：miuix-nav NavDisplay（替代 Navigation Compose NavHost）。
+    implementation("top.yukonga.miuix.kmp:miuix-nav:0.9.4-rc01")
 
     implementation("androidx.core:core-ktx:1.15.0")
     implementation("androidx.core:core-splashscreen:1.0.1")

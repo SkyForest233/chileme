@@ -32,8 +32,8 @@ object MotionEasing {
  * 对齐 Miuix CascadingListPopupLayout 的 folmeSpring（damping=0.95）。
  * 展开略快（0.2s），收起略慢（0.3s）；跨页平移用更长 response。
  *
- * 不要把弹簧用在 NavHost 的 enter/exit/pop* 上：Navigation 2.9 会按手势
- * progress seek 这些转场，弹簧前段位移很大，预测性返回会过猛。
+ * 二级页进出由 miuix-nav NavDisplay 的 CrossActivityTransition 驱动，不要把
+ * 弹簧套进已废弃的 NavHost enter/exit。Tab 连滑仍用本对象的 page()。
  */
 object MotionSpring {
     const val Damping = 0.95f

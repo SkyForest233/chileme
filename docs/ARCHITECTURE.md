@@ -8,7 +8,7 @@
 - **Release 构建（v2.5 起）**：`isMinifyEnabled = true` + `isShrinkResources = true`（R8 代码/资源压缩），但 `proguard-rules.pro` 中 `-dontobfuscate` **禁用混淆**——类名/方法名/字段名全保留，堆栈可读无需 mapping。规则文件另含 kotlinx-serialization keep 规则（data 包 serializer 反射）与 OkHttp/Coil dontwarn。release APK ≈ 2.6 MB（debug ≈ 63 MB）
 - **到期日历（v2.5 起）**：不再是独立路由，作为 `ExpiryCalendarCard`（ui/components/ExpiryCalendar.kt）嵌入统计页；支持手势左右滑动切换月份，圆点颜色 = 紧急度（去重后最多 3 点）
 - Compose BOM 2026.01.01（material3、icons-extended）
-- Navigation Compose 2.9.7、Lifecycle/ViewModel Compose 2.10.0
+- miuix-nav 0.9.4-rc01（`NavDisplay` 二级页路由与预测性返回；替代 Navigation Compose NavHost）、Lifecycle/ViewModel Compose 2.10.0
 - DataStore Preferences 1.2.0 + kotlinx-serialization-json 1.9.0
 - Coil 3.3.0（照片封面加载）
 - ~~ML Kit OCR~~ 已于 v2.3 移除（识别率低），`DateOcr.kt` 已删除
@@ -20,7 +20,7 @@
 
 ```
 app/src/main/java/com/agon/app/
-├─ MainActivity.kt              # 单 Activity；主题接入、NavHost、底栏、FAB
+├─ MainActivity.kt              # 单 Activity；主题接入、miuix-nav NavDisplay、底栏、FAB
 ├─ data/                        # 数据层（无 UI 依赖）
 │   ├─ FoodModels.kt            # 数据模型 + 派生属性（过期计算/状态判定）
 │   ├─ FoodRepository.kt        # 唯一持久化入口（DataStore）
@@ -28,6 +28,7 @@ app/src/main/java/com/agon/app/
 ├─ viewmodel/
 │   └─ AppViewModel.kt          # 全局共享 VM（AndroidViewModel），StateFlow 暴露
 └─ ui/
+    ├─ navigation/              # AppRoute + CrossActivityTransition（miuix-nav 二级页栈与预测性返回）
     ├─ theme/                   # Palettes.kt（种子色方案）/ Color.kt（仅状态语义色）/ Theme.kt（MaterialKolor 生成）/ ThemeStyle.kt（MATERIAL3/MIUIX 风格枚举 + LocalThemeStyle）/ MiuixRootTheme.kt（MiuixTheme + MaterialTheme 桥接，v2.8）
     ├─ components/Common.kt     # 复用组件：StatusBadge/FoodAvatar/FoodCard/QuantityStepper/EmptyState/LocationTag
     └─ screens/                 # 每屏一文件，自带 Scaffold；Miuix*Screen.kt 为各页的 Miuix 实现（v2.8）：
@@ -58,19 +59,18 @@ app/src/main/java/com/agon/app/
 
 | 路由 | 屏幕 | 说明 |
 |---|---|---|
-| `main` | Home / List / Stats / Settings（HorizontalPager） | 底栏四个 Tab，按索引左右连滑；起始页。首页卡片写入 `listFilter` 后滑到食品页 |
-| `detail/{id}` | FoodDetailScreen | 食品详情 |
-| `edit` / `edit?id={id}` | EditFoodScreen | 新增 / 编辑 |
-| `archive` | ArchiveScreen | 归档（设置/食品列表可进入，带搜索） |
-| `consumption` | ConsumptionLogScreen | 消耗记录（统计页二级） |
-| `manage_thresholds` | ThresholdManageScreen | 临期阈值管理（设置二级页） |
-| `manage_categories` | CategoryManageScreen | 分类管理（设置二级页） |
-| `manage_locations` | LocationManageScreen | 存放位置管理（设置二级页） |
+| `AppRoute.Main` | Home / List / Stats / Settings（HorizontalPager） | 底栏四个 Tab，按索引左右连滑；起始页。首页卡片写入 `listFilter` 后滑到食品页 |
+| `AppRoute.Detail(id)` | FoodDetailScreen | 食品详情 |
+| `AppRoute.Edit(id?)` | EditFoodScreen | 新增 / 编辑 |
+| `AppRoute.Archive` | ArchiveScreen | 归档（设置/食品列表可进入，带搜索） |
+| `AppRoute.Consumption` | ConsumptionLogScreen | 消耗记录（统计页二级） |
+| `AppRoute.ManageThresholds` | ThresholdManageScreen | 临期阈值管理（设置二级页） |
+| `AppRoute.ManageCategories` | CategoryManageScreen | 分类管理（设置二级页） |
+| `AppRoute.ManageLocations` | LocationManageScreen | 存放位置管理（设置二级页） |
 
-
-- 底栏 Tab：`main` 路由内 HorizontalPager（home → list → stats → settings）；点击 Tab 用 `folmeSpring` 连滑，跨页会经过中间页。二级页 `detail`/`edit`/`archive`/`consumption`/`manage_*` 仍走 NavHost，隐藏底栏与 FAB（`showChrome`）
+- 底栏 Tab：`AppRoute.Main` 内 HorizontalPager（home → list → stats → settings）；点击 Tab 用 `folmeSpring` 连滑，跨页会经过中间页。二级页走 miuix-nav `NavDisplay` + `CrossActivityTransition`（预测性返回缩到 90% 卡片），隐藏底栏与 FAB（`showChrome`）
 - FAB（添加食品）仅在 home 与 list（Pager 第 0/1 页）显示
-- 新增路由：在 MainActivity 的 NavHost 注册 + 按需更新 `onTabs`/`showChrome` 逻辑，并更新本表
+- 新增路由：在 `AppRoute` 加类型 + `NavDisplay` 注册 `entry` + 按需更新 `onTabs`/`showChrome`，并更新本表
 
 ## 5. 关键实现约定
 

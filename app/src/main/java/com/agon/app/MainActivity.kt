@@ -14,9 +14,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
-import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -104,12 +102,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.times
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.navigation.NavHostController
-import androidx.navigation.compose.NavHost
-import androidx.navigation.compose.composable
-import androidx.navigation.compose.currentBackStackEntryAsState
-import androidx.navigation.compose.rememberNavController
 import com.agon.app.data.ArchiveReason
+import com.agon.app.ui.navigation.AppRoute
+import com.agon.app.ui.navigation.CrossActivityTransition
 import com.agon.app.ui.screens.ArchiveScreen
 import com.agon.app.ui.screens.CategoryManageScreen
 import com.agon.app.ui.screens.ConsumptionLogScreen
@@ -143,6 +138,11 @@ import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.launch
+import top.yukonga.miuix.kmp.nav.core.NavCornerClipMode
+import top.yukonga.miuix.kmp.nav.core.NavDisplay
+import top.yukonga.miuix.kmp.nav.core.NavDisplayEffects
+import top.yukonga.miuix.kmp.nav.core.rememberNavBackStack
+import top.yukonga.miuix.kmp.nav.core.rememberNavSystemCornerRadius
 
 // MD3 motion easing tokens 统一从 ui/theme/Motion.kt 引用
 private val EmphasizedDecelerate = MotionEasing.EmphasizedDecelerate
@@ -199,10 +199,16 @@ private data class TabSpec(
 
 @Composable
 fun MainApp(viewModel: AppViewModel) {
-    val navController = rememberNavController()
-    val navBackStackEntry by navController.currentBackStackEntryAsState()
-    val currentRoute = navBackStackEntry?.destination?.route
-    val onTabs = currentRoute == "main"
+    val backStack = rememberNavBackStack<AppRoute>(AppRoute.Main)
+    val currentRoute = backStack.lastOrNull()
+    val onTabs = currentRoute is AppRoute.Main
+    fun navigate(route: AppRoute) {
+        if (backStack.lastOrNull() == route) return
+        backStack.add(route)
+    }
+    fun popRoute() {
+        if (backStack.size > 1) backStack.removeLastOrNull()
+    }
     val pagerState = rememberPagerState(pageCount = { MainTabs.size })
     val selectedTabIndex = pagerState.currentPage
     var listFilter by rememberSaveable { mutableStateOf<String?>(null) }
@@ -359,12 +365,12 @@ fun MainApp(viewModel: AppViewModel) {
                     slideOutVertically(tween(200, easing = EmphasizedAccelerate)) { it / 2 },
             ) {
                 if (isMiuix) {
-                    MiuixFloatingActionButton(onClick = { navController.navigate("edit") }) {
+                    MiuixFloatingActionButton(onClick = { navigate(AppRoute.Edit()) }) {
                         MiuixIcon(Icons.Rounded.Add, contentDescription = "添加食品")
                     }
                 } else {
                     FloatingActionButton(
-                        onClick = { navController.navigate("edit") },
+                        onClick = { navigate(AppRoute.Edit()) },
                         containerColor = MaterialTheme.colorScheme.primary,
                         contentColor = MaterialTheme.colorScheme.onPrimary,
                         shape = RoundedCornerShape(50),
@@ -381,123 +387,97 @@ fun MainApp(viewModel: AppViewModel) {
             modifier = Modifier.fillMaxSize(),
             contentAlignment = Alignment.TopCenter,
         ) {
-            NavHost(
-                navController = navController,
-                startDestination = "main",
+            val cornerRadius = rememberNavSystemCornerRadius()
+            NavDisplay(
+                backStack = backStack,
+                onBack = { popRoute() },
+                transition = CrossActivityTransition,
+                effects = NavDisplayEffects(
+                    enableCornerClip = true,
+                    cornerClipRadius = cornerRadius,
+                    cornerClipMode = NavCornerClipMode.All,
+                    dimAmount = 0.5f,
+                    backdropColor = MaterialTheme.colorScheme.background,
+                ),
                 modifier = Modifier
                     .widthIn(max = 840.dp)
                     .fillMaxSize()
                     .nestedScroll(chromeScrollConnection),
-            // 二级页覆盖式转场：几何是 MiuixDefault（全宽滑入 + 1/4 视差 + 90% 透明）。
-            // 时间曲线必须用 tween，不能用 folmeSpring：Navigation 2.9 会把 pop 转场
-            // 按手势 progress seek，弹簧前段位移很大，预测性返回会显得又猛又灵敏。
-            // 官方全屏预览是缩到 90% + 约 width/20 的平移（不是整页滑出）；
-            // 2.9 没有独立的 predictivePop* API，pop 几何仍走覆盖式滑出，
-            // 用 EmphasizedAccelerate 让预览前段少动，松手后再加速离场。
-            enterTransition = {
-                slideInHorizontally(tween(300, easing = EmphasizedDecelerate)) { it }
-            },
-            exitTransition = {
-                slideOutHorizontally(tween(300, easing = EmphasizedAccelerate)) { -it / 4 } +
-                    fadeOut(tween(300, easing = EmphasizedAccelerate), targetAlpha = 0.9f)
-            },
-            popEnterTransition = {
-                slideInHorizontally(tween(300, easing = EmphasizedDecelerate)) { -it / 4 } +
-                    fadeIn(tween(300, easing = EmphasizedDecelerate), initialAlpha = 0.9f)
-            },
-            popExitTransition = {
-                slideOutHorizontally(tween(300, easing = EmphasizedAccelerate)) { it }
-            },
-        ) {
-            composable("main") {
-                MainTabsPager(
-                    viewModel = viewModel,
-                    navController = navController,
-                    pagerState = pagerState,
-                    listFilter = listFilter,
-                    onOpenList = { openList(it) },
-                    onBackToHome = { selectTab(0) },
-                )
-            }
-            composable("consumption") {
-                if (LocalThemeStyle.current == ThemeStyle.MIUIX) {
-                    MiuixConsumptionLogScreen(
+            ) {
+                entry<AppRoute.Main> {
+                    MainTabsPager(
                         viewModel = viewModel,
-                        onBack = { navController.popBackStack() },
-                    )
-                } else {
-                    ConsumptionLogScreen(
-                        viewModel = viewModel,
-                        onBack = { navController.popBackStack() },
+                        pagerState = pagerState,
+                        listFilter = listFilter,
+                        onOpenList = { openList(it) },
+                        onOpenItem = { navigate(AppRoute.Detail(it)) },
+                        onOpenArchive = { navigate(AppRoute.Archive) },
+                        onOpenConsumption = { navigate(AppRoute.Consumption) },
+                        onOpenThresholds = { navigate(AppRoute.ManageThresholds) },
+                        onOpenCategories = { navigate(AppRoute.ManageCategories) },
+                        onOpenLocations = { navigate(AppRoute.ManageLocations) },
+                        onBackToHome = { selectTab(0) },
                     )
                 }
-            }
-            composable("detail/{id}") { backStackEntry ->
-                val id = backStackEntry.arguments?.getString("id") ?: ""
-                if (LocalThemeStyle.current == ThemeStyle.MIUIX) {
-                    MiuixFoodDetailScreen(
-                        viewModel = viewModel,
-                        itemId = id,
-                        onEdit = { editId -> navController.navigate("edit?id=$editId") },
-                        onBack = { navController.popBackStack() },
-                    )
-                } else {
-                    FoodDetailScreen(
-                        viewModel = viewModel,
-                        itemId = id,
-                        onEdit = { editId -> navController.navigate("edit?id=$editId") },
-                        onBack = { navController.popBackStack() },
-                    )
+                entry<AppRoute.Consumption> {
+                    if (LocalThemeStyle.current == ThemeStyle.MIUIX) {
+                        MiuixConsumptionLogScreen(viewModel = viewModel, onBack = { popRoute() })
+                    } else {
+                        ConsumptionLogScreen(viewModel = viewModel, onBack = { popRoute() })
+                    }
                 }
-            }
-            composable("edit?id={id}") { backStackEntry ->
-                EditFoodScreen(
-                    viewModel = viewModel,
-                    editId = backStackEntry.arguments?.getString("id"),
-                    onBack = { navController.popBackStack() },
-                )
-            }
-            composable("edit") {
-                EditFoodScreen(
-                    viewModel = viewModel,
-                    editId = null,
-                    onBack = { navController.popBackStack() },
-                )
-            }
-            composable("archive") {
-                if (LocalThemeStyle.current == ThemeStyle.MIUIX) {
-                    MiuixArchiveScreen(
+                entry<AppRoute.Detail> { route ->
+                    if (LocalThemeStyle.current == ThemeStyle.MIUIX) {
+                        MiuixFoodDetailScreen(
+                            viewModel = viewModel,
+                            itemId = route.id,
+                            onEdit = { navigate(AppRoute.Edit(it)) },
+                            onBack = { popRoute() },
+                        )
+                    } else {
+                        FoodDetailScreen(
+                            viewModel = viewModel,
+                            itemId = route.id,
+                            onEdit = { navigate(AppRoute.Edit(it)) },
+                            onBack = { popRoute() },
+                        )
+                    }
+                }
+                entry<AppRoute.Edit> { route ->
+                    EditFoodScreen(
                         viewModel = viewModel,
-                        onBack = { navController.popBackStack() },
-                    )
-                } else {
-                    ArchiveScreen(
-                        viewModel = viewModel,
-                        onBack = { navController.popBackStack() },
+                        editId = route.id,
+                        onBack = { popRoute() },
                     )
                 }
-            }
-            composable("manage_thresholds") {
-                if (LocalThemeStyle.current == ThemeStyle.MIUIX) {
-                    MiuixThresholdManageScreen(viewModel = viewModel, onBack = { navController.popBackStack() })
-                } else {
-                    ThresholdManageScreen(viewModel = viewModel, onBack = { navController.popBackStack() })
+                entry<AppRoute.Archive> {
+                    if (LocalThemeStyle.current == ThemeStyle.MIUIX) {
+                        MiuixArchiveScreen(viewModel = viewModel, onBack = { popRoute() })
+                    } else {
+                        ArchiveScreen(viewModel = viewModel, onBack = { popRoute() })
+                    }
                 }
-            }
-            composable("manage_categories") {
-                if (LocalThemeStyle.current == ThemeStyle.MIUIX) {
-                    MiuixCategoryManageScreen(viewModel = viewModel, onBack = { navController.popBackStack() })
-                } else {
-                    CategoryManageScreen(viewModel = viewModel, onBack = { navController.popBackStack() })
+                entry<AppRoute.ManageThresholds> {
+                    if (LocalThemeStyle.current == ThemeStyle.MIUIX) {
+                        MiuixThresholdManageScreen(viewModel = viewModel, onBack = { popRoute() })
+                    } else {
+                        ThresholdManageScreen(viewModel = viewModel, onBack = { popRoute() })
+                    }
                 }
-            }
-            composable("manage_locations") {
-                if (LocalThemeStyle.current == ThemeStyle.MIUIX) {
-                    MiuixLocationManageScreen(viewModel = viewModel, onBack = { navController.popBackStack() })
-                } else {
-                    LocationManageScreen(viewModel = viewModel, onBack = { navController.popBackStack() })
+                entry<AppRoute.ManageCategories> {
+                    if (LocalThemeStyle.current == ThemeStyle.MIUIX) {
+                        MiuixCategoryManageScreen(viewModel = viewModel, onBack = { popRoute() })
+                    } else {
+                        CategoryManageScreen(viewModel = viewModel, onBack = { popRoute() })
+                    }
                 }
-            }
+                entry<AppRoute.ManageLocations> {
+                    if (LocalThemeStyle.current == ThemeStyle.MIUIX) {
+                        MiuixLocationManageScreen(viewModel = viewModel, onBack = { popRoute() })
+                    } else {
+                        LocationManageScreen(viewModel = viewModel, onBack = { popRoute() })
+                    }
+                }
             }
         }
     }
@@ -662,10 +642,15 @@ private val MiuixMainTabs = listOf(
 @Composable
 private fun MainTabsPager(
     viewModel: AppViewModel,
-    navController: NavHostController,
     pagerState: PagerState,
     listFilter: String?,
     onOpenList: (String?) -> Unit,
+    onOpenItem: (String) -> Unit,
+    onOpenArchive: () -> Unit,
+    onOpenConsumption: () -> Unit,
+    onOpenThresholds: () -> Unit,
+    onOpenCategories: () -> Unit,
+    onOpenLocations: () -> Unit,
     onBackToHome: () -> Unit,
 ) {
     val isMiuix = LocalThemeStyle.current == ThemeStyle.MIUIX
@@ -681,58 +666,58 @@ private fun MainTabsPager(
                 MiuixHomeScreen(
                     viewModel = viewModel,
                     onOpenList = onOpenList,
-                    onOpenItem = { id -> navController.navigate("detail/$id") },
+                    onOpenItem = onOpenItem,
                 )
             } else {
                 HomeScreen(
                     viewModel = viewModel,
                     onOpenList = onOpenList,
-                    onOpenItem = { id -> navController.navigate("detail/$id") },
+                    onOpenItem = onOpenItem,
                 )
             }
             1 -> if (isMiuix) {
                 MiuixFoodListScreen(
                     viewModel = viewModel,
                     initialFilter = listFilter,
-                    onOpenItem = { id -> navController.navigate("detail/$id") },
-                    onOpenArchive = { navController.navigate("archive") },
+                    onOpenItem = onOpenItem,
+                    onOpenArchive = onOpenArchive,
                 )
             } else {
                 FoodListScreen(
                     viewModel = viewModel,
                     initialFilter = listFilter,
-                    onOpenItem = { id -> navController.navigate("detail/$id") },
-                    onOpenArchive = { navController.navigate("archive") },
+                    onOpenItem = onOpenItem,
+                    onOpenArchive = onOpenArchive,
                 )
             }
             2 -> if (isMiuix) {
                 MiuixStatsScreen(
                     viewModel = viewModel,
-                    onOpenItem = { id -> navController.navigate("detail/$id") },
-                    onOpenConsumption = { navController.navigate("consumption") },
+                    onOpenItem = onOpenItem,
+                    onOpenConsumption = onOpenConsumption,
                 )
             } else {
                 StatsScreen(
                     viewModel = viewModel,
-                    onOpenItem = { id -> navController.navigate("detail/$id") },
-                    onOpenConsumption = { navController.navigate("consumption") },
+                    onOpenItem = onOpenItem,
+                    onOpenConsumption = onOpenConsumption,
                 )
             }
             else -> if (isMiuix) {
                 MiuixSettingsScreen(
                     viewModel = viewModel,
-                    onOpenArchive = { navController.navigate("archive") },
-                    onOpenThresholds = { navController.navigate("manage_thresholds") },
-                    onOpenCategories = { navController.navigate("manage_categories") },
-                    onOpenLocations = { navController.navigate("manage_locations") },
+                    onOpenArchive = onOpenArchive,
+                    onOpenThresholds = onOpenThresholds,
+                    onOpenCategories = onOpenCategories,
+                    onOpenLocations = onOpenLocations,
                 )
             } else {
                 SettingsScreen(
                     viewModel = viewModel,
-                    onOpenArchive = { navController.navigate("archive") },
-                    onOpenThresholds = { navController.navigate("manage_thresholds") },
-                    onOpenCategories = { navController.navigate("manage_categories") },
-                    onOpenLocations = { navController.navigate("manage_locations") },
+                    onOpenArchive = onOpenArchive,
+                    onOpenThresholds = onOpenThresholds,
+                    onOpenCategories = onOpenCategories,
+                    onOpenLocations = onOpenLocations,
                 )
             }
         }
