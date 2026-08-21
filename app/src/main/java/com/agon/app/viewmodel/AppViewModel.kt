@@ -145,25 +145,29 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         repo.undoConsumption(request.itemId, request.consumptionId)
     }
 
-    /** 删除消耗记录后的「撤销」状态：保存被删记录，供恢复。 */
-    private val _deletedConsumption = MutableStateFlow<ConsumptionRecord?>(null)
-    val deletedConsumption: StateFlow<ConsumptionRecord?> = _deletedConsumption.asStateFlow()
+    /** 删除消耗记录后的「撤销」状态：记录本身 + 删除前在日期倒序列表里的下标。 */
+    data class DeletedConsumption(val record: ConsumptionRecord, val index: Int)
+
+    private val _deletedConsumption = MutableStateFlow<DeletedConsumption?>(null)
+    val deletedConsumption: StateFlow<DeletedConsumption?> = _deletedConsumption.asStateFlow()
 
     fun consumeDeletedConsumption() {
         _deletedConsumption.value = null
     }
 
-    /** 删除单条消耗记录（修正统计），并记录被删内容供撤销。 */
+    /** 删除单条消耗记录（修正统计），并记下原位置供撤销插回。 */
     fun deleteConsumption(id: String) = viewModelScope.launch {
-        val record = consumption.value.firstOrNull { it.id == id } ?: return@launch
+        val sorted = consumption.value.sortedByDescending { it.epochDay }
+        val index = sorted.indexOfFirst { it.id == id }
+        val record = sorted.getOrNull(index) ?: return@launch
         repo.deleteConsumption(id)
-        _deletedConsumption.value = record
+        _deletedConsumption.value = DeletedConsumption(record, index.coerceAtLeast(0))
     }
 
-    /** 撤销删除消耗记录：重新插回。必须传入 collect 时拿到的 record——consume 会先把 Flow 置空。 */
-    fun undoDeleteConsumption(record: ConsumptionRecord) = viewModelScope.launch {
-        repo.addConsumption(record)
-        if (_deletedConsumption.value?.id == record.id) {
+    /** 撤销删除：按原下标插回，避免被提到列表最前。 */
+    fun undoDeleteConsumption(record: ConsumptionRecord, index: Int) = viewModelScope.launch {
+        repo.addConsumption(record, index)
+        if (_deletedConsumption.value?.record?.id == record.id) {
             _deletedConsumption.value = null
         }
     }

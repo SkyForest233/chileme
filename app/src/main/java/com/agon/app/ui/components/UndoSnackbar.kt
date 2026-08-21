@@ -1,6 +1,6 @@
 package com.agon.app.ui.components
 
-import androidx.compose.foundation.background
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -8,9 +8,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.History
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarData
 import androidx.compose.material3.SnackbarDefaults
@@ -34,6 +31,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
@@ -58,8 +57,8 @@ const val UndoSnackbarTimeoutMs = 6_000L
 private const val UndoActionLabel = "撤销"
 
 /**
- * Material 3 撤销条：单行正文 + 右侧 History 钟圈（盖住指针，中间倒计时数字，点了即撤销）。
- * 不用默认 Snackbar 的 action 槽，也不用 48dp IconButton，避免条被撑高、文字叠在正文上。
+ * Material 3 撤销条：单行正文 + 右侧完整钟圈（中间倒计时数字，点了即撤销）。
+ * History 矢量圈不闭合、视觉中心偏了，所以自绘圆环。
  */
 @Composable
 fun SwipeDismissSnackbarHost(
@@ -131,7 +130,6 @@ private fun UndoCountdownSnackbar(
             HistoryCountdownButton(
                 secondsLeft = secondsLeft,
                 color = actionColor,
-                holeColor = SnackbarDefaults.color,
                 onClick = { data.performAction() },
             )
         }
@@ -150,12 +148,11 @@ private fun snackbarMessageStyle(): TextStyle =
         ),
     )
 
-/** History 钟圈：中间用条底色盖住指针，叠加粗倒计时数字。 */
+/** 完整钟圈 + 居中粗倒计时。不用 History 矢量（圈有缺口、数字会偏）。 */
 @Composable
 private fun HistoryCountdownButton(
     secondsLeft: Int,
     color: Color,
-    holeColor: Color,
     onClick: () -> Unit,
 ) {
     Box(
@@ -169,25 +166,21 @@ private fun HistoryCountdownButton(
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        Icon(
-            Icons.Rounded.History,
-            contentDescription = null,
-            modifier = Modifier.size(32.dp),
-            tint = color,
-        )
-        Box(
-            modifier = Modifier
-                .size(16.dp)
-                .clip(CircleShape)
-                .background(holeColor),
-        )
+        Canvas(Modifier.size(32.dp)) {
+            val strokeWidth = 2.2.dp.toPx()
+            drawCircle(
+                color = color,
+                radius = size.minDimension / 2f - strokeWidth / 2f,
+                style = Stroke(width = strokeWidth, cap = StrokeCap.Round),
+            )
+        }
         Text(
             "$secondsLeft",
             color = color,
             style = TextStyle(
-                fontSize = 11.sp,
+                fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,
-                lineHeight = 11.sp,
+                lineHeight = 12.sp,
                 platformStyle = PlatformTextStyle(includeFontPadding = false),
                 lineHeightStyle = LineHeightStyle(
                     alignment = LineHeightStyle.Alignment.Center,
