@@ -160,11 +160,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         _deletedConsumption.value = record
     }
 
-    /** 撤销删除消耗记录：重新插回。 */
-    fun undoDeleteConsumption() = viewModelScope.launch {
-        val record = _deletedConsumption.value ?: return@launch
+    /** 撤销删除消耗记录：重新插回。必须传入 collect 时拿到的 record——consume 会先把 Flow 置空。 */
+    fun undoDeleteConsumption(record: ConsumptionRecord) = viewModelScope.launch {
         repo.addConsumption(record)
-        _deletedConsumption.value = null
+        if (_deletedConsumption.value?.id == record.id) {
+            _deletedConsumption.value = null
+        }
     }
 
     init {

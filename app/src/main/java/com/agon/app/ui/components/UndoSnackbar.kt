@@ -1,5 +1,6 @@
 package com.agon.app.ui.components
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -8,7 +9,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Replay
+import androidx.compose.material.icons.rounded.History
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarData
@@ -57,7 +58,7 @@ const val UndoSnackbarTimeoutMs = 6_000L
 private const val UndoActionLabel = "撤销"
 
 /**
- * Material 3 撤销条：单行正文 + 右侧 Replay 图标（中间倒计时数字，点了即撤销）。
+ * Material 3 撤销条：单行正文 + 右侧 History 钟圈（盖住指针，中间倒计时数字，点了即撤销）。
  * 不用默认 Snackbar 的 action 槽，也不用 48dp IconButton，避免条被撑高、文字叠在正文上。
  */
 @Composable
@@ -127,9 +128,10 @@ private fun UndoCountdownSnackbar(
                 overflow = TextOverflow.Ellipsis,
                 style = snackbarMessageStyle(),
             )
-            ReplayCountdownButton(
+            HistoryCountdownButton(
                 secondsLeft = secondsLeft,
                 color = actionColor,
+                holeColor = SnackbarDefaults.color,
                 onClick = { data.performAction() },
             )
         }
@@ -148,16 +150,17 @@ private fun snackbarMessageStyle(): TextStyle =
         ),
     )
 
-/** Material Replay 图标，中间叠倒计时数字。图标铺满、数字缩小，避免顶到箭头。 */
+/** History 钟圈：中间用条底色盖住指针，叠加粗倒计时数字。 */
 @Composable
-private fun ReplayCountdownButton(
+private fun HistoryCountdownButton(
     secondsLeft: Int,
     color: Color,
+    holeColor: Color,
     onClick: () -> Unit,
 ) {
     Box(
         modifier = Modifier
-            .size(32.dp)
+            .size(36.dp)
             .clip(CircleShape)
             .semantics {
                 contentDescription = "撤销"
@@ -167,18 +170,24 @@ private fun ReplayCountdownButton(
         contentAlignment = Alignment.Center,
     ) {
         Icon(
-            Icons.Rounded.Replay,
+            Icons.Rounded.History,
             contentDescription = null,
             modifier = Modifier.size(32.dp),
             tint = color,
+        )
+        Box(
+            modifier = Modifier
+                .size(16.dp)
+                .clip(CircleShape)
+                .background(holeColor),
         )
         Text(
             "$secondsLeft",
             color = color,
             style = TextStyle(
-                fontSize = 8.sp,
-                fontWeight = FontWeight.SemiBold,
-                lineHeight = 8.sp,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                lineHeight = 11.sp,
                 platformStyle = PlatformTextStyle(includeFontPadding = false),
                 lineHeightStyle = LineHeightStyle(
                     alignment = LineHeightStyle.Alignment.Center,

@@ -74,7 +74,7 @@ fun MiuixConsumptionLogScreen(
                 "已删除「${record.name}」的消耗记录",
             )
             if (result == SnackbarResult.ActionPerformed) {
-                viewModel.undoDeleteConsumption()
+                viewModel.undoDeleteConsumption(record)
             }
         }
     }

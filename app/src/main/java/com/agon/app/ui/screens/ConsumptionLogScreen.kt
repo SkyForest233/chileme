@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -76,14 +77,21 @@ fun ConsumptionLogScreen(
                 "已删除「${record.name}」的消耗记录",
             )
             if (result == SnackbarResult.ActionPerformed) {
-                viewModel.undoDeleteConsumption()
+                viewModel.undoDeleteConsumption(record)
             }
         }
     }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
-        snackbarHost = { SwipeDismissSnackbarHost(snackbarHostState) },
+        snackbarHost = {
+            SwipeDismissSnackbarHost(
+                snackbarHostState,
+                modifier = Modifier
+                    .navigationBarsPadding()
+                    .padding(bottom = 24.dp),
+            )
+        },
         topBar = {
             TopAppBar(
                 title = { Text("消耗记录", fontWeight = FontWeight.Bold) },
