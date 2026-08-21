@@ -84,7 +84,7 @@ private val ClassicMotion = NavMotion(
 
 private val ClassicActivityOpen: NavTransition = navGraphicsTransition(
     motion = ClassicMotion,
-    scrim = { 0f },
+    scrim = { _ -> 0f },
 ) { scope ->
     val d = scope.relativeDepth
     val driftPx = with(scope.density) { CrossActivityDrift.toPx() }
@@ -108,7 +108,7 @@ private val ClassicActivityOpen: NavTransition = navGraphicsTransition(
 
 private val ClassicActivityClose: NavTransition = navGraphicsTransition(
     motion = ClassicMotion,
-    scrim = { 0f },
+    scrim = { _ -> 0f },
 ) { scope ->
     val d = scope.relativeDepth
     val driftPx = with(scope.density) { CrossActivityDrift.toPx() }
@@ -140,7 +140,7 @@ private val CrossActivityPredictive: NavTransition = navGraphicsTransition(
         val s = scope.settle
         val g = scope.gesture
         when {
-            s?.phase == NavSettlePhase.Commit -> (1f - s.elapsedMillis / 450f).coerceIn(0f, 1f)
+            s != null && s.phase == NavSettlePhase.Commit -> (1f - s.elapsedMillis / 450f).coerceIn(0f, 1f)
             g != null -> (scope.relativeDepth.coerceIn(0f, 1f) / (1f - g.progress).coerceAtLeast(MIN_RELEASE_SPAN)).coerceIn(0f, 1f)
             else -> scope.relativeDepth.coerceIn(0f, 1f)
         }
@@ -171,7 +171,7 @@ private val CrossActivityPredictive: NavTransition = navGraphicsTransition(
             scaleY = scaleX
             var tx = if (hugs) (1f - releasePE) * hugMax else 0f
             tx += post * driftPx
-            alpha = (1f - 5f * (settle.elapsedMillis / 450f)).coerceAtLeast(0f)
+            alpha = (1f - 5f * ((settle?.elapsedMillis ?: 0f) / 450f)).coerceAtLeast(0f)
             translationX = snapEdgeTranslation(tx, scaleX, widthPx)
             translationY = snapEdgeTranslation(crossActivityYShift(gesture, heightPx, scaleX, scope.density), scaleX, heightPx)
         } else {
