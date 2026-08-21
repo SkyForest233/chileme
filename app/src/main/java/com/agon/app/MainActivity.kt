@@ -99,6 +99,7 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.times
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -319,8 +320,8 @@ fun MainApp(viewModel: AppViewModel) {
             Box {
                 AnimatedVisibility(
                     visible = selectionMode,
-                    enter = slideInVertically(MotionSpring.expand()) { it } + fadeIn(MotionSpring.expand()),
-                    exit = slideOutVertically(MotionSpring.collapse()) { it } + fadeOut(MotionSpring.collapse()),
+                    enter = slideInVertically(MotionSpring.expand<IntOffset>()) { it } + fadeIn(MotionSpring.expand<Float>()),
+                    exit = slideOutVertically(MotionSpring.collapse<IntOffset>()) { it } + fadeOut(MotionSpring.collapse<Float>()),
                 ) {
                     BatchActionBar(
                         count = selectedIds.size,
@@ -332,8 +333,8 @@ fun MainApp(viewModel: AppViewModel) {
                 }
                 AnimatedVisibility(
                     visible = !selectionMode && showChrome,
-                    enter = slideInVertically(MotionSpring.expand()) { it } + fadeIn(MotionSpring.expand()),
-                    exit = slideOutVertically(MotionSpring.collapse()) { it } + fadeOut(MotionSpring.collapse()),
+                    enter = slideInVertically(MotionSpring.expand<IntOffset>()) { it } + fadeIn(MotionSpring.expand<Float>()),
+                    exit = slideOutVertically(MotionSpring.collapse<IntOffset>()) { it } + fadeOut(MotionSpring.collapse<Float>()),
                 ) {
                     when {
                         isMiuix && floatingNav -> MiuixFloatingNav(selectedTabIndex, ::selectTab)

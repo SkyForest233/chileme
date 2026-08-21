@@ -7,6 +7,7 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.ui.unit.IntOffset
 import top.yukonga.miuix.kmp.anim.folmeSpring
 
 /**
@@ -43,9 +44,9 @@ object MotionSpring {
 }
 
 fun filterPanelEnter() =
-    expandVertically(animationSpec = MotionSpring.expand()) +
-        fadeIn(animationSpec = MotionSpring.expand())
+    expandVertically(animationSpec = MotionSpring.expand<IntOffset>()) +
+        fadeIn(animationSpec = MotionSpring.expand<Float>())
 
 fun filterPanelExit() =
-    shrinkVertically(animationSpec = MotionSpring.collapse()) +
-        fadeOut(animationSpec = MotionSpring.collapse())
+    shrinkVertically(animationSpec = MotionSpring.collapse<IntOffset>()) +
+        fadeOut(animationSpec = MotionSpring.collapse<Float>())
