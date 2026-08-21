@@ -7,7 +7,7 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
-import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
 import top.yukonga.miuix.kmp.anim.folmeSpring
 
 /**
