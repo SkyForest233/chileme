@@ -8,9 +8,9 @@
 
 - **应用名**：吃了么（app_name）；applicationId `com.chileme.pantry`；代码包名仍为 `com.agon.app`（namespace 不变，两者分离是有意为之）
 - **定位**：本地优先的家庭食品库存管理 App，自动计算过期日期、临期提醒、减少食物浪费
-- **技术栈**：Kotlin 2.2 + Jetpack Compose + Material 3，单 Activity + Navigation Compose，DataStore 持久化，ML Kit 中文 OCR
+- **技术栈**：Kotlin 2.4.10 / Compose BOM 2026.01.01 + Material 3 与 Miuix（HyperOS），单 Activity + miuix-nav `NavDisplay`（底栏 Tab 仍是 HorizontalPager），DataStore 持久化。OCR 已移除
 - **设计风格**：薄荷绿单色系（参考 Focus 类 App 截图），详见 `docs/DESIGN_SPEC.md`
-- **当前版本**：v2.1（功能范围见 `docs/REQUIREMENTS.md`）
+- **当前版本**：功能演进见 `docs/REQUIREMENTS.md`；设置页展示版本固定 **v1.0**
 
 ## 2. 标准文件索引（docs/）
 
@@ -42,7 +42,7 @@
 1. **读指引**：先读本文件，确认任务涉及哪些标准文档并阅读
 2. **对需求**：对照 `docs/REQUIREMENTS.md` 确认需求在范围内；超出范围的需求先与用户沟通确认，确认后更新需求文档再开发
 3. **按规范开发**：遵循 `docs/ARCHITECTURE.md`（分层/数据流）与 `docs/DESIGN_SPEC.md`（UI 规范），流程按 `docs/WORKFLOW.md` 执行
-4. **验证**：每轮改动完成后必须执行 `build_apk()` 确保编译通过；失败则修复后重新构建，不得以失败状态结束
+4. **验证**：每轮改动完成后必须 `./gradlew assembleDebug` 通过（沙箱无 JDK/SDK 时靠 GitHub Actions）；失败则修复后重新构建，不得以失败状态结束
 5. **记日志**：构建成功后按第 3 节规则写开发日志、更新 INDEX
 6. **同步文档**：若本次改动影响了需求范围、架构、设计规范或流程，同步更新对应 docs 文件，保持文档与代码一致
 

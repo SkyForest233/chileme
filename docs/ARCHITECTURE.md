@@ -9,12 +9,12 @@
 - **到期日历（v2.5 起）**：不再是独立路由，作为 `ExpiryCalendarCard`（ui/components/ExpiryCalendar.kt）嵌入统计页；支持手势左右滑动切换月份，圆点颜色 = 紧急度（去重后最多 3 点）
 - Compose BOM 2026.01.01（material3、icons-extended）
 - miuix-nav 0.9.4-rc01（`NavDisplay` 二级页路由与预测性返回；替代 Navigation Compose NavHost）、Lifecycle/ViewModel Compose 2.10.0
-- DataStore Preferences 1.2.0 + kotlinx-serialization-json 1.9.0
+- DataStore Preferences 1.2.0 + kotlinx-serialization-json 1.11.0
 - Coil 3.3.0（照片封面加载）
-- ~~ML Kit OCR~~ 已于 v2.3 移除（识别率低），`DateOcr.kt` 已删除
+- ~~ML Kit OCR~~ 已于 v2.5 移除（识别率低），`DateOcr.kt` 已删除
 - MaterialKolor `com.materialkolor:material-kolor:4.0.1`（MD3 种子色生成主题，v2.2 起）
-- Miuix `top.yukonga.miuix.kmp:miuix-ui-android:0.9.4-rc01` + `miuix-preference-android:0.9.4-rc01`（HyperOS 风格组件，v2.8 起；候选版，上游尚无 v0.9.4 稳定 tag）
-- OkHttp `com.squareup.okhttp3:okhttp:4.12.0`（坚果云 WebDAV 同步，v2.4 起）
+- Miuix `miuix-ui` / `miuix-preference` / `miuix-icons` 0.9.4-rc01（common 坐标，Gradle 解析到 android 变体）；导航用 `miuix-nav-android:0.9.4-rc01`
+- OkHttp `com.squareup.okhttp3:okhttp:4.12.0`（坚果云 WebDAV 同步，v2.4 起；只声明一次）
 
 ## 2. 分层结构
 
@@ -24,13 +24,15 @@ app/src/main/java/com/agon/app/
 ├─ data/                        # 数据层（无 UI 依赖）
 │   ├─ FoodModels.kt            # 数据模型 + 派生属性（过期计算/状态判定）
 │   ├─ FoodRepository.kt        # 唯一持久化入口（DataStore）
-│   └─ ImageStore.kt            # 封面图片复制到私有目录
+│   ├─ ImageStore.kt            # 封面图片复制到私有目录
+│   ├─ CloudSync.kt             # 坚果云 WebDAV
+│   └─ SecureStore.kt           # Keystore AES-GCM 密码
 ├─ viewmodel/
 │   └─ AppViewModel.kt          # 全局共享 VM（AndroidViewModel），StateFlow 暴露
 └─ ui/
     ├─ navigation/              # AppRoute（miuix-nav 二级页栈；转场用库预设 NavTransitions.MiuixDefault）
     ├─ theme/                   # Palettes.kt（种子色方案）/ Color.kt（仅状态语义色）/ Theme.kt（MaterialKolor 生成）/ ThemeStyle.kt（MATERIAL3/MIUIX 风格枚举 + LocalThemeStyle）/ MiuixRootTheme.kt（MiuixTheme + MaterialTheme 桥接，v2.8）
-    ├─ components/Common.kt     # 复用组件：StatusBadge/FoodAvatar/FoodCard/QuantityStepper/EmptyState/LocationTag
+    ├─ components/              # Common.kt（StatusBadge/FoodAvatar/FoodCard/QuantityStepper/EmptyState/LocationTag）+ UndoSnackbar.kt + ExpiryCalendar.kt
     └─ screens/                 # 每屏一文件，自带 Scaffold；Miuix*Screen.kt 为各页的 Miuix 实现（v2.8）：
                                 # MiuixSettings/Home/FoodList/FoodDetail/Archive/ManageScreens（阈值/分类/位置）
                                 # 编辑页(EditFoodScreen)与统计页(StatsScreen)刻意保留 MD3+桥接（DatePicker 无 Miuix 对应 / 图表自绘）
@@ -77,7 +79,7 @@ app/src/main/java/com/agon/app/
 - **删除 = 归档**：业务删除一律调 `repo.archiveItems(ids, reason)`；只有归档页的“彻底删除/清空”真正移除数据
 - **消耗记录**：`changeQuantity(id, delta)` 在 delta<0 时自动写 ConsumptionRecord，调用方无需额外处理
 - **吃完自动归档（v2.4）**：`changeQuantity` 在消耗导致数量归零时自动移入归档（CONSUMED）并返回 true；UI 可依此提示/返回
-- **OCR（v2.4）**：`recognizeDates()` 返回 `OcrDates(production, expiry)`；正则按优先级匹配并占用文本区间防重复；日期前 14 字符上下文匹配 EXP/MFG 等语义标记分类角色
+- **OCR**：已移除，不要再加 `DateOcr` / ML Kit
 - **坚果云同步（v2.4，v2.7 多版本轮转）**：`NutstoreSync` 单例（OkHttp），WebDAV MKCOL+PUT/GET/PROPFIND/DELETE；账号存 DataStore（nutstore_account / last_sync_time）；**密码经 `SecureStore`（Android Keystore AES-GCM）加密后存 `nutstore_password_enc`，启动时 `migratePlaintextPassword()` 自动迁移旧明文**；上传内容即 buildBackupJson() 产物，下载走 importBackupJson()
   - **多版本轮转（v2.7）**：上传文件名 `chileme_backup_yyyyMMdd_HHmmss.json`，上传后 PROPFIND 列目录、自动 DELETE 多余旧版本，云端保留最近 `CLOUD_BACKUP_KEEP`（=3）份；自动同步走同一 upload 入口，同样轮转
   - **恢复选择（v2.7）**：`listBackups()` 返回 `CloudBackup(fileName, sizeBytes)` 列表（新→旧），UI 弹窗选择具体版本后 `download(fileName)` 恢复；旧版单文件 `chileme_backup.json` 兼容显示在列表末尾且不参与轮转删除
