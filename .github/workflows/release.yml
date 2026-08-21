@@ -1,7 +1,16 @@
 name: Build Release APK
 
+# 打 v* tag（如 v2.8.0）自动构建签名 APK 并发布 GitHub Release。
+# 手动触发：Actions → Build Release APK → Run workflow（默认分支 master）。
+# 手动跑在分支上只上传 artifact；选中 v* tag 时同时创建 Release。
 on:
+  push:
+    tags:
+      - "v*"
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   release:
@@ -33,8 +42,111 @@ jobs:
           RELEASE_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: ./gradlew assembleRelease
 
+      - name: Generate changelog from devlog
+        run: |
+          python3 << 'PY'
+          import glob, os, re, sys
+
+          FALLBACK = "无更新日志"
+          ROUND_RE = re.compile(r"^## 第\s*\d+\s*轮")
+          DONE_RE = re.compile(r"^### ✅ (已完成|修复)")
+          H2_RE = re.compile(r"^## ")
+          H3_RE = re.compile(r"^### ")
+
+          def write_outputs(text):
+              if not text.endswith("\n"):
+                  text += "\n"
+              with open("release_notes.md", "w", encoding="utf-8") as f:
+                  f.write(text)
+              env_file = os.environ.get("GITHUB_ENV")
+              if env_file:
+                  with open(env_file, "a", encoding="utf-8") as f:
+                      f.write("RELEASE_CHANGELOG<<CHANGELOG_EOF\n")
+                      f.write(text)
+                      f.write("CHANGELOG_EOF\n")
+
+          def extract(markdown):
+              rounds = []
+              current_round = None
+              in_done = False
+              buf = []
+
+              def flush():
+                  nonlocal buf, in_done
+                  if current_round is not None and in_done:
+                      body = "\n".join(buf).strip()
+                      if body:
+                          rounds.append((current_round, body))
+                  buf = []
+                  in_done = False
+
+              for line in markdown.splitlines():
+                  if ROUND_RE.match(line):
+                      flush()
+                      current_round = line[3:].strip()
+                      continue
+                  if H2_RE.match(line):
+                      flush()
+                      current_round = None
+                      continue
+                  if current_round is None:
+                      continue
+                  if DONE_RE.match(line):
+                      flush()
+                      in_done = True
+                      continue
+                  if H3_RE.match(line):
+                      flush()
+                      continue
+                  if in_done:
+                      buf.append(line)
+              flush()
+              return rounds
+
+          def main():
+              files = sorted(glob.glob("devlog/[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9].md"))
+              if not files:
+                  write_outputs(FALLBACK + "\n")
+                  print("no dated devlog file; fallback")
+                  return
+              path = files[-1]
+              with open(path, encoding="utf-8") as f:
+                  markdown = f.read()
+              rounds = extract(markdown)
+              if not rounds:
+                  text = FALLBACK + "\n"
+              else:
+                  parts = [f"来源：{path}", ""]
+                  for title, body in rounds:
+                      parts += [f"## {title}", "", body, ""]
+                  text = "\n".join(parts).strip() + "\n"
+              write_outputs(text)
+              print("extracted %d round(s) from %s" % (len(rounds), path))
+
+          try:
+              main()
+          except Exception as exc:
+              print("changelog extraction failed: %s" % exc, file=sys.stderr)
+              write_outputs(FALLBACK + "\n")
+          PY
+          if [ ! -s release_notes.md ]; then
+            echo "无更新日志" > release_notes.md
+          fi
+
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: app-release
           path: app/build/outputs/apk/release/*.apk
+
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
+          body_path: release_notes.md
+          files: app/build/outputs/apk/release/*.apk
+          fail_on_unmatched_files: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
