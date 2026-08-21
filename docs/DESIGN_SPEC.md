@@ -116,7 +116,7 @@ StatusUi 提供三个颜色槽位，按用途严格区分：
 | 场景 | 实现 | 时长 |
 |---|---|---|
 | 底栏 Tab 连滑（v2.8） | `HorizontalPager` + `MotionSpring.page`（folmeSpring 0.95）；主页→统计经过食品列表 | 约 340ms 起，跨页加长 |
-| 二级页转场 | miuix-nav `NavDisplay` + `CrossActivityTransition`（两主题共用）：点返回 96dp 经典 activity；预测性返回缩到 90% 卡片 + 系统圆角 + 0.5 dim | 450ms / 跟手 |
+| 二级页转场 | miuix-nav `NavDisplay` + `NavTransitions.MiuixDefault`（两主题共用）：全宽跟手滑出 + 下层 1/4 视差；`NavDisplayEffects` 系统圆角（Leading）+ 0.5 dim | 跟手 / 弹簧 settle |
 | 筛选面板/箭头 | `filterPanelEnter/Exit` + ExpandMore `rotationZ` 同一套 expand/collapse 弹簧 | 0.2s / 0.3s |
 | 底栏/FAB/批量栏显隐 | 弹簧滑入滑出；多选时批量栏与底栏交叉过渡 | 弹簧 |
 | 数量变化 | AnimatedContent 竖直滑+淡入，方向随增减 | 180/140ms |

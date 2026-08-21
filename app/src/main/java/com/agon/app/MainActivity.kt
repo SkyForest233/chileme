@@ -104,7 +104,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.agon.app.data.ArchiveReason
 import com.agon.app.ui.navigation.AppRoute
-import com.agon.app.ui.navigation.CrossActivityTransition
 import com.agon.app.ui.screens.ArchiveScreen
 import com.agon.app.ui.screens.CategoryManageScreen
 import com.agon.app.ui.screens.ConsumptionLogScreen
@@ -143,6 +142,7 @@ import top.yukonga.miuix.kmp.nav.core.NavDisplay
 import top.yukonga.miuix.kmp.nav.core.NavDisplayEffects
 import top.yukonga.miuix.kmp.nav.core.rememberNavBackStack
 import top.yukonga.miuix.kmp.nav.core.rememberNavSystemCornerRadius
+import top.yukonga.miuix.kmp.nav.transition.NavTransitions
 
 // MD3 motion easing tokens 统一从 ui/theme/Motion.kt 引用
 private val EmphasizedDecelerate = MotionEasing.EmphasizedDecelerate
@@ -391,13 +391,15 @@ fun MainApp(viewModel: AppViewModel) {
             NavDisplay(
                 backStack = backStack,
                 onBack = { popRoute() },
-                transition = CrossActivityTransition,
+                // 澎湃记 / HyperOS 设置二级页同款：全宽跟手滑出 + 下层 1/4 视差。
+                // 圆角与 dim 在 NavDisplayEffects；不在转场里缩放到中心。
+                transition = NavTransitions.MiuixDefault,
                 effects = NavDisplayEffects(
                     enableCornerClip = true,
                     cornerClipRadius = cornerRadius,
-                    cornerClipMode = NavCornerClipMode.All,
+                    // Leading：全宽滑只圆露出的那条边；All 是给缩放卡片用的。
+                    cornerClipMode = NavCornerClipMode.Leading,
                     dimAmount = 0.5f,
-                    backdropColor = MaterialTheme.colorScheme.background,
                 ),
                 modifier = Modifier
                     .widthIn(max = 840.dp)

@@ -28,7 +28,7 @@ app/src/main/java/com/agon/app/
 ├─ viewmodel/
 │   └─ AppViewModel.kt          # 全局共享 VM（AndroidViewModel），StateFlow 暴露
 └─ ui/
-    ├─ navigation/              # AppRoute + CrossActivityTransition（miuix-nav 二级页栈与预测性返回）
+    ├─ navigation/              # AppRoute（miuix-nav 二级页栈；转场用库预设 NavTransitions.MiuixDefault）
     ├─ theme/                   # Palettes.kt（种子色方案）/ Color.kt（仅状态语义色）/ Theme.kt（MaterialKolor 生成）/ ThemeStyle.kt（MATERIAL3/MIUIX 风格枚举 + LocalThemeStyle）/ MiuixRootTheme.kt（MiuixTheme + MaterialTheme 桥接，v2.8）
     ├─ components/Common.kt     # 复用组件：StatusBadge/FoodAvatar/FoodCard/QuantityStepper/EmptyState/LocationTag
     └─ screens/                 # 每屏一文件，自带 Scaffold；Miuix*Screen.kt 为各页的 Miuix 实现（v2.8）：
@@ -68,7 +68,7 @@ app/src/main/java/com/agon/app/
 | `AppRoute.ManageCategories` | CategoryManageScreen | 分类管理（设置二级页） |
 | `AppRoute.ManageLocations` | LocationManageScreen | 存放位置管理（设置二级页） |
 
-- 底栏 Tab：`AppRoute.Main` 内 HorizontalPager（home → list → stats → settings）；点击 Tab 用 `folmeSpring` 连滑，跨页会经过中间页。二级页走 miuix-nav `NavDisplay` + `CrossActivityTransition`（预测性返回缩到 90% 卡片），隐藏底栏与 FAB（`showChrome`）
+- 底栏 Tab：`AppRoute.Main` 内 HorizontalPager（home → list → stats → settings）；点击 Tab 用 `folmeSpring` 连滑，跨页会经过中间页。二级页走 miuix-nav `NavDisplay` + `NavTransitions.MiuixDefault`（全宽卡片滑 + 1/4 视差 + 圆角 dim），隐藏底栏与 FAB（`showChrome`）
 - FAB（添加食品）仅在 home 与 list（Pager 第 0/1 页）显示
 - 新增路由：在 `AppRoute` 加类型 + `NavDisplay` 注册 `entry` + 按需更新 `onTabs`/`showChrome`，并更新本表
 

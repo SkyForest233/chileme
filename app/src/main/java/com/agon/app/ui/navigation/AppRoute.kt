@@ -5,7 +5,7 @@ import top.yukonga.miuix.kmp.nav.core.NavKey
 
 /**
  * 应用路由（miuix-nav 扁平栈）。底栏四个 Tab 仍是 [Main] 里的 HorizontalPager，
- * 只有详情/编辑/归档等二级页入栈，才能用预测性返回卡片转场。
+ * 只有详情/编辑/归档等二级页入栈，才能用 MiuixDefault 卡片滑预测返回。
  */
 @Serializable
 sealed interface AppRoute : NavKey {

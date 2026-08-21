@@ -32,7 +32,7 @@ object MotionEasing {
  * 对齐 Miuix CascadingListPopupLayout 的 folmeSpring（damping=0.95）。
  * 展开略快（0.2s），收起略慢（0.3s）；跨页平移用更长 response。
  *
- * 二级页进出由 miuix-nav NavDisplay 的 CrossActivityTransition 驱动，不要把
+ * 二级页进出由 miuix-nav NavDisplay 的 NavTransitions.MiuixDefault 驱动，不要把
  * 弹簧套进已废弃的 NavHost enter/exit。Tab 连滑仍用本对象的 page()。
  */
 object MotionSpring {
