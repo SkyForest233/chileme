@@ -1,5 +1,4 @@
 diff --git a/.github/workflows/build.yml b/.github/workflows/build.yml
-index e5ef913..cb83bba 100644
 --- a/.github/workflows/build.yml
 +++ b/.github/workflows/build.yml
 @@ -28,6 +28,21 @@ jobs:
@@ -25,10 +24,9 @@ index e5ef913..cb83bba 100644
          uses: actions/upload-artifact@v4
          with:
 diff --git a/.github/workflows/release.yml b/.github/workflows/release.yml
-index e16a86f..f34ab2e 100644
 --- a/.github/workflows/release.yml
 +++ b/.github/workflows/release.yml
-@@ -41,8 +41,28 @@ jobs:
+@@ -41,8 +41,30 @@ jobs:
            RELEASE_KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
            RELEASE_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
            RELEASE_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
@@ -44,10 +42,12 @@ index e16a86f..f34ab2e 100644
 +      # 这里再从产物侧兜一道，防止未来有人重新引入静默降级。
 +      - name: Verify release signature
 +        run: |
++          set -euo pipefail
 +          APK=$(find app/build/outputs/apk/release -name '*.apk' | head -1)
 +          echo "Verifying $APK"
-+          BUILD_TOOLS=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
-+          CERTS=$("$BUILD_TOOLS/apksigner" verify --print-certs "$APK")
++          SDK="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}"
++          APKSIGNER=$(find "$SDK/build-tools" -name apksigner | sort -V | tail -1)
++          CERTS=$("$APKSIGNER" verify --print-certs "$APK")
 +          echo "$CERTS"
 +          if echo "$CERTS" | grep -q "CN=Android Debug"; then
 +            echo "::error::Release APK 使用了 debug 签名，拒绝发布。"
