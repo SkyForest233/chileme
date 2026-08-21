@@ -30,8 +30,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -44,6 +48,8 @@ import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlin.math.cos
+import kotlin.math.sin
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -57,8 +63,8 @@ const val UndoSnackbarTimeoutMs = 6_000L
 private const val UndoActionLabel = "撤销"
 
 /**
- * Material 3 撤销条：单行正文 + 右侧完整钟圈（中间倒计时数字，点了即撤销）。
- * History 矢量圈不闭合、视觉中心偏了，所以自绘圆环。
+ * Material 3 撤销条：单行正文 + 右侧缺口圆环（箭头 + 居中倒计时，点了即撤销）。
+ * 不用 History/Replay 矢量：箭头会把圈的视觉中心挤偏，数字看起来不居中。
  */
 @Composable
 fun SwipeDismissSnackbarHost(
@@ -148,7 +154,7 @@ private fun snackbarMessageStyle(): TextStyle =
         ),
     )
 
-/** 完整钟圈 + 居中粗倒计时。不用 History 矢量（圈有缺口、数字会偏）。 */
+/** 缺口圆环 + 撤回箭头，倒计时数字落在圆心。 */
 @Composable
 private fun HistoryCountdownButton(
     secondsLeft: Int,
@@ -166,13 +172,8 @@ private fun HistoryCountdownButton(
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        Canvas(Modifier.size(32.dp)) {
-            val strokeWidth = 2.2.dp.toPx()
-            drawCircle(
-                color = color,
-                radius = size.minDimension / 2f - strokeWidth / 2f,
-                style = Stroke(width = strokeWidth, cap = StrokeCap.Round),
-            )
+        Canvas(Modifier.size(36.dp)) {
+            drawUndoRing(color)
         }
         Text(
             "$secondsLeft",
@@ -190,6 +191,54 @@ private fun HistoryCountdownButton(
             maxLines = 1,
         )
     }
+}
+
+/**
+ * History 那种逆时针撤回环：顶部缺口 + 箭头沿切线朝左。
+ * 圆环几何中心就是画布中心，数字才能真正居中（矢量图标把箭头算进 bounds 会把圈挤偏）。
+ */
+private fun DrawScope.drawUndoRing(color: Color) {
+    val stroke = 2.2.dp.toPx()
+    val arrowHalf = 3.4.dp.toPx()
+    val radius = size.minDimension / 2f - stroke / 2f - arrowHalf - 0.8.dp.toPx()
+    val cx = size.width / 2f
+    val cy = size.height / 2f
+    // 尾端约 1 点，顺时针绕到底再回到 11 点；缺口留在正上方。
+    val startAngle = -42f
+    val sweepAngle = 298f
+    drawArc(
+        color = color,
+        startAngle = startAngle,
+        sweepAngle = sweepAngle,
+        useCenter = false,
+        topLeft = Offset(cx - radius, cy - radius),
+        size = Size(radius * 2f, radius * 2f),
+        style = Stroke(width = stroke, cap = StrokeCap.Round),
+    )
+    val end = Math.toRadians((startAngle + sweepAngle).toDouble())
+    val cosE = cos(end).toFloat()
+    val sinE = sin(end).toFloat()
+    val ex = cx + radius * cosE
+    val ey = cy + radius * sinE
+    // 逆时针切线：撤回 / 倒带方向（箭头朝左）。
+    val tx = sinE
+    val ty = -cosE
+    val nx = cosE
+    val ny = sinE
+    val tipLen = 5.6.dp.toPx()
+    val tipX = ex + tx * (tipLen * 0.58f)
+    val tipY = ey + ty * (tipLen * 0.58f)
+    val bx = ex - tx * (tipLen * 0.2f)
+    val by = ey - ty * (tipLen * 0.2f)
+    drawPath(
+        Path().apply {
+            moveTo(tipX, tipY)
+            lineTo(bx + nx * arrowHalf, by + ny * arrowHalf)
+            lineTo(bx - nx * arrowHalf, by - ny * arrowHalf)
+            close()
+        },
+        color = color,
+    )
 }
 
 /**

@@ -133,7 +133,7 @@ StatusUi 提供三个颜色槽位，按用途严格区分：
 ## 6. 交互与反馈原则
 
 - 破坏性操作（清空、彻底删除）必须 AlertDialog 二次确认，确认按钮用 error 色
-- 可逆操作（批量归档、减库存、删消耗记录）用 Snackbar + 撤销；6 秒后自动消失，两主题均可左右滑关掉。MD3 用 `SwipeDismissSnackbarHost`：自绘完整钟圈 + 居中粗倒计时（不用 History 矢量，圈有缺口、数字会偏）。消耗记录撤销按删除前下标插回，带 `animateItem` 位移。消耗记录页额外抬高 24dp + nav bar。MIUIX 库自带胶囊「撤销」+ `canSwipeToDismiss`
+- 可逆操作（批量归档、减库存、删消耗记录）用 Snackbar + 撤销；6 秒后自动消失，两主题均可左右滑关掉。MD3 用 `SwipeDismissSnackbarHost`：自绘缺口圆环（顶部缺口 + 逆时针箭头）+ 居中粗倒计时（不用 History/Replay 矢量，箭头会把圈的视觉中心挤偏）。消耗记录撤销按删除前下标插回，带 `animateItem` 位移。消耗记录页额外抬高 24dp + nav bar。MIUIX 库自带胶囊「撤销」+ `canSwipeToDismiss`
 - 异步结果（OCR、导入导出）用 Snackbar 告知成功/失败
 - 所有数据屏必须处理空态；禁用态按钮置灰（如数量为 0 时的“吃掉一份”）
 - 页面主内容用 LazyColumn / verticalScroll，适配小屏与折叠屏
