@@ -115,10 +115,15 @@ StatusUi 提供三个颜色槽位，按用途严格区分：
 
 | 场景 | 实现 | 时长 |
 |---|---|---|
-| 底栏 Tab 连滑（v2.8） | `HorizontalPager` + Miuix `folmeSpring(0.95, 0.34+)`；主页→统计会经过食品列表；两主题共用 | 约 340ms 起，跨页加长 |
-| 二级页转场 | 进入 emphasized-decelerate 全宽滑入；退出视差 1/4 宽 + fade 至 90%（MiuixDefault） | 300ms |
-| 底栏/FAB 显隐 | fade / scale + fade | 150~200ms |
-| 数量变化 | AnimatedContent | 默认 |
+| 底栏 Tab 连滑（v2.8） | `HorizontalPager` + `MotionSpring.page`（folmeSpring 0.95）；主页→统计经过食品列表 | 约 340ms 起，跨页加长 |
+| 二级页转场 | MiuixDefault 几何（全宽滑入 + 1/4 视差 + 90% 透明）+ `MotionSpring.page`；Android 14+ 预测性返回可 seek | 弹簧 |
+| 筛选面板/箭头 | `filterPanelEnter/Exit` + ExpandMore `rotationZ` 同一套 expand/collapse 弹簧 | 0.2s / 0.3s |
+| 底栏/FAB/批量栏显隐 | 弹簧滑入滑出；多选时批量栏与底栏交叉过渡 | 弹簧 |
+| 数量变化 | AnimatedContent 竖直滑+淡入，方向随增减 | 180/140ms |
+| 配色渐变 | `animateColorScheme` + MotionEasing.Standard | 450ms |
+| 到期日历换月 | slide+fade + MotionEasing | 280/220ms |
+| 空态出现 | fade + scaleIn 0.96 | 280ms |
+| 新鲜度条 | `animateFloatAsState` Standard | 400ms |
 | 柱状图/环形图入场 | animateFloatAsState | 600~800ms |
 | 吃掉一份 | 封面 scale 1→1.25→1 + emoji 上浮 72dp 渐隐 | 120/220/700ms |
 | 滑动删除 | SwipeToDismissBox，仅 EndToStart，背景 errorContainer | 默认 |

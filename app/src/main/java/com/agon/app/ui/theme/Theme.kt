@@ -38,7 +38,7 @@ private const val THEME_ANIM_MS = 450
 private fun animatedColor(target: Color): Color {
     val color by animateColorAsState(
         targetValue = target,
-        animationSpec = tween(THEME_ANIM_MS),
+        animationSpec = tween(THEME_ANIM_MS, easing = MotionEasing.Standard),
         label = "themeColor",
     )
     return color

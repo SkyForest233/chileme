@@ -61,7 +61,6 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import top.yukonga.miuix.kmp.anim.folmeSpring
 import top.yukonga.miuix.kmp.basic.Button as MiuixButton
 import top.yukonga.miuix.kmp.basic.ButtonDefaults as MiuixButtonDefaults
 import top.yukonga.miuix.kmp.basic.FloatingActionButton as MiuixFloatingActionButton
@@ -136,6 +135,7 @@ import com.agon.app.ui.theme.AppPalette
 import com.agon.app.ui.theme.LocalThemeStyle
 import com.agon.app.ui.theme.MiuixRootTheme
 import com.agon.app.ui.theme.MotionEasing
+import com.agon.app.ui.theme.MotionSpring
 import com.agon.app.ui.theme.ThemeStyle
 import com.agon.app.viewmodel.AppViewModel
 import kotlin.math.abs
@@ -266,7 +266,7 @@ fun MainApp(viewModel: AppViewModel) {
             val distance = abs(index - pagerState.currentPage)
             pagerState.animateScrollToPage(
                 index,
-                animationSpec = tabPagerSpring(distance),
+                animationSpec = MotionSpring.page(distance),
             )
         }
     }
@@ -316,22 +316,24 @@ fun MainApp(viewModel: AppViewModel) {
         modifier = Modifier.fillMaxSize(),
         containerColor = MaterialTheme.colorScheme.background,
         bottomBar = {
-            if (selectionMode) {
-                // 多选：批量操作栏替换底部导航，形态跟随悬浮/非悬浮
-                BatchActionBar(
-                    count = selectedIds.size,
-                    isMiuix = isMiuix,
-                    floating = floatingNav,
-                    onCancel = { viewModel.clearSelection() },
-                    onArchive = { archiveSelected() },
-                )
-            } else {
+            Box {
                 AnimatedVisibility(
-                    visible = showChrome,
-                    enter = slideInVertically(tween(250, easing = EmphasizedDecelerate)) { it } +
-                        fadeIn(tween(250, easing = EmphasizedDecelerate)),
-                    exit = slideOutVertically(tween(200, easing = EmphasizedAccelerate)) { it } +
-                        fadeOut(tween(200, easing = EmphasizedAccelerate)),
+                    visible = selectionMode,
+                    enter = slideInVertically(MotionSpring.expand()) { it } + fadeIn(MotionSpring.expand()),
+                    exit = slideOutVertically(MotionSpring.collapse()) { it } + fadeOut(MotionSpring.collapse()),
+                ) {
+                    BatchActionBar(
+                        count = selectedIds.size,
+                        isMiuix = isMiuix,
+                        floating = floatingNav,
+                        onCancel = { viewModel.clearSelection() },
+                        onArchive = { archiveSelected() },
+                    )
+                }
+                AnimatedVisibility(
+                    visible = !selectionMode && showChrome,
+                    enter = slideInVertically(MotionSpring.expand()) { it } + fadeIn(MotionSpring.expand()),
+                    exit = slideOutVertically(MotionSpring.collapse()) { it } + fadeOut(MotionSpring.collapse()),
                 ) {
                     when {
                         isMiuix && floatingNav -> MiuixFloatingNav(selectedTabIndex, ::selectTab)
@@ -385,21 +387,21 @@ fun MainApp(viewModel: AppViewModel) {
                     .widthIn(max = 840.dp)
                     .fillMaxSize()
                     .nestedScroll(chromeScrollConnection),
-            // 二级页（详情/编辑/归档等）仍用 MiuixDefault 覆盖式转场。
-            // 底栏 Tab 不走 NavHost，用 HorizontalPager 按索引左右连滑（主页→统计会经过食品列表）。
+            // 二级页覆盖式转场：几何仍是 MiuixDefault（全宽滑入 + 1/4 视差 + 90% 透明度），
+            // 时间曲线改 folmeSpring，与 Tab 连滑同一套物理，且可被系统预测性返回 seek。
             enterTransition = {
-                slideInHorizontally(tween(300, easing = EmphasizedDecelerate)) { it }
+                slideInHorizontally(MotionSpring.page()) { it }
             },
             exitTransition = {
-                slideOutHorizontally(tween(300, easing = EmphasizedAccelerate)) { -it / 4 } +
-                    fadeOut(tween(300, easing = EmphasizedAccelerate), targetAlpha = 0.9f)
+                slideOutHorizontally(MotionSpring.page()) { -it / 4 } +
+                    fadeOut(MotionSpring.page(), targetAlpha = 0.9f)
             },
             popEnterTransition = {
-                slideInHorizontally(tween(300, easing = EmphasizedDecelerate)) { -it / 4 } +
-                    fadeIn(tween(300, easing = EmphasizedDecelerate), initialAlpha = 0.9f)
+                slideInHorizontally(MotionSpring.page()) { -it / 4 } +
+                    fadeIn(MotionSpring.page(), initialAlpha = 0.9f)
             },
             popExitTransition = {
-                slideOutHorizontally(tween(300, easing = EmphasizedAccelerate)) { it }
+                slideOutHorizontally(MotionSpring.page()) { it }
             },
         ) {
             composable("main") {

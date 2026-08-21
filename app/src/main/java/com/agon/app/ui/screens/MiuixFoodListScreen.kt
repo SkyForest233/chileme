@@ -1,13 +1,13 @@
 package com.agon.app.ui.screens
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -54,8 +54,10 @@ import com.agon.app.ui.components.EmptyState
 import com.agon.app.ui.components.FoodAvatar
 import com.agon.app.ui.components.FoodCard
 import com.agon.app.ui.theme.MotionEasing
+import com.agon.app.ui.theme.MotionSpring
+import com.agon.app.ui.theme.filterPanelEnter
+import com.agon.app.ui.theme.filterPanelExit
 import com.agon.app.viewmodel.AppViewModel
-import top.yukonga.miuix.kmp.anim.folmeSpring
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
@@ -221,10 +223,8 @@ fun MiuixFoodListScreen(
 
             AnimatedVisibility(
                 visible = filtersExpanded,
-                enter = expandVertically(tween(250, easing = MotionEasing.EmphasizedDecelerate)) +
-                    fadeIn(tween(250, easing = MotionEasing.EmphasizedDecelerate)),
-                exit = shrinkVertically(tween(200, easing = MotionEasing.EmphasizedAccelerate)) +
-                    fadeOut(tween(200, easing = MotionEasing.EmphasizedAccelerate)),
+                enter = filterPanelEnter(),
+                exit = filterPanelExit(),
             ) {
                 Column(Modifier.padding(top = 10.dp)) {
                     FilterSectionLabel("状态")
@@ -428,10 +428,7 @@ private fun FilterToggle(
     // ExpandMore 朝下，展开筛选项时转到 180° 朝上（级联菜单 ArrowRight 是 ±90°）。
     val arrowRotation by animateFloatAsState(
         targetValue = if (expanded) 180f else 0f,
-        animationSpec = folmeSpring(
-            damping = 0.95f,
-            response = if (expanded) 0.2f else 0.3f,
-        ),
+        animationSpec = if (expanded) MotionSpring.expand() else MotionSpring.collapse(),
         label = "filterArrowRotation",
     )
     Surface(
@@ -453,11 +450,20 @@ private fun FilterToggle(
             )
             if (activeCount > 0) {
                 Spacer(Modifier.width(4.dp))
-                Text(
-                    "$activeCount",
-                    style = MiuixTheme.textStyles.footnote2,
-                    fontWeight = FontWeight.Bold,
-                )
+                AnimatedContent(
+                    targetState = activeCount,
+                    transitionSpec = {
+                        fadeIn(tween(160, easing = MotionEasing.Standard)) togetherWith
+                            fadeOut(tween(120, easing = MotionEasing.Standard))
+                    },
+                    label = "filterCount",
+                ) { count ->
+                    Text(
+                        "$count",
+                        style = MiuixTheme.textStyles.footnote2,
+                        fontWeight = FontWeight.Bold,
+                    )
+                }
             }
             Spacer(Modifier.width(2.dp))
             Icon(

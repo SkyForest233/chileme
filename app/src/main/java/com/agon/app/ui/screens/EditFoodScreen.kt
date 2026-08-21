@@ -75,6 +75,8 @@ import com.agon.app.data.byId
 import com.agon.app.data.cn
 import com.agon.app.data.copyImageToCovers
 import com.agon.app.ui.components.CheckSwitch
+import com.agon.app.ui.theme.filterPanelEnter
+import com.agon.app.ui.theme.filterPanelExit
 import com.agon.app.viewmodel.AppViewModel
 import kotlinx.coroutines.launch
 import java.io.File
@@ -364,7 +366,11 @@ fun EditFoodScreen(
                     singleLine = true,
                     shape = MaterialTheme.shapes.medium,
                 )
-                AnimatedVisibility(visible = !isEdit && suggestions.isNotEmpty() && (showSuggestions || name.isBlank())) {
+                AnimatedVisibility(
+                    visible = !isEdit && suggestions.isNotEmpty() && (showSuggestions || name.isBlank()),
+                    enter = filterPanelEnter(),
+                    exit = filterPanelExit(),
+                ) {
                     Column {
                         Spacer(Modifier.height(8.dp))
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -549,7 +555,11 @@ fun EditFoodScreen(
                             onCheckedChange = { customThresholdEnabled = it },
                         )
                     }
-                    AnimatedVisibility(visible = customThresholdEnabled) {
+                    AnimatedVisibility(
+                        visible = customThresholdEnabled,
+                        enter = filterPanelEnter(),
+                        exit = filterPanelExit(),
+                    ) {
                         Column {
                             Spacer(Modifier.height(10.dp))
                             OutlinedTextField(
