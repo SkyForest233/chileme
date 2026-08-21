@@ -87,6 +87,7 @@ import top.yukonga.miuix.kmp.icon.extended.Location
 import top.yukonga.miuix.kmp.icon.extended.Ok
 import top.yukonga.miuix.kmp.icon.extended.Report
 import top.yukonga.miuix.kmp.icon.extended.Timer
+import top.yukonga.miuix.kmp.squircle.squircleBorder
 import top.yukonga.miuix.kmp.utils.PressFeedbackType
 import com.agon.app.ui.theme.DangerContainerDark
 import com.agon.app.ui.theme.DangerContainerLight
@@ -438,7 +439,13 @@ fun FoodCard(
                 .fillMaxWidth()
                 .then(
                     if (selected) {
-                        Modifier.border(BorderStroke(2.dp, borderColor), RoundedCornerShape(MiuixCardDefaults.CornerRadius))
+                        // squircle 描边：与 Miuix Card 本体的 squircle 圆角曲率一致，
+                        // API 33+ 平滑贴合，低版本自动回退普通圆角。
+                        Modifier.squircleBorder(
+                            width = 2.dp,
+                            color = borderColor,
+                            cornerRadius = MiuixCardDefaults.CornerRadius,
+                        )
                     } else {
                         Modifier
                     }
