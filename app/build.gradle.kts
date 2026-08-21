@@ -139,6 +139,12 @@ android {
     }
 }
 
+// TODO(临时): 让 lintDebug 依赖单测，以便在现有 CI 步骤中验证测试通过。
+// 待 build.yml 增加独立的 test 步骤后移除。
+tasks.matching { it.name == "lintDebug" }.configureEach {
+    dependsOn("testDebugUnitTest")
+}
+
 // ---- Release 签名凭据缺失时的拦截 ----
 // 放在 taskGraph.whenReady（执行阶段前）而非 buildTypes 块内：
 // 后者属配置阶段，assembleDebug 也会求值，会误伤无密钥的 debug 构建。
