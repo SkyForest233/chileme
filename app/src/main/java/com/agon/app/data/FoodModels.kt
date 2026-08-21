@@ -95,6 +95,39 @@ data class HistoryEntry(
     val expiringThresholdDays: Int? = null,
 )
 
+/** 归档恢复的结果：新的库存列表 + 是否发生了「同名同生产日期」合并。 */
+data class RestorePlan(val newItems: List<FoodItem>, val merged: Boolean)
+
+/**
+ * 归档恢复去重的纯函数部分（无 Context，便于单测）。`FoodRepository.restoreArchived` 复用它。
+ *
+ * 去重策略（与既有行为完全一致，仅抽出可测）：
+ * - 库存中已有同 ID → 库存不变（仅移除归档；覆盖重复恢复 / 滑删撤销竞态）
+ * - 库存中已有同名且同生产日期 → 合并数量到现有记录（至少 +1），不产生重复条目
+ * - 否则 → 作为新记录插入（数量为 0 的已吃完记录恢复为 1）
+ */
+fun planRestore(entry: ArchivedItem, items: List<FoodItem>): RestorePlan {
+    val restored = entry.item.let { if (it.quantity <= 0) it.copy(quantity = 1) else it }
+    return when {
+        items.any { it.id == restored.id } -> RestorePlan(items, merged = false)
+        else -> {
+            val dup = items.find {
+                it.name == restored.name && it.productionEpochDay == restored.productionEpochDay
+            }
+            if (dup != null) {
+                RestorePlan(
+                    newItems = items.map {
+                        if (it.id == dup.id) it.copy(quantity = it.quantity + restored.quantity) else it
+                    },
+                    merged = true,
+                )
+            } else {
+                RestorePlan(newItems = listOf(restored) + items, merged = false)
+            }
+        }
+    }
+}
+
 /** 把任意食品记录转为联想条目——用于库存/归档参与名称联想 */
 fun FoodItem.toHistoryEntry() = HistoryEntry(
     name = name,
@@ -126,34 +159,58 @@ val FoodItem.productionDate: LocalDate
 val FoodItem.expiryDate: LocalDate
     get() = productionDate.plusDays(shelfLifeDays.toLong())
 
+/**
+ * 日期判定全部走「可注入 today」的 `*At` 纯函数，日常属性委托给 `LocalDate.now()`。
+ *
+ * 这么拆有两层原因：
+ * 1. **可测性**：`*At` 不碰全局时钟，单测可传固定日期，真正覆盖跨零点/边界场景
+ *    （此前 `daysLeft` 内部 `LocalDate.now()`，测试只能靠「相对今天」构造，无法测跨零点）。
+ * 2. **跨零点刷新**：UI 应读 `LocalToday`（见 `ui/theme/TodayProvider.kt`）而非直接
+ *    `LocalDate.now()`，这样进程跨过午夜、回到前台时随状态刷新剩余天数/状态。
+ */
+
+fun FoodItem.daysLeftAt(today: LocalDate): Long =
+    ChronoUnit.DAYS.between(today, expiryDate)
+
 val FoodItem.daysLeft: Long
-    get() = ChronoUnit.DAYS.between(LocalDate.now(), expiryDate)
+    get() = daysLeftAt(LocalDate.now())
 
 fun FoodItem.effectiveThreshold(categoryThresholds: Map<String, Int>): Int =
     expiringThresholdDays ?: categoryThresholds[category] ?: DEFAULT_EXPIRING_THRESHOLD
 
-fun FoodItem.statusFor(categoryThresholds: Map<String, Int>): FoodStatus {
+fun FoodItem.statusForAt(today: LocalDate, categoryThresholds: Map<String, Int>): FoodStatus {
     val t = effectiveThreshold(categoryThresholds)
     return when {
-        daysLeft < 0 -> FoodStatus.EXPIRED
-        daysLeft <= t -> FoodStatus.EXPIRING
+        daysLeftAt(today) < 0 -> FoodStatus.EXPIRED
+        daysLeftAt(today) <= t -> FoodStatus.EXPIRING
         else -> FoodStatus.SAFE
     }
 }
 
+fun FoodItem.statusFor(categoryThresholds: Map<String, Int>): FoodStatus =
+    statusForAt(LocalDate.now(), categoryThresholds)
+
+fun FoodItem.freshnessAt(today: LocalDate): Float =
+    if (shelfLifeDays <= 0) 0f else (daysLeftAt(today).toFloat() / shelfLifeDays.toFloat()).coerceIn(0f, 1f)
+
 val FoodItem.freshness: Float
-    get() = if (shelfLifeDays <= 0) 0f else (daysLeft.toFloat() / shelfLifeDays.toFloat()).coerceIn(0f, 1f)
+    get() = freshnessAt(LocalDate.now())
 
 /** 正相关进度：保质期已经过去的比例（时间走了多少进度条就走多少） */
+fun FoodItem.elapsedRatioAt(today: LocalDate): Float =
+    1f - freshnessAt(today)
+
 val FoodItem.elapsedRatio: Float
-    get() = 1f - freshness
+    get() = elapsedRatioAt(LocalDate.now())
+
+fun FoodItem.remainingTextAt(today: LocalDate): String = when {
+    daysLeftAt(today) < 0 -> "已过期 ${-daysLeftAt(today)} 天"
+    daysLeftAt(today) == 0L -> "今天到期"
+    else -> "还剩 ${daysLeftAt(today)} 天"
+}
 
 val FoodItem.remainingText: String
-    get() = when {
-        daysLeft < 0 -> "已过期 ${-daysLeft} 天"
-        daysLeft == 0L -> "今天到期"
-        else -> "还剩 $daysLeft 天"
-    }
+    get() = remainingTextAt(LocalDate.now())
 
 private val cnDateFormatter = DateTimeFormatter.ofPattern("yyyy年M月d日")
 private val cnDayFormatter = DateTimeFormatter.ofPattern("M月d日 EEEE", Locale.CHINESE)

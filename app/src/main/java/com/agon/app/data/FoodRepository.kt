@@ -358,25 +358,9 @@ class FoodRepository(private val context: Context) {
             val archive = archiveDecoded.orElse(emptyList())
             val entry = archive.find { it.item.id == id } ?: return@edit
             val items = itemsDecoded.orElse(emptyList())
-            val restored = entry.item.let { if (it.quantity <= 0) it.copy(quantity = 1) else it }
-
-            val newItems = when {
-                items.any { it.id == restored.id } -> items // 同 ID 已存在，仅移除归档
-                else -> {
-                    val dup = items.find {
-                        it.name == restored.name && it.productionEpochDay == restored.productionEpochDay
-                    }
-                    if (dup != null) {
-                        merged = true
-                        items.map {
-                            if (it.id == dup.id) it.copy(quantity = it.quantity + restored.quantity) else it
-                        }
-                    } else {
-                        listOf(restored) + items
-                    }
-                }
-            }
-            prefs[itemsKey] = json.encodeToString(newItems)
+            val plan = planRestore(entry, items)
+            merged = plan.merged
+            prefs[itemsKey] = json.encodeToString(plan.newItems)
             prefs[archiveKey] = json.encodeToString(archive.filterNot { it.item.id == id })
         }
         return merged

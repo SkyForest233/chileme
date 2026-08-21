@@ -48,11 +48,12 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.agon.app.data.FoodStatus
 import com.agon.app.data.byId
-import com.agon.app.data.daysLeft
-import com.agon.app.data.statusFor
+import com.agon.app.data.daysLeftAt
+import com.agon.app.data.statusForAt
 import com.agon.app.ui.components.EmptyState
 import com.agon.app.ui.components.FoodAvatar
 import com.agon.app.ui.components.FoodCard
+import com.agon.app.ui.theme.LocalToday
 import com.agon.app.ui.theme.MotionEasing
 import com.agon.app.ui.theme.MotionSpring
 import com.agon.app.ui.theme.filterPanelEnter
@@ -131,20 +132,21 @@ fun MiuixFoodListScreen(
             (if (categoryFilter != null) 1 else 0) +
             (if (locationFilter != null) 1 else 0)
 
-    val filtered = remember(items, thresholds, query, statusFilter, categoryFilter, locationFilter) {
+    val today = LocalToday.current
+    val filtered = remember(items, thresholds, query, statusFilter, categoryFilter, locationFilter, today) {
         items
             .filter { query.isBlank() || it.name.contains(query.trim(), ignoreCase = true) }
             .filter {
                 when (statusFilter) {
                     MiuixStatusFilter.ALL -> true
-                    MiuixStatusFilter.SAFE -> it.statusFor(thresholds) == FoodStatus.SAFE
-                    MiuixStatusFilter.EXPIRING -> it.statusFor(thresholds) == FoodStatus.EXPIRING
-                    MiuixStatusFilter.EXPIRED -> it.statusFor(thresholds) == FoodStatus.EXPIRED
+                    MiuixStatusFilter.SAFE -> it.statusForAt(today, thresholds) == FoodStatus.SAFE
+                    MiuixStatusFilter.EXPIRING -> it.statusForAt(today, thresholds) == FoodStatus.EXPIRING
+                    MiuixStatusFilter.EXPIRED -> it.statusForAt(today, thresholds) == FoodStatus.EXPIRED
                 }
             }
             .filter { categoryFilter == null || it.category == categoryFilter }
             .filter { locationFilter == null || it.location == locationFilter }
-            .sortedWith(compareBy({ it.quantity == 0 }, { it.daysLeft }))
+            .sortedWith(compareBy({ it.quantity == 0 }, { it.daysLeftAt(today) }))
     }
 
     val archivedMatches = remember(archived, query) {
@@ -308,7 +310,7 @@ fun MiuixFoodListScreen(
                         FoodCard(
                             item = item,
                             category = categories.byId(item.category),
-                            status = item.statusFor(thresholds),
+                            status = item.statusForAt(LocalToday.current, thresholds),
                             selectionMode = selectionMode,
                             selected = item.id in selectedIds,
                             onClick = {
