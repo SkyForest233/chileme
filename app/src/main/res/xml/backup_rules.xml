@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Android 11 及以下的自动备份规则（android:fullBackupContent）。
+
+  排除坚果云凭据：密码以 Android Keystore AES-GCM 密文形式存于 DataStore，
+  而 Keystore 密钥不跨设备。若把密文备份到云端并在新设备恢复，解密必然失败，
+  用户会得到一个"看起来已配置、却永远同步失败"的账号。
+  故整份 DataStore 不参与备份——库存数据请使用应用内的「导出备份 / 坚果云同步」。
+
+  covers/（封面图）与 corrupt/（损坏数据留档）体积不可控，也一并排除。
+-->
+<full-backup-content>
+    <exclude domain="file" path="datastore/" />
+    <exclude domain="file" path="covers/" />
+    <exclude domain="file" path="corrupt/" />
+</full-backup-content>

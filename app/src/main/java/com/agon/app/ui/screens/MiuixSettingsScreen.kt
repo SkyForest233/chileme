@@ -96,6 +96,8 @@ fun MiuixSettingsScreen(
     val nutstoreAccount by viewModel.nutstoreAccount.collectAsStateWithLifecycle()
     val nutstorePassword by viewModel.nutstorePassword.collectAsStateWithLifecycle()
     val lastSync by viewModel.lastSync.collectAsStateWithLifecycle()
+    // 有密文但解不开（换设备后恢复了云备份等）——提示重新填写
+    val credentialBroken by viewModel.nutstoreCredentialBroken.collectAsStateWithLifecycle()
     val syncing by viewModel.syncing.collectAsStateWithLifecycle()
     val autoSyncDays by viewModel.autoSyncDays.collectAsStateWithLifecycle()
     val cloudBackups by viewModel.cloudBackups.collectAsStateWithLifecycle()
@@ -126,13 +128,20 @@ fun MiuixSettingsScreen(
     ) { uri ->
         if (uri != null) {
             scope.launch {
-                val ok = runCatching {
+                // 数据损坏时 buildBackupJson 会抛异常（避免生成残缺备份），
+                // 此处透出具体原因而非笼统的“导出失败”。
+                val result = runCatching {
                     val jsonText = viewModel.buildBackupJson()
                     context.contentResolver.openOutputStream(uri)?.use { out ->
                         out.write(jsonText.toByteArray(Charsets.UTF_8))
                     } ?: error("stream null")
-                }.isSuccess
-                snackbarHostState.showSnackbar(if (ok) "备份导出成功 ✅" else "导出失败，请重试")
+                }
+                snackbarHostState.showSnackbar(
+                    result.fold(
+                        onSuccess = { "备份导出成功 ✅" },
+                        onFailure = { it.message?.takeIf { m -> m != "stream null" } ?: "导出失败，请重试" },
+                    )
+                )
             }
         }
     }
@@ -260,6 +269,7 @@ fun MiuixSettingsScreen(
                         title = "坚果云同步",
                         summary = when {
                             nutstoreAccount.isBlank() -> "未配置，点击设置 WebDAV 账号"
+                            credentialBroken -> "应用密码已失效，请重新填写"
                             lastSync.isNotBlank() -> lastSync
                             else -> "已配置，尚未同步"
                         },

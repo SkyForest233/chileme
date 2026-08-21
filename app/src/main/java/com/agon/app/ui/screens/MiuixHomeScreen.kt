@@ -41,6 +41,7 @@ import com.agon.app.data.cnDay
 import com.agon.app.data.daysLeft
 import com.agon.app.data.remainingText
 import com.agon.app.data.statusFor
+import com.agon.app.ui.components.DataCorruptBanner
 import com.agon.app.ui.components.EmptyState
 import com.agon.app.ui.components.FoodAvatar
 import com.agon.app.ui.components.StatusBadge
@@ -75,6 +76,7 @@ fun MiuixHomeScreen(
     onOpenItem: (String) -> Unit,
 ) {
     val items by viewModel.items.collectAsStateWithLifecycle()
+    val corruptedKeys by viewModel.corruptedKeys.collectAsStateWithLifecycle()
     val thresholds by viewModel.thresholds.collectAsStateWithLifecycle()
     val categories by viewModel.categories.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -113,6 +115,10 @@ fun MiuixHomeScreen(
             ),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
+            // 数据损坏告警：置顶且不可忽略，此时写入已被仓库层拒绝
+            if (corruptedKeys.isNotEmpty()) {
+                item(key = "corrupt-banner") { DataCorruptBanner(corruptedKeys) }
+            }
             item {
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     StatCard(
