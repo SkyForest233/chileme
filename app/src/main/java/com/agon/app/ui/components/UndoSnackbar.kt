@@ -1,16 +1,15 @@
 package com.agon.app.ui.components
 
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.tween
-import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.material3.IconButton
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Replay
+import androidx.compose.material3.Icon
 import androidx.compose.material3.SnackbarData
 import androidx.compose.material3.SnackbarDefaults
 import androidx.compose.material3.SnackbarDuration
@@ -31,11 +30,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -53,8 +53,8 @@ const val UndoSnackbarTimeoutMs = 6_000L
 private const val UndoActionLabel = "撤销"
 
 /**
- * Material 3 撤销条：单行正文 + 右侧环形倒计时按钮（点了即撤销）。
- * 不用默认 Snackbar 的 action 槽——在 SwipeToDismissBox 的 Row 里会把「撤销」叠到正文上。
+ * Material 3 撤销条：单行正文 + 右侧 Replay 图标（中间倒计时数字，点了即撤销）。
+ * 不用默认 Snackbar 的 action 槽，也不用 48dp IconButton，避免条被撑高、文字叠在正文上。
  */
 @Composable
 fun SwipeDismissSnackbarHost(
@@ -92,24 +92,14 @@ private fun UndoCountdownSnackbar(
     data: SnackbarData,
     modifier: Modifier = Modifier,
 ) {
-    val progress = remember { Animatable(1f) }
     val totalSec = (UndoSnackbarTimeoutMs / 1000L).toInt()
     var secondsLeft by remember { mutableIntStateOf(totalSec) }
     LaunchedEffect(data) {
-        progress.snapTo(1f)
         secondsLeft = totalSec
-        val ring = launch {
-            // 倒计时必须匀速；MotionEasing 的强调曲线会让后半段看起来卡住。
-            progress.animateTo(
-                0f,
-                animationSpec = tween(UndoSnackbarTimeoutMs.toInt(), easing = LinearEasing),
-            )
-        }
         for (s in totalSec downTo 1) {
             secondsLeft = s
             delay(1000)
         }
-        ring.join()
     }
     val actionColor = SnackbarDefaults.actionContentColor
     Surface(
@@ -123,8 +113,7 @@ private fun UndoCountdownSnackbar(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .heightIn(min = 48.dp)
-                .padding(start = 16.dp, end = 2.dp),
+                .padding(start = 16.dp, end = 6.dp, top = 6.dp, bottom = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
@@ -133,49 +122,44 @@ private fun UndoCountdownSnackbar(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-            IconButton(
+            ReplayCountdownButton(
+                secondsLeft = secondsLeft,
+                color = actionColor,
                 onClick = { data.performAction() },
-                modifier = Modifier
-                    .size(48.dp)
-                    .semantics { contentDescription = "撤销" },
-            ) {
-                SnackbarCountdown(
-                    progress = { progress.value },
-                    secondsLeft = secondsLeft,
-                    color = actionColor,
-                )
-            }
+            )
         }
     }
 }
 
-/** 环形倒计时按钮：弧在 Canvas 里读 Animatable，数字每秒跳一次。点了即撤销。 */
+/** Material Replay 图标，中间叠 6 秒倒计时数字。 */
 @Composable
-private fun SnackbarCountdown(
-    progress: () -> Float,
+private fun ReplayCountdownButton(
     secondsLeft: Int,
     color: Color,
+    onClick: () -> Unit,
 ) {
     Box(
-        modifier = Modifier.size(28.dp),
+        modifier = Modifier
+            .size(36.dp)
+            .clip(CircleShape)
+            .semantics {
+                contentDescription = "撤销"
+                role = Role.Button
+            }
+            .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        Canvas(Modifier.matchParentSize()) {
-            val stroke = Stroke(width = 2.5.dp.toPx(), cap = StrokeCap.Round)
-            drawCircle(color = color.copy(alpha = 0.24f), style = stroke)
-            drawArc(
-                color = color,
-                startAngle = -90f,
-                sweepAngle = -360f * progress(),
-                useCenter = false,
-                style = stroke,
-            )
-        }
+        Icon(
+            Icons.Rounded.Replay,
+            contentDescription = null,
+            modifier = Modifier.size(28.dp),
+            tint = color,
+        )
         Text(
             "$secondsLeft",
             color = color,
-            fontSize = 12.sp,
-            fontWeight = FontWeight.SemiBold,
+            fontSize = 10.sp,
+            fontWeight = FontWeight.Bold,
             maxLines = 1,
         )
     }
