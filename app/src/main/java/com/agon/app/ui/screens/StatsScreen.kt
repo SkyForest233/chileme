@@ -37,6 +37,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
@@ -94,8 +95,12 @@ fun StatsScreen(
     val weekAgo = today - 6
     val monthStart = LocalDate.now().withDayOfMonth(1).toEpochDay()
 
-    val consumedThisWeek = consumption.filter { it.epochDay >= weekAgo }.sumOf { it.amount }
-    val consumedThisMonth = consumption.filter { it.epochDay >= monthStart }.sumOf { it.amount }
+    val consumedThisWeek = remember(consumption, weekAgo) {
+        consumption.filter { it.epochDay >= weekAgo }.sumOf { it.amount }
+    }
+    val consumedThisMonth = remember(consumption, monthStart) {
+        consumption.filter { it.epochDay >= monthStart }.sumOf { it.amount }
+    }
     val wastedTotal = archived.count { it.reason == ArchiveReason.EXPIRED }
 
     // Last 7 days consumption trend
@@ -233,7 +238,7 @@ fun StatsScreen(
                                         Spacer(Modifier.height(2.dp))
                                     }
                                     val ratio = amount.toFloat() / maxDaily
-                                    val animRatio by animateFloatAsState(
+                                    val animRatio = animateFloatAsState(
                                         targetValue = ratio,
                                         animationSpec = tween(600, easing = MotionEasing.EmphasizedDecelerate),
                                         label = "bar",
@@ -242,7 +247,14 @@ fun StatsScreen(
                                     Box(
                                         modifier = Modifier
                                             .fillMaxWidth(0.62f)
-                                            .height((84 * animRatio).dp.coerceAtLeast(if (amount > 0) 14.dp else 8.dp))
+                                            .layout { measurable, constraints ->
+                                                val minH = if (amount > 0) 14.dp.roundToPx() else 8.dp.roundToPx()
+                                                val h = (84.dp.roundToPx() * animRatio.value).toInt().coerceAtLeast(minH)
+                                                val placeable = measurable.measure(
+                                                    constraints.copy(minHeight = h, maxHeight = h),
+                                                )
+                                                layout(placeable.width, h) { placeable.placeRelative(0, 0) }
+                                            }
                                             .clip(RoundedCornerShape(50))
                                             .background(
                                                 if (amount > 0) MaterialTheme.colorScheme.primary
@@ -426,7 +438,7 @@ private fun DonutChart(
     centerSub: String,
 ) {
     val total = data.sum().coerceAtLeast(0.001f)
-    val sweep by animateFloatAsState(
+    val sweep = animateFloatAsState(
         targetValue = 1f,
         animationSpec = tween(800, easing = MotionEasing.EmphasizedDecelerate),
         label = "donut",
@@ -435,8 +447,9 @@ private fun DonutChart(
         Canvas(modifier = Modifier.size(140.dp)) {
             val stroke = Stroke(width = 30f)
             var startAngle = -90f
+            val sweepValue = sweep.value
             data.forEachIndexed { i, value ->
-                val angle = value / total * 360f * sweep
+                val angle = value / total * 360f * sweepValue
                 drawArc(
                     color = colors[i],
                     startAngle = startAngle,

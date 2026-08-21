@@ -1,14 +1,24 @@
 package com.agon.app.ui.components
 
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.ContentTransform
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.animation.core.MutableTransitionState
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.scaleIn
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.selection.toggleable
@@ -44,7 +54,9 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -57,6 +69,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
@@ -129,28 +142,30 @@ fun rememberStatusUi(status: FoodStatus): StatusUi {
     // App 支持在设置中强制浅色/深色，两者不一致时会取错色套。
     val dark = MaterialTheme.colorScheme.background.luminance() < 0.5f
     val isMiuix = LocalThemeStyle.current == ThemeStyle.MIUIX
-    return when (status) {
-        FoodStatus.SAFE -> StatusUi(
-            container = if (dark) SafeContainerDark else SafeContainerLight,
-            content = if (dark) SafeContentDark else SafeContentLight,
-            label = "安全",
-            icon = if (isMiuix) MiuixIcons.Ok else Icons.Rounded.CheckCircle,
-            dot = if (dark) SafeDotDark else SafeDotLight,
-        )
-        FoodStatus.EXPIRING -> StatusUi(
-            container = if (dark) WarnContainerDark else WarnContainerLight,
-            content = if (dark) WarnContentDark else WarnContentLight,
-            label = "临期",
-            icon = if (isMiuix) MiuixIcons.Timer else Icons.Rounded.Schedule,
-            dot = if (dark) WarnDotDark else WarnDotLight,
-        )
-        FoodStatus.EXPIRED -> StatusUi(
-            container = if (dark) DangerContainerDark else DangerContainerLight,
-            content = if (dark) DangerContentDark else DangerContentLight,
-            label = "已过期",
-            icon = if (isMiuix) MiuixIcons.Report else Icons.Rounded.ErrorOutline,
-            dot = if (dark) DangerDotDark else DangerDotLight,
-        )
+    return remember(status, dark, isMiuix) {
+        when (status) {
+            FoodStatus.SAFE -> StatusUi(
+                container = if (dark) SafeContainerDark else SafeContainerLight,
+                content = if (dark) SafeContentDark else SafeContentLight,
+                label = "安全",
+                icon = if (isMiuix) MiuixIcons.Ok else Icons.Rounded.CheckCircle,
+                dot = if (dark) SafeDotDark else SafeDotLight,
+            )
+            FoodStatus.EXPIRING -> StatusUi(
+                container = if (dark) WarnContainerDark else WarnContainerLight,
+                content = if (dark) WarnContentDark else WarnContentLight,
+                label = "临期",
+                icon = if (isMiuix) MiuixIcons.Timer else Icons.Rounded.Schedule,
+                dot = if (dark) WarnDotDark else WarnDotLight,
+            )
+            FoodStatus.EXPIRED -> StatusUi(
+                container = if (dark) DangerContainerDark else DangerContainerLight,
+                content = if (dark) DangerContentDark else DangerContentLight,
+                label = "已过期",
+                icon = if (isMiuix) MiuixIcons.Report else Icons.Rounded.ErrorOutline,
+                dot = if (dark) DangerDotDark else DangerDotLight,
+            )
+        }
     }
 }
 
@@ -329,6 +344,21 @@ fun LocationTag(location: String, modifier: Modifier = Modifier) {
     }
 }
 
+private fun AnimatedContentTransitionScope<Int>.quantityChangeTransition(): ContentTransform {
+    val up = targetState > initialState
+    val enterSpec = tween<IntOffset>(180, easing = MotionEasing.EmphasizedDecelerate)
+    val exitSpec = tween<IntOffset>(140, easing = MotionEasing.EmphasizedAccelerate)
+    val fadeInSpec = tween<Float>(180, easing = MotionEasing.EmphasizedDecelerate)
+    val fadeOutSpec = tween<Float>(140, easing = MotionEasing.EmphasizedAccelerate)
+    return if (up) {
+        (slideInVertically(enterSpec) { it / 2 } + fadeIn(fadeInSpec)) togetherWith
+            (slideOutVertically(exitSpec) { -it / 2 } + fadeOut(fadeOutSpec))
+    } else {
+        (slideInVertically(enterSpec) { -it / 2 } + fadeIn(fadeInSpec)) togetherWith
+            (slideOutVertically(exitSpec) { it / 2 } + fadeOut(fadeOutSpec))
+    }
+}
+
 @Composable
 fun QuantityStepper(
     quantity: Int,
@@ -356,13 +386,28 @@ fun QuantityStepper(
                     // Miuix 无「减号」图标（Remove 是「移除/退出」形状），减号回退 material
                     MiuixIcon(Icons.Rounded.Remove, contentDescription = "减少", modifier = Modifier.size(18.dp), tint = fg)
                 }
-                AnimatedContent(targetState = quantity, label = "qty") { q ->
+                Row(
+                    modifier = Modifier.padding(horizontal = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    AnimatedContent(
+                        targetState = quantity,
+                        transitionSpec = { quantityChangeTransition() },
+                        label = "qty",
+                    ) { q ->
+                        MiuixText(
+                            "$q",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = fg,
+                        )
+                    }
+                    Spacer(Modifier.width(4.dp))
                     MiuixText(
-                        "$q $unit",
+                        unit,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Bold,
                         color = fg,
-                        modifier = Modifier.padding(horizontal = 6.dp),
                     )
                 }
                 MiuixIconButton(
@@ -388,12 +433,26 @@ fun QuantityStepper(
                 ) {
                     Icon(Icons.Rounded.Remove, contentDescription = "减少", modifier = Modifier.size(18.dp))
                 }
-                AnimatedContent(targetState = quantity, label = "qty") { q ->
+                Row(
+                    modifier = Modifier.padding(horizontal = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    AnimatedContent(
+                        targetState = quantity,
+                        transitionSpec = { quantityChangeTransition() },
+                        label = "qty",
+                    ) { q ->
+                        Text(
+                            "$q",
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.Bold,
+                        )
+                    }
+                    Spacer(Modifier.width(4.dp))
                     Text(
-                        "$q $unit",
+                        unit,
                         style = MaterialTheme.typography.labelLarge,
                         fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(horizontal = 6.dp),
                     )
                 }
                 IconButton(
@@ -425,6 +484,11 @@ fun FoodCard(
     selected: Boolean = false,
 ) {
     val ui = rememberStatusUi(status)
+    val progress by animateFloatAsState(
+        targetValue = item.elapsedRatio.coerceIn(0f, 1f),
+        animationSpec = tween(400, easing = MotionEasing.Standard),
+        label = "elapsed",
+    )
     val borderColor by animateColorAsState(
         targetValue = if (selected) MaterialTheme.colorScheme.primary else Color.Transparent,
         animationSpec = tween(200, easing = MotionEasing.Standard),
@@ -498,7 +562,7 @@ fun FoodCard(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     // 正相关进度：时间过去多少，进度条就走多少
                     MiuixLinearProgressIndicator(
-                        progress = item.elapsedRatio,
+                        progress = progress,
                         modifier = Modifier.weight(1f),
                         height = 6.dp,
                         colors = ProgressIndicatorDefaults.progressIndicatorColors(
@@ -585,7 +649,7 @@ fun FoodCard(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     // 正相关进度：时间过去多少，进度条就走多少
                     LinearProgressIndicator(
-                        progress = { item.elapsedRatio },
+                        progress = { progress },
                         modifier = Modifier
                             .weight(1f)
                             .height(6.dp)
@@ -721,7 +785,7 @@ fun CheckSwitch(
         Box(
             modifier = Modifier
                 .align(Alignment.CenterStart)
-                .offset(x = thumbOffset)
+                .offset { IntOffset(thumbOffset.roundToPx(), 0) }
                 .size(thumbSize)
                 .clip(CircleShape)
                 .background(thumbColor),
@@ -747,34 +811,43 @@ fun EmptyState(
     subtitle: String,
     modifier: Modifier = Modifier,
 ) {
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(vertical = 48.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
+    val appear = remember(emoji, title) { MutableTransitionState(false) }
+    LaunchedEffect(appear) { appear.targetState = true }
+    AnimatedVisibility(
+        visibleState = appear,
+        enter = fadeIn(tween(280, easing = MotionEasing.EmphasizedDecelerate)) +
+            scaleIn(initialScale = 0.96f, animationSpec = tween(280, easing = MotionEasing.EmphasizedDecelerate)),
+        modifier = modifier.fillMaxWidth(),
     ) {
-        if (LocalThemeStyle.current == ThemeStyle.MIUIX) {
-            MiuixText(emoji, fontSize = 56.sp)
-            Spacer(Modifier.height(16.dp))
-            MiuixText(title, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-            Spacer(Modifier.height(4.dp))
-            MiuixText(
-                subtitle,
-                fontSize = 14.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center,
-            )
-        } else {
-            Text(emoji, fontSize = 56.sp)
-            Spacer(Modifier.height(16.dp))
-            Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-            Spacer(Modifier.height(4.dp))
-            Text(
-                subtitle,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center,
-            )
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 48.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            if (LocalThemeStyle.current == ThemeStyle.MIUIX) {
+                MiuixText(emoji, fontSize = 56.sp)
+                Spacer(Modifier.height(16.dp))
+                MiuixText(title, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                Spacer(Modifier.height(4.dp))
+                MiuixText(
+                    subtitle,
+                    fontSize = 14.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                )
+            } else {
+                Text(emoji, fontSize = 56.sp)
+                Spacer(Modifier.height(16.dp))
+                Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    subtitle,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                )
+            }
         }
     }
 }

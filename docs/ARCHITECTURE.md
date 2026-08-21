@@ -2,34 +2,37 @@
 
 ## 1. 技术栈与版本（不得随意升级）
 
-- Kotlin 2.4.10 / AGP 9.3.1 / Gradle 9.6.1 / JDK 17（v2.8 起为引入 Miuix 0.9.4-rc01 升级，其上游基线即此组合）
+- Kotlin 2.4.10 / AGP 9.3.1 / Gradle 9.6.1 / **JDK 21**（miuix-nav inline 函数为 JVM 21 bytecode，本模块必须同目标；Gradle `jvmToolchain(21)` 可在 CI Java 17 镜像上自拉 21）
 - compileSdk 37（v2.8 起，Miuix 0.9.4-rc01 要求 ≥37）、minSdk 24、targetSdk 36
 - **applicationId `com.chileme.pantry`**（v2.1 起）；namespace / 代码包名保持 `com.agon.app` 不变。FileProvider authority 使用 `${applicationId}.fileprovider` 占位符，代码中用 `${context.packageName}.fileprovider`
 - **Release 构建（v2.5 起）**：`isMinifyEnabled = true` + `isShrinkResources = true`（R8 代码/资源压缩），但 `proguard-rules.pro` 中 `-dontobfuscate` **禁用混淆**——类名/方法名/字段名全保留，堆栈可读无需 mapping。规则文件另含 kotlinx-serialization keep 规则（data 包 serializer 反射）与 OkHttp/Coil dontwarn。release APK ≈ 2.6 MB（debug ≈ 63 MB）
 - **到期日历（v2.5 起）**：不再是独立路由，作为 `ExpiryCalendarCard`（ui/components/ExpiryCalendar.kt）嵌入统计页；支持手势左右滑动切换月份，圆点颜色 = 紧急度（去重后最多 3 点）
 - Compose BOM 2026.01.01（material3、icons-extended）
-- Navigation Compose 2.9.7、Lifecycle/ViewModel Compose 2.10.0
-- DataStore Preferences 1.2.0 + kotlinx-serialization-json 1.9.0
+- miuix-nav 0.9.4-rc01（`NavDisplay` 二级页路由与预测性返回；替代 Navigation Compose NavHost）、Lifecycle/ViewModel Compose 2.10.0
+- DataStore Preferences 1.2.0 + kotlinx-serialization-json 1.11.0
 - Coil 3.3.0（照片封面加载）
-- ~~ML Kit OCR~~ 已于 v2.3 移除（识别率低），`DateOcr.kt` 已删除
+- ~~ML Kit OCR~~ 已于 v2.5 移除（识别率低），`DateOcr.kt` 已删除
 - MaterialKolor `com.materialkolor:material-kolor:4.0.1`（MD3 种子色生成主题，v2.2 起）
-- Miuix `top.yukonga.miuix.kmp:miuix-ui-android:0.9.4-rc01` + `miuix-preference-android:0.9.4-rc01`（HyperOS 风格组件，v2.8 起；候选版，上游尚无 v0.9.4 稳定 tag）
-- OkHttp `com.squareup.okhttp3:okhttp:4.12.0`（坚果云 WebDAV 同步，v2.4 起）
+- Miuix `miuix-ui` / `miuix-preference` / `miuix-icons` 0.9.4-rc01（common 坐标，Gradle 解析到 android 变体）；导航用 `miuix-nav-android:0.9.4-rc01`
+- OkHttp `com.squareup.okhttp3:okhttp:4.12.0`（坚果云 WebDAV 同步，v2.4 起；只声明一次）
 
 ## 2. 分层结构
 
 ```
 app/src/main/java/com/agon/app/
-├─ MainActivity.kt              # 单 Activity；主题接入、NavHost、底栏、FAB
+├─ MainActivity.kt              # 单 Activity；主题接入、miuix-nav NavDisplay、底栏、FAB
 ├─ data/                        # 数据层（无 UI 依赖）
 │   ├─ FoodModels.kt            # 数据模型 + 派生属性（过期计算/状态判定）
 │   ├─ FoodRepository.kt        # 唯一持久化入口（DataStore）
-│   └─ ImageStore.kt            # 封面图片复制到私有目录
+│   ├─ ImageStore.kt            # 封面图片复制到私有目录
+│   ├─ CloudSync.kt             # 坚果云 WebDAV
+│   └─ SecureStore.kt           # Keystore AES-GCM 密码
 ├─ viewmodel/
 │   └─ AppViewModel.kt          # 全局共享 VM（AndroidViewModel），StateFlow 暴露
 └─ ui/
+    ├─ navigation/              # AppRoute（miuix-nav 二级页栈；转场用库预设 NavTransitions.MiuixDefault）
     ├─ theme/                   # Palettes.kt（种子色方案）/ Color.kt（仅状态语义色）/ Theme.kt（MaterialKolor 生成）/ ThemeStyle.kt（MATERIAL3/MIUIX 风格枚举 + LocalThemeStyle）/ MiuixRootTheme.kt（MiuixTheme + MaterialTheme 桥接，v2.8）
-    ├─ components/Common.kt     # 复用组件：StatusBadge/FoodAvatar/FoodCard/QuantityStepper/EmptyState/LocationTag
+    ├─ components/              # Common.kt（StatusBadge/FoodAvatar/FoodCard/QuantityStepper/EmptyState/LocationTag）+ UndoSnackbar.kt + ExpiryCalendar.kt
     └─ screens/                 # 每屏一文件，自带 Scaffold；Miuix*Screen.kt 为各页的 Miuix 实现（v2.8）：
                                 # MiuixSettings/Home/FoodList/FoodDetail/Archive/ManageScreens（阈值/分类/位置）
                                 # 编辑页(EditFoodScreen)与统计页(StatsScreen)刻意保留 MD3+桥接（DatePicker 无 Miuix 对应 / 图表自绘）
@@ -58,28 +61,25 @@ app/src/main/java/com/agon/app/
 
 | 路由 | 屏幕 | 说明 |
 |---|---|---|
-| `home` | HomeScreen | 首页 Dashboard（起始页） |
-| `list?filter={filter}` | FoodListScreen | filter: null/expiring/expired |
-| `stats` | StatsScreen | 统计 |
-| `detail/{id}` | FoodDetailScreen | 食品详情 |
-| `edit` / `edit?id={id}` | EditFoodScreen | 新增 / 编辑 |
-| `archive` | ArchiveScreen | 归档（设置/食品列表可进入，带搜索） |
-| `settings` | SettingsScreen | 设置 |
-| `manage_thresholds` | ThresholdManageScreen | 临期阈值管理（设置二级页） |
-| `manage_categories` | CategoryManageScreen | 分类管理（设置二级页） |
-| `manage_locations` | LocationManageScreen | 存放位置管理（设置二级页） |
+| `AppRoute.Main` | Home / List / Stats / Settings（HorizontalPager） | 底栏四个 Tab，按索引左右连滑；起始页。首页卡片写入 `listFilter` 后滑到食品页 |
+| `AppRoute.Detail(id)` | FoodDetailScreen | 食品详情 |
+| `AppRoute.Edit(id?)` | EditFoodScreen | 新增 / 编辑 |
+| `AppRoute.Archive` | ArchiveScreen | 归档（设置/食品列表可进入，带搜索） |
+| `AppRoute.Consumption` | ConsumptionLogScreen | 消耗记录（统计页二级） |
+| `AppRoute.ManageThresholds` | ThresholdManageScreen | 临期阈值管理（设置二级页） |
+| `AppRoute.ManageCategories` | CategoryManageScreen | 分类管理（设置二级页） |
+| `AppRoute.ManageLocations` | LocationManageScreen | 存放位置管理（设置二级页） |
 
-
-- 底栏 Tab：home / list / stats / settings；`detail`/`edit`/`archive` 隐藏底栏与 FAB（通过 `showChrome` 控制）
-- FAB（添加食品）仅在 home 与 list 显示
-- 新增路由：在 MainActivity 的 NavHost 注册 + 按需更新 `tabRoutes`/`showChrome` 逻辑，并更新本表
+- 底栏 Tab：`AppRoute.Main` 内 HorizontalPager（home → list → stats → settings）；点击 Tab 用 `folmeSpring` 连滑，跨页会经过中间页。二级页走 miuix-nav `NavDisplay` + `NavTransitions.MiuixDefault`（全宽卡片滑 + 1/4 视差 + 圆角 dim），隐藏底栏与 FAB（`showChrome`）
+- FAB（添加食品）仅在 home 与 list（Pager 第 0/1 页）显示
+- 新增路由：在 `AppRoute` 加类型 + `NavDisplay` 注册 `entry` + 按需更新 `onTabs`/`showChrome`，并更新本表
 
 ## 5. 关键实现约定
 
 - **删除 = 归档**：业务删除一律调 `repo.archiveItems(ids, reason)`；只有归档页的“彻底删除/清空”真正移除数据
 - **消耗记录**：`changeQuantity(id, delta)` 在 delta<0 时自动写 ConsumptionRecord，调用方无需额外处理
 - **吃完自动归档（v2.4）**：`changeQuantity` 在消耗导致数量归零时自动移入归档（CONSUMED）并返回 true；UI 可依此提示/返回
-- **OCR（v2.4）**：`recognizeDates()` 返回 `OcrDates(production, expiry)`；正则按优先级匹配并占用文本区间防重复；日期前 14 字符上下文匹配 EXP/MFG 等语义标记分类角色
+- **OCR**：已移除，不要再加 `DateOcr` / ML Kit
 - **坚果云同步（v2.4，v2.7 多版本轮转）**：`NutstoreSync` 单例（OkHttp），WebDAV MKCOL+PUT/GET/PROPFIND/DELETE；账号存 DataStore（nutstore_account / last_sync_time）；**密码经 `SecureStore`（Android Keystore AES-GCM）加密后存 `nutstore_password_enc`，启动时 `migratePlaintextPassword()` 自动迁移旧明文**；上传内容即 buildBackupJson() 产物，下载走 importBackupJson()
   - **多版本轮转（v2.7）**：上传文件名 `chileme_backup_yyyyMMdd_HHmmss.json`，上传后 PROPFIND 列目录、自动 DELETE 多余旧版本，云端保留最近 `CLOUD_BACKUP_KEEP`（=3）份；自动同步走同一 upload 入口，同样轮转
   - **恢复选择（v2.7）**：`listBackups()` 返回 `CloudBackup(fileName, sizeBytes)` 列表（新→旧），UI 弹窗选择具体版本后 `download(fileName)` 恢复；旧版单文件 `chileme_backup.json` 兼容显示在列表末尾且不参与轮转删除
@@ -96,6 +96,7 @@ app/src/main/java/com/agon/app/
 - **列表批量操作**：长按卡片进入多选模式（selectedIds 非空即多选）；顶栏切换为选择态（退出/全选），底部滑入批量归档栏；BackHandler 退出多选；批量操作走 `archiveBatch`/`restoreArchivedBatch`；多选期间 FAB 隐藏（fabSuppressed）
 - **应用图标**：自适应图标 `mipmap-anydpi-v26/ic_launcher.xml`（前景 `drawable-*/ic_launcher_foreground.png` + 纯色背景 `#FBF6E9`）；legacy 兰容图标在 `mipmap-*/ic_launcher.png`；源图由用户 SVG 处理而来（已去黑边，主体缩放至 66dp 安全区）
 - **Snackbar**：带悬浮导航栏的屏幕，SnackbarHost 必须加 `padding(bottom = 84.dp)` 避免遮挡
+- **撤销 Snackbar**：`ui/components/UndoSnackbar.kt` 的 `showUndoSnackbar`。MD3 自绘 Material History 圆环 path（去指针），变换到圆心后再叠粗数字。消耗记录撤销：`DeletedConsumption(record, index)`，`addConsumption(record, index)` 插回删除前在日期倒序列表中的位置，避免 `listOf(record)+records` 提到最前；LazyColumn `animateItem` 带 placementSpec。消耗记录页 MD3 宿主加 `navigationBarsPadding` + 24dp。覆盖层 Box 必须 `fillMaxWidth`。MIUIX 宿主保持库默认 `canSwipeToDismiss=true`
 - **滑动归档（两段式）**：SwipeToDismissBoxState 用 `remember(item.id)` 手动构造（禁止 rememberSaveable，防撤销后复用脏状态循环触发）；第一滑弹回进入 armed 待确认（3.5s 超时解除），第二滑才确认滑出；`deleted` 标志保证 onDelete 只触发一次；列表项配 `animateItem(fadeIn 280/fadeOut 200)`
 - **FAB 与撤销**：Snackbar 展示“撤销”期间调 `viewModel.setFabSuppressed(true)` 隐藏 FAB（finally 复位），避免遮挡撤销按钮
 - **底栏自动隐藏**：MainApp 的 NestedScrollConnection 监听列表滚动，下滑隐藏底栏+FAB（slideOutVertically），上滑/切页恢复

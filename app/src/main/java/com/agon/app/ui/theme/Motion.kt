@@ -2,6 +2,13 @@ package com.agon.app.ui.theme
 
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.Easing
+import androidx.compose.animation.core.SpringSpec
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.ui.unit.IntSize
+import top.yukonga.miuix.kmp.anim.folmeSpring
 
 /**
  * MD3 motion easing tokens（m3.material.io/styles/motion）。
@@ -20,3 +27,29 @@ object MotionEasing {
     val StandardDecelerate: Easing = CubicBezierEasing(0f, 0f, 0f, 1f)
     val StandardAccelerate: Easing = CubicBezierEasing(0.3f, 0f, 1f, 1f)
 }
+
+/**
+ * 对齐 Miuix CascadingListPopupLayout 的 folmeSpring（damping=0.95）。
+ * 展开略快（0.2s），收起略慢（0.3s）；跨页平移用更长 response。
+ *
+ * 二级页进出由 miuix-nav NavDisplay 的 NavTransitions.MiuixDefault 驱动，不要把
+ * 弹簧套进已废弃的 NavHost enter/exit。Tab 连滑仍用本对象的 page()。
+ */
+object MotionSpring {
+    const val Damping = 0.95f
+    const val ExpandResponse = 0.2f
+    const val CollapseResponse = 0.3f
+
+    fun <T> expand(): SpringSpec<T> = folmeSpring<T>(Damping, ExpandResponse)
+    fun <T> collapse(): SpringSpec<T> = folmeSpring<T>(Damping, CollapseResponse)
+    fun <T> page(distance: Int = 1): SpringSpec<T> =
+        folmeSpring<T>(Damping, 0.34f + 0.08f * (distance - 1).coerceAtLeast(0))
+}
+
+fun filterPanelEnter() =
+    expandVertically(animationSpec = MotionSpring.expand<IntSize>()) +
+        fadeIn(animationSpec = MotionSpring.expand<Float>())
+
+fun filterPanelExit() =
+    shrinkVertically(animationSpec = MotionSpring.collapse<IntSize>()) +
+        fadeOut(animationSpec = MotionSpring.collapse<Float>())

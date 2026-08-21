@@ -80,8 +80,10 @@ android {
     }
 
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_17
-        targetCompatibility = JavaVersion.VERSION_17
+        // miuix-nav 的 rememberNavBackStack / entry<> 按 JVM 21 编译，
+        // 内联进本模块必须同目标，否则 “Cannot inline bytecode … 21 into … 17”。
+        sourceCompatibility = JavaVersion.VERSION_21
+        targetCompatibility = JavaVersion.VERSION_21
     }
 
     buildFeatures {
@@ -91,8 +93,10 @@ android {
 
 // AGP 9 起 kotlinOptions DSL 已移除，改用 KGP 的 compilerOptions。
 kotlin {
+    // CI 仍可能是 setup-java 17；toolchain 让 Gradle 自行拉 JDK 21 来编译。
+    jvmToolchain(21)
     compilerOptions {
-        jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17
+        jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_21
     }
 }
 
@@ -108,7 +112,8 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.10.0")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.10.0")
 
-    implementation("androidx.navigation:navigation-compose:2.9.7")
+    // 二级页路由与预测性返回：纯 Android 模块用 -android 坐标（含 rememberNavSystemCornerRadius actual）。
+    implementation("top.yukonga.miuix.kmp:miuix-nav-android:0.9.4-rc01")
 
     implementation("androidx.core:core-ktx:1.15.0")
     implementation("androidx.core:core-splashscreen:1.0.1")
@@ -128,8 +133,6 @@ dependencies {
     implementation("top.yukonga.miuix.kmp:miuix-icons:0.9.4-rc01")
 
     implementation("com.materialkolor:material-kolor:4.0.1")
-
-    implementation("com.squareup.okhttp3:okhttp:4.12.0")
 
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
 

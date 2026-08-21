@@ -99,7 +99,7 @@ StatusUi 提供三个颜色槽位，按用途严格区分：
 | `StatusBadge` | 状态徽章 | 胶囊 + 图标 + 文字；颜色来自 StatusUi |
 | `FoodAvatar` | 食品头像 | 有照片显示圆角图，否则 emoji 圆形底 |
 | `FoodCard` | 列表主卡片 | 头像+名称+位置标签+日期+新鲜度条+数量步进器 |
-| `QuantityStepper` | 数量增减 | 胶囊容器，数量变化用 AnimatedContent |
+| `QuantityStepper` | 数量增减 | 胶囊容器；仅数字 AnimatedContent 竖直滑，单位固定 |
 | `EmptyState` | 空态 | 大 emoji + 标题 + 副标题，居中 |
 | `LocationTag` | 位置标签 | 📍 + 文字小胶囊；location 为空时不渲染 |
 
@@ -115,17 +115,25 @@ StatusUi 提供三个颜色槽位，按用途严格区分：
 
 | 场景 | 实现 | 时长 |
 |---|---|---|
-| 页面转场（v2.3 对齐 MD3 motion tokens） | 进入 emphasized-decelerate `cubic-bezier(0.05,0.7,0.1,1)`；退出 emphasized-accelerate `cubic-bezier(0.3,0,0.8,0.15)` | 进入 400ms / 退出 200ms |
-| 底栏/FAB 显隐 | fade / scale + fade | 150~200ms |
-| 数量变化 | AnimatedContent | 默认 |
+| 底栏 Tab 连滑（v2.8） | `HorizontalPager` + `MotionSpring.page`（folmeSpring 0.95）；主页→统计经过食品列表 | 约 340ms 起，跨页加长 |
+| 二级页转场 | miuix-nav `NavDisplay` + `NavTransitions.MiuixDefault`（两主题共用）：全宽跟手滑出 + 下层 1/4 视差；`NavDisplayEffects` 系统圆角（Leading）+ 0.5 dim | 跟手 / 弹簧 settle |
+| 筛选面板/箭头 | `filterPanelEnter/Exit` + ExpandMore `rotationZ` 同一套 expand/collapse 弹簧 | 0.2s / 0.3s |
+| 底栏/FAB/批量栏显隐 | 弹簧滑入滑出；多选时批量栏与底栏交叉过渡 | 弹簧 |
+| 数量变化 | 仅数字 AnimatedContent 竖直滑+淡入（单位固定），方向随增减 | 180/140ms |
+| 消耗记录删除 | LazyColumn `animateItem` fade，与食品列表退场同曲线 | 280/200ms |
+| 配色渐变 | `animateColorScheme` + MotionEasing.Standard | 450ms |
+| 到期日历换月 | slide+fade + MotionEasing | 280/220ms |
+| 空态出现 | fade + scaleIn 0.96 | 280ms |
+| 新鲜度条 | `animateFloatAsState` Standard | 400ms |
 | 柱状图/环形图入场 | animateFloatAsState | 600~800ms |
 | 吃掉一份 | 封面 scale 1→1.25→1 + emoji 上浮 72dp 渐隐 | 120/220/700ms |
 | 滑动删除 | SwipeToDismissBox，仅 EndToStart，背景 errorContainer | 默认 |
+| 撤销 Snackbar | 两主题 6 秒后自动消失；MD3 单行正文 + 右侧 History 圆环（去指针、数字居中），MIUIX 库自带滑掉 | 6000ms |
 
 ## 6. 交互与反馈原则
 
 - 破坏性操作（清空、彻底删除）必须 AlertDialog 二次确认，确认按钮用 error 色
-- 可逆操作（滑删归档）用 Snackbar + “撤销”
+- 可逆操作（批量归档、减库存、删消耗记录）用 Snackbar + 撤销；6 秒后自动消失，两主题均可左右滑关掉。MD3 用 `SwipeDismissSnackbarHost`：自绘 Material History 圆环 path（去指针），圆心对齐按钮中心再叠粗倒计时。不用 `Icons.Rounded.History`（指针还在、左边箭头算进 bounds）。消耗记录撤销按删除前下标插回，带 `animateItem` 位移。消耗记录页额外抬高 24dp + nav bar。MIUIX 库自带胶囊「撤销」+ `canSwipeToDismiss`
 - 异步结果（OCR、导入导出）用 Snackbar 告知成功/失败
 - 所有数据屏必须处理空态；禁用态按钮置灰（如数量为 0 时的“吃掉一份”）
 - 页面主内容用 LazyColumn / verticalScroll，适配小屏与折叠屏

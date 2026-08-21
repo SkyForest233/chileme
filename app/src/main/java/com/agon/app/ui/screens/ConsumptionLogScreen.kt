@@ -1,5 +1,6 @@
 package com.agon.app.ui.screens
 
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -7,6 +8,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -21,7 +23,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
@@ -35,6 +36,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -42,6 +44,9 @@ import com.agon.app.data.ConsumptionRecord
 import com.agon.app.data.byId
 import com.agon.app.data.cn
 import com.agon.app.ui.components.EmptyState
+import com.agon.app.ui.components.SwipeDismissSnackbarHost
+import com.agon.app.ui.components.showUndoSnackbar
+import com.agon.app.ui.theme.MotionEasing
 import com.agon.app.viewmodel.AppViewModel
 import kotlinx.coroutines.flow.filterNotNull
 import java.time.LocalDate
@@ -67,21 +72,27 @@ fun ConsumptionLogScreen(
 
     // 删除后的撤销提示（collect 模式避免 consume 改变 key 取消协程）
     LaunchedEffect(Unit) {
-        viewModel.deletedConsumption.filterNotNull().collect { record ->
+        viewModel.deletedConsumption.filterNotNull().collect { deleted ->
             viewModel.consumeDeletedConsumption()
-            val result = snackbarHostState.showSnackbar(
-                message = "已删除「${record.name}」的消耗记录",
-                actionLabel = "撤销",
+            val result = snackbarHostState.showUndoSnackbar(
+                "已删除「${deleted.record.name}」的消耗记录",
             )
             if (result == SnackbarResult.ActionPerformed) {
-                viewModel.undoDeleteConsumption()
+                viewModel.undoDeleteConsumption(deleted.record, deleted.index)
             }
         }
     }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
-        snackbarHost = { SnackbarHost(snackbarHostState) },
+        snackbarHost = {
+            SwipeDismissSnackbarHost(
+                snackbarHostState,
+                modifier = Modifier
+                    .navigationBarsPadding()
+                    .padding(bottom = 24.dp),
+            )
+        },
         topBar = {
             TopAppBar(
                 title = { Text("消耗记录", fontWeight = FontWeight.Bold) },
@@ -132,6 +143,11 @@ fun ConsumptionLogScreen(
                             onDelete = {
                                 record.id?.let { viewModel.deleteConsumption(it) }
                             },
+                            modifier = Modifier.animateItem(
+                                fadeInSpec = tween(280, easing = MotionEasing.EmphasizedDecelerate),
+                                fadeOutSpec = tween(200, easing = MotionEasing.EmphasizedAccelerate),
+                                placementSpec = tween<IntOffset>(280, easing = MotionEasing.EmphasizedDecelerate),
+                            ),
                         )
                     }
                 }
@@ -145,11 +161,12 @@ private fun ConsumptionRow(
     record: ConsumptionRecord,
     emoji: String,
     onDelete: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     Surface(
         shape = MaterialTheme.shapes.large,
         color = MaterialTheme.colorScheme.surfaceContainer,
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),

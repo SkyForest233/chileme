@@ -1,5 +1,6 @@
 package com.agon.app.ui.screens
 
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -23,12 +24,15 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.agon.app.data.ConsumptionRecord
 import com.agon.app.data.byId
 import com.agon.app.data.cn
 import com.agon.app.ui.components.EmptyState
+import com.agon.app.ui.components.showUndoSnackbar
+import com.agon.app.ui.theme.MotionEasing
 import com.agon.app.viewmodel.AppViewModel
 import kotlinx.coroutines.flow.filterNotNull
 import java.time.LocalDate
@@ -65,14 +69,13 @@ fun MiuixConsumptionLogScreen(
 
     // 删除后的撤销提示（collect 模式避免 consume 改变 key 取消协程）
     LaunchedEffect(Unit) {
-        viewModel.deletedConsumption.filterNotNull().collect { record ->
+        viewModel.deletedConsumption.filterNotNull().collect { deleted ->
             viewModel.consumeDeletedConsumption()
-            val result = snackbarHostState.showSnackbar(
-                message = "已删除「${record.name}」的消耗记录",
-                actionLabel = "撤销",
+            val result = snackbarHostState.showUndoSnackbar(
+                "已删除「${deleted.record.name}」的消耗记录",
             )
             if (result == SnackbarResult.ActionPerformed) {
-                viewModel.undoDeleteConsumption()
+                viewModel.undoDeleteConsumption(deleted.record, deleted.index)
             }
         }
     }
@@ -126,6 +129,11 @@ fun MiuixConsumptionLogScreen(
                             onDelete = {
                                 record.id?.let { viewModel.deleteConsumption(it) }
                             },
+                            modifier = Modifier.animateItem(
+                                fadeInSpec = tween(280, easing = MotionEasing.EmphasizedDecelerate),
+                                fadeOutSpec = tween(200, easing = MotionEasing.EmphasizedAccelerate),
+                                placementSpec = tween<IntOffset>(280, easing = MotionEasing.EmphasizedDecelerate),
+                            ),
                         )
                     }
                 }
@@ -139,11 +147,12 @@ private fun MiuixConsumptionRow(
     record: ConsumptionRecord,
     emoji: String,
     onDelete: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     Surface(
         shape = RoundedCornerShape(16.dp),
         color = MiuixTheme.colorScheme.surfaceContainer,
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),

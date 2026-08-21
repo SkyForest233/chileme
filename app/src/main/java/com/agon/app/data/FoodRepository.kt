@@ -308,13 +308,15 @@ class FoodRepository(private val context: Context) {
         }
     }
 
-    /** 重新插入一条消耗记录（撤销删除用）。 */
-    suspend fun addConsumption(record: ConsumptionRecord) {
+    /** 重新插入一条消耗记录（撤销删除用）。index 为删除前在日期倒序列表中的位置。 */
+    suspend fun addConsumption(record: ConsumptionRecord, index: Int? = null) {
         context.dataStore.edit { prefs ->
             val records = decodeConsumption(prefs[consumptionKey])
-            prefs[consumptionKey] = json.encodeToString(
-                compactConsumption(listOf(record) + records)
-            )
+                .sortedByDescending { it.epochDay }
+                .toMutableList()
+            val i = (index ?: 0).coerceIn(0, records.size)
+            records.add(i, record)
+            prefs[consumptionKey] = json.encodeToString(compactConsumption(records))
         }
     }
 

@@ -1,6 +1,7 @@
 package com.agon.app.ui.components
 
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
@@ -46,6 +47,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.agon.app.data.CategoryDef
 import com.agon.app.data.FoodItem
@@ -55,6 +57,7 @@ import com.agon.app.data.cn
 import com.agon.app.data.expiryDate
 import com.agon.app.data.remainingText
 import com.agon.app.data.statusFor
+import com.agon.app.ui.theme.MotionEasing
 import java.time.LocalDate
 import java.time.YearMonth
 
@@ -152,8 +155,12 @@ fun ExpiryCalendarCard(
                 AnimatedContent(
                     targetState = month,
                     transitionSpec = {
-                        (slideInHorizontally { it / 3 * direction } + fadeIn()) togetherWith
-                            (slideOutHorizontally { -it / 3 * direction } + fadeOut())
+                        val enter = tween<IntOffset>(280, easing = MotionEasing.EmphasizedDecelerate)
+                        val exit = tween<IntOffset>(220, easing = MotionEasing.EmphasizedAccelerate)
+                        val fadeEnter = tween<Float>(280, easing = MotionEasing.EmphasizedDecelerate)
+                        val fadeExit = tween<Float>(220, easing = MotionEasing.EmphasizedAccelerate)
+                        (slideInHorizontally(enter) { it / 3 * direction } + fadeIn(fadeEnter)) togetherWith
+                            (slideOutHorizontally(exit) { -it / 3 * direction } + fadeOut(fadeExit))
                     },
                     label = "monthGrid",
                     modifier = Modifier.pointerInput(Unit) {

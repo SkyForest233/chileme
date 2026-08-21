@@ -1,12 +1,13 @@
 package com.agon.app.ui.screens
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -52,7 +53,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -62,7 +63,10 @@ import com.agon.app.data.byId
 import com.agon.app.data.daysLeft
 import com.agon.app.data.statusFor
 import com.agon.app.ui.components.EmptyState
+import com.agon.app.ui.theme.MotionSpring
 import com.agon.app.ui.theme.MotionEasing
+import com.agon.app.ui.theme.filterPanelEnter
+import com.agon.app.ui.theme.filterPanelExit
 import com.agon.app.ui.components.FoodAvatar
 import com.agon.app.ui.components.FoodCard
 import com.agon.app.viewmodel.AppViewModel
@@ -220,10 +224,8 @@ fun FoodListScreen(
 
             AnimatedVisibility(
                 visible = filtersExpanded,
-                enter = expandVertically(tween(250, easing = MotionEasing.EmphasizedDecelerate)) +
-                    fadeIn(tween(250, easing = MotionEasing.EmphasizedDecelerate)),
-                exit = shrinkVertically(tween(200, easing = MotionEasing.EmphasizedAccelerate)) +
-                    fadeOut(tween(200, easing = MotionEasing.EmphasizedAccelerate)),
+                enter = filterPanelEnter(),
+                exit = filterPanelExit(),
             ) {
                 Column(Modifier.padding(top = 10.dp)) {
                     FilterSectionLabel("状态")
@@ -269,7 +271,7 @@ fun FoodListScreen(
                             contentPadding = PaddingValues(horizontal = 20.dp),
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                         ) {
-                            items(usedLocations) { loc ->
+                            items(usedLocations, key = { it }) { loc ->
                                 FilterChip(
                                     selected = locationFilter == loc,
                                     onClick = { locationFilter = if (locationFilter == loc) null else loc },
@@ -421,6 +423,11 @@ private fun FilterToggle(
     activeCount: Int,
     onClick: () -> Unit,
 ) {
+    val arrowRotation by animateFloatAsState(
+        targetValue = if (expanded) 180f else 0f,
+        animationSpec = if (expanded) MotionSpring.expand<Float>() else MotionSpring.collapse<Float>(),
+        label = "filterArrowRotation",
+    )
     Surface(
         onClick = onClick,
         shape = RoundedCornerShape(50),
@@ -436,11 +443,20 @@ private fun FilterToggle(
             Icon(Icons.Rounded.FilterList, contentDescription = "筛选", modifier = Modifier.size(18.dp))
             if (activeCount > 0) {
                 Spacer(Modifier.width(4.dp))
-                Text(
-                    "$activeCount",
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.Bold,
-                )
+                AnimatedContent(
+                    targetState = activeCount,
+                    transitionSpec = {
+                        fadeIn(tween(160, easing = MotionEasing.Standard)) togetherWith
+                            fadeOut(tween(120, easing = MotionEasing.Standard))
+                    },
+                    label = "filterCount",
+                ) { count ->
+                    Text(
+                        "$count",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                    )
+                }
             }
             Spacer(Modifier.width(2.dp))
             Icon(
@@ -448,7 +464,7 @@ private fun FilterToggle(
                 contentDescription = null,
                 modifier = Modifier
                     .size(16.dp)
-                    .rotate(if (expanded) 180f else 0f),
+                    .graphicsLayer { rotationZ = arrowRotation },
             )
         }
     }
