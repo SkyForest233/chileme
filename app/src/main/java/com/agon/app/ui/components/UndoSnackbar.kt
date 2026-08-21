@@ -10,6 +10,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Replay
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarData
 import androidx.compose.material3.SnackbarDefaults
 import androidx.compose.material3.SnackbarDuration
@@ -36,7 +37,10 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.PlatformTextStyle
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -113,7 +117,7 @@ private fun UndoCountdownSnackbar(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(start = 16.dp, end = 6.dp, top = 6.dp, bottom = 6.dp),
+                .padding(start = 14.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
@@ -121,6 +125,7 @@ private fun UndoCountdownSnackbar(
                 modifier = Modifier.weight(1f),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
+                style = snackbarMessageStyle(),
             )
             ReplayCountdownButton(
                 secondsLeft = secondsLeft,
@@ -131,7 +136,19 @@ private fun UndoCountdownSnackbar(
     }
 }
 
-/** Material Replay 图标，中间叠 6 秒倒计时数字。 */
+@Composable
+private fun snackbarMessageStyle(): TextStyle =
+    MaterialTheme.typography.bodyMedium.copy(
+        fontSize = 13.sp,
+        lineHeight = 16.sp,
+        platformStyle = PlatformTextStyle(includeFontPadding = false),
+        lineHeightStyle = LineHeightStyle(
+            alignment = LineHeightStyle.Alignment.Center,
+            trim = LineHeightStyle.Trim.Both,
+        ),
+    )
+
+/** Material Replay 图标，中间叠倒计时数字。图标铺满、数字缩小，避免顶到箭头。 */
 @Composable
 private fun ReplayCountdownButton(
     secondsLeft: Int,
@@ -140,7 +157,7 @@ private fun ReplayCountdownButton(
 ) {
     Box(
         modifier = Modifier
-            .size(36.dp)
+            .size(32.dp)
             .clip(CircleShape)
             .semantics {
                 contentDescription = "撤销"
@@ -152,14 +169,22 @@ private fun ReplayCountdownButton(
         Icon(
             Icons.Rounded.Replay,
             contentDescription = null,
-            modifier = Modifier.size(28.dp),
+            modifier = Modifier.size(32.dp),
             tint = color,
         )
         Text(
             "$secondsLeft",
             color = color,
-            fontSize = 10.sp,
-            fontWeight = FontWeight.Bold,
+            style = TextStyle(
+                fontSize = 8.sp,
+                fontWeight = FontWeight.SemiBold,
+                lineHeight = 8.sp,
+                platformStyle = PlatformTextStyle(includeFontPadding = false),
+                lineHeightStyle = LineHeightStyle(
+                    alignment = LineHeightStyle.Alignment.Center,
+                    trim = LineHeightStyle.Trim.Both,
+                ),
+            ),
             maxLines = 1,
         )
     }
