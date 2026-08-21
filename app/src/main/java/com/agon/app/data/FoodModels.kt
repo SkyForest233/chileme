@@ -160,3 +160,41 @@ private val cnDayFormatter = DateTimeFormatter.ofPattern("M月d日 EEEE", Locale
 
 fun LocalDate.cn(): String = format(cnDateFormatter)
 fun LocalDate.cnDay(): String = format(cnDayFormatter)
+
+/**
+ * 消耗记录压缩（纯函数版，`today` 显式传入以便测试）。
+ *
+ * 保留 `today` 之前 90 天内的逐笔明细；更早的记录按「年 × 月 × 名称 × 单位」
+ * 聚合为单条（epochDay 归一到当月 1 号，amount 求和）。
+ *
+ * 分组键必须包含 unit：同名食品可以有不同单位（"牛奶" 3 瓶 / 2 箱），
+ * 若只按名称分组会把数量直接相加、单位取第一条，得到「5 瓶」这种错误结果。
+ */
+fun compactConsumptionAt(
+    records: List<ConsumptionRecord>,
+    today: LocalDate,
+    idFactory: () -> String = { java.util.UUID.randomUUID().toString() },
+): List<ConsumptionRecord> {
+    val cutoff = today.minusDays(90).toEpochDay()
+    val (recent, old) = records.partition { it.epochDay >= cutoff }
+    val aggregated = old
+        .groupBy { record ->
+            val date = LocalDate.ofEpochDay(record.epochDay)
+            // unit 必须参与分组，否则不同单位的数量会被错误相加
+            listOf(date.year, date.monthValue, record.name, record.unit)
+        }
+        .map { (_, group) ->
+            val date = LocalDate.ofEpochDay(group.first().epochDay)
+            ConsumptionRecord(
+                name = group.first().name,
+                category = group.first().category,
+                amount = group.sumOf { it.amount },
+                unit = group.first().unit,
+                epochDay = LocalDate.of(date.year, date.monthValue, 1).toEpochDay(),
+                // 必须补 id：聚合记录 id 为 null 会导致消耗记录页的删除按钮
+                // （record.id?.let { ... }）静默无效。
+                id = idFactory(),
+            )
+        }
+    return (recent + aggregated).sortedByDescending { it.epochDay }
+}

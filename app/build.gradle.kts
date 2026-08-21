@@ -168,6 +168,9 @@ kotlin {
 }
 
 dependencies {
+    // 纯 JVM 单测：不需要模拟器，./gradlew testDebugUnitTest 秒级跑完。
+    testImplementation("junit:junit:4.13.2")
+
     implementation(platform("androidx.compose:compose-bom:2026.01.01"))
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-graphics")

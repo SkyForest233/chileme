@@ -591,30 +591,8 @@ class FoodRepository(private val context: Context) {
      * （epochDay 归一到当月 1 号，amount 求和）。
      * 长期统计（排行榜/月度消耗）不失真，存储规模有界。
      */
-    private fun compactConsumption(records: List<ConsumptionRecord>): List<ConsumptionRecord> {
-        val cutoff = LocalDate.now().minusDays(90).toEpochDay()
-        val (recent, old) = records.partition { it.epochDay >= cutoff }
-        val aggregated = old
-            .groupBy { record ->
-                val date = LocalDate.ofEpochDay(record.epochDay)
-                Triple(date.year, date.monthValue, record.name)
-            }
-            .map { (key, group) ->
-                val (year, month, _) = key
-                ConsumptionRecord(
-                    name = group.first().name,
-                    category = group.first().category,
-                    amount = group.sumOf { it.amount },
-                    unit = group.first().unit,
-                    epochDay = LocalDate.of(year, month, 1).toEpochDay(),
-                    // 必须补 id：此前聚合记录 id 为 null，导致消耗记录页的删除按钮
-                    // （record.id?.let { ... }）静默无效，要等下次冷启动
-                    // migrateConsumptionIds() 补 id 才恢复。
-                    id = UUID.randomUUID().toString(),
-                )
-            }
-        return (recent + aggregated).sortedByDescending { it.epochDay }
-    }
+    private fun compactConsumption(records: List<ConsumptionRecord>): List<ConsumptionRecord> =
+        compactConsumptionAt(records, LocalDate.now())
 
     // ---- Backup ----
 
