@@ -33,7 +33,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -63,7 +62,7 @@ const val UndoSnackbarTimeoutMs = 6_000L
 private const val UndoActionLabel = "撤销"
 
 /**
- * Material 3 撤销条：单行正文 + 右侧缺口圆环（箭头 + 居中倒计时，点了即撤销）。
+ * Material 3 撤销条：单行正文 + 右侧 History 撤回环（左侧缺口 + 箭头 + 居中倒计时，点了即撤销）。
  * 不用 History/Replay 矢量：箭头会把圈的视觉中心挤偏，数字看起来不居中。
  */
 @Composable
@@ -194,18 +193,18 @@ private fun HistoryCountdownButton(
 }
 
 /**
- * History 那种逆时针撤回环：顶部缺口 + 箭头沿切线朝左。
- * 圆环几何中心就是画布中心，数字才能真正居中（矢量图标把箭头算进 bounds 会把圈挤偏）。
+ * History 那种逆时针撤回环：左侧缺口，9 点位置箭头沿圆周朝下。
+ * 开口箭头与圆环同线宽，避免再画成顶上那颗朝外的三角尖。
+ * 圆环几何中心就是画布中心，数字才能真正居中。
  */
 private fun DrawScope.drawUndoRing(color: Color) {
     val stroke = 2.2.dp.toPx()
-    val arrowHalf = 3.4.dp.toPx()
-    val radius = size.minDimension / 2f - stroke / 2f - arrowHalf - 0.8.dp.toPx()
+    val radius = size.minDimension / 2f - stroke * 1.6f - 1.dp.toPx()
     val cx = size.width / 2f
     val cy = size.height / 2f
-    // 尾端约 1 点，顺时针绕到底再回到 11 点；缺口留在正上方。
-    val startAngle = -42f
-    val sweepAngle = 298f
+    // 尾端约 7:30，逆时针绕到 9 点；缺口在左下，对齐 History。
+    val startAngle = 138f
+    val sweepAngle = -318f
     drawArc(
         color = color,
         startAngle = startAngle,
@@ -213,31 +212,41 @@ private fun DrawScope.drawUndoRing(color: Color) {
         useCenter = false,
         topLeft = Offset(cx - radius, cy - radius),
         size = Size(radius * 2f, radius * 2f),
-        style = Stroke(width = stroke, cap = StrokeCap.Round),
+        style = Stroke(width = stroke, cap = StrokeCap.Butt),
     )
     val end = Math.toRadians((startAngle + sweepAngle).toDouble())
     val cosE = cos(end).toFloat()
     val sinE = sin(end).toFloat()
     val ex = cx + radius * cosE
     val ey = cy + radius * sinE
-    // 逆时针切线：撤回 / 倒带方向（箭头朝左）。
+    // 9 点处逆时针切线朝下。
     val tx = sinE
     val ty = -cosE
-    val nx = cosE
-    val ny = sinE
-    val tipLen = 5.6.dp.toPx()
-    val tipX = ex + tx * (tipLen * 0.58f)
-    val tipY = ey + ty * (tipLen * 0.58f)
-    val bx = ex - tx * (tipLen * 0.2f)
-    val by = ey - ty * (tipLen * 0.2f)
-    drawPath(
-        Path().apply {
-            moveTo(tipX, tipY)
-            lineTo(bx + nx * arrowHalf, by + ny * arrowHalf)
-            lineTo(bx - nx * arrowHalf, by - ny * arrowHalf)
-            close()
-        },
+    val tip = Offset(ex + tx * stroke * 0.4f, ey + ty * stroke * 0.4f)
+    val wing = 6.2.dp.toPx()
+    val ang = Math.toRadians(26.0)
+    val ca = cos(ang).toFloat()
+    val sa = sin(ang).toFloat()
+    val bx = -tx
+    val by = -ty
+    fun wingPoint(sign: Float): Offset {
+        val rx = bx * ca - by * sa * sign
+        val ry = bx * sa * sign + by * ca
+        return Offset(tip.x + rx * wing, tip.y + ry * wing)
+    }
+    drawLine(
         color = color,
+        start = tip,
+        end = wingPoint(1f),
+        strokeWidth = stroke,
+        cap = StrokeCap.Round,
+    )
+    drawLine(
+        color = color,
+        start = tip,
+        end = wingPoint(-1f),
+        strokeWidth = stroke,
+        cap = StrokeCap.Round,
     )
 }
 
