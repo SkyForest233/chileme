@@ -99,7 +99,7 @@ StatusUi 提供三个颜色槽位，按用途严格区分：
 | `StatusBadge` | 状态徽章 | 胶囊 + 图标 + 文字；颜色来自 StatusUi |
 | `FoodAvatar` | 食品头像 | 有照片显示圆角图，否则 emoji 圆形底 |
 | `FoodCard` | 列表主卡片 | 头像+名称+位置标签+日期+新鲜度条+数量步进器 |
-| `QuantityStepper` | 数量增减 | 胶囊容器，数量变化用 AnimatedContent |
+| `QuantityStepper` | 数量增减 | 胶囊容器；仅数字 AnimatedContent 竖直滑，单位固定 |
 | `EmptyState` | 空态 | 大 emoji + 标题 + 副标题，居中 |
 | `LocationTag` | 位置标签 | 📍 + 文字小胶囊；location 为空时不渲染 |
 
@@ -119,7 +119,8 @@ StatusUi 提供三个颜色槽位，按用途严格区分：
 | 二级页转场 | miuix-nav `NavDisplay` + `NavTransitions.MiuixDefault`（两主题共用）：全宽跟手滑出 + 下层 1/4 视差；`NavDisplayEffects` 系统圆角（Leading）+ 0.5 dim | 跟手 / 弹簧 settle |
 | 筛选面板/箭头 | `filterPanelEnter/Exit` + ExpandMore `rotationZ` 同一套 expand/collapse 弹簧 | 0.2s / 0.3s |
 | 底栏/FAB/批量栏显隐 | 弹簧滑入滑出；多选时批量栏与底栏交叉过渡 | 弹簧 |
-| 数量变化 | AnimatedContent 竖直滑+淡入，方向随增减 | 180/140ms |
+| 数量变化 | 仅数字 AnimatedContent 竖直滑+淡入（单位固定），方向随增减 | 180/140ms |
+| 消耗记录删除 | LazyColumn `animateItem` fade，与食品列表退场同曲线 | 280/200ms |
 | 配色渐变 | `animateColorScheme` + MotionEasing.Standard | 450ms |
 | 到期日历换月 | slide+fade + MotionEasing | 280/220ms |
 | 空态出现 | fade + scaleIn 0.96 | 280ms |

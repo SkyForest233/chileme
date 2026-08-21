@@ -1,5 +1,6 @@
 package com.agon.app.ui.screens
 
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -42,6 +43,7 @@ import com.agon.app.data.ConsumptionRecord
 import com.agon.app.data.byId
 import com.agon.app.data.cn
 import com.agon.app.ui.components.EmptyState
+import com.agon.app.ui.theme.MotionEasing
 import com.agon.app.viewmodel.AppViewModel
 import kotlinx.coroutines.flow.filterNotNull
 import java.time.LocalDate
@@ -132,6 +134,10 @@ fun ConsumptionLogScreen(
                             onDelete = {
                                 record.id?.let { viewModel.deleteConsumption(it) }
                             },
+                            modifier = Modifier.animateItem(
+                                fadeInSpec = tween(280, easing = MotionEasing.EmphasizedDecelerate),
+                                fadeOutSpec = tween(200, easing = MotionEasing.EmphasizedAccelerate),
+                            ),
                         )
                     }
                 }
@@ -145,11 +151,12 @@ private fun ConsumptionRow(
     record: ConsumptionRecord,
     emoji: String,
     onDelete: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     Surface(
         shape = MaterialTheme.shapes.large,
         color = MaterialTheme.colorScheme.surfaceContainer,
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),

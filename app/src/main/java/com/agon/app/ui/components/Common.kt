@@ -386,17 +386,28 @@ fun QuantityStepper(
                     // Miuix 无「减号」图标（Remove 是「移除/退出」形状），减号回退 material
                     MiuixIcon(Icons.Rounded.Remove, contentDescription = "减少", modifier = Modifier.size(18.dp), tint = fg)
                 }
-                AnimatedContent(
-                    targetState = quantity,
-                    transitionSpec = { quantityChangeTransition() },
-                    label = "qty",
-                ) { q ->
+                Row(
+                    modifier = Modifier.padding(horizontal = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    AnimatedContent(
+                        targetState = quantity,
+                        transitionSpec = { quantityChangeTransition() },
+                        label = "qty",
+                    ) { q ->
+                        MiuixText(
+                            "$q",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = fg,
+                        )
+                    }
+                    Spacer(Modifier.width(4.dp))
                     MiuixText(
-                        "$q $unit",
+                        unit,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Bold,
                         color = fg,
-                        modifier = Modifier.padding(horizontal = 6.dp),
                     )
                 }
                 MiuixIconButton(
@@ -422,16 +433,26 @@ fun QuantityStepper(
                 ) {
                     Icon(Icons.Rounded.Remove, contentDescription = "减少", modifier = Modifier.size(18.dp))
                 }
-                AnimatedContent(
-                    targetState = quantity,
-                    transitionSpec = { quantityChangeTransition() },
-                    label = "qty",
-                ) { q ->
+                Row(
+                    modifier = Modifier.padding(horizontal = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    AnimatedContent(
+                        targetState = quantity,
+                        transitionSpec = { quantityChangeTransition() },
+                        label = "qty",
+                    ) { q ->
+                        Text(
+                            "$q",
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.Bold,
+                        )
+                    }
+                    Spacer(Modifier.width(4.dp))
                     Text(
-                        "$q $unit",
+                        unit,
                         style = MaterialTheme.typography.labelLarge,
                         fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(horizontal = 6.dp),
                     )
                 }
                 IconButton(
