@@ -139,7 +139,10 @@ import com.agon.app.ui.theme.ThemeStyle
 import com.agon.app.viewmodel.AppViewModel
 import kotlin.math.abs
 import kotlin.math.roundToInt
+import java.time.Duration
 import java.time.LocalDate
+import java.time.LocalDateTime
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.nav.core.NavCornerClipMode
@@ -174,6 +177,16 @@ class MainActivity : ComponentActivity() {
             // 所有读取 LocalToday 的屏幕（剩余天数/状态/新鲜度）随之刷新。
             var today by remember { mutableStateOf(LocalDate.now()) }
             LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { today = LocalDate.now() }
+            // 前台定时器：即使 App 一直保持在前台，也精确等到下一个午夜刷新，
+            // 避免「开着 App 跨过 0 点却不更新」。与 ON_RESUME 互补（后台跨午夜由后者兜底）。
+            LaunchedEffect(Unit) {
+                while (true) {
+                    val now = LocalDateTime.now()
+                    val nextMidnight = now.toLocalDate().plusDays(1).atStartOfDay()
+                    delay(Duration.between(now, nextMidnight).toMillis())
+                    today = LocalDate.now()
+                }
+            }
             LaunchedEffect(ready) { if (ready) contentReady = true }
             if (!ready) return@setContent
             val darkTheme = when (darkMode) {
