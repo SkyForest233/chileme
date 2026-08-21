@@ -31,11 +31,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.drawscope.DrawScope
-import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.scale
+import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.graphics.vector.PathParser
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
@@ -47,8 +46,6 @@ import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import kotlin.math.cos
-import kotlin.math.sin
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -62,8 +59,8 @@ const val UndoSnackbarTimeoutMs = 6_000L
 private const val UndoActionLabel = "撤销"
 
 /**
- * Material 3 撤销条：单行正文 + 右侧 History 撤回环（左侧缺口 + 箭头 + 居中倒计时，点了即撤销）。
- * 不用 History/Replay 矢量：箭头会把圈的视觉中心挤偏，数字看起来不居中。
+ * Material 3 撤销条：单行正文 + 右侧 History 圆环（去指针，数字居中，点了即撤销）。
+ * 不用 Icons.Rounded.History：指针还在，且左边箭头算进 bounds，圈会挤偏。
  */
 @Composable
 fun SwipeDismissSnackbarHost(
@@ -153,13 +150,23 @@ private fun snackbarMessageStyle(): TextStyle =
         ),
     )
 
-/** 缺口圆环 + 撤回箭头，倒计时数字落在圆心。 */
+/** Material Rounded History 圆环（无指针）。圆心 (13,12)，24 视口。 */
+private const val HistoryRingPath =
+    "M13.26,3C8.17,2.86,4,6.95,4,12H1l4,4,4-4H6c0-3.87,3.13-7,7-7s7,3.13,7,7-3.13,7-7,7c-1.93,0-3.68-.79-4.94-2.06l-1.42,1.42C8.27,19.99,10.51,21,13,21c4.97,0,9-4.03,9-9,0-5.11-4.21-9.17-8.74-9z"
+
+private const val HistoryRingCx = 13f
+private const val HistoryRingCy = 12f
+
+/** History 圆环去指针，倒计时数字落在圆心。 */
 @Composable
 private fun HistoryCountdownButton(
     secondsLeft: Int,
     color: Color,
     onClick: () -> Unit,
 ) {
+    val ringPath = remember {
+        PathParser().parsePathString(HistoryRingPath).toPath()
+    }
     Box(
         modifier = Modifier
             .size(36.dp)
@@ -172,7 +179,14 @@ private fun HistoryCountdownButton(
         contentAlignment = Alignment.Center,
     ) {
         Canvas(Modifier.size(36.dp)) {
-            drawUndoRing(color)
+            val s = size.minDimension / 24f * 0.92f
+            translate(size.width / 2f, size.height / 2f) {
+                scale(s, pivot = Offset.Zero) {
+                    translate(-HistoryRingCx, -HistoryRingCy) {
+                        drawPath(ringPath, color)
+                    }
+                }
+            }
         }
         Text(
             "$secondsLeft",
@@ -190,64 +204,6 @@ private fun HistoryCountdownButton(
             maxLines = 1,
         )
     }
-}
-
-/**
- * History 那种逆时针撤回环：左侧缺口，9 点位置箭头沿圆周朝下。
- * 开口箭头与圆环同线宽，避免再画成顶上那颗朝外的三角尖。
- * 圆环几何中心就是画布中心，数字才能真正居中。
- */
-private fun DrawScope.drawUndoRing(color: Color) {
-    val stroke = 2.2.dp.toPx()
-    val radius = size.minDimension / 2f - stroke * 1.6f - 1.dp.toPx()
-    val cx = size.width / 2f
-    val cy = size.height / 2f
-    // 尾端约 7:30，逆时针绕到 9 点；缺口在左下，对齐 History。
-    val startAngle = 138f
-    val sweepAngle = -318f
-    drawArc(
-        color = color,
-        startAngle = startAngle,
-        sweepAngle = sweepAngle,
-        useCenter = false,
-        topLeft = Offset(cx - radius, cy - radius),
-        size = Size(radius * 2f, radius * 2f),
-        style = Stroke(width = stroke, cap = StrokeCap.Butt),
-    )
-    val end = Math.toRadians((startAngle + sweepAngle).toDouble())
-    val cosE = cos(end).toFloat()
-    val sinE = sin(end).toFloat()
-    val ex = cx + radius * cosE
-    val ey = cy + radius * sinE
-    // 9 点处逆时针切线朝下。
-    val tx = sinE
-    val ty = -cosE
-    val tip = Offset(ex + tx * stroke * 0.4f, ey + ty * stroke * 0.4f)
-    val wing = 6.2.dp.toPx()
-    val ang = Math.toRadians(26.0)
-    val ca = cos(ang).toFloat()
-    val sa = sin(ang).toFloat()
-    val bx = -tx
-    val by = -ty
-    fun wingPoint(sign: Float): Offset {
-        val rx = bx * ca - by * sa * sign
-        val ry = bx * sa * sign + by * ca
-        return Offset(tip.x + rx * wing, tip.y + ry * wing)
-    }
-    drawLine(
-        color = color,
-        start = tip,
-        end = wingPoint(1f),
-        strokeWidth = stroke,
-        cap = StrokeCap.Round,
-    )
-    drawLine(
-        color = color,
-        start = tip,
-        end = wingPoint(-1f),
-        strokeWidth = stroke,
-        cap = StrokeCap.Round,
-    )
 }
 
 /**
