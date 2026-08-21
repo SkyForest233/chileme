@@ -388,21 +388,25 @@ fun MainApp(viewModel: AppViewModel) {
                     .widthIn(max = 840.dp)
                     .fillMaxSize()
                     .nestedScroll(chromeScrollConnection),
-            // 二级页覆盖式转场：几何仍是 MiuixDefault（全宽滑入 + 1/4 视差 + 90% 透明度），
-            // 时间曲线改 folmeSpring，与 Tab 连滑同一套物理，且可被系统预测性返回 seek。
+            // 二级页覆盖式转场：几何是 MiuixDefault（全宽滑入 + 1/4 视差 + 90% 透明）。
+            // 时间曲线必须用 tween，不能用 folmeSpring：Navigation 2.9 会把 pop 转场
+            // 按手势 progress seek，弹簧前段位移很大，预测性返回会显得又猛又灵敏。
+            // 官方全屏预览是缩到 90% + 约 width/20 的平移（不是整页滑出）；
+            // 2.9 没有独立的 predictivePop* API，pop 几何仍走覆盖式滑出，
+            // 用 EmphasizedAccelerate 让预览前段少动，松手后再加速离场。
             enterTransition = {
-                slideInHorizontally(animationSpec = MotionSpring.page<IntOffset>()) { it }
+                slideInHorizontally(tween(300, easing = EmphasizedDecelerate)) { it }
             },
             exitTransition = {
-                slideOutHorizontally(animationSpec = MotionSpring.page<IntOffset>()) { -it / 4 } +
-                    fadeOut(animationSpec = MotionSpring.page<Float>(), targetAlpha = 0.9f)
+                slideOutHorizontally(tween(300, easing = EmphasizedAccelerate)) { -it / 4 } +
+                    fadeOut(tween(300, easing = EmphasizedAccelerate), targetAlpha = 0.9f)
             },
             popEnterTransition = {
-                slideInHorizontally(animationSpec = MotionSpring.page<IntOffset>()) { -it / 4 } +
-                    fadeIn(animationSpec = MotionSpring.page<Float>(), initialAlpha = 0.9f)
+                slideInHorizontally(tween(300, easing = EmphasizedDecelerate)) { -it / 4 } +
+                    fadeIn(tween(300, easing = EmphasizedDecelerate), initialAlpha = 0.9f)
             },
             popExitTransition = {
-                slideOutHorizontally(animationSpec = MotionSpring.page<IntOffset>()) { it }
+                slideOutHorizontally(tween(300, easing = EmphasizedAccelerate)) { it }
             },
         ) {
             composable("main") {
