@@ -481,6 +481,7 @@ fun MainApp(viewModel: AppViewModel) {
     Box(
         modifier = Modifier
             .align(Alignment.BottomCenter)
+            .fillMaxWidth()
             .navigationBarsPadding()
             .padding(bottom = snackbarOffset),
     ) {
