@@ -50,7 +50,6 @@ import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.icon.extended.Delete
 import top.yukonga.miuix.kmp.icon.extended.Edit
 import top.yukonga.miuix.kmp.icon.extended.Location
-import top.yukonga.miuix.kmp.icon.extended.Remove
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /** 通用二级管理页脚手架（Miuix）。 */
@@ -134,7 +133,8 @@ fun MiuixThresholdManageScreen(viewModel: AppViewModel, onBack: () -> Unit) {
                                     onClick = { viewModel.setCategoryThreshold(cat.id, value - 1) },
                                     enabled = value > 1,
                                 ) {
-                                    Icon(MiuixIcons.Remove, contentDescription = "减少 ${cat.label} 阈值", modifier = Modifier.size(18.dp))
+                                    // Miuix Remove 是「移除/退出」形状，减号与列表步进器一样回退 material
+                                    Icon(Icons.Rounded.Remove, contentDescription = "减少 ${cat.label} 阈值", modifier = Modifier.size(18.dp))
                                 }
                                 Text(
                                     "$value 天",
