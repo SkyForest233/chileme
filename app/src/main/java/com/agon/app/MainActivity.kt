@@ -54,7 +54,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
@@ -125,6 +124,8 @@ import com.agon.app.ui.screens.MiuixStatsScreen
 import com.agon.app.ui.screens.MiuixThresholdManageScreen
 import com.agon.app.ui.screens.SettingsScreen
 import com.agon.app.ui.screens.StatsScreen
+import com.agon.app.ui.components.SwipeDismissSnackbarHost
+import com.agon.app.ui.components.showUndoSnackbar
 import com.agon.app.ui.theme.AgonAppTheme
 import com.agon.app.ui.theme.AppPalette
 import com.agon.app.ui.theme.LocalThemeStyle
@@ -251,15 +252,11 @@ fun MainApp(viewModel: AppViewModel) {
         viewModel.undoRequest.filterNotNull().collect { request ->
             viewModel.consumeUndoRequest()
             val undone = if (currentIsMiuix) {
-                miuixSnackbarHostState.showSnackbar(
-                    message = "已减少一件并计入消耗",
-                    actionLabel = "撤销",
-                ) == MiuixSnackbarResult.ActionPerformed
+                miuixSnackbarHostState.showUndoSnackbar("已减少一件并计入消耗") ==
+                    MiuixSnackbarResult.ActionPerformed
             } else {
-                snackbarHostState.showSnackbar(
-                    message = "已减少一件并计入消耗",
-                    actionLabel = "撤销",
-                ) == SnackbarResult.ActionPerformed
+                snackbarHostState.showUndoSnackbar("已减少一件并计入消耗") ==
+                    SnackbarResult.ActionPerformed
             }
             if (undone) {
                 viewModel.undoConsumption(request)
@@ -292,15 +289,11 @@ fun MainApp(viewModel: AppViewModel) {
             viewModel.setFabSuppressed(true)
             try {
                 val undone = if (isMiuix) {
-                    miuixSnackbarHostState.showSnackbar(
-                        message = "已将 ${ids.size} 件食品移入归档",
-                        actionLabel = "撤销",
-                    ) == MiuixSnackbarResult.ActionPerformed
+                    miuixSnackbarHostState.showUndoSnackbar("已将 ${ids.size} 件食品移入归档") ==
+                        MiuixSnackbarResult.ActionPerformed
                 } else {
-                    snackbarHostState.showSnackbar(
-                        message = "已将 ${ids.size} 件食品移入归档",
-                        actionLabel = "撤销",
-                    ) == SnackbarResult.ActionPerformed
+                    snackbarHostState.showUndoSnackbar("已将 ${ids.size} 件食品移入归档") ==
+                        SnackbarResult.ActionPerformed
                 }
                 if (undone) {
                     viewModel.restoreArchivedBatch(ids)
@@ -494,7 +487,7 @@ fun MainApp(viewModel: AppViewModel) {
         if (isMiuix) {
             MiuixSnackbarHost(miuixSnackbarHostState)
         } else {
-            SnackbarHost(snackbarHostState)
+            SwipeDismissSnackbarHost(snackbarHostState)
         }
     }
     }

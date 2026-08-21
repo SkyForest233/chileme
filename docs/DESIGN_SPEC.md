@@ -128,11 +128,12 @@ StatusUi 提供三个颜色槽位，按用途严格区分：
 | 柱状图/环形图入场 | animateFloatAsState | 600~800ms |
 | 吃掉一份 | 封面 scale 1→1.25→1 + emoji 上浮 72dp 渐隐 | 120/220/700ms |
 | 滑动删除 | SwipeToDismissBox，仅 EndToStart，背景 errorContainer | 默认 |
+| 撤销 Snackbar | 两主题 6 秒后自动消失；MD3 可左右滑关掉，MIUIX 库自带滑掉 | 6000ms |
 
 ## 6. 交互与反馈原则
 
 - 破坏性操作（清空、彻底删除）必须 AlertDialog 二次确认，确认按钮用 error 色
-- 可逆操作（滑删归档）用 Snackbar + “撤销”
+- 可逆操作（批量归档、减库存、删消耗记录）用 Snackbar + “撤销”；6 秒后自动消失，两主题均可左右滑关掉（MD3 用 `SwipeDismissSnackbarHost`，MIUIX 库自带 `canSwipeToDismiss`）
 - 异步结果（OCR、导入导出）用 Snackbar 告知成功/失败
 - 所有数据屏必须处理空态；禁用态按钮置灰（如数量为 0 时的“吃掉一份”）
 - 页面主内容用 LazyColumn / verticalScroll，适配小屏与折叠屏

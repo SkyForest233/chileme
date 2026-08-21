@@ -22,7 +22,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
@@ -43,6 +42,8 @@ import com.agon.app.data.ConsumptionRecord
 import com.agon.app.data.byId
 import com.agon.app.data.cn
 import com.agon.app.ui.components.EmptyState
+import com.agon.app.ui.components.SwipeDismissSnackbarHost
+import com.agon.app.ui.components.showUndoSnackbar
 import com.agon.app.ui.theme.MotionEasing
 import com.agon.app.viewmodel.AppViewModel
 import kotlinx.coroutines.flow.filterNotNull
@@ -71,9 +72,8 @@ fun ConsumptionLogScreen(
     LaunchedEffect(Unit) {
         viewModel.deletedConsumption.filterNotNull().collect { record ->
             viewModel.consumeDeletedConsumption()
-            val result = snackbarHostState.showSnackbar(
-                message = "已删除「${record.name}」的消耗记录",
-                actionLabel = "撤销",
+            val result = snackbarHostState.showUndoSnackbar(
+                "已删除「${record.name}」的消耗记录",
             )
             if (result == SnackbarResult.ActionPerformed) {
                 viewModel.undoDeleteConsumption()
@@ -83,7 +83,7 @@ fun ConsumptionLogScreen(
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
-        snackbarHost = { SnackbarHost(snackbarHostState) },
+        snackbarHost = { SwipeDismissSnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = { Text("消耗记录", fontWeight = FontWeight.Bold) },
