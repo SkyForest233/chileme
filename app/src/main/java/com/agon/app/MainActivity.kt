@@ -267,7 +267,7 @@ fun MainApp(viewModel: AppViewModel) {
             val distance = abs(index - pagerState.currentPage)
             pagerState.animateScrollToPage(
                 index,
-                animationSpec = MotionSpring.page(distance),
+                animationSpec = MotionSpring.page<Float>(distance),
             )
         }
     }
@@ -391,18 +391,18 @@ fun MainApp(viewModel: AppViewModel) {
             // 二级页覆盖式转场：几何仍是 MiuixDefault（全宽滑入 + 1/4 视差 + 90% 透明度），
             // 时间曲线改 folmeSpring，与 Tab 连滑同一套物理，且可被系统预测性返回 seek。
             enterTransition = {
-                slideInHorizontally(MotionSpring.page()) { it }
+                slideInHorizontally(animationSpec = MotionSpring.page<IntOffset>()) { it }
             },
             exitTransition = {
-                slideOutHorizontally(MotionSpring.page()) { -it / 4 } +
-                    fadeOut(MotionSpring.page(), targetAlpha = 0.9f)
+                slideOutHorizontally(animationSpec = MotionSpring.page<IntOffset>()) { -it / 4 } +
+                    fadeOut(animationSpec = MotionSpring.page<Float>(), targetAlpha = 0.9f)
             },
             popEnterTransition = {
-                slideInHorizontally(MotionSpring.page()) { -it / 4 } +
-                    fadeIn(MotionSpring.page(), initialAlpha = 0.9f)
+                slideInHorizontally(animationSpec = MotionSpring.page<IntOffset>()) { -it / 4 } +
+                    fadeIn(animationSpec = MotionSpring.page<Float>(), initialAlpha = 0.9f)
             },
             popExitTransition = {
-                slideOutHorizontally(MotionSpring.page()) { it }
+                slideOutHorizontally(animationSpec = MotionSpring.page<IntOffset>()) { it }
             },
         ) {
             composable("main") {
@@ -648,12 +648,6 @@ private val MiuixMainTabs = listOf(
     TabSpec("list", "食品", MiuixIcons.ListView),
     TabSpec("stats", "统计", MiuixIcons.GridView),
     TabSpec("settings", "设置", MiuixIcons.Settings),
-)
-
-/** 对齐 Miuix CascadingListPopupLayout 主弹簧：damping 0.95；跨越多页时略加长 response。 */
-private fun tabPagerSpring(distance: Int) = folmeSpring<Float>(
-    damping = 0.95f,
-    response = 0.34f + 0.08f * (distance - 1).coerceAtLeast(0),
 )
 
 /**

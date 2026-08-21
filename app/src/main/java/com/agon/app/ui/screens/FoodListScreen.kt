@@ -425,7 +425,7 @@ private fun FilterToggle(
 ) {
     val arrowRotation by animateFloatAsState(
         targetValue = if (expanded) 180f else 0f,
-        animationSpec = if (expanded) MotionSpring.expand() else MotionSpring.collapse(),
+        animationSpec = if (expanded) MotionSpring.expand<Float>() else MotionSpring.collapse<Float>(),
         label = "filterArrowRotation",
     )
     Surface(

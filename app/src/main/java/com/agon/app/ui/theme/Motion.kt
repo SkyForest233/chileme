@@ -37,16 +37,16 @@ object MotionSpring {
     const val ExpandResponse = 0.2f
     const val CollapseResponse = 0.3f
 
-    fun <T> expand(): SpringSpec<T> = folmeSpring(Damping, ExpandResponse)
-    fun <T> collapse(): SpringSpec<T> = folmeSpring(Damping, CollapseResponse)
+    fun <T> expand(): SpringSpec<T> = folmeSpring<T>(Damping, ExpandResponse)
+    fun <T> collapse(): SpringSpec<T> = folmeSpring<T>(Damping, CollapseResponse)
     fun <T> page(distance: Int = 1): SpringSpec<T> =
-        folmeSpring(Damping, 0.34f + 0.08f * (distance - 1).coerceAtLeast(0))
+        folmeSpring<T>(Damping, 0.34f + 0.08f * (distance - 1).coerceAtLeast(0))
 }
 
 fun filterPanelEnter() =
-    expandVertically(animationSpec = MotionSpring.expand<IntOffset>()) +
+    expandVertically(animationSpec = MotionSpring.expand<IntSize>()) +
         fadeIn(animationSpec = MotionSpring.expand<Float>())
 
 fun filterPanelExit() =
-    shrinkVertically(animationSpec = MotionSpring.collapse<IntOffset>()) +
+    shrinkVertically(animationSpec = MotionSpring.collapse<IntSize>()) +
         fadeOut(animationSpec = MotionSpring.collapse<Float>())

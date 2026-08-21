@@ -428,7 +428,7 @@ private fun FilterToggle(
     // ExpandMore 朝下，展开筛选项时转到 180° 朝上（级联菜单 ArrowRight 是 ±90°）。
     val arrowRotation by animateFloatAsState(
         targetValue = if (expanded) 180f else 0f,
-        animationSpec = if (expanded) MotionSpring.expand() else MotionSpring.collapse(),
+        animationSpec = if (expanded) MotionSpring.expand<Float>() else MotionSpring.collapse<Float>(),
         label = "filterArrowRotation",
     )
     Surface(
