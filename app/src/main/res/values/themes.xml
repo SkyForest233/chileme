@@ -3,7 +3,7 @@
     <!-- 启动 SplashScreen 主题：系统启动画面中性背景，避免启动闪绿 -->
     <style name="Theme.Chileme.Splash" parent="Theme.SplashScreen">
         <item name="windowSplashScreenBackground">#F7FAF7</item>
-        <item name="windowSplashScreenAnimatedIcon">@mipmap/ic_launcher</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_splash</item>
         <item name="postSplashScreenTheme">@android:style/Theme.Material.Light.NoActionBar</item>
     </style>
 </resources>

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Android 12+ 把非 Animatable 的 splash 图标预渲染成 108dp 再放大，高分屏会糊。
+  AnimationDrawable 是 Animatable，走全尺寸绘制。启动图是 PNG 插画，不能放进 animated-vector。
+-->
+<animation-list xmlns:android="http://schemas.android.com/apk/res/android"
+    android:oneshot="true">
+    <item
+        android:drawable="@drawable/ic_launcher_foreground"
+        android:duration="1" />
+</animation-list>

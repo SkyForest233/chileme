@@ -271,7 +271,7 @@ fun FoodListScreen(
                             contentPadding = PaddingValues(horizontal = 20.dp),
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                         ) {
-                            items(usedLocations) { loc ->
+                            items(usedLocations, key = { it }) { loc ->
                                 FilterChip(
                                     selected = locationFilter == loc,
                                     onClick = { locationFilter = if (locationFilter == loc) null else loc },

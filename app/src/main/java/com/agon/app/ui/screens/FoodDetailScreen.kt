@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -48,9 +47,9 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -177,19 +176,25 @@ fun FoodDetailScreen(
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     Box(contentAlignment = Alignment.Center) {
+                        val density = LocalDensity.current
                         FoodAvatar(
                             item,
                             categoryDef.emoji,
                             size = 80.dp,
                             background = MaterialTheme.colorScheme.surface,
-                            modifier = Modifier.scale(bounceScale.value),
+                            modifier = Modifier.graphicsLayer {
+                                val s = bounceScale.value
+                                scaleX = s
+                                scaleY = s
+                            },
                         )
                         Text(
                             "😋",
                             fontSize = 28.sp,
-                            modifier = Modifier
-                                .offset(y = floatOffset.value.dp)
-                                .alpha(floatAlpha.value),
+                            modifier = Modifier.graphicsLayer {
+                                translationY = with(density) { floatOffset.value.dp.toPx() }
+                                alpha = floatAlpha.value
+                            },
                         )
                     }
                     Spacer(Modifier.height(12.dp))

@@ -142,28 +142,30 @@ fun rememberStatusUi(status: FoodStatus): StatusUi {
     // App 支持在设置中强制浅色/深色，两者不一致时会取错色套。
     val dark = MaterialTheme.colorScheme.background.luminance() < 0.5f
     val isMiuix = LocalThemeStyle.current == ThemeStyle.MIUIX
-    return when (status) {
-        FoodStatus.SAFE -> StatusUi(
-            container = if (dark) SafeContainerDark else SafeContainerLight,
-            content = if (dark) SafeContentDark else SafeContentLight,
-            label = "安全",
-            icon = if (isMiuix) MiuixIcons.Ok else Icons.Rounded.CheckCircle,
-            dot = if (dark) SafeDotDark else SafeDotLight,
-        )
-        FoodStatus.EXPIRING -> StatusUi(
-            container = if (dark) WarnContainerDark else WarnContainerLight,
-            content = if (dark) WarnContentDark else WarnContentLight,
-            label = "临期",
-            icon = if (isMiuix) MiuixIcons.Timer else Icons.Rounded.Schedule,
-            dot = if (dark) WarnDotDark else WarnDotLight,
-        )
-        FoodStatus.EXPIRED -> StatusUi(
-            container = if (dark) DangerContainerDark else DangerContainerLight,
-            content = if (dark) DangerContentDark else DangerContentLight,
-            label = "已过期",
-            icon = if (isMiuix) MiuixIcons.Report else Icons.Rounded.ErrorOutline,
-            dot = if (dark) DangerDotDark else DangerDotLight,
-        )
+    return remember(status, dark, isMiuix) {
+        when (status) {
+            FoodStatus.SAFE -> StatusUi(
+                container = if (dark) SafeContainerDark else SafeContainerLight,
+                content = if (dark) SafeContentDark else SafeContentLight,
+                label = "安全",
+                icon = if (isMiuix) MiuixIcons.Ok else Icons.Rounded.CheckCircle,
+                dot = if (dark) SafeDotDark else SafeDotLight,
+            )
+            FoodStatus.EXPIRING -> StatusUi(
+                container = if (dark) WarnContainerDark else WarnContainerLight,
+                content = if (dark) WarnContentDark else WarnContentLight,
+                label = "临期",
+                icon = if (isMiuix) MiuixIcons.Timer else Icons.Rounded.Schedule,
+                dot = if (dark) WarnDotDark else WarnDotLight,
+            )
+            FoodStatus.EXPIRED -> StatusUi(
+                container = if (dark) DangerContainerDark else DangerContainerLight,
+                content = if (dark) DangerContentDark else DangerContentLight,
+                label = "已过期",
+                icon = if (isMiuix) MiuixIcons.Report else Icons.Rounded.ErrorOutline,
+                dot = if (dark) DangerDotDark else DangerDotLight,
+            )
+        }
     }
 }
 
@@ -762,7 +764,7 @@ fun CheckSwitch(
         Box(
             modifier = Modifier
                 .align(Alignment.CenterStart)
-                .offset(x = thumbOffset)
+                .offset { IntOffset(thumbOffset.roundToPx(), 0) }
                 .size(thumbSize)
                 .clip(CircleShape)
                 .background(thumbColor),

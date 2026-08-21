@@ -2,7 +2,7 @@
 <resources>
     <style name="Theme.Chileme.Splash" parent="Theme.SplashScreen">
         <item name="windowSplashScreenBackground">#101512</item>
-        <item name="windowSplashScreenAnimatedIcon">@mipmap/ic_launcher</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_splash</item>
         <item name="postSplashScreenTheme">@android:style/Theme.Material.NoActionBar</item>
     </style>
 </resources>
