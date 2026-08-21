@@ -181,7 +181,7 @@ fun compactConsumptionAt(
         .groupBy { record ->
             val date = LocalDate.ofEpochDay(record.epochDay)
             // unit 必须参与分组，否则不同单位的数量会被错误相加
-            listOf(date.year, date.monthValue, record.name) // 故意退回：验证测试能抓到
+            listOf(date.year, date.monthValue, record.name, record.unit)
         }
         .map { (_, group) ->
             val date = LocalDate.ofEpochDay(group.first().epochDay)
