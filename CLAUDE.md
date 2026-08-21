@@ -57,4 +57,6 @@
 - 渐进 Miuix 迁移（v2.8）：已 Miuix 化的页面见 `docs/DESIGN_SPEC.md` §7；编辑页/统计页/CheckSwitch 刻意保留 MD3+桥接（有明确理由，勿擅自迁移）；新增「悬浮导航」开关（`floating_nav`）；Miuix 组件 API 一律以 `.claude/skills/miuix` 的 pinned source（v0.9.4-rc01）为准，不得凭记忆臆造
 - 所有布尔开关一律使用 `ui/components/Common.kt` 的 `CheckSwitch`（打勾/打叉样式），禁止使用 material3 Switch
 - 构建前确认 `strings.xml` 的 app_name 为“吃了么”，不得回退为占位名
-- **版本号锁定**：设置页“关于”中的版本号固定为 **v1.0**，未经用户明确指示不得更改（用户 2026-07-31 明确要求，此后新增功能不再自行递增版本号）
+- **版本号锁定**：设置页“关于”中的版本号固定为 **v1.0**，未经用户明确指示不得更改（用户 2026-07-31 明确要求，此后新增功能不再自行递增版本号）。**注意**：该约束仅针对设置页展示的硬编码字符串；`build.gradle.kts` 的 `versionCode` / `versionName` 由 CI 注入（2026-08-21 起），两者互不影响，不要因为这条约束把 versionCode 改回恒定值
+- **数据写入守卫**：`FoodRepository` 中任何写「用户资产型」key（items / archived / consumption / history）的方法，**必须先 `isCorrupt(...)` 判断并在损坏时放弃写入**；新增读 flow 一律走 `rawFlow()` / `lightFlow()`。详见 `docs/ARCHITECTURE.md` §5「数据完整性守卫」与「Flow 读取规约」
+- **release 签名**：凭据缺失时构建应当**失败**而非回退 debug 签名。若看到 `Release 签名凭据缺失` 报错，那是预期行为，不要通过恢复静默回退来"修复"它

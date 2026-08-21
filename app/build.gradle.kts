@@ -6,13 +6,37 @@ plugins {
     id("org.jetbrains.kotlin.plugin.serialization")
 }
 
-// 从项目根目录的 keystore.properties 读取 release 签名信息（该文件不入库）。
-// CI 环境由 workflow 从 GitHub Secrets 生成此文件。
+// ---- Release 签名凭据 ----
+// 优先级：环境变量（CI / GitHub Secrets）> 根目录 keystore.properties（本地，不入库）。
+// 历史问题：此前只读 keystore.properties，而 CI 只设置了环境变量且从不生成该文件，
+// 导致 hasReleaseSigning 恒为 false、release 静默回退 debug 签名（详见
+// docs/audits/2026-08-21-fix-plan.md 阶段 1）。现两条通道都支持，且缺失时不再静默降级。
 val keystoreProperties = Properties().apply {
     val f = rootProject.file("keystore.properties")
     if (f.exists()) f.inputStream().use { load(it) }
 }
-val hasReleaseSigning = keystoreProperties.getProperty("storeFile") != null
+
+/** 读环境变量；空串视为未设置。用 providers API 以便 Gradle 正确追踪输入。 */
+fun env(name: String): String? =
+    providers.environmentVariable(name).orNull?.takeIf { it.isNotBlank() }
+
+/** 环境变量优先，回退 keystore.properties。 */
+fun signingValue(envName: String, propName: String): String? =
+    env(envName) ?: keystoreProperties.getProperty(propName)?.takeIf { it.isNotBlank() }
+
+val releaseStoreFile = signingValue("RELEASE_KEYSTORE_PATH", "storeFile")
+val releaseStorePassword = signingValue("RELEASE_KEYSTORE_PASSWORD", "storePassword")
+val releaseKeyAlias = signingValue("RELEASE_KEY_ALIAS", "keyAlias")
+val releaseKeyPassword = signingValue("RELEASE_KEY_PASSWORD", "keyPassword")
+
+// 四项齐备才算配置了正式签名，避免"配了一半"导致更隐蔽的失败。
+val hasReleaseSigning = releaseStoreFile != null && releaseStorePassword != null &&
+    releaseKeyAlias != null && releaseKeyPassword != null
+
+// 本地无密钥时可用 -PallowUnsignedRelease=true 跑通 assembleRelease 做 R8 / 体积验证。
+// CI 不传该参数，因此凭据缺失会直接失败，杜绝"发出去才发现是 debug 签名"。
+val allowUnsignedRelease =
+    providers.gradleProperty("allowUnsignedRelease").orNull?.toBoolean() ?: false
 
 // 项目内的调试密钥（可选）。CI 环境若未提交该文件，
 // 则不覆盖 debug 签名配置，AGP 会回退到默认调试密钥
@@ -27,10 +51,18 @@ android {
 
     defaultConfig {
         applicationId = "com.chileme.pantry"
-        minSdk = 24
+        // java.time（LocalDate/ChronoUnit/DateTimeFormatter 等，全项目 28 处）是 API 26 引入。
+        // 此前 minSdk=24 且未开启 core library desugaring，API 24/25 设备一进首页即
+        // NoClassDefFoundError（daysLeft 走 ChronoUnit）。2026 年 Android 7.x 存量可忽略，
+        // 故直接提升到 26，省去脱糖的包体与构建开销。详见 fix-plan 阶段 2。
+        minSdk = 26
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0"
+        // versionCode 由 CI 注入（GITHUB_RUN_NUMBER 单调递增），本地开发回落 1。
+        // 此前恒为 1，配合 debug 签名导致已发布的三个 tag 对系统而言是同一版本、无法升级。
+        // 注意：设置页「关于」展示的 "吃了么 v1.0" 是硬编码字符串，不读 BuildConfig，
+        // 因此本项不影响 CLAUDE.md §5 的「展示版本号锁定 v1.0」约束。
+        versionCode = env("APP_VERSION_CODE")?.toIntOrNull() ?: 1
+        versionName = env("APP_VERSION_NAME")?.removePrefix("v") ?: "1.0"
     }
 
     signingConfigs {
@@ -46,13 +78,12 @@ android {
             }
         }
         create("release") {
-            // 凭据来自 keystore.properties（不入库）；缺失时回退 debug 签名，
-            // 保证本地无密钥环境仍可完成 release 构建验证。
+            // 凭据来自环境变量或 keystore.properties（均不入库）。
             if (hasReleaseSigning) {
-                storeFile = rootProject.file(keystoreProperties.getProperty("storeFile"))
-                storePassword = keystoreProperties.getProperty("storePassword")
-                keyAlias = keystoreProperties.getProperty("keyAlias")
-                keyPassword = keystoreProperties.getProperty("keyPassword")
+                storeFile = rootProject.file(releaseStoreFile!!)
+                storePassword = releaseStorePassword
+                keyAlias = releaseKeyAlias
+                keyPassword = releaseKeyPassword
             }
         }
     }
@@ -71,6 +102,10 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
+            // 不再静默回退 debug 签名。注意这里只做「配置」，不在此处 throw：
+            // buildTypes 块在**配置阶段**执行，即便只跑 assembleDebug 也会被求值，
+            // 在此抛异常会让无密钥环境（如 build.yml 的 debug 构建）整个构建失败。
+            // 真正的拦截放在下方 taskGraph.whenReady —— 仅当确实要构建 release 时才报错。
             signingConfig = if (hasReleaseSigning) {
                 signingConfigs.getByName("release")
             } else {
@@ -89,6 +124,38 @@ android {
     buildFeatures {
         compose = true
     }
+
+    lint {
+        // NewApi/InlinedApi 提为 error：minSdk 提升到 26 后仍可能误用更高版本 API，
+        // 这类问题 assembleDebug 不报错、只在老设备上崩，必须由 CI 的 lint 拦住。
+        abortOnError = true
+        error += listOf("NewApi", "InlinedApi")
+        // 报告输出给 CI 上传为 artifact
+        htmlReport = true
+        textReport = true
+        // 同时把文本报告打到 stdout，这样在 Actions 日志里能直接看到违规条目，
+        // 不必下载 artifact（沙箱/受限网络下 artifact 常常拿不到）。
+        textOutput = File("stdout")
+    }
+}
+
+// ---- Release 签名凭据缺失时的拦截 ----
+// 放在 taskGraph.whenReady（执行阶段前）而非 buildTypes 块内：
+// 后者属配置阶段，assembleDebug 也会求值，会误伤无密钥的 debug 构建。
+// 这里只在任务图里确实包含 release 打包任务时才失败，从而做到
+// 「debug 构建照常、release 构建绝不静默回退 debug 签名」。
+gradle.taskGraph.whenReady {
+    if (hasReleaseSigning || allowUnsignedRelease) return@whenReady
+    val releaseTask = allTasks.firstOrNull {
+        it.project == project &&
+            Regex("^(assemble|bundle|package)Release$").matches(it.name)
+    } ?: return@whenReady
+    throw GradleException(
+        "Release 签名凭据缺失，拒绝以 debug 密钥打包 ${releaseTask.name}。\n" +
+            "CI 请检查 RELEASE_KEYSTORE_PATH / RELEASE_KEYSTORE_PASSWORD / " +
+            "RELEASE_KEY_ALIAS / RELEASE_KEY_PASSWORD 四个 secrets 是否齐备；\n" +
+            "本地仅做构建验证请加 -PallowUnsignedRelease=true。"
+    )
 }
 
 // AGP 9 起 kotlinOptions DSL 已移除，改用 KGP 的 compilerOptions。
@@ -101,6 +168,9 @@ kotlin {
 }
 
 dependencies {
+    // 纯 JVM 单测：不需要模拟器，./gradlew testDebugUnitTest 秒级跑完。
+    testImplementation("junit:junit:4.13.2")
+
     implementation(platform("androidx.compose:compose-bom:2026.01.01"))
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-graphics")

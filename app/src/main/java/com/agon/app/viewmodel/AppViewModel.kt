@@ -90,6 +90,16 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     val lastSync: StateFlow<String> =
         repo.lastSyncFlow.stateIn(viewModelScope, SharingStarted.Eagerly, "")
 
+    /**
+     * 数据损坏告警：存在解析失败的用户资产 key。非空时相关写操作已被仓库层拒绝，
+     * UI 应显著提示用户（原始串已留档到 filesDir/corrupt/）。
+     */
+    val corruptedKeys: StateFlow<Set<String>> = repo.corruptedKeys
+
+    /** 云同步凭据已失效（有密文但解不开，典型为换设备后恢复了云备份）。 */
+    val nutstoreCredentialBroken: StateFlow<Boolean> =
+        repo.nutstoreCredentialBrokenFlow.stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
     /** 自动同步间隔（天），0 = 关闭 */
     val autoSyncDays: StateFlow<Int> =
         repo.autoSyncDaysFlow.stateIn(viewModelScope, SharingStarted.Eagerly, 0)
@@ -207,7 +217,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         val today = LocalDate.now().toEpochDay()
         val last = repo.lastAutoSyncEpochDayFlow.first()
         if (today - last < days) return
-        val result = NutstoreSync.upload(account, password, repo.buildBackupJson())
+        // 数据损坏时 buildBackupJson 抛异常：静默跳过本次自动同步，
+        // 绝不能把残缺备份推上云端覆盖掉云端的完好版本。
+        val payload = runCatching { repo.buildBackupJson() }.getOrNull() ?: return
+        val result = NutstoreSync.upload(account, password, payload)
         if (result.isSuccess) {
             repo.setLastAutoSyncEpochDay(today)
             val time = java.time.LocalDateTime.now()
@@ -332,7 +345,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             return@launch
         }
         _syncing.value = true
-        val json = repo.buildBackupJson()
+        // 同上：损坏态下拒绝上传，避免残缺备份覆盖云端完好版本。
+        val json = runCatching { repo.buildBackupJson() }.getOrElse {
+            _syncing.value = false
+            onResult(false, it.message ?: "数据异常，已取消上传")
+            return@launch
+        }
         val result = NutstoreSync.upload(account, password, json)
         _syncing.value = false
         result.fold(

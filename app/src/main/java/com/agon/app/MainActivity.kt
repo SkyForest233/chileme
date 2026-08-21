@@ -198,6 +198,8 @@ private data class TabSpec(
     val icon: ImageVector,
 )
 
+// 外层 Scaffold 的 contentPadding 由各屏自行处理，见下方 content lambda 处注释。
+@Suppress("UnusedMaterial3ScaffoldPaddingParameter")
 @Composable
 fun MainApp(viewModel: AppViewModel) {
     val backStack = rememberNavBackStack<AppRoute>(AppRoute.Main)
@@ -374,6 +376,11 @@ fun MainApp(viewModel: AppViewModel) {
             }
         },
     ) { _ ->
+        // 刻意不消费外层 Scaffold 的 contentPadding：底栏是浮层
+        // （AnimatedVisibility 显隐，还可能是悬浮胶囊导航），inset 由各屏自己的
+        // Scaffold + LazyColumn.contentPadding 处理（见 HomeScreen 的
+        // calculateBottomPadding() + 96.dp）。在此再消费一次会把内容重复下推。
+        // 对应函数上的 @Suppress("UnusedMaterial3ScaffoldPaddingParameter")。
         // 大屏/折叠屏适配：内容最大宽 840dp 居中（MD3 大屏可读性要求），
         // 手机上无变化；背景由外层 Scaffold 统一铺满。
         Box(

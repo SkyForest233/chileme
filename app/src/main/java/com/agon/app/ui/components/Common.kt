@@ -851,3 +851,60 @@ fun EmptyState(
         }
     }
 }
+
+/**
+ * 数据损坏告警条。
+ *
+ * 出现条件：仓库层解析某个用户资产 key（库存/归档/消耗/录入历史）失败。
+ * 此时相关写操作已被仓库层全部拒绝——这是为了避免"解析失败被当成没有数据、
+ * 随后一次写入就把空表覆盖回去"从而永久丢失数据。原始串已留档到
+ * `filesDir/corrupt/`，用户可通过导入备份恢复。
+ *
+ * 两套主题共用：Miuix 模式下 MaterialTheme 已由 MiuixRootTheme 桥接为 Miuix 配色。
+ */
+@Composable
+fun DataCorruptBanner(
+    corruptedKeys: Set<String>,
+    modifier: Modifier = Modifier,
+) {
+    if (corruptedKeys.isEmpty()) return
+    val names = remember(corruptedKeys) {
+        corruptedKeys.joinToString("、") { key ->
+            when (key) {
+                "food_items" -> "库存"
+                "archived_items" -> "归档"
+                "consumption_records" -> "消耗记录"
+                "history_entries" -> "录入历史"
+                else -> key
+            }
+        }
+    }
+    Surface(
+        shape = MaterialTheme.shapes.large,
+        color = MaterialTheme.colorScheme.errorContainer,
+        modifier = modifier.fillMaxWidth(),
+    ) {
+        Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.Top,
+        ) {
+            Text("⚠️", fontSize = 20.sp)
+            Spacer(Modifier.width(12.dp))
+            Column {
+                Text(
+                    "$names 数据读取失败",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onErrorContainer,
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    "为防止数据丢失，已暂停对这部分数据的写入。原始数据已留档，" +
+                        "可在设置页导入此前的备份来恢复。",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onErrorContainer,
+                )
+            }
+        }
+    }
+}
