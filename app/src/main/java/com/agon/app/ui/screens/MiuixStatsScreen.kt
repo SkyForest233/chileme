@@ -22,15 +22,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.History
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -54,32 +45,28 @@ import com.agon.app.ui.components.ExpiryCalendarCard
 import com.agon.app.ui.theme.MotionEasing
 import com.agon.app.viewmodel.AppViewModel
 import java.time.LocalDate
+import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.CardDefaults
+import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.basic.Icon
+import top.yukonga.miuix.kmp.basic.IconButton
+import top.yukonga.miuix.kmp.basic.Scaffold
+import top.yukonga.miuix.kmp.basic.SmallTitle
+import top.yukonga.miuix.kmp.basic.TopAppBar
+import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.extended.Recent
+import top.yukonga.miuix.kmp.theme.MiuixTheme
 
-// \u53c2\u8003\u8bbe\u8ba1\uff1a\u5355\u8272\u7cfb\u6df1\u6d45\u7eff\u9636\u68af + \u5c11\u91cf\u84dd\u8272\u70b9\u7f00\uff0c\u4fdd\u6301\u6574\u4f53\u8584\u8377\u7eff\u6c1b\u56f4
 /**
- * 图表调色板：全部取自 MaterialTheme.colorScheme 语义角色，
- * 随主题种子色 / 动态取色 / 深浅色自动适配，不硬编码 hex。
+ * 统计页的 Miuix（HyperOS）实现（v2.8）。
+ *
+ * 与 [StatsScreen] 逻辑对等；外壳用 Miuix `Scaffold/TopAppBar/SmallTitle/Card` 分组，
+ * 图表为 Canvas/Box 自绘（无 MD3 结构性组件），复用桥接 MaterialTheme 取 Miuix 配色。
+ *
+ * 编辑功能：消耗排行榜项点击 → 进入对应食品详情（可编辑）。
  */
 @Composable
-private fun rememberChartColors(): List<Color> {
-    val cs = MaterialTheme.colorScheme
-    return remember(cs) {
-        listOf(
-            cs.primary,
-            cs.tertiary,
-            cs.secondary,
-            cs.inversePrimary,
-            cs.primaryContainer,
-            cs.tertiaryContainer,
-            cs.secondaryContainer,
-            cs.outline,
-        )
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun StatsScreen(
+fun MiuixStatsScreen(
     viewModel: AppViewModel,
     onOpenItem: (String) -> Unit = {},
     onOpenConsumption: () -> Unit = {},
@@ -98,7 +85,6 @@ fun StatsScreen(
     val consumedThisMonth = consumption.filter { it.epochDay >= monthStart }.sumOf { it.amount }
     val wastedTotal = archived.count { it.reason == ArchiveReason.EXPIRED }
 
-    // Last 7 days consumption trend
     val dailyTrend = remember(consumption) {
         (0..6).map { offset ->
             val day = today - (6 - offset)
@@ -108,7 +94,6 @@ fun StatsScreen(
     }
     val maxDaily = (dailyTrend.maxOfOrNull { it.second } ?: 0).coerceAtLeast(1)
 
-    // Category share of current inventory (by quantity)
     val categoryShare = remember(items) {
         items.groupBy { it.category }
             .mapValues { (_, list) -> list.sumOf { it.quantity } }
@@ -118,7 +103,6 @@ fun StatsScreen(
     }
     val totalQty = categoryShare.sumOf { it.second }
 
-    // Top consumed foods
     val topConsumed = remember(consumption) {
         consumption.groupBy { it.name }
             .map { (name, records) ->
@@ -128,89 +112,78 @@ fun StatsScreen(
             .take(5)
     }
 
+    val chartColors = rememberChartColorsMiuix()
+
     Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             TopAppBar(
-                title = { Text("统计", fontWeight = FontWeight.Bold) },
+                title = "统计",
                 actions = {
                     IconButton(onClick = onOpenConsumption) {
                         Icon(
-                            Icons.Rounded.History,
+                            MiuixIcons.Recent,
                             contentDescription = "消耗记录",
-                            tint = MaterialTheme.colorScheme.primary,
+                            tint = MiuixTheme.colorScheme.primary,
                         )
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background,
-                ),
             )
         },
     ) { padding ->
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(
-                start = 20.dp,
-                end = 20.dp,
                 top = padding.calculateTopPadding() + 4.dp,
                 bottom = padding.calculateBottomPadding() + 96.dp,
             ),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             item {
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    MiniStat(
+                Row(
+                    modifier = Modifier.padding(horizontal = 20.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    MiuixMiniStat(
                         modifier = Modifier.weight(1f),
                         emoji = "😋",
                         value = "$consumedThisWeek",
                         label = "本周消耗",
-                        container = MaterialTheme.colorScheme.primaryContainer,
-                        content = MaterialTheme.colorScheme.onPrimaryContainer,
+                        container = MiuixTheme.colorScheme.primaryContainer,
+                        content = MiuixTheme.colorScheme.onPrimaryContainer,
                     )
-                    MiniStat(
+                    MiuixMiniStat(
                         modifier = Modifier.weight(1f),
                         emoji = "📅",
                         value = "$consumedThisMonth",
                         label = "本月消耗",
-                        container = MaterialTheme.colorScheme.secondaryContainer,
-                        content = MaterialTheme.colorScheme.onSecondaryContainer,
+                        container = MiuixTheme.colorScheme.secondaryContainer,
+                        content = MiuixTheme.colorScheme.onSecondaryContainer,
                     )
-                    MiniStat(
+                    MiuixMiniStat(
                         modifier = Modifier.weight(1f),
                         emoji = "🗑️",
                         value = "$wastedTotal",
                         label = "过期浪费",
-                        container = MaterialTheme.colorScheme.errorContainer,
-                        content = MaterialTheme.colorScheme.onErrorContainer,
+                        container = MiuixTheme.colorScheme.errorContainer,
+                        content = MiuixTheme.colorScheme.onErrorContainer,
                     )
                 }
             }
 
-            // ---- 到期日历（带紧急度彩色圆点 + 左右滑动切换月份）----
             item {
                 ExpiryCalendarCard(
                     items = items,
                     thresholds = thresholds,
                     categories = categories,
                     onOpenItem = onOpenItem,
+                    modifier = Modifier.padding(horizontal = 20.dp),
                 )
             }
 
-            // ---- 7-day consumption bar chart ----
             item {
-                Surface(
-                    shape = MaterialTheme.shapes.large,
-                    color = MaterialTheme.colorScheme.surfaceContainer,
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
+                SmallTitle(text = "消耗趋势")
+                Card(modifier = Modifier.padding(horizontal = 12.dp)) {
                     Column(Modifier.padding(20.dp)) {
-                        Text(
-                            "近 7 天消耗趋势",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                        )
-                        Spacer(Modifier.height(16.dp))
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -226,9 +199,9 @@ fun StatsScreen(
                                     if (amount > 0) {
                                         Text(
                                             "$amount",
-                                            style = MaterialTheme.typography.labelSmall,
+                                            style = MiuixTheme.textStyles.footnote2,
                                             fontWeight = FontWeight.Bold,
-                                            color = MaterialTheme.colorScheme.primary,
+                                            color = MiuixTheme.colorScheme.primary,
                                         )
                                         Spacer(Modifier.height(2.dp))
                                     }
@@ -238,22 +211,21 @@ fun StatsScreen(
                                         animationSpec = tween(600, easing = MotionEasing.EmphasizedDecelerate),
                                         label = "bar",
                                     )
-                                    // \u80f6\u56ca\u5f62\u67f1\u5b50\uff08\u4e24\u7aef\u5168\u5706\u89d2\uff09\uff0c\u5bf9\u9f50\u53c2\u8003\u8bbe\u8ba1\u7684 rounded bar \u98ce\u683c
                                     Box(
                                         modifier = Modifier
                                             .fillMaxWidth(0.62f)
                                             .height((84 * animRatio).dp.coerceAtLeast(if (amount > 0) 14.dp else 8.dp))
                                             .clip(RoundedCornerShape(50))
                                             .background(
-                                                if (amount > 0) MaterialTheme.colorScheme.primary
-                                                else MaterialTheme.colorScheme.surfaceContainerHighest
+                                                if (amount > 0) MiuixTheme.colorScheme.primary
+                                                else MiuixTheme.colorScheme.surfaceContainerHighest
                                             ),
                                     )
                                     Spacer(Modifier.height(6.dp))
                                     Text(
                                         "${date.monthValue}/${date.dayOfMonth}",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        style = MiuixTheme.textStyles.footnote2,
+                                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                                     )
                                 }
                             }
@@ -262,31 +234,19 @@ fun StatsScreen(
                 }
             }
 
-            // ---- Category pie chart ----
             item {
-                Surface(
-                    shape = MaterialTheme.shapes.large,
-                    color = MaterialTheme.colorScheme.surfaceContainer,
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
+                SmallTitle(text = "库存分类")
+                Card(modifier = Modifier.padding(horizontal = 12.dp)) {
                     Column(Modifier.padding(20.dp)) {
-                        Text(
-                            "库存分类占比",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                        )
-                        Spacer(Modifier.height(16.dp))
                         if (categoryShare.isEmpty()) {
                             Text(
                                 "暂无库存数据",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                style = MiuixTheme.textStyles.body2,
+                                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                             )
                         } else {
-                            val chartColors = rememberChartColors()
-                            // 环形图居中 + 图例整行排列，避免右侧文字被挤成两行
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                DonutChart(
+                                MiuixDonutChart(
                                     data = categoryShare.map { it.second.toFloat() },
                                     colors = categoryShare.mapIndexed { i, _ -> chartColors[i % chartColors.size] },
                                     centerLabel = "$totalQty",
@@ -298,7 +258,7 @@ fun StatsScreen(
                                     modifier = Modifier.fillMaxWidth(),
                                 ) {
                                     categoryShare.forEachIndexed { i, (catId, qty) ->
-                                        LegendRow(
+                                        MiuixLegendRow(
                                             color = chartColors[i % chartColors.size],
                                             category = categories.byId(catId),
                                             qty = qty,
@@ -312,20 +272,10 @@ fun StatsScreen(
                 }
             }
 
-            // ---- Top consumed ----
             item {
-                Surface(
-                    shape = MaterialTheme.shapes.large,
-                    color = MaterialTheme.colorScheme.surfaceContainer,
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
+                SmallTitle(text = "消耗排行")
+                Card(modifier = Modifier.padding(horizontal = 12.dp)) {
                     Column(Modifier.padding(20.dp)) {
-                        Text(
-                            "消耗排行榜",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                        )
-                        Spacer(Modifier.height(12.dp))
                         if (topConsumed.isEmpty()) {
                             EmptyState(
                                 emoji = "🍽️",
@@ -352,9 +302,9 @@ fun StatsScreen(
                                     ) {
                                         Text(
                                             "${index + 1}",
-                                            style = MaterialTheme.typography.titleSmall,
+                                            style = MiuixTheme.textStyles.subtitle,
                                             fontWeight = FontWeight.Bold,
-                                            color = MaterialTheme.colorScheme.primary,
+                                            color = MiuixTheme.colorScheme.primary,
                                             modifier = Modifier.width(20.dp),
                                         )
                                         Text(categories.byId(cat).emoji, fontSize = 18.sp)
@@ -362,7 +312,7 @@ fun StatsScreen(
                                         Column(Modifier.weight(1f)) {
                                             Text(
                                                 name,
-                                                style = MaterialTheme.typography.bodyMedium,
+                                                style = MiuixTheme.textStyles.body2,
                                                 fontWeight = FontWeight.Medium,
                                                 maxLines = 1,
                                                 overflow = TextOverflow.Ellipsis,
@@ -373,15 +323,15 @@ fun StatsScreen(
                                                     .fillMaxWidth(amount.toFloat() / maxAmount)
                                                     .height(10.dp)
                                                     .clip(RoundedCornerShape(50))
-                                                    .background(MaterialTheme.colorScheme.primaryContainer),
+                                                    .background(MiuixTheme.colorScheme.primaryContainer),
                                             )
                                         }
                                         Spacer(Modifier.width(12.dp))
                                         Text(
                                             "×$amount",
-                                            style = MaterialTheme.typography.labelLarge,
+                                            style = MiuixTheme.textStyles.body2,
                                             fontWeight = FontWeight.Bold,
-                                            color = MaterialTheme.colorScheme.primary,
+                                            color = MiuixTheme.colorScheme.primary,
                                         )
                                     }
                                 }
@@ -395,7 +345,25 @@ fun StatsScreen(
 }
 
 @Composable
-private fun MiniStat(
+private fun rememberChartColorsMiuix(): List<Color> {
+    // Miuix Colors 无 tertiary / inversePrimary 字段，用其容器色/前景色替代，保持图表多色可辨。
+    val cs = MiuixTheme.colorScheme
+    return remember(cs) {
+        listOf(
+            cs.primary,
+            cs.secondary,
+            cs.primaryContainer,
+            cs.secondaryContainer,
+            cs.tertiaryContainer,
+            cs.onPrimaryContainer,
+            cs.onSecondaryContainer,
+            cs.onTertiaryContainer,
+        )
+    }
+}
+
+@Composable
+private fun MiuixMiniStat(
     modifier: Modifier,
     emoji: String,
     value: String,
@@ -403,23 +371,21 @@ private fun MiniStat(
     container: Color,
     content: Color,
 ) {
-    Surface(
+    Card(
         modifier = modifier,
-        shape = MaterialTheme.shapes.large,
-        color = container,
-        contentColor = content,
+        colors = CardDefaults.defaultColors(color = container, contentColor = content),
     ) {
         Column(Modifier.padding(14.dp)) {
             Text(emoji, fontSize = 20.sp)
             Spacer(Modifier.height(6.dp))
-            Text(value, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.ExtraBold)
-            Text(label, style = MaterialTheme.typography.labelMedium)
+            Text(value, style = MiuixTheme.textStyles.title2, fontWeight = FontWeight.ExtraBold)
+            Text(label, style = MiuixTheme.textStyles.footnote2)
         }
     }
 }
 
 @Composable
-private fun DonutChart(
+private fun MiuixDonutChart(
     data: List<Float>,
     colors: List<Color>,
     centerLabel: String,
@@ -450,19 +416,18 @@ private fun DonutChart(
             }
         }
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(centerLabel, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.ExtraBold)
+            Text(centerLabel, style = MiuixTheme.textStyles.title2, fontWeight = FontWeight.ExtraBold)
             Text(
                 centerSub,
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MiuixTheme.textStyles.footnote2,
+                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
             )
         }
     }
 }
 
 @Composable
-private fun LegendRow(color: Color, category: CategoryDef, qty: Int, percent: Int) {
-    // 整行布局：色点 + 分类名左对齐，数量/占比右对齐，单行不换行
+private fun MiuixLegendRow(color: Color, category: CategoryDef, qty: Int, percent: Int) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier.fillMaxWidth(),
@@ -476,15 +441,15 @@ private fun LegendRow(color: Color, category: CategoryDef, qty: Int, percent: In
         Spacer(Modifier.width(10.dp))
         Text(
             "${category.emoji} ${category.label}",
-            style = MaterialTheme.typography.bodyMedium,
+            style = MiuixTheme.textStyles.body2,
             fontWeight = FontWeight.Medium,
             maxLines = 1,
             modifier = Modifier.weight(1f),
         )
         Text(
             "$qty 件 · $percent%",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MiuixTheme.textStyles.body2,
+            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
             maxLines = 1,
         )
     }

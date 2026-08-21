@@ -2,8 +2,8 @@
 
 ## 1. 技术栈与版本（不得随意升级）
 
-- Kotlin 2.2.21 / AGP 8.10.1 / Gradle 8.11.1 / JDK 17
-- compileSdk 36、minSdk 24、targetSdk 36
+- Kotlin 2.4.10 / AGP 9.3.1 / Gradle 9.6.1 / JDK 17（v2.8 起为引入 Miuix 0.9.4-rc01 升级，其上游基线即此组合）
+- compileSdk 37（v2.8 起，Miuix 0.9.4-rc01 要求 ≥37）、minSdk 24、targetSdk 36
 - **applicationId `com.chileme.pantry`**（v2.1 起）；namespace / 代码包名保持 `com.agon.app` 不变。FileProvider authority 使用 `${applicationId}.fileprovider` 占位符，代码中用 `${context.packageName}.fileprovider`
 - **Release 构建（v2.5 起）**：`isMinifyEnabled = true` + `isShrinkResources = true`（R8 代码/资源压缩），但 `proguard-rules.pro` 中 `-dontobfuscate` **禁用混淆**——类名/方法名/字段名全保留，堆栈可读无需 mapping。规则文件另含 kotlinx-serialization keep 规则（data 包 serializer 反射）与 OkHttp/Coil dontwarn。release APK ≈ 2.6 MB（debug ≈ 63 MB）
 - **到期日历（v2.5 起）**：不再是独立路由，作为 `ExpiryCalendarCard`（ui/components/ExpiryCalendar.kt）嵌入统计页；支持手势左右滑动切换月份，圆点颜色 = 紧急度（去重后最多 3 点）
@@ -13,6 +13,7 @@
 - Coil 3.3.0（照片封面加载）
 - ~~ML Kit OCR~~ 已于 v2.3 移除（识别率低），`DateOcr.kt` 已删除
 - MaterialKolor `com.materialkolor:material-kolor:4.0.1`（MD3 种子色生成主题，v2.2 起）
+- Miuix `top.yukonga.miuix.kmp:miuix-ui-android:0.9.4-rc01` + `miuix-preference-android:0.9.4-rc01`（HyperOS 风格组件，v2.8 起；候选版，上游尚无 v0.9.4 稳定 tag）
 - OkHttp `com.squareup.okhttp3:okhttp:4.12.0`（坚果云 WebDAV 同步，v2.4 起）
 
 ## 2. 分层结构
@@ -27,9 +28,11 @@ app/src/main/java/com/agon/app/
 ├─ viewmodel/
 │   └─ AppViewModel.kt          # 全局共享 VM（AndroidViewModel），StateFlow 暴露
 └─ ui/
-    ├─ theme/                   # Palettes.kt（种子色方案）/ Color.kt（仅状态语义色）/ Theme.kt（MaterialKolor 生成）
+    ├─ theme/                   # Palettes.kt（种子色方案）/ Color.kt（仅状态语义色）/ Theme.kt（MaterialKolor 生成）/ ThemeStyle.kt（MATERIAL3/MIUIX 风格枚举 + LocalThemeStyle）/ MiuixRootTheme.kt（MiuixTheme + MaterialTheme 桥接，v2.8）
     ├─ components/Common.kt     # 复用组件：StatusBadge/FoodAvatar/FoodCard/QuantityStepper/EmptyState/LocationTag
-    └─ screens/                 # 每屏一文件，自带 Scaffold
+    └─ screens/                 # 每屏一文件，自带 Scaffold；Miuix*Screen.kt 为各页的 Miuix 实现（v2.8）：
+                                # MiuixSettings/Home/FoodList/FoodDetail/Archive/ManageScreens（阈值/分类/位置）
+                                # 编辑页(EditFoodScreen)与统计页(StatsScreen)刻意保留 MD3+桥接（DatePicker 无 Miuix 对应 / 图表自绘）
 ```
 
 **规则**：UI → ViewModel → Repository → DataStore，单向依赖；UI 绝不直接访问 DataStore；所有写操作在 `viewModelScope` 内执行。
@@ -47,7 +50,7 @@ app/src/main/java/com/agon/app/
 | `Map<String,Int>` | `category_thresholds` | 分类临期阈值；key 为 FoodCategory.name |
 | `BackupData` | （导出文件） | 以上全部数据的聚合，version=2（含 categories/locations；v1 文件可兼容导入） |
 
-其他 key：`seeded`(Boolean)、`dynamic_color`(Boolean)、`dark_mode`(Int: 0跟随/1浅/2深)、`palette`(String: AppPalette 枚举名，默认 "MINT")。
+其他 key：`seeded`(Boolean)、`dynamic_color`(Boolean)、`dark_mode`(Int: 0跟随/1浅/2深)、`palette`(String: AppPalette 枚举名，默认 "MINT")、`theme_style`(String: ThemeStyle 枚举名，默认 "MATERIAL3")、`floating_nav`(Boolean: 悬浮导航开关，默认 true)（v2.8）。
 
 **状态判定逻辑**（FoodModels.kt）：`statusFor(thresholds)` — 过期: daysLeft<0；临期: daysLeft<=有效阈值；有效阈值 = 单条覆盖 ?: 分类设置 ?: 7。UI 一律用 `statusFor`，不要自行比较天数。
 

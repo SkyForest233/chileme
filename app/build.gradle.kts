@@ -2,7 +2,6 @@ import java.util.Properties
 
 plugins {
     id("com.android.application")
-    id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
     id("org.jetbrains.kotlin.plugin.serialization")
 }
@@ -22,8 +21,9 @@ val projectDebugKeystore = rootProject.file("debug.keystore")
 
 android {
     namespace = "com.agon.app"
-    compileSdk = 36
-    buildToolsVersion = "36.0.0"
+    // Miuix 0.9.4-rc01 及其传递依赖（Compose 1.12.0-rc01 等）要求 compileSdk ≥ 37。
+    // compileSdk 与 targetSdk/minSdk 相互独立，仅此一项升级即可。
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "com.chileme.pantry"
@@ -84,12 +84,15 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
-    kotlinOptions {
-        jvmTarget = "17"
-    }
-
     buildFeatures {
         compose = true
+    }
+}
+
+// AGP 9 起 kotlinOptions DSL 已移除，改用 KGP 的 compilerOptions。
+kotlin {
+    compilerOptions {
+        jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17
     }
 }
 
@@ -113,9 +116,16 @@ dependencies {
     implementation("io.coil-kt.coil3:coil-compose:3.3.0")
     implementation("io.coil-kt.coil3:coil-network-okhttp:3.3.0")
 
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.9.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.11.0")
 
     implementation("androidx.datastore:datastore-preferences:1.2.0")
+
+    // Miuix（HyperOS 风格 Compose 组件库），版本对齐 skill 基线 v0.9.4-rc01。
+    // 使用 common 坐标，Gradle Module Metadata 会自动解析到 android 变体。
+    implementation("top.yukonga.miuix.kmp:miuix-ui:0.9.4-rc01")
+    implementation("top.yukonga.miuix.kmp:miuix-preference:0.9.4-rc01")
+    // 图标库：仅 MIUIX 主题使用（MD3 主题继续用 material-icons-extended）。
+    implementation("top.yukonga.miuix.kmp:miuix-icons:0.9.4-rc01")
 
     implementation("com.materialkolor:material-kolor:4.0.1")
 

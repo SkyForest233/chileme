@@ -132,3 +132,16 @@ StatusUi 提供三个颜色槽位，按用途严格区分：
 - 大屏适配（v2.3 起）：NavHost 外层约束内容最大宽 840dp 居中（MainActivity），平板/折叠屏展开态不拉伸
 - 触摸目标（v2.3 起强制）：所有可点击元素 ≥48dp——IconButton 不得用 Modifier.size 缩小容器（只缩小内部 Icon）；CheckSwitch 已内置 minimumInteractiveComponentSize
 - 无障碍语义：CheckSwitch 用 toggleable(Role.Switch)；底栏 Tab 用 selectable(Role.Tab)；批量操作按钮的 contentDescription 需含目标名称（如"增加 零食 阈值"）
+
+## 7. 主题风格切换（v2.8 起）
+
+- App 支持两套「主题风格」：**Material 3**（默认，现状）与 **MIUIX**（小米 HyperOS 风格）。
+- 状态：`ThemeStyle` 枚举（`ui/theme/ThemeStyle.kt`）+ DataStore key `theme_style`；`LocalThemeStyle` CompositionLocal 由 MainActivity 下发。
+- 切换入口：设置页「外观」分组的「主题风格」——MD3 侧用 SegmentedButton，Miuix 侧用 RadioButtonPreference。
+- **根级主题切换 + MaterialTheme 桥接（阶段二起）**：MainActivity 在 MIUIX 模式下包 `MiuixRootTheme`（`MiuixTheme` + 桥接 `MaterialTheme`），让未迁移的 MD3 页面与 Common.kt 复用组件仍可经 `MaterialTheme.colorScheme` 取到 Miuix 配色；桥接映射见 `ui/theme/MiuixRootTheme.kt`（缺失角色用最接近角色近似）。
+- 迁移进度（v2.8）：
+  - **已 Miuix 化**：设置页、首页、食品列表、食品详情、归档页、管理三页（阈值/分类/位置），以及底部导航（悬浮/全宽）、FAB、Common.kt 复用组件（StatusBadge/LocationTag/QuantityStepper/EmptyState/FoodCard）。
+  - **刻意保留 MD3+桥接**：编辑页（`DatePicker` 为 MD3 特有、无 Miuix 对应）、统计页（图表自绘、Miuix 化收益低）、`CheckSwitch`（项目特色打勾/打叉，规范禁止 material3 Switch，自绘且颜色桥接）。
+  - **导航双形态**：新增「悬浮导航」开关（`floating_nav`，默认 true）。MD3 悬浮=自绘 `FloatingPillNav`（图标+标签）、非悬浮=MD3 `NavigationBar`；MIUIX 悬浮=Miuix `FloatingNavigationBar`（仅图标）、非悬浮=Miuix `NavigationBar`（全宽图标+文字）。
+- Miuix 主题由 `ThemeController` 驱动，语义对齐 MD3 侧：动态取色→Monet（keyColor=null 跟随壁纸），否则按 darkMode 映射 System/Light/Dark。
+- Miuix 组件 API 一律以 `.claude/skills/miuix` pinned source（v0.9.4-rc01）为准，禁止凭 MD3 记忆臆造参数/颜色 token。

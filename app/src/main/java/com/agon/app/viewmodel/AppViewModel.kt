@@ -14,6 +14,7 @@ import com.agon.app.data.FoodRepository
 import com.agon.app.data.HistoryEntry
 import com.agon.app.data.CloudBackup
 import com.agon.app.data.NutstoreSync
+import com.agon.app.data.QuantityChangeResult
 import com.agon.app.data.cleanupOrphanCovers
 import com.agon.app.data.daysLeft
 import com.agon.app.data.toHistoryEntry
@@ -25,6 +26,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.util.UUID
 
@@ -73,6 +75,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     val palette: StateFlow<String> =
         repo.paletteFlow.stateIn(viewModelScope, SharingStarted.Eagerly, "MINT")
 
+    val themeStyle: StateFlow<String> =
+        repo.themeStyleFlow.stateIn(viewModelScope, SharingStarted.Eagerly, "MATERIAL3")
+
+    val floatingNav: StateFlow<Boolean> =
+        repo.floatingNavFlow.stateIn(viewModelScope, SharingStarted.Eagerly, true)
+
     val nutstoreAccount: StateFlow<String> =
         repo.nutstoreAccountFlow.stateIn(viewModelScope, SharingStarted.Eagerly, "")
 
@@ -95,7 +103,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
      * 避免启动时先用默认主题/空列表渲染一帧再“闪”成真实内容。
      */
     val ready: StateFlow<Boolean> =
-        combine(repo.itemsFlow, repo.paletteFlow, repo.darkModeFlow) { _, _, _ -> true }
+        combine(repo.itemsFlow, repo.paletteFlow, repo.darkModeFlow, repo.themeStyleFlow, repo.floatingNavFlow) { _, _, _, _, _ -> true }
             .stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
     /** 临时 UI 状态：Snackbar 展示“撤销”时隐藏 FAB，避免挡住撤销按钮 */
@@ -106,11 +114,66 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         _fabSuppressed.value = suppressed
     }
 
+    /** 多选模式选中的食品 id 集合（v2.8 提升到 VM，供 MainActivity 批量操作栏与列表页共用） */
+    private val _selectedIds = MutableStateFlow<Set<String>>(emptySet())
+    val selectedIds: StateFlow<Set<String>> = _selectedIds.asStateFlow()
+
+    fun toggleSelection(id: String) {
+        _selectedIds.update { if (id in it) it - id else it + id }
+    }
+
+    fun setSelection(ids: Set<String>) {
+        _selectedIds.value = ids
+    }
+
+    fun clearSelection() {
+        _selectedIds.value = emptySet()
+    }
+
+    /** 「撤销一次消耗」请求：列表页减少数量后，供 MainActivity 弹撤销 Snackbar。 */
+    data class UndoRequest(val itemId: String, val consumptionId: String)
+
+    private val _undoRequest = MutableStateFlow<UndoRequest?>(null)
+    val undoRequest: StateFlow<UndoRequest?> = _undoRequest.asStateFlow()
+
+    fun consumeUndoRequest() {
+        _undoRequest.value = null
+    }
+
+    /** 撤销最近一次减少消耗：删消耗记录 + 数量回滚。 */
+    fun undoConsumption(request: UndoRequest) = viewModelScope.launch {
+        repo.undoConsumption(request.itemId, request.consumptionId)
+    }
+
+    /** 删除消耗记录后的「撤销」状态：保存被删记录，供恢复。 */
+    private val _deletedConsumption = MutableStateFlow<ConsumptionRecord?>(null)
+    val deletedConsumption: StateFlow<ConsumptionRecord?> = _deletedConsumption.asStateFlow()
+
+    fun consumeDeletedConsumption() {
+        _deletedConsumption.value = null
+    }
+
+    /** 删除单条消耗记录（修正统计），并记录被删内容供撤销。 */
+    fun deleteConsumption(id: String) = viewModelScope.launch {
+        val record = consumption.value.firstOrNull { it.id == id } ?: return@launch
+        repo.deleteConsumption(id)
+        _deletedConsumption.value = record
+    }
+
+    /** 撤销删除消耗记录：重新插回。 */
+    fun undoDeleteConsumption() = viewModelScope.launch {
+        val record = _deletedConsumption.value ?: return@launch
+        repo.addConsumption(record)
+        _deletedConsumption.value = null
+    }
+
     init {
         viewModelScope.launch {
             repo.seedIfNeeded()
             // 安全迁移：旧版明文密码 → Keystore 加密密文
             repo.migratePlaintextPassword()
+            // 迁移：旧消耗记录补 id（供删除/撤销定位）
+            repo.migrateConsumptionIds()
             // 启动时清理孤儿封面图片（未被库存/归档引用的文件）
             val referenced = buildSet {
                 repo.itemsFlow.first().forEach { if (it.photoPath.isNotBlank()) add(it.photoPath) }
@@ -184,12 +247,20 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     /**
      * 调整数量；吃完（减到 0）时仓库层会自动归档。
      * @param onAutoArchived 自动归档发生时回调（用于 UI 提示）
+     * @param withUndo 减少时是否暴露「撤销」请求（列表页步进器减号用，详情页吃掉一份走 consumeOne 不用）
      */
-    fun changeQuantity(id: String, delta: Int, onAutoArchived: (() -> Unit)? = null) =
-        viewModelScope.launch {
-            val archived = repo.changeQuantity(id, delta)
-            if (archived) onAutoArchived?.invoke()
+    fun changeQuantity(
+        id: String,
+        delta: Int,
+        onAutoArchived: (() -> Unit)? = null,
+        withUndo: Boolean = false,
+    ) = viewModelScope.launch {
+        val result: QuantityChangeResult = repo.changeQuantity(id, delta)
+        if (result.autoArchived) onAutoArchived?.invoke()
+        if (withUndo && delta < 0 && result.consumptionId != null) {
+            _undoRequest.value = UndoRequest(id, result.consumptionId!!)
         }
+    }
 
     fun consumeOne(id: String, onAutoArchived: (() -> Unit)? = null) =
         changeQuantity(id, -1, onAutoArchived)
@@ -233,6 +304,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun setDarkMode(mode: Int) = viewModelScope.launch { repo.setDarkMode(mode) }
 
     fun setPalette(name: String) = viewModelScope.launch { repo.setPalette(name) }
+
+    fun setThemeStyle(name: String) = viewModelScope.launch { repo.setThemeStyle(name) }
+
+    fun setFloatingNav(enabled: Boolean) = viewModelScope.launch { repo.setFloatingNav(enabled) }
 
     suspend fun buildBackupJson(): String = repo.buildBackupJson()
 

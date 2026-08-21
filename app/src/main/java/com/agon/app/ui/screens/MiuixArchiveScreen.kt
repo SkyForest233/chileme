@@ -19,23 +19,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.DeleteForever
 import androidx.compose.material.icons.rounded.RestartAlt
-import androidx.compose.material.icons.rounded.Search
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -58,10 +43,32 @@ import com.agon.app.ui.components.FoodAvatar
 import com.agon.app.viewmodel.AppViewModel
 import kotlinx.coroutines.launch
 import java.time.LocalDate
+import top.yukonga.miuix.kmp.basic.ButtonDefaults
+import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.Icon
+import top.yukonga.miuix.kmp.basic.IconButton
+import top.yukonga.miuix.kmp.basic.InputField
+import top.yukonga.miuix.kmp.basic.Scaffold
+import top.yukonga.miuix.kmp.basic.SnackbarHost
+import top.yukonga.miuix.kmp.basic.SnackbarHostState
+import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.basic.TextButton
+import top.yukonga.miuix.kmp.basic.TopAppBar
+import top.yukonga.miuix.kmp.overlay.OverlayDialog
+import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.extended.Back
+import top.yukonga.miuix.kmp.icon.extended.Delete
+import top.yukonga.miuix.kmp.icon.extended.Refresh
+import top.yukonga.miuix.kmp.theme.MiuixTheme
 
-@OptIn(ExperimentalMaterial3Api::class)
+/**
+ * 归档页的 Miuix（HyperOS）实现（v2.8 阶段二 P0）。
+ *
+ * 与 [ArchiveScreen]（Material 3 实现）逻辑对等。结构性组件（Scaffold/TopAppBar/搜索框/
+ * OverlayDialog/Snackbar）使用 Miuix；归档行 Surface / 筛选 Chip 复用现有实现（桥接取色）。
+ */
 @Composable
-fun ArchiveScreen(
+fun MiuixArchiveScreen(
     viewModel: AppViewModel,
     onBack: () -> Unit,
 ) {
@@ -80,30 +87,26 @@ fun ArchiveScreen(
     }
 
     Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
-                title = { Text("归档历史", fontWeight = FontWeight.Bold) },
+                title = "归档历史",
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "返回")
+                        Icon(MiuixIcons.Back, contentDescription = "返回")
                     }
                 },
                 actions = {
                     if (archived.isNotEmpty()) {
                         IconButton(onClick = { showClearDialog = true }) {
                             Icon(
-                                Icons.Rounded.DeleteForever,
+                                MiuixIcons.Delete,
                                 contentDescription = "清空归档",
-                                tint = MaterialTheme.colorScheme.error,
+                                tint = MiuixTheme.colorScheme.error,
                             )
                         }
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background,
-                ),
             )
         },
     ) { padding ->
@@ -112,16 +115,16 @@ fun ArchiveScreen(
                 .fillMaxSize()
                 .padding(top = padding.calculateTopPadding()),
         ) {
-            OutlinedTextField(
-                value = query,
-                onValueChange = { query = it },
+            InputField(
+                query = query,
+                onQueryChange = { query = it },
+                onSearch = {},
+                expanded = false,
+                onExpandedChange = {},
+                label = "搜索归档食品…",
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 20.dp),
-                placeholder = { Text("搜索归档食品…") },
-                leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null) },
-                singleLine = true,
-                shape = RoundedCornerShape(50),
             )
             Spacer(Modifier.height(10.dp))
             LazyRow(
@@ -132,11 +135,11 @@ fun ArchiveScreen(
                     FilterChip(
                         selected = reasonFilter == r,
                         onClick = { reasonFilter = r },
-                        label = { Text(r?.let { "${it.emoji} ${it.label}" } ?: "全部") },
+                        label = { Text(r?.let { "${it.emoji} ${it.label}" } ?: "全部", style = MiuixTheme.textStyles.body2) },
                         shape = RoundedCornerShape(50),
                         colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                            selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                            selectedContainerColor = MiuixTheme.colorScheme.primaryContainer,
+                            selectedLabelColor = MiuixTheme.colorScheme.onPrimaryContainer,
                         ),
                     )
                 }
@@ -161,7 +164,7 @@ fun ArchiveScreen(
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
                     items(filtered, key = { it.item.id }) { entry ->
-                        ArchiveRow(
+                        MiuixArchiveRow(
                             entry = entry,
                             emoji = categories.byId(entry.item.category).emoji,
                             onRestore = {
@@ -180,40 +183,43 @@ fun ArchiveScreen(
                 }
             }
         }
-    }
 
-    if (showClearDialog) {
-        AlertDialog(
+        OverlayDialog(
+            title = "清空归档",
+            summary = "确定要彻底删除全部 ${archived.size} 条归档记录吗？此操作无法撤销。",
+            show = showClearDialog,
             onDismissRequest = { showClearDialog = false },
-            title = { Text("清空归档") },
-            text = { Text("确定要彻底删除全部 ${archived.size} 条归档记录吗？此操作无法撤销。") },
-            confirmButton = {
-                TextButton(onClick = {
-                    showClearDialog = false
-                    viewModel.clearArchive()
-                }) {
-                    Text("清空", color = MaterialTheme.colorScheme.error)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showClearDialog = false }) { Text("取消") }
-            },
-        )
+        ) {
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                TextButton(
+                    text = "取消",
+                    onClick = { showClearDialog = false },
+                    modifier = Modifier.weight(1f),
+                )
+                TextButton(
+                    text = "清空",
+                    onClick = {
+                        showClearDialog = false
+                        viewModel.clearArchive()
+                    },
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.textButtonColors(
+                        textColor = MiuixTheme.colorScheme.error,
+                    ),
+                )
+            }
+        }
     }
 }
 
 @Composable
-private fun ArchiveRow(
+private fun MiuixArchiveRow(
     entry: ArchivedItem,
     emoji: String,
     onRestore: () -> Unit,
     onDelete: () -> Unit,
 ) {
-    Surface(
-        shape = MaterialTheme.shapes.large,
-        color = MaterialTheme.colorScheme.surfaceContainer,
-        modifier = Modifier.fillMaxWidth(),
-    ) {
+    Card(modifier = Modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier.padding(12.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -223,30 +229,30 @@ private fun ArchiveRow(
             Column(Modifier.weight(1f)) {
                 Text(
                     entry.item.name,
-                    style = MaterialTheme.typography.titleSmall,
+                    style = MiuixTheme.textStyles.subtitle,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
                 Text(
                     "${entry.reason.emoji} ${entry.reason.label} · ${LocalDate.ofEpochDay(entry.archivedEpochDay).cn()}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MiuixTheme.textStyles.footnote2,
+                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                 )
             }
             IconButton(onClick = onRestore) {
                 Icon(
-                    Icons.Rounded.RestartAlt,
+                    MiuixIcons.Refresh,
                     contentDescription = "恢复",
-                    tint = MaterialTheme.colorScheme.primary,
+                    tint = MiuixTheme.colorScheme.primary,
                 )
             }
             IconButton(onClick = onDelete) {
                 Icon(
-                    Icons.Rounded.DeleteForever,
+                    MiuixIcons.Delete,
                     contentDescription = "彻底删除",
                     modifier = Modifier.size(20.dp),
-                    tint = MaterialTheme.colorScheme.error,
+                    tint = MiuixTheme.colorScheme.error,
                 )
             }
         }

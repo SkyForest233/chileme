@@ -8,7 +8,6 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -30,20 +29,9 @@ import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.FilterList
 import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.RestartAlt
-import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.SelectAll
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -62,18 +50,41 @@ import com.agon.app.data.byId
 import com.agon.app.data.daysLeft
 import com.agon.app.data.statusFor
 import com.agon.app.ui.components.EmptyState
-import com.agon.app.ui.theme.MotionEasing
 import com.agon.app.ui.components.FoodAvatar
 import com.agon.app.ui.components.FoodCard
+import com.agon.app.ui.theme.MotionEasing
 import com.agon.app.viewmodel.AppViewModel
+import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.Icon
+import top.yukonga.miuix.kmp.basic.IconButton
+import top.yukonga.miuix.kmp.basic.InputField
+import top.yukonga.miuix.kmp.basic.Scaffold
+import top.yukonga.miuix.kmp.basic.Surface
+import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.basic.TopAppBar
+import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.extended.Close
+import top.yukonga.miuix.kmp.icon.extended.Delete
+import top.yukonga.miuix.kmp.icon.extended.ExpandMore
+import top.yukonga.miuix.kmp.icon.extended.Filter
+import top.yukonga.miuix.kmp.icon.extended.Recent
+import top.yukonga.miuix.kmp.icon.extended.Refresh
+import top.yukonga.miuix.kmp.icon.extended.SelectAll
+import top.yukonga.miuix.kmp.theme.MiuixTheme
 
-private enum class StatusFilter(val label: String) {
+private enum class MiuixStatusFilter(val label: String) {
     ALL("全部"), SAFE("安全"), EXPIRING("临期"), EXPIRED("已过期")
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+/**
+ * 食品列表页的 Miuix（HyperOS）实现（v2.8 阶段二）。
+ *
+ * 与 [FoodListScreen]（Material 3 实现）逻辑对等。结构性组件（Scaffold/TopAppBar/搜索框/
+ * 批量归档栏/Snackbar）使用 Miuix 组件；FoodCard/筛选 Chip 复用现有实现（经根级桥接的
+ * MaterialTheme 取 Miuix 配色），属渐进迁移的预期中间态。
+ */
 @Composable
-fun FoodListScreen(
+fun MiuixFoodListScreen(
     viewModel: AppViewModel,
     initialFilter: String?,
     onOpenItem: (String) -> Unit,
@@ -87,9 +98,9 @@ fun FoodListScreen(
     var statusFilter by rememberSaveable(initialFilter) {
         mutableStateOf(
             when (initialFilter) {
-                "expiring" -> StatusFilter.EXPIRING
-                "expired" -> StatusFilter.EXPIRED
-                else -> StatusFilter.ALL
+                "expiring" -> MiuixStatusFilter.EXPIRING
+                "expired" -> MiuixStatusFilter.EXPIRED
+                else -> MiuixStatusFilter.ALL
             }
         )
     }
@@ -112,7 +123,7 @@ fun FoodListScreen(
     }
 
     val activeFilterCount =
-        (if (statusFilter != StatusFilter.ALL) 1 else 0) +
+        (if (statusFilter != MiuixStatusFilter.ALL) 1 else 0) +
             (if (categoryFilter != null) 1 else 0) +
             (if (locationFilter != null) 1 else 0)
 
@@ -121,39 +132,33 @@ fun FoodListScreen(
             .filter { query.isBlank() || it.name.contains(query.trim(), ignoreCase = true) }
             .filter {
                 when (statusFilter) {
-                    StatusFilter.ALL -> true
-                    StatusFilter.SAFE -> it.statusFor(thresholds) == FoodStatus.SAFE
-                    StatusFilter.EXPIRING -> it.statusFor(thresholds) == FoodStatus.EXPIRING
-                    StatusFilter.EXPIRED -> it.statusFor(thresholds) == FoodStatus.EXPIRED
+                    MiuixStatusFilter.ALL -> true
+                    MiuixStatusFilter.SAFE -> it.statusFor(thresholds) == FoodStatus.SAFE
+                    MiuixStatusFilter.EXPIRING -> it.statusFor(thresholds) == FoodStatus.EXPIRING
+                    MiuixStatusFilter.EXPIRED -> it.statusFor(thresholds) == FoodStatus.EXPIRED
                 }
             }
             .filter { categoryFilter == null || it.category == categoryFilter }
             .filter { locationFilter == null || it.location == locationFilter }
-            // 吃完（数量 0）的自动沉底，其余按剩余天数升序
             .sortedWith(compareBy({ it.quantity == 0 }, { it.daysLeft }))
     }
 
-    // 搜索时同时命中归档记录
     val archivedMatches = remember(archived, query) {
         if (query.isBlank()) emptyList()
         else archived.filter { it.item.name.contains(query.trim(), ignoreCase = true) }
     }
 
     Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             if (selectionMode) {
                 TopAppBar(
-                    title = {
-                        Text("已选 ${selectedIds.size} 项", fontWeight = FontWeight.Bold)
-                    },
+                    title = "已选 ${selectedIds.size} 项",
                     navigationIcon = {
                         IconButton(onClick = { viewModel.clearSelection() }) {
-                            Icon(Icons.Rounded.Close, contentDescription = "退出多选")
+                            Icon(MiuixIcons.Close, contentDescription = "退出多选")
                         }
                     },
                     actions = {
-                        // 全选 / 取消全选
                         IconButton(onClick = {
                             viewModel.setSelection(
                                 if (selectedIds.size == filtered.size) emptySet()
@@ -161,31 +166,25 @@ fun FoodListScreen(
                             )
                         }) {
                             Icon(
-                                Icons.Rounded.SelectAll,
+                                MiuixIcons.SelectAll,
                                 contentDescription = if (selectedIds.size == filtered.size) "取消全选" else "全选",
-                                tint = MaterialTheme.colorScheme.primary,
+                                tint = MiuixTheme.colorScheme.primary,
                             )
                         }
                     },
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceContainer,
-                    ),
                 )
             } else {
                 TopAppBar(
-                    title = { Text("食品列表", fontWeight = FontWeight.Bold) },
+                    title = "食品列表",
                     actions = {
                         IconButton(onClick = onOpenArchive) {
                             Icon(
-                                Icons.Rounded.History,
+                                MiuixIcons.Recent,
                                 contentDescription = "归档历史",
-                                tint = MaterialTheme.colorScheme.primary,
+                                tint = MiuixTheme.colorScheme.primary,
                             )
                         }
                     },
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.background,
-                    ),
                 )
             }
         },
@@ -201,14 +200,14 @@ fun FoodListScreen(
                     .padding(horizontal = 20.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                OutlinedTextField(
-                    value = query,
-                    onValueChange = { query = it },
+                InputField(
+                    query = query,
+                    onQueryChange = { query = it },
+                    onSearch = {},
+                    expanded = false,
+                    onExpandedChange = {},
+                    label = "搜索食品（含归档）…",
                     modifier = Modifier.weight(1f),
-                    placeholder = { Text("搜索食品（含归档）…") },
-                    leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null) },
-                    singleLine = true,
-                    shape = RoundedCornerShape(50),
                 )
                 Spacer(Modifier.width(10.dp))
                 FilterToggle(
@@ -231,15 +230,15 @@ fun FoodListScreen(
                         contentPadding = PaddingValues(horizontal = 20.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                        items(StatusFilter.entries.toList()) { f ->
+                        items(MiuixStatusFilter.entries.toList()) { f ->
                             FilterChip(
                                 selected = statusFilter == f,
                                 onClick = { statusFilter = f },
-                                label = { Text(f.label) },
+                                label = { Text(f.label, style = MiuixTheme.textStyles.body2) },
                                 shape = RoundedCornerShape(50),
                                 colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                                    selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    selectedContainerColor = MiuixTheme.colorScheme.primaryContainer,
+                                    selectedLabelColor = MiuixTheme.colorScheme.onPrimaryContainer,
                                 ),
                             )
                         }
@@ -254,10 +253,10 @@ fun FoodListScreen(
                             FilterChip(
                                 selected = categoryFilter == c.id,
                                 onClick = { categoryFilter = if (categoryFilter == c.id) null else c.id },
-                                label = { Text("${c.emoji} ${c.label}") },
+                                label = { Text("${c.emoji} ${c.label}", style = MiuixTheme.textStyles.body2) },
                                 shape = RoundedCornerShape(50),
                                 colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = MaterialTheme.colorScheme.secondaryContainer,
+                                    selectedContainerColor = MiuixTheme.colorScheme.secondaryContainer,
                                 ),
                             )
                         }
@@ -273,10 +272,10 @@ fun FoodListScreen(
                                 FilterChip(
                                     selected = locationFilter == loc,
                                     onClick = { locationFilter = if (locationFilter == loc) null else loc },
-                                    label = { Text(loc) },
+                                    label = { Text(loc, style = MiuixTheme.textStyles.body2) },
                                     shape = RoundedCornerShape(50),
                                     colors = FilterChipDefaults.filterChipColors(
-                                        selectedContainerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                                        selectedContainerColor = MiuixTheme.colorScheme.tertiaryContainer,
                                     ),
                                 )
                             }
@@ -328,7 +327,6 @@ fun FoodListScreen(
                         )
                     }
 
-                    // 归档中的搜索结果
                     if (archivedMatches.isNotEmpty()) {
                         item(key = "archive_header") {
                             Row(
@@ -339,23 +337,21 @@ fun FoodListScreen(
                                     .animateItem(),
                             ) {
                                 Icon(
-                                    Icons.Rounded.History,
+                                    MiuixIcons.Recent,
                                     contentDescription = null,
                                     modifier = Modifier.size(16.dp),
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                                 )
                                 Spacer(Modifier.width(6.dp))
                                 Text(
                                     "归档中找到 ${archivedMatches.size} 条",
-                                    style = MaterialTheme.typography.labelMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    style = MiuixTheme.textStyles.footnote2,
+                                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                                 )
                             }
                         }
                         items(archivedMatches, key = { "arch_${it.item.id}" }) { entry ->
-                            Surface(
-                                shape = MaterialTheme.shapes.large,
-                                color = MaterialTheme.colorScheme.surfaceContainerLow,
+                            Card(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .animateItem(),
@@ -369,30 +365,30 @@ fun FoodListScreen(
                                     Column(Modifier.weight(1f)) {
                                         Text(
                                             entry.item.name,
-                                            style = MaterialTheme.typography.titleSmall,
+                                            style = MiuixTheme.textStyles.subtitle,
                                             fontWeight = FontWeight.SemiBold,
                                             maxLines = 1,
                                             overflow = TextOverflow.Ellipsis,
                                         )
                                         Text(
                                             "${entry.reason.emoji} ${entry.reason.label}",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            style = MiuixTheme.textStyles.footnote2,
+                                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                                         )
                                     }
                                     IconButton(onClick = { viewModel.restoreArchived(entry.item.id) }) {
                                         Icon(
-                                            Icons.Rounded.RestartAlt,
+                                            MiuixIcons.Refresh,
                                             contentDescription = "恢复 ${entry.item.name}",
-                                            tint = MaterialTheme.colorScheme.primary,
+                                            tint = MiuixTheme.colorScheme.primary,
                                         )
                                     }
                                     IconButton(onClick = { viewModel.deleteArchived(entry.item.id) }) {
                                         Icon(
-                                            Icons.Rounded.DeleteForever,
+                                            MiuixIcons.Delete,
                                             contentDescription = "彻底删除 ${entry.item.name}",
                                             modifier = Modifier.size(20.dp),
-                                            tint = MaterialTheme.colorScheme.error,
+                                            tint = MiuixTheme.colorScheme.error,
                                         )
                                     }
                                 }
@@ -409,8 +405,8 @@ fun FoodListScreen(
 private fun FilterSectionLabel(text: String) {
     Text(
         text,
-        style = MaterialTheme.typography.labelSmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        style = MiuixTheme.textStyles.footnote2,
+        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
         modifier = Modifier.padding(start = 24.dp, bottom = 4.dp),
     )
 }
@@ -421,36 +417,44 @@ private fun FilterToggle(
     activeCount: Int,
     onClick: () -> Unit,
 ) {
+    // Miuix Icon 读 Miuix 的 LocalContentColor，而此容器是 MD3 Surface（读 MD3 LocalContentColor），
+    // 故图标显式 tint，避免取到错误默认色。
+    val iconTint = if (activeCount > 0) MiuixTheme.colorScheme.onPrimaryContainer
+    else MiuixTheme.colorScheme.onSurfaceVariantSummary
     Surface(
         onClick = onClick,
         shape = RoundedCornerShape(50),
-        color = if (activeCount > 0) MaterialTheme.colorScheme.primaryContainer
-        else MaterialTheme.colorScheme.surfaceContainerHigh,
-        contentColor = if (activeCount > 0) MaterialTheme.colorScheme.onPrimaryContainer
-        else MaterialTheme.colorScheme.onSurfaceVariant,
+        color = if (activeCount > 0) MiuixTheme.colorScheme.primaryContainer
+        else MiuixTheme.colorScheme.surfaceContainerHigh,
+        contentColor = iconTint,
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(Icons.Rounded.FilterList, contentDescription = "筛选", modifier = Modifier.size(18.dp))
+            Icon(
+                MiuixIcons.Filter,
+                contentDescription = "筛选",
+                modifier = Modifier.size(18.dp),
+                tint = iconTint,
+            )
             if (activeCount > 0) {
                 Spacer(Modifier.width(4.dp))
                 Text(
                     "$activeCount",
-                    style = MaterialTheme.typography.labelMedium,
+                    style = MiuixTheme.textStyles.footnote2,
                     fontWeight = FontWeight.Bold,
                 )
             }
             Spacer(Modifier.width(2.dp))
             Icon(
-                Icons.Rounded.ExpandMore,
+                MiuixIcons.ExpandMore,
                 contentDescription = null,
                 modifier = Modifier
                     .size(16.dp)
                     .rotate(if (expanded) 180f else 0f),
+                tint = iconTint,
             )
         }
     }
 }
-

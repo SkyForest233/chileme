@@ -28,6 +28,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -40,21 +41,50 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.PieChart
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.automirrored.rounded.ListAlt
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import top.yukonga.miuix.kmp.basic.Button as MiuixButton
+import top.yukonga.miuix.kmp.basic.ButtonDefaults as MiuixButtonDefaults
+import top.yukonga.miuix.kmp.basic.FloatingActionButton as MiuixFloatingActionButton
+import top.yukonga.miuix.kmp.basic.FloatingNavigationBar as MiuixFloatingNavigationBar
+import top.yukonga.miuix.kmp.basic.FloatingNavigationBarItem as MiuixFloatingNavigationBarItem
+import top.yukonga.miuix.kmp.basic.Icon as MiuixIcon
+import top.yukonga.miuix.kmp.basic.NavigationBar as MiuixNavigationBar
+import top.yukonga.miuix.kmp.basic.NavigationBarItem as MiuixNavigationBarItem
+import top.yukonga.miuix.kmp.basic.SnackbarHost as MiuixSnackbarHost
+import top.yukonga.miuix.kmp.basic.SnackbarHostState as MiuixSnackbarHostState
+import top.yukonga.miuix.kmp.basic.SnackbarResult as MiuixSnackbarResult
+import top.yukonga.miuix.kmp.basic.TextButton as MiuixTextButton
+import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.extended.GridView
+import top.yukonga.miuix.kmp.icon.extended.Home
+import top.yukonga.miuix.kmp.icon.extended.ListView
+import top.yukonga.miuix.kmp.icon.extended.Settings
+import top.yukonga.miuix.kmp.theme.MiuixTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -74,20 +104,37 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.agon.app.data.ArchiveReason
 import com.agon.app.ui.screens.ArchiveScreen
 import com.agon.app.ui.screens.CategoryManageScreen
+import com.agon.app.ui.screens.ConsumptionLogScreen
 import com.agon.app.ui.screens.EditFoodScreen
 import com.agon.app.ui.screens.LocationManageScreen
 import com.agon.app.ui.screens.ThresholdManageScreen
 import com.agon.app.ui.screens.FoodDetailScreen
 import com.agon.app.ui.screens.FoodListScreen
 import com.agon.app.ui.screens.HomeScreen
+import com.agon.app.ui.screens.MiuixArchiveScreen
+import com.agon.app.ui.screens.MiuixCategoryManageScreen
+import com.agon.app.ui.screens.MiuixConsumptionLogScreen
+import com.agon.app.ui.screens.MiuixFoodDetailScreen
+import com.agon.app.ui.screens.MiuixFoodListScreen
+import com.agon.app.ui.screens.MiuixHomeScreen
+import com.agon.app.ui.screens.MiuixLocationManageScreen
+import com.agon.app.ui.screens.MiuixSettingsScreen
+import com.agon.app.ui.screens.MiuixStatsScreen
+import com.agon.app.ui.screens.MiuixThresholdManageScreen
 import com.agon.app.ui.screens.SettingsScreen
 import com.agon.app.ui.screens.StatsScreen
 import com.agon.app.ui.theme.AgonAppTheme
 import com.agon.app.ui.theme.AppPalette
+import com.agon.app.ui.theme.LocalThemeStyle
+import com.agon.app.ui.theme.MiuixRootTheme
 import com.agon.app.ui.theme.MotionEasing
+import com.agon.app.ui.theme.ThemeStyle
 import com.agon.app.viewmodel.AppViewModel
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.launch
 
 // MD3 motion easing tokens 统一从 ui/theme/Motion.kt 引用
 private val EmphasizedDecelerate = MotionEasing.EmphasizedDecelerate
@@ -108,6 +155,7 @@ class MainActivity : ComponentActivity() {
             val dynamicColor by viewModel.dynamicColor.collectAsStateWithLifecycle()
             val darkMode by viewModel.darkMode.collectAsStateWithLifecycle()
             val paletteName by viewModel.palette.collectAsStateWithLifecycle()
+            val themeStyleName by viewModel.themeStyle.collectAsStateWithLifecycle()
             LaunchedEffect(ready) { if (ready) contentReady = true }
             if (!ready) return@setContent
             val darkTheme = when (darkMode) {
@@ -115,12 +163,21 @@ class MainActivity : ComponentActivity() {
                 2 -> true
                 else -> isSystemInDarkTheme()
             }
-            AgonAppTheme(
-                darkTheme = darkTheme,
-                dynamicColor = dynamicColor,
-                palette = AppPalette.fromName(paletteName),
-            ) {
-                MainApp(viewModel)
+            val themeStyle = ThemeStyle.fromName(themeStyleName)
+            CompositionLocalProvider(LocalThemeStyle provides themeStyle) {
+                if (themeStyle == ThemeStyle.MIUIX) {
+                    MiuixRootTheme(darkMode = darkMode, dynamicColor = dynamicColor) {
+                        MainApp(viewModel)
+                    }
+                } else {
+                    AgonAppTheme(
+                        darkTheme = darkTheme,
+                        dynamicColor = dynamicColor,
+                        palette = AppPalette.fromName(paletteName),
+                    ) {
+                        MainApp(viewModel)
+                    }
+                }
             }
         }
     }
@@ -152,27 +209,116 @@ fun MainApp(viewModel: AppViewModel) {
     }
     // 切换页面时恢复显示
     LaunchedEffect(currentRoute) { scrollChromeVisible = true }
+    // 离开食品列表页时清除多选，避免批量操作栏残留到其他页面
+    LaunchedEffect(currentRoute) {
+        if (currentRoute != "list?filter={filter}") viewModel.clearSelection()
+    }
     val showChrome = currentRoute in tabRoutes && scrollChromeVisible
     // Snackbar 展示“撤销”期间隐藏 FAB，避免挡住撤销按钮
     val fabSuppressed by viewModel.fabSuppressed.collectAsStateWithLifecycle()
+    // 悬浮导航开关 + 主题风格：决定底栏与 FAB 用哪套组件
+    val floatingNav by viewModel.floatingNav.collectAsStateWithLifecycle()
+    val isMiuix = LocalThemeStyle.current == ThemeStyle.MIUIX
+    // 多选模式：选中状态提升到 VM，多选时用批量操作栏替换底部导航
+    val selectedIds by viewModel.selectedIds.collectAsStateWithLifecycle()
+    val selectionMode = selectedIds.isNotEmpty()
+    val scope = rememberCoroutineScope()
+    val snackbarHostState = remember { SnackbarHostState() }
+    val miuixSnackbarHostState = remember { MiuixSnackbarHostState() }
 
+    // 列表页步进器减号触发的「撤销消耗」：弹撤销 Snackbar（MD3 / MIUIX 两套样式）。
+    // 用 LaunchedEffect(Unit)+collect 而非 LaunchedEffect(key)：consume 会改变 key，导致协程被取消、
+    // showSnackbar 中断（MD3 撤销不出现的根因）。
+    val currentIsMiuix by rememberUpdatedState(isMiuix)
+    LaunchedEffect(Unit) {
+        viewModel.undoRequest.filterNotNull().collect { request ->
+            viewModel.consumeUndoRequest()
+            val undone = if (currentIsMiuix) {
+                miuixSnackbarHostState.showSnackbar(
+                    message = "已减少一件并计入消耗",
+                    actionLabel = "撤销",
+                ) == MiuixSnackbarResult.ActionPerformed
+            } else {
+                snackbarHostState.showSnackbar(
+                    message = "已减少一件并计入消耗",
+                    actionLabel = "撤销",
+                ) == SnackbarResult.ActionPerformed
+            }
+            if (undone) {
+                viewModel.undoConsumption(request)
+            }
+        }
+    }
+
+    fun archiveSelected() {
+        val ids = selectedIds
+        if (ids.isEmpty()) return
+        viewModel.clearSelection()
+        viewModel.archiveBatch(ids, ArchiveReason.DELETED)
+        scope.launch {
+            viewModel.setFabSuppressed(true)
+            try {
+                val undone = if (isMiuix) {
+                    miuixSnackbarHostState.showSnackbar(
+                        message = "已将 ${ids.size} 件食品移入归档",
+                        actionLabel = "撤销",
+                    ) == MiuixSnackbarResult.ActionPerformed
+                } else {
+                    snackbarHostState.showSnackbar(
+                        message = "已将 ${ids.size} 件食品移入归档",
+                        actionLabel = "撤销",
+                    ) == SnackbarResult.ActionPerformed
+                }
+                if (undone) {
+                    viewModel.restoreArchivedBatch(ids)
+                }
+            } finally {
+                viewModel.setFabSuppressed(false)
+            }
+        }
+    }
+
+    // Snackbar 底部偏移：跟随底栏可见状态平滑过渡（不瞬移）。
+    val snackbarOffset by animateDpAsState(
+        targetValue = if (showChrome) 84.dp else 8.dp,
+        animationSpec = tween(250, easing = MotionEasing.Standard),
+        label = "snackbarOffset",
+    )
+
+    Box(modifier = Modifier.fillMaxSize()) {
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         containerColor = MaterialTheme.colorScheme.background,
         bottomBar = {
-            AnimatedVisibility(
-                visible = showChrome,
-                enter = slideInVertically(tween(250, easing = EmphasizedDecelerate)) { it } +
-                    fadeIn(tween(250, easing = EmphasizedDecelerate)),
-                exit = slideOutVertically(tween(200, easing = EmphasizedAccelerate)) { it } +
-                    fadeOut(tween(200, easing = EmphasizedAccelerate)),
-            ) {
-                FloatingPillNav(navController, currentRoute)
+            if (selectionMode) {
+                // 多选：批量操作栏替换底部导航，形态跟随悬浮/非悬浮
+                BatchActionBar(
+                    count = selectedIds.size,
+                    isMiuix = isMiuix,
+                    floating = floatingNav,
+                    onCancel = { viewModel.clearSelection() },
+                    onArchive = { archiveSelected() },
+                )
+            } else {
+                AnimatedVisibility(
+                    visible = showChrome,
+                    enter = slideInVertically(tween(250, easing = EmphasizedDecelerate)) { it } +
+                        fadeIn(tween(250, easing = EmphasizedDecelerate)),
+                    exit = slideOutVertically(tween(200, easing = EmphasizedAccelerate)) { it } +
+                        fadeOut(tween(200, easing = EmphasizedAccelerate)),
+                ) {
+                    when {
+                        isMiuix && floatingNav -> MiuixFloatingNav(navController, currentRoute)
+                        isMiuix -> MiuixBottomNav(navController, currentRoute)
+                        floatingNav -> FloatingPillNav(navController, currentRoute)
+                        else -> Md3BottomNav(navController, currentRoute)
+                    }
+                }
             }
         },
         floatingActionButton = {
             AnimatedVisibility(
-                visible = showChrome && !fabSuppressed && currentRoute != "settings" && currentRoute != "stats",
+                visible = showChrome && !fabSuppressed && !selectionMode && currentRoute != "settings" && currentRoute != "stats",
                 enter = scaleIn(tween(250, easing = EmphasizedDecelerate)) +
                     fadeIn(tween(250, easing = EmphasizedDecelerate)) +
                     slideInVertically(tween(250, easing = EmphasizedDecelerate)) { it / 2 },
@@ -180,13 +326,19 @@ fun MainApp(viewModel: AppViewModel) {
                     fadeOut(tween(200, easing = EmphasizedAccelerate)) +
                     slideOutVertically(tween(200, easing = EmphasizedAccelerate)) { it / 2 },
             ) {
-                FloatingActionButton(
-                    onClick = { navController.navigate("edit") },
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = MaterialTheme.colorScheme.onPrimary,
-                    shape = RoundedCornerShape(50),
-                ) {
-                    Icon(Icons.Rounded.Add, contentDescription = "添加食品")
+                if (isMiuix) {
+                    MiuixFloatingActionButton(onClick = { navController.navigate("edit") }) {
+                        MiuixIcon(Icons.Rounded.Add, contentDescription = "添加食品")
+                    }
+                } else {
+                    FloatingActionButton(
+                        onClick = { navController.navigate("edit") },
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary,
+                        shape = RoundedCornerShape(50),
+                    ) {
+                        Icon(Icons.Rounded.Add, contentDescription = "添加食品")
+                    }
                 }
             }
         },
@@ -204,58 +356,111 @@ fun MainApp(viewModel: AppViewModel) {
                     .widthIn(max = 840.dp)
                     .fillMaxSize()
                     .nestedScroll(chromeScrollConnection),
-            // MD3 进入：emphasized decelerate 400ms；退出：emphasized accelerate 200ms
+            // 页面切换转场：复刻 Miuix NavTransitions.MiuixDefault（Hyper-pick-up-code 同款）。
+            // 进入页从右全宽滑入覆盖；被覆盖页视差左移 1/4 宽 + 轻微变暗至 90%；返回反向。
+            // MD3 与 MIUIX 两主题一致（NavHost 转场在 MainApp 层）。
             enterTransition = {
-                slideInHorizontally(tween(400, easing = EmphasizedDecelerate)) { it / 4 } +
-                    fadeIn(tween(400, easing = EmphasizedDecelerate))
+                slideInHorizontally(tween(300, easing = EmphasizedDecelerate)) { it }
             },
             exitTransition = {
-                slideOutHorizontally(tween(200, easing = EmphasizedAccelerate)) { -it / 6 } +
-                    fadeOut(tween(200, easing = EmphasizedAccelerate))
+                slideOutHorizontally(tween(300, easing = EmphasizedAccelerate)) { -it / 4 } +
+                    fadeOut(tween(300, easing = EmphasizedAccelerate), targetAlpha = 0.9f)
             },
             popEnterTransition = {
-                slideInHorizontally(tween(400, easing = EmphasizedDecelerate)) { -it / 6 } +
-                    fadeIn(tween(400, easing = EmphasizedDecelerate))
+                slideInHorizontally(tween(300, easing = EmphasizedDecelerate)) { -it / 4 } +
+                    fadeIn(tween(300, easing = EmphasizedDecelerate), initialAlpha = 0.9f)
             },
             popExitTransition = {
-                slideOutHorizontally(tween(200, easing = EmphasizedAccelerate)) { it / 4 } +
-                    fadeOut(tween(200, easing = EmphasizedAccelerate))
+                slideOutHorizontally(tween(300, easing = EmphasizedAccelerate)) { it }
             },
         ) {
             composable("home") {
-                HomeScreen(
-                    viewModel = viewModel,
-                    onOpenList = { filter ->
-                        navController.navigate(if (filter == null) "list" else "list?filter=$filter") {
-                            popUpTo("home")
-                            launchSingleTop = true
-                        }
-                    },
-                    onOpenItem = { id -> navController.navigate("detail/$id") },
-                )
+                if (LocalThemeStyle.current == ThemeStyle.MIUIX) {
+                    MiuixHomeScreen(
+                        viewModel = viewModel,
+                        onOpenList = { filter ->
+                            navController.navigate(if (filter == null) "list" else "list?filter=$filter") {
+                                popUpTo("home")
+                                launchSingleTop = true
+                            }
+                        },
+                        onOpenItem = { id -> navController.navigate("detail/$id") },
+                    )
+                } else {
+                    HomeScreen(
+                        viewModel = viewModel,
+                        onOpenList = { filter ->
+                            navController.navigate(if (filter == null) "list" else "list?filter=$filter") {
+                                popUpTo("home")
+                                launchSingleTop = true
+                            }
+                        },
+                        onOpenItem = { id -> navController.navigate("detail/$id") },
+                    )
+                }
             }
             composable("list?filter={filter}") { backStackEntry ->
-                FoodListScreen(
-                    viewModel = viewModel,
-                    initialFilter = backStackEntry.arguments?.getString("filter"),
-                    onOpenItem = { id -> navController.navigate("detail/$id") },
-                    onOpenArchive = { navController.navigate("archive") },
-                )
+                if (LocalThemeStyle.current == ThemeStyle.MIUIX) {
+                    MiuixFoodListScreen(
+                        viewModel = viewModel,
+                        initialFilter = backStackEntry.arguments?.getString("filter"),
+                        onOpenItem = { id -> navController.navigate("detail/$id") },
+                        onOpenArchive = { navController.navigate("archive") },
+                    )
+                } else {
+                    FoodListScreen(
+                        viewModel = viewModel,
+                        initialFilter = backStackEntry.arguments?.getString("filter"),
+                        onOpenItem = { id -> navController.navigate("detail/$id") },
+                        onOpenArchive = { navController.navigate("archive") },
+                    )
+                }
             }
             composable("stats") {
-                StatsScreen(
-                    viewModel = viewModel,
-                    onOpenItem = { id -> navController.navigate("detail/$id") },
-                )
+                if (LocalThemeStyle.current == ThemeStyle.MIUIX) {
+                    MiuixStatsScreen(
+                        viewModel = viewModel,
+                        onOpenItem = { id -> navController.navigate("detail/$id") },
+                        onOpenConsumption = { navController.navigate("consumption") },
+                    )
+                } else {
+                    StatsScreen(
+                        viewModel = viewModel,
+                        onOpenItem = { id -> navController.navigate("detail/$id") },
+                        onOpenConsumption = { navController.navigate("consumption") },
+                    )
+                }
+            }
+            composable("consumption") {
+                if (LocalThemeStyle.current == ThemeStyle.MIUIX) {
+                    MiuixConsumptionLogScreen(
+                        viewModel = viewModel,
+                        onBack = { navController.popBackStack() },
+                    )
+                } else {
+                    ConsumptionLogScreen(
+                        viewModel = viewModel,
+                        onBack = { navController.popBackStack() },
+                    )
+                }
             }
             composable("detail/{id}") { backStackEntry ->
                 val id = backStackEntry.arguments?.getString("id") ?: ""
-                FoodDetailScreen(
-                    viewModel = viewModel,
-                    itemId = id,
-                    onEdit = { editId -> navController.navigate("edit?id=$editId") },
-                    onBack = { navController.popBackStack() },
-                )
+                if (LocalThemeStyle.current == ThemeStyle.MIUIX) {
+                    MiuixFoodDetailScreen(
+                        viewModel = viewModel,
+                        itemId = id,
+                        onEdit = { editId -> navController.navigate("edit?id=$editId") },
+                        onBack = { navController.popBackStack() },
+                    )
+                } else {
+                    FoodDetailScreen(
+                        viewModel = viewModel,
+                        itemId = id,
+                        onEdit = { editId -> navController.navigate("edit?id=$editId") },
+                        onBack = { navController.popBackStack() },
+                    )
+                }
             }
             composable("edit?id={id}") { backStackEntry ->
                 EditFoodScreen(
@@ -272,30 +477,269 @@ fun MainApp(viewModel: AppViewModel) {
                 )
             }
             composable("archive") {
-                ArchiveScreen(
-                    viewModel = viewModel,
-                    onBack = { navController.popBackStack() },
-                )
+                if (LocalThemeStyle.current == ThemeStyle.MIUIX) {
+                    MiuixArchiveScreen(
+                        viewModel = viewModel,
+                        onBack = { navController.popBackStack() },
+                    )
+                } else {
+                    ArchiveScreen(
+                        viewModel = viewModel,
+                        onBack = { navController.popBackStack() },
+                    )
+                }
             }
             composable("settings") {
-                SettingsScreen(
-                    viewModel = viewModel,
-                    onOpenArchive = { navController.navigate("archive") },
-                    onOpenThresholds = { navController.navigate("manage_thresholds") },
-                    onOpenCategories = { navController.navigate("manage_categories") },
-                    onOpenLocations = { navController.navigate("manage_locations") },
-                )
+                if (LocalThemeStyle.current == ThemeStyle.MIUIX) {
+                    MiuixSettingsScreen(
+                        viewModel = viewModel,
+                        onOpenArchive = { navController.navigate("archive") },
+                        onOpenThresholds = { navController.navigate("manage_thresholds") },
+                        onOpenCategories = { navController.navigate("manage_categories") },
+                        onOpenLocations = { navController.navigate("manage_locations") },
+                    )
+                } else {
+                    SettingsScreen(
+                        viewModel = viewModel,
+                        onOpenArchive = { navController.navigate("archive") },
+                        onOpenThresholds = { navController.navigate("manage_thresholds") },
+                        onOpenCategories = { navController.navigate("manage_categories") },
+                        onOpenLocations = { navController.navigate("manage_locations") },
+                    )
+                }
             }
             composable("manage_thresholds") {
-                ThresholdManageScreen(viewModel = viewModel, onBack = { navController.popBackStack() })
+                if (LocalThemeStyle.current == ThemeStyle.MIUIX) {
+                    MiuixThresholdManageScreen(viewModel = viewModel, onBack = { navController.popBackStack() })
+                } else {
+                    ThresholdManageScreen(viewModel = viewModel, onBack = { navController.popBackStack() })
+                }
             }
             composable("manage_categories") {
-                CategoryManageScreen(viewModel = viewModel, onBack = { navController.popBackStack() })
+                if (LocalThemeStyle.current == ThemeStyle.MIUIX) {
+                    MiuixCategoryManageScreen(viewModel = viewModel, onBack = { navController.popBackStack() })
+                } else {
+                    CategoryManageScreen(viewModel = viewModel, onBack = { navController.popBackStack() })
+                }
             }
             composable("manage_locations") {
-                LocationManageScreen(viewModel = viewModel, onBack = { navController.popBackStack() })
+                if (LocalThemeStyle.current == ThemeStyle.MIUIX) {
+                    MiuixLocationManageScreen(viewModel = viewModel, onBack = { navController.popBackStack() })
+                } else {
+                    LocationManageScreen(viewModel = viewModel, onBack = { navController.popBackStack() })
+                }
             }
             }
+        }
+    }
+
+    // Snackbar 覆盖层（自定义定位：底栏可见→悬浮导航上方，隐藏→贴底，平滑过渡不瞬移）
+    Box(
+        modifier = Modifier
+            .align(Alignment.BottomCenter)
+            .navigationBarsPadding()
+            .padding(bottom = snackbarOffset),
+    ) {
+        if (isMiuix) {
+            MiuixSnackbarHost(miuixSnackbarHostState)
+        } else {
+            SnackbarHost(snackbarHostState)
+        }
+    }
+    }
+}
+
+/** 多选批量操作栏：取消 + 归档 N 项（多选时替换底部导航，MD3 / MIUIX 两套按钮，跟随悬浮/非悬浮）。 */
+@Composable
+private fun BatchActionBar(
+    count: Int,
+    isMiuix: Boolean,
+    floating: Boolean,
+    onCancel: () -> Unit,
+    onArchive: () -> Unit,
+) {
+    if (floating) {
+        // 悬浮：仅按钮本身悬浮（无外层胶囊背景），「取消」文字 + 「归档」实心胶囊独立悬浮。
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .padding(bottom = 12.dp, top = 4.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                BatchCancelButton(isMiuix = isMiuix, onClick = onCancel)
+                BatchArchiveButton(isMiuix = isMiuix, count = count, onClick = onArchive)
+            }
+        }
+    } else {
+        // 非悬浮：全宽常驻操作栏
+        Surface(
+            color = MaterialTheme.colorScheme.surfaceContainer,
+            shadowElevation = 8.dp,
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .navigationBarsPadding()
+                    .padding(horizontal = 20.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                BatchCancelButton(isMiuix = isMiuix, onClick = onCancel, modifier = Modifier.weight(1f))
+                BatchArchiveButton(isMiuix = isMiuix, count = count, onClick = onArchive, modifier = Modifier.weight(2f))
+            }
+        }
+    }
+}
+
+@Composable
+private fun BatchCancelButton(
+    isMiuix: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    if (isMiuix) {
+        // Miuix 标准文字按钮
+        MiuixTextButton(
+            text = "取消",
+            onClick = onClick,
+            modifier = modifier,
+            minHeight = 48.dp,
+        )
+    } else {
+        // MD3 实心胶囊（中性色），与归档实心胶囊视觉统一
+        Button(
+            onClick = onClick,
+            modifier = modifier.defaultMinSize(minHeight = 48.dp),
+            shape = RoundedCornerShape(50),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                contentColor = MaterialTheme.colorScheme.onSurface,
+            ),
+        ) {
+            Text("取消")
+        }
+    }
+}
+
+@Composable
+private fun BatchArchiveButton(isMiuix: Boolean, count: Int, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    if (isMiuix) {
+        // Miuix 标准实心按钮（默认 16dp 圆角）
+        MiuixButton(
+            onClick = onClick,
+            modifier = modifier,
+            minHeight = 48.dp,
+            colors = MiuixButtonDefaults.buttonColors(
+                color = MiuixTheme.colorScheme.error,
+                contentColor = MiuixTheme.colorScheme.onError,
+            ),
+        ) {
+            MiuixIcon(
+                Icons.Rounded.Delete,
+                contentDescription = null,
+                modifier = Modifier.size(18.dp),
+                tint = MiuixTheme.colorScheme.onError,
+            )
+            Spacer(Modifier.width(6.dp))
+            Text(
+                "归档 $count 项",
+                fontWeight = FontWeight.SemiBold,
+                color = MiuixTheme.colorScheme.onError,
+            )
+        }
+    } else {
+        Button(
+            onClick = onClick,
+            modifier = modifier.defaultMinSize(minHeight = 48.dp),
+            shape = RoundedCornerShape(50),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.error,
+                contentColor = MaterialTheme.colorScheme.onError,
+            ),
+        ) {
+            Icon(Icons.Rounded.Delete, contentDescription = null, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(6.dp))
+            Text("归档 $count 项", fontWeight = FontWeight.SemiBold)
+        }
+    }
+}
+
+/** 底部导航共享 Tab 定义（MD3 / MIUIX 共用路由与标签；图标按主题分流）。 */
+private val MainTabs = listOf(
+    TabSpec("home", "首页", Icons.Rounded.Home),
+    TabSpec("list?filter={filter}", "食品", Icons.AutoMirrored.Rounded.ListAlt),
+    TabSpec("stats", "统计", Icons.Rounded.PieChart),
+    TabSpec("settings", "设置", Icons.Rounded.Settings),
+)
+
+/** MIUIX 主题的底部导航图标（MiuixIcons.Regular；统计用 GridView 替代无对应的 PieChart）。 */
+private val MiuixMainTabs = listOf(
+    TabSpec("home", "首页", MiuixIcons.Home),
+    TabSpec("list?filter={filter}", "食品", MiuixIcons.ListView),
+    TabSpec("stats", "统计", MiuixIcons.GridView),
+    TabSpec("settings", "设置", MiuixIcons.Settings),
+)
+
+private fun tabTarget(route: String): String =
+    if (route == "list?filter={filter}") "list" else route
+
+private fun NavHostController.navigateToTab(route: String) {
+    val target = tabTarget(route)
+    navigate(target) {
+        popUpTo("home") { inclusive = target == "home" }
+        launchSingleTop = true
+    }
+}
+
+/** MIUIX：全宽图标+文字底栏（HyperOS 风格）。 */
+@Composable
+private fun MiuixBottomNav(navController: NavHostController, currentRoute: String?) {
+    MiuixNavigationBar {
+        MiuixMainTabs.forEach { tab ->
+            val selected = tab.route == currentRoute
+            MiuixNavigationBarItem(
+                selected = selected,
+                onClick = { if (!selected) navController.navigateToTab(tab.route) },
+                icon = tab.icon,
+                label = tab.label,
+            )
+        }
+    }
+}
+
+/** MIUIX：居中悬浮底栏（仅图标）。 */
+@Composable
+private fun MiuixFloatingNav(navController: NavHostController, currentRoute: String?) {
+    MiuixFloatingNavigationBar {
+        MiuixMainTabs.forEach { tab ->
+            val selected = tab.route == currentRoute
+            MiuixFloatingNavigationBarItem(
+                selected = selected,
+                onClick = { if (!selected) navController.navigateToTab(tab.route) },
+                icon = tab.icon,
+                label = tab.label,
+            )
+        }
+    }
+}
+
+/** Material 3：全宽图标+文字底栏（非悬浮态）。 */
+@Composable
+private fun Md3BottomNav(navController: NavHostController, currentRoute: String?) {
+    NavigationBar(containerColor = MaterialTheme.colorScheme.surfaceContainer) {
+        MainTabs.forEach { tab ->
+            val selected = tab.route == currentRoute
+            NavigationBarItem(
+                selected = selected,
+                onClick = { if (!selected) navController.navigateToTab(tab.route) },
+                icon = { Icon(tab.icon, contentDescription = null) },
+                label = { Text(tab.label) },
+            )
         }
     }
 }
@@ -308,12 +752,7 @@ fun MainApp(viewModel: AppViewModel) {
  */
 @Composable
 private fun FloatingPillNav(navController: NavHostController, currentRoute: String?) {
-    val tabs = listOf(
-        TabSpec("home", "首页", Icons.Rounded.Home),
-        TabSpec("list?filter={filter}", "食品", Icons.AutoMirrored.Rounded.ListAlt),
-        TabSpec("stats", "统计", Icons.Rounded.PieChart),
-        TabSpec("settings", "设置", Icons.Rounded.Settings),
-    )
+    val tabs = MainTabs
     val slotWidth = 76.dp
     val slotHeight = 48.dp
     val selectedIndex = tabs.indexOfFirst { it.route == currentRoute }.coerceAtLeast(0)
@@ -347,7 +786,7 @@ private fun FloatingPillNav(navController: NavHostController, currentRoute: Stri
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     tabs.forEachIndexed { index, tab ->
                         val selected = index == selectedIndex
-                        val target = if (tab.route == "list?filter={filter}") "list" else tab.route
+                        val target = tabTarget(tab.route)
                         val contentColor by animateColorAsState(
                             targetValue = if (selected) MaterialTheme.colorScheme.onPrimary
                             else MaterialTheme.colorScheme.onPrimaryContainer,

@@ -59,6 +59,12 @@ enum class ArchiveReason(val label: String, val emoji: String) {
     EXPIRED("过期清理", "⚠️"),
 }
 
+/** 数量调整结果：是否触发自动归档 + 新写的消耗记录 id（供撤销）。 */
+data class QuantityChangeResult(
+    val autoArchived: Boolean,
+    val consumptionId: String?,
+)
+
 @Serializable
 data class ArchivedItem(
     val item: FoodItem,
@@ -73,6 +79,8 @@ data class ConsumptionRecord(
     val amount: Int,
     val unit: String,
     val epochDay: Long,
+    /** 唯一 id（v2.8 起），供「撤销消耗」精确定位删除；旧数据缺省为 null。 */
+    val id: String? = null,
 )
 
 @Serializable
