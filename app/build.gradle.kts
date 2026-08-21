@@ -102,16 +102,14 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
-            // 不再静默回退 debug 签名：凭据缺失时直接失败，让问题在 CI 上"响亮"地暴露，
-            // 而不是产出一个签名不稳定、用户无法覆盖安装的 APK。
-            signingConfig = when {
-                hasReleaseSigning -> signingConfigs.getByName("release")
-                allowUnsignedRelease -> signingConfigs.getByName("debug")
-                else -> throw GradleException(
-                    "Release 签名凭据缺失。CI 请检查 RELEASE_KEYSTORE_PATH / " +
-                        "RELEASE_KEYSTORE_PASSWORD / RELEASE_KEY_ALIAS / RELEASE_KEY_PASSWORD " +
-                        "四个 secrets 是否齐备；本地仅做构建验证请加 -PallowUnsignedRelease=true。"
-                )
+            // 不再静默回退 debug 签名。注意这里只做「配置」，不在此处 throw：
+            // buildTypes 块在**配置阶段**执行，即便只跑 assembleDebug 也会被求值，
+            // 在此抛异常会让无密钥环境（如 build.yml 的 debug 构建）整个构建失败。
+            // 真正的拦截放在下方 taskGraph.whenReady —— 仅当确实要构建 release 时才报错。
+            signingConfig = if (hasReleaseSigning) {
+                signingConfigs.getByName("release")
+            } else {
+                signingConfigs.getByName("debug")
             }
         }
     }
@@ -136,6 +134,25 @@ android {
         htmlReport = true
         textReport = true
     }
+}
+
+// ---- Release 签名凭据缺失时的拦截 ----
+// 放在 taskGraph.whenReady（执行阶段前）而非 buildTypes 块内：
+// 后者属配置阶段，assembleDebug 也会求值，会误伤无密钥的 debug 构建。
+// 这里只在任务图里确实包含 release 打包任务时才失败，从而做到
+// 「debug 构建照常、release 构建绝不静默回退 debug 签名」。
+gradle.taskGraph.whenReady {
+    if (hasReleaseSigning || allowUnsignedRelease) return@whenReady
+    val releaseTask = allTasks.firstOrNull {
+        it.project == project &&
+            Regex("^(assemble|bundle|package)Release$").matches(it.name)
+    } ?: return@whenReady
+    throw GradleException(
+        "Release 签名凭据缺失，拒绝以 debug 密钥打包 ${releaseTask.name}。\n" +
+            "CI 请检查 RELEASE_KEYSTORE_PATH / RELEASE_KEYSTORE_PASSWORD / " +
+            "RELEASE_KEY_ALIAS / RELEASE_KEY_PASSWORD 四个 secrets 是否齐备；\n" +
+            "本地仅做构建验证请加 -PallowUnsignedRelease=true。"
+    )
 }
 
 // AGP 9 起 kotlinOptions DSL 已移除，改用 KGP 的 compilerOptions。
