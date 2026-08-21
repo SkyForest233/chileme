@@ -128,9 +128,7 @@ android {
     lint {
         // NewApi/InlinedApi 提为 error：minSdk 提升到 26 后仍可能误用更高版本 API，
         // 这类问题 assembleDebug 不报错、只在老设备上崩，必须由 CI 的 lint 拦住。
-        // TODO(临时): 诊断期设为 false，让 lintDebug 跑完以便输出违规清单。
-        // 定位并修复后改回 true。
-        abortOnError = false
+        abortOnError = true
         error += listOf("NewApi", "InlinedApi")
         // 报告输出给 CI 上传为 artifact
         htmlReport = true
@@ -138,30 +136,6 @@ android {
         // 同时把文本报告打到 stdout，这样在 Actions 日志里能直接看到违规条目，
         // 不必下载 artifact（沙箱/受限网络下 artifact 常常拿不到）。
         textOutput = File("stdout")
-    }
-}
-
-// 让 lint 的 text 报告在 CI 日志中以 ::error:: 形式再输出一份，
-// 便于通过 annotations API 读取。仅在 CI 上启用，不影响本地。
-tasks.matching { it.name == "lintDebug" }.configureEach {
-    doLast {
-        if (System.getenv("GITHUB_ACTIONS") == null) return@doLast
-        val txt = layout.buildDirectory.file("reports/lint-results-debug.txt")
-            .get().asFile
-        if (!txt.exists()) return@doLast
-        val lines = txt.readLines()
-            .filter { it.contains(": Error:") || it.contains(": Warning:") }
-        // 按 issue id 归类计数，先给出总览
-        val byId = lines.groupingBy {
-            Regex("\\[([A-Za-z0-9_]+)]\\s*$").find(it.trim())?.groupValues?.get(1)
-                ?: "unknown"
-        }.eachCount()
-        println("::error::LINT SUMMARY total=${lines.size} " +
-            byId.entries.sortedByDescending { it.value }
-                .joinToString(", ") { "${it.key}=${it.value}" })
-        lines.filter { it.contains(": Error:") }.take(40).forEach {
-            println("::error::LINT $it")
-        }
     }
 }
 
