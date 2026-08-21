@@ -139,18 +139,6 @@ android {
     }
 }
 
-// TODO(临时诊断): 把 lint 明细以 annotations 形式发出，读完即回退。
-tasks.matching { it.name == "lintDebug" }.configureEach {
-    doLast {
-        if (System.getenv("GITHUB_ACTIONS") == null) return@doLast
-        val txt = layout.buildDirectory.file("reports/lint-results-debug.txt").get().asFile
-        if (!txt.exists()) return@doLast
-        txt.readLines()
-            .filter { it.contains(": Error:") || it.contains(": Warning:") }
-            .forEach { println("::error::LINTDETAIL ${it.trim()}") }
-    }
-}
-
 // ---- Release 签名凭据缺失时的拦截 ----
 // 放在 taskGraph.whenReady（执行阶段前）而非 buildTypes 块内：
 // 后者属配置阶段，assembleDebug 也会求值，会误伤无密钥的 debug 构建。
