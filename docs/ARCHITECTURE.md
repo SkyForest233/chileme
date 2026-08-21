@@ -58,21 +58,19 @@ app/src/main/java/com/agon/app/
 
 | 路由 | 屏幕 | 说明 |
 |---|---|---|
-| `home` | HomeScreen | 首页 Dashboard（起始页） |
-| `list?filter={filter}` | FoodListScreen | filter: null/expiring/expired |
-| `stats` | StatsScreen | 统计 |
+| `main` | Home / List / Stats / Settings（HorizontalPager） | 底栏四个 Tab，按索引左右连滑；起始页。首页卡片写入 `listFilter` 后滑到食品页 |
 | `detail/{id}` | FoodDetailScreen | 食品详情 |
 | `edit` / `edit?id={id}` | EditFoodScreen | 新增 / 编辑 |
 | `archive` | ArchiveScreen | 归档（设置/食品列表可进入，带搜索） |
-| `settings` | SettingsScreen | 设置 |
+| `consumption` | ConsumptionLogScreen | 消耗记录（统计页二级） |
 | `manage_thresholds` | ThresholdManageScreen | 临期阈值管理（设置二级页） |
 | `manage_categories` | CategoryManageScreen | 分类管理（设置二级页） |
 | `manage_locations` | LocationManageScreen | 存放位置管理（设置二级页） |
 
 
-- 底栏 Tab：home / list / stats / settings；`detail`/`edit`/`archive` 隐藏底栏与 FAB（通过 `showChrome` 控制）
-- FAB（添加食品）仅在 home 与 list 显示
-- 新增路由：在 MainActivity 的 NavHost 注册 + 按需更新 `tabRoutes`/`showChrome` 逻辑，并更新本表
+- 底栏 Tab：`main` 路由内 HorizontalPager（home → list → stats → settings）；点击 Tab 用 `folmeSpring` 连滑，跨页会经过中间页。二级页 `detail`/`edit`/`archive`/`consumption`/`manage_*` 仍走 NavHost，隐藏底栏与 FAB（`showChrome`）
+- FAB（添加食品）仅在 home 与 list（Pager 第 0/1 页）显示
+- 新增路由：在 MainActivity 的 NavHost 注册 + 按需更新 `onTabs`/`showChrome` 逻辑，并更新本表
 
 ## 5. 关键实现约定
 

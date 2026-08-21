@@ -115,7 +115,8 @@ StatusUi 提供三个颜色槽位，按用途严格区分：
 
 | 场景 | 实现 | 时长 |
 |---|---|---|
-| 页面转场（v2.3 对齐 MD3 motion tokens） | 进入 emphasized-decelerate `cubic-bezier(0.05,0.7,0.1,1)`；退出 emphasized-accelerate `cubic-bezier(0.3,0,0.8,0.15)` | 进入 400ms / 退出 200ms |
+| 底栏 Tab 连滑（v2.8） | `HorizontalPager` + Miuix `folmeSpring(0.95, 0.34+)`；主页→统计会经过食品列表；两主题共用 | 约 340ms 起，跨页加长 |
+| 二级页转场 | 进入 emphasized-decelerate 全宽滑入；退出视差 1/4 宽 + fade 至 90%（MiuixDefault） | 300ms |
 | 底栏/FAB 显隐 | fade / scale + fade | 150~200ms |
 | 数量变化 | AnimatedContent | 默认 |
 | 柱状图/环形图入场 | animateFloatAsState | 600~800ms |
