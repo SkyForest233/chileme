@@ -2,6 +2,7 @@ package com.agon.app.ui.screens
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
@@ -40,7 +41,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -54,6 +55,7 @@ import com.agon.app.ui.components.FoodAvatar
 import com.agon.app.ui.components.FoodCard
 import com.agon.app.ui.theme.MotionEasing
 import com.agon.app.viewmodel.AppViewModel
+import top.yukonga.miuix.kmp.anim.folmeSpring
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
@@ -421,6 +423,17 @@ private fun FilterToggle(
     // 故图标显式 tint，避免取到错误默认色。
     val iconTint = if (activeCount > 0) MiuixTheme.colorScheme.onPrimaryContainer
     else MiuixTheme.colorScheme.onSurfaceVariantSummary
+    // 对齐 Miuix CascadingListPopupLayout 箭头：folmeSpring(damping=0.95,
+    // expand response=0.2 / collapse=0.3)，经 graphicsLayer.rotationZ 驱动。
+    // ExpandMore 朝下，展开筛选项时转到 180° 朝上（级联菜单 ArrowRight 是 ±90°）。
+    val arrowRotation by animateFloatAsState(
+        targetValue = if (expanded) 180f else 0f,
+        animationSpec = folmeSpring(
+            damping = 0.95f,
+            response = if (expanded) 0.2f else 0.3f,
+        ),
+        label = "filterArrowRotation",
+    )
     Surface(
         onClick = onClick,
         shape = RoundedCornerShape(50),
@@ -452,7 +465,7 @@ private fun FilterToggle(
                 contentDescription = null,
                 modifier = Modifier
                     .size(16.dp)
-                    .rotate(if (expanded) 180f else 0f),
+                    .graphicsLayer { rotationZ = arrowRotation },
                 tint = iconTint,
             )
         }
