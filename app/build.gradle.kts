@@ -80,8 +80,10 @@ android {
     }
 
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_17
-        targetCompatibility = JavaVersion.VERSION_17
+        // miuix-nav 的 rememberNavBackStack / entry<> 按 JVM 21 编译，
+        // 内联进本模块必须同目标，否则 “Cannot inline bytecode … 21 into … 17”。
+        sourceCompatibility = JavaVersion.VERSION_21
+        targetCompatibility = JavaVersion.VERSION_21
     }
 
     buildFeatures {
@@ -91,8 +93,10 @@ android {
 
 // AGP 9 起 kotlinOptions DSL 已移除，改用 KGP 的 compilerOptions。
 kotlin {
+    // CI 仍可能是 setup-java 17；toolchain 让 Gradle 自行拉 JDK 21 来编译。
+    jvmToolchain(21)
     compilerOptions {
-        jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17
+        jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_21
     }
 }
 

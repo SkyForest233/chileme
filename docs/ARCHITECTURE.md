@@ -2,7 +2,7 @@
 
 ## 1. 技术栈与版本（不得随意升级）
 
-- Kotlin 2.4.10 / AGP 9.3.1 / Gradle 9.6.1 / JDK 17（v2.8 起为引入 Miuix 0.9.4-rc01 升级，其上游基线即此组合）
+- Kotlin 2.4.10 / AGP 9.3.1 / Gradle 9.6.1 / **JDK 21**（miuix-nav inline 函数为 JVM 21 bytecode，本模块必须同目标；Gradle `jvmToolchain(21)` 可在 CI Java 17 镜像上自拉 21）
 - compileSdk 37（v2.8 起，Miuix 0.9.4-rc01 要求 ≥37）、minSdk 24、targetSdk 36
 - **applicationId `com.chileme.pantry`**（v2.1 起）；namespace / 代码包名保持 `com.agon.app` 不变。FileProvider authority 使用 `${applicationId}.fileprovider` 占位符，代码中用 `${context.packageName}.fileprovider`
 - **Release 构建（v2.5 起）**：`isMinifyEnabled = true` + `isShrinkResources = true`（R8 代码/资源压缩），但 `proguard-rules.pro` 中 `-dontobfuscate` **禁用混淆**——类名/方法名/字段名全保留，堆栈可读无需 mapping。规则文件另含 kotlinx-serialization keep 规则（data 包 serializer 反射）与 OkHttp/Coil dontwarn。release APK ≈ 2.6 MB（debug ≈ 63 MB）
