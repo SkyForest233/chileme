@@ -145,6 +145,16 @@ tasks.matching { it.name == "lintDebug" }.configureEach {
     dependsOn("testDebugUnitTest")
 }
 
+// 临时：打印测试统计，确认用例确实执行而非被跳过。
+tasks.withType<Test>().configureEach {
+    testLogging { events("passed", "failed", "skipped") }
+    afterSuite(KotlinClosure2<org.gradle.api.tasks.testing.TestDescriptor, org.gradle.api.tasks.testing.TestResult, Unit>({ d, r ->
+        if (d.parent == null) {
+            println("::error::TESTSTATS total=${r.testCount} passed=${r.successfulTestCount} failed=${r.failedTestCount} skipped=${r.skippedTestCount}")
+        }
+    }))
+}
+
 // ---- Release 签名凭据缺失时的拦截 ----
 // 放在 taskGraph.whenReady（执行阶段前）而非 buildTypes 块内：
 // 后者属配置阶段，assembleDebug 也会求值，会误伤无密钥的 debug 构建。
