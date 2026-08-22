@@ -148,6 +148,14 @@ class FoodModelsTest {
         assertEquals("还剩 5 天", itemExpiringIn(5).remainingText)
     }
 
+    @Test
+    fun `dot 格式化为 yyyy_MM_dd 紧凑点分日期`() {
+        val d = LocalDate.of(2026, 7, 27)
+        assertEquals("2026.07.27", d.dot())
+        val singleDigit = LocalDate.of(2026, 5, 9)
+        assertEquals("2026.05.09", singleDigit.dot())
+    }
+
     // ---- 分类回退 ----
 
     @Test

@@ -78,6 +78,7 @@ import com.agon.app.data.FoodItem
 import com.agon.app.data.FoodStatus
 import com.agon.app.data.cn
 import com.agon.app.data.daysLeftAt
+import com.agon.app.data.dot
 import com.agon.app.data.elapsedRatioAt
 import com.agon.app.data.expiryDate
 import com.agon.app.data.effectiveThreshold
@@ -543,14 +544,14 @@ fun FoodCard(
                         )
                         Spacer(Modifier.height(2.dp))
                         MiuixText(
-                            "${category.label} · 生产 ${item.productionDate.cn()}",
+                            "${category.label} · 生产 ${item.productionDate.dot()}",
                             fontSize = 12.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                         )
                         MiuixText(
-                            "到期 ${item.expiryDate.cn()}",
+                            "到期 ${item.expiryDate.dot()}",
                             fontSize = 12.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -633,14 +634,14 @@ fun FoodCard(
                         )
                         Spacer(Modifier.height(2.dp))
                         Text(
-                            "${category.label} · 生产 ${item.productionDate.cn()}",
+                            "${category.label} · 生产 ${item.productionDate.dot()}",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                         )
                         Text(
-                            "到期 ${item.expiryDate.cn()}",
+                            "到期 ${item.expiryDate.dot()}",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
