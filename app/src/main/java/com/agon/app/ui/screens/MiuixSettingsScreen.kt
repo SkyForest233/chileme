@@ -2,7 +2,9 @@ package com.agon.app.ui.screens
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -10,7 +12,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.OutlinedTextField
@@ -19,6 +24,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -51,6 +57,7 @@ import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.CloudFill
 import top.yukonga.miuix.kmp.icon.extended.Download
 import top.yukonga.miuix.kmp.icon.extended.FileDownloads
+import top.yukonga.miuix.kmp.icon.extended.Forward
 import top.yukonga.miuix.kmp.icon.extended.UploadCloud
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
@@ -391,58 +398,118 @@ fun MiuixSettingsScreen(
             show = state.showBackupPicker,
             onDismissRequest = { if (!state.loadingBackups) state.setShowBackupPicker(false) },
         ) {
-            if (state.loadingBackups) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 16.dp),
-                    horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text("正在获取云端备份列表…", style = MiuixTheme.textStyles.body2)
-                }
-            } else {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(
-                        "云端共 ${state.cloudBackups.size} 份备份，新的在前：",
-                        style = MiuixTheme.textStyles.footnote2,
-                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                    )
-                    state.cloudBackups.forEachIndexed { index, backup ->
-                        Surface(
-                            onClick = {
-                                state.setShowBackupPicker(false)
-                                state.setRestoreCandidate(backup)
-                            },
-                            shape = RoundedCornerShape(16.dp),
-                            color = if (index == 0) MiuixTheme.colorScheme.primaryContainer
-                            else MiuixTheme.colorScheme.surfaceContainerHigh,
-                            modifier = Modifier.fillMaxWidth(),
-                        ) {
-                            Column(
-                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                if (state.loadingBackups) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 24.dp),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            "正在获取云端备份列表…",
+                            style = MiuixTheme.textStyles.body2,
+                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                        )
+                    }
+                } else {
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Text(
+                            "云端共 ${state.cloudBackups.size} 份备份，点击选择恢复：",
+                            style = MiuixTheme.textStyles.footnote2,
+                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                        )
+                        state.cloudBackups.forEachIndexed { index, backup ->
+                            val isLatest = index == 0 && !backup.isLegacy
+                            Surface(
+                                onClick = {
+                                    state.setShowBackupPicker(false)
+                                    state.setRestoreCandidate(backup)
+                                },
+                                shape = RoundedCornerShape(16.dp),
+                                color = if (isLatest) MiuixTheme.colorScheme.surfaceContainerHighest
+                                else MiuixTheme.colorScheme.surfaceContainerHigh,
+                                modifier = Modifier.fillMaxWidth(),
                             ) {
-                                Text(
-                                    backup.displayTime,
-                                    style = MiuixTheme.textStyles.body2,
-                                    fontWeight = FontWeight.Medium,
-                                )
-                                Text(
-                                    (if (index == 0 && !backup.isLegacy) "最新 · " else "") + backup.displaySize,
-                                    style = MiuixTheme.textStyles.footnote2,
-                                    color = if (index == 0) MiuixTheme.colorScheme.onPrimaryContainer
-                                    else MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                                )
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(36.dp)
+                                            .clip(CircleShape)
+                                            .background(
+                                                if (isLatest) MiuixTheme.colorScheme.primaryContainer
+                                                else MiuixTheme.colorScheme.secondaryContainer
+                                            ),
+                                        contentAlignment = Alignment.Center,
+                                    ) {
+                                        MiuixIcon(
+                                            if (isLatest) MiuixIcons.CloudFill else MiuixIcons.Download,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(18.dp),
+                                            tint = if (isLatest) MiuixTheme.colorScheme.onPrimaryContainer
+                                            else MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                                        )
+                                    }
+                                    Spacer(Modifier.width(12.dp))
+                                    Column(Modifier.weight(1f)) {
+                                        Text(
+                                            backup.displayTime,
+                                            style = MiuixTheme.textStyles.body1,
+                                            fontWeight = FontWeight.Medium,
+                                            color = MiuixTheme.colorScheme.onSurface,
+                                        )
+                                        Spacer(Modifier.height(2.dp))
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                        ) {
+                                            if (isLatest) {
+                                                Surface(
+                                                    shape = RoundedCornerShape(50),
+                                                    color = MiuixTheme.colorScheme.primary.copy(alpha = 0.12f),
+                                                ) {
+                                                    Text(
+                                                        "最新",
+                                                        style = MiuixTheme.textStyles.footnote2,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = MiuixTheme.colorScheme.primary,
+                                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp),
+                                                    )
+                                                }
+                                            }
+                                            Text(
+                                                backup.displaySize,
+                                                style = MiuixTheme.textStyles.footnote2,
+                                                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                                            )
+                                        }
+                                    }
+                                    Spacer(Modifier.width(8.dp))
+                                    MiuixIcon(
+                                        MiuixIcons.Forward,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(16.dp),
+                                        tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                                    )
+                                }
                             }
                         }
                     }
                 }
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+
+                // 底部取消按钮，与上方列表保持 16dp 间距，不重叠
                 TextButton(
                     text = "取消",
                     onClick = { state.setShowBackupPicker(false) },
                     modifier = Modifier.fillMaxWidth(),
+                    minHeight = 48.dp,
                 )
             }
         }
@@ -456,11 +523,15 @@ fun MiuixSettingsScreen(
             show = state.restoreCandidate != null,
             onDismissRequest = { state.setRestoreCandidate(null) },
         ) {
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(
+                modifier = Modifier.padding(top = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
                 TextButton(
                     text = "取消",
                     onClick = { state.setRestoreCandidate(null) },
                     modifier = Modifier.weight(1f),
+                    minHeight = 48.dp,
                 )
                 TextButton(
                     text = "恢复这一份",
@@ -474,6 +545,7 @@ fun MiuixSettingsScreen(
                         }
                     },
                     modifier = Modifier.weight(1f),
+                    minHeight = 48.dp,
                     colors = ButtonDefaults.textButtonColors(textColor = MiuixTheme.colorScheme.error),
                 )
             }
