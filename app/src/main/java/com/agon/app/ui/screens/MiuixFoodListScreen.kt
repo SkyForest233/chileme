@@ -23,22 +23,39 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.DeleteForever
+import androidx.compose.material.icons.rounded.ExpandMore
+import androidx.compose.material.icons.rounded.FilterList
+import androidx.compose.material.icons.rounded.History
+import androidx.compose.material.icons.rounded.RestartAlt
+import androidx.compose.material.icons.rounded.SelectAll
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.agon.app.data.FoodStatus
 import com.agon.app.data.byId
+import com.agon.app.data.daysLeftAt
 import com.agon.app.data.statusForAt
 import com.agon.app.ui.components.EmptyState
 import com.agon.app.ui.components.FoodAvatar
 import com.agon.app.ui.components.FoodCard
+import com.agon.app.ui.theme.LocalToday
 import com.agon.app.ui.theme.MotionEasing
+import com.agon.app.ui.theme.MotionSpring
 import com.agon.app.ui.theme.filterPanelEnter
 import com.agon.app.ui.theme.filterPanelExit
 import com.agon.app.viewmodel.AppViewModel
@@ -60,6 +77,10 @@ import top.yukonga.miuix.kmp.icon.extended.Refresh
 import top.yukonga.miuix.kmp.icon.extended.SelectAll
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
+private enum class MiuixStatusFilter(val label: String) {
+    ALL("全部"), SAFE("安全"), EXPIRING("临期"), EXPIRED("已过期")
+}
+
 /**
  * 食品列表页的 Miuix（HyperOS）实现（v2.8 阶段二）。
  *
@@ -74,44 +95,104 @@ fun MiuixFoodListScreen(
     onOpenItem: (String) -> Unit,
     onOpenArchive: () -> Unit,
 ) {
-    val state = rememberFoodListUiState(viewModel, initialFilter)
+    val items by viewModel.items.collectAsStateWithLifecycle()
+    val archived by viewModel.archived.collectAsStateWithLifecycle()
+    val thresholds by viewModel.thresholds.collectAsStateWithLifecycle()
+    val categories by viewModel.categories.collectAsStateWithLifecycle()
+    var query by rememberSaveable { mutableStateOf("") }
+    var statusFilter by rememberSaveable(initialFilter) {
+        mutableStateOf(
+            when (initialFilter) {
+                "expiring" -> MiuixStatusFilter.EXPIRING
+                "expired" -> MiuixStatusFilter.EXPIRED
+                else -> MiuixStatusFilter.ALL
+            }
+        )
+    }
+    var categoryFilter by rememberSaveable { mutableStateOf<String?>(null) }
+    var locationFilter by rememberSaveable { mutableStateOf<String?>(null) }
+    var filtersExpanded by rememberSaveable(initialFilter) {
+        mutableStateOf(initialFilter != null)
+    }
+    // ---- 长按多选（批量归档，选中状态提升到 ViewModel，供 MainActivity 批量操作栏共用）----
+    val selectedIds by viewModel.selectedIds.collectAsStateWithLifecycle()
+    val selectionMode = selectedIds.isNotEmpty()
 
     // 系统返回键：多选时只退出多选，不切页（在 NavHost 内部，优先级高于导航返回）
-    BackHandler(enabled = state.selectionMode) {
-        state.clearSelection()
+    BackHandler(enabled = selectionMode) {
+        viewModel.clearSelection()
+    }
+
+    val usedLocations = remember(items) {
+        items.map { it.location }.filter { it.isNotBlank() }.distinct().sorted()
+    }
+
+    val activeFilterCount =
+        (if (statusFilter != MiuixStatusFilter.ALL) 1 else 0) +
+            (if (categoryFilter != null) 1 else 0) +
+            (if (locationFilter != null) 1 else 0)
+
+    val today = LocalToday.current
+    val filtered = remember(items, thresholds, query, statusFilter, categoryFilter, locationFilter, today) {
+        items
+            .filter { query.isBlank() || it.name.contains(query.trim(), ignoreCase = true) }
+            .filter {
+                when (statusFilter) {
+                    MiuixStatusFilter.ALL -> true
+                    MiuixStatusFilter.SAFE -> it.statusForAt(today, thresholds) == FoodStatus.SAFE
+                    MiuixStatusFilter.EXPIRING -> it.statusForAt(today, thresholds) == FoodStatus.EXPIRING
+                    MiuixStatusFilter.EXPIRED -> it.statusForAt(today, thresholds) == FoodStatus.EXPIRED
+                }
+            }
+            .filter { categoryFilter == null || it.category == categoryFilter }
+            .filter { locationFilter == null || it.location == locationFilter }
+            .sortedWith(compareBy({ it.quantity == 0 }, { it.daysLeftAt(today) }))
+    }
+
+    val archivedMatches = remember(archived, query) {
+        if (query.isBlank()) emptyList()
+        else archived.filter { it.item.name.contains(query.trim(), ignoreCase = true) }
     }
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = if (state.selectionMode) "已选择 ${state.selectedIds.size} 项" else "全部食品",
-                navigationIcon = {
-                    if (state.selectionMode) {
-                        IconButton(onClick = { state.clearSelection() }) {
-                            Icon(MiuixIcons.Close, contentDescription = "取消选择")
+            if (selectionMode) {
+                TopAppBar(
+                    title = "已选 ${selectedIds.size} 项",
+                    navigationIcon = {
+                        IconButton(onClick = { viewModel.clearSelection() }) {
+                            Icon(MiuixIcons.Close, contentDescription = "退出多选")
                         }
-                    }
-                },
-                actions = {
-                    if (state.selectionMode) {
-                        val allSelected = state.filtered.isNotEmpty() && state.selectedIds.size == state.filtered.size
+                    },
+                    actions = {
                         IconButton(onClick = {
-                            if (allSelected) state.clearSelection() else state.selectAll()
+                            viewModel.setSelection(
+                                if (selectedIds.size == filtered.size) emptySet()
+                                else filtered.map { it.id }.toSet()
+                            )
                         }) {
                             Icon(
-                                if (allSelected) MiuixIcons.Close else MiuixIcons.SelectAll,
-                                contentDescription = if (allSelected) "取消全选" else "全选",
+                                MiuixIcons.SelectAll,
+                                contentDescription = if (selectedIds.size == filtered.size) "取消全选" else "全选",
+                                tint = MiuixTheme.colorScheme.primary,
                             )
                         }
-                    } else {
-                        MiuixFilterToggle(
-                            activeCount = state.activeFilterCount,
-                            expanded = state.filtersExpanded,
-                            onToggle = { state.setFiltersExpanded(!state.filtersExpanded) },
-                        )
-                    }
-                },
-            )
+                    },
+                )
+            } else {
+                TopAppBar(
+                    title = "食品列表",
+                    actions = {
+                        IconButton(onClick = onOpenArchive) {
+                            Icon(
+                                MiuixIcons.Recent,
+                                contentDescription = "归档历史",
+                                tint = MiuixTheme.colorScheme.primary,
+                            )
+                        }
+                    },
+                )
+            }
         },
     ) { padding ->
         Column(
@@ -119,40 +200,44 @@ fun MiuixFoodListScreen(
                 .fillMaxSize()
                 .padding(top = padding.calculateTopPadding()),
         ) {
-            // ---- Miuix InputField ----
-            InputField(
-                query = state.query,
-                onQueryChange = { state.setQuery(it) },
-                onSearch = {},
-                expanded = false,
-                onExpandedChange = {},
-                label = "搜索食品名称…",
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 20.dp),
-            )
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                InputField(
+                    query = query,
+                    onQueryChange = { query = it },
+                    onSearch = {},
+                    expanded = false,
+                    onExpandedChange = {},
+                    label = "搜索食品（含归档）…",
+                    modifier = Modifier.weight(1f),
+                )
+                Spacer(Modifier.width(10.dp))
+                FilterToggle(
+                    expanded = filtersExpanded,
+                    activeCount = activeFilterCount,
+                    onClick = { filtersExpanded = !filtersExpanded },
+                )
+            }
 
-            // ---- Expandable Filter Panel ----
             AnimatedVisibility(
-                visible = state.filtersExpanded,
+                visible = filtersExpanded,
                 enter = filterPanelEnter(),
                 exit = filterPanelExit(),
             ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 10.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    // Status filter chips
+                Column(Modifier.padding(top = 10.dp)) {
+                    FilterSectionLabel("状态")
                     LazyRow(
                         contentPadding = PaddingValues(horizontal = 20.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                        items(FoodStatusFilter.entries) { f ->
+                        items(MiuixStatusFilter.entries.toList()) { f ->
                             FilterChip(
-                                selected = state.statusFilter == f,
-                                onClick = { state.setStatusFilter(f) },
+                                selected = statusFilter == f,
+                                onClick = { statusFilter = f },
                                 label = { Text(f.label, style = MiuixTheme.textStyles.body2) },
                                 shape = RoundedCornerShape(50),
                                 colors = FilterChipDefaults.filterChipColors(
@@ -162,24 +247,16 @@ fun MiuixFoodListScreen(
                             )
                         }
                     }
-
-                    // Category filter chips
+                    Spacer(Modifier.height(4.dp))
+                    FilterSectionLabel("分类")
                     LazyRow(
                         contentPadding = PaddingValues(horizontal = 20.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                        item {
+                        items(categories, key = { it.id }) { c ->
                             FilterChip(
-                                selected = state.categoryFilter == null,
-                                onClick = { state.setCategoryFilter(null) },
-                                label = { Text("全部分类", style = MiuixTheme.textStyles.body2) },
-                                shape = RoundedCornerShape(50),
-                            )
-                        }
-                        items(state.categories, key = { it.id }) { c ->
-                            FilterChip(
-                                selected = state.categoryFilter == c.id,
-                                onClick = { state.setCategoryFilter(if (state.categoryFilter == c.id) null else c.id) },
+                                selected = categoryFilter == c.id,
+                                onClick = { categoryFilter = if (categoryFilter == c.id) null else c.id },
                                 label = { Text("${c.emoji} ${c.label}", style = MiuixTheme.textStyles.body2) },
                                 shape = RoundedCornerShape(50),
                                 colors = FilterChipDefaults.filterChipColors(
@@ -188,26 +265,18 @@ fun MiuixFoodListScreen(
                             )
                         }
                     }
-
-                    // Location filter chips
-                    if (state.usedLocations.isNotEmpty()) {
+                    if (usedLocations.isNotEmpty()) {
+                        Spacer(Modifier.height(4.dp))
+                        FilterSectionLabel("位置")
                         LazyRow(
                             contentPadding = PaddingValues(horizontal = 20.dp),
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                         ) {
-                            item {
+                            items(usedLocations, key = { it }) { loc ->
                                 FilterChip(
-                                    selected = state.locationFilter == null,
-                                    onClick = { state.setLocationFilter(null) },
-                                    label = { Text("全部位置", style = MiuixTheme.textStyles.body2) },
-                                    shape = RoundedCornerShape(50),
-                                )
-                            }
-                            items(state.usedLocations, key = { it }) { loc ->
-                                FilterChip(
-                                    selected = state.locationFilter == loc,
-                                    onClick = { state.setLocationFilter(if (state.locationFilter == loc) null else loc) },
-                                    label = { Text("📍 $loc", style = MiuixTheme.textStyles.body2) },
+                                    selected = locationFilter == loc,
+                                    onClick = { locationFilter = if (locationFilter == loc) null else loc },
+                                    label = { Text(loc, style = MiuixTheme.textStyles.body2) },
                                     shape = RoundedCornerShape(50),
                                     colors = FilterChipDefaults.filterChipColors(
                                         selectedContainerColor = MiuixTheme.colorScheme.tertiaryContainer,
@@ -218,23 +287,13 @@ fun MiuixFoodListScreen(
                     }
                 }
             }
-
             Spacer(Modifier.height(8.dp))
 
-            // ---- Content list ----
-            if (state.items.isEmpty()) {
+            if (filtered.isEmpty() && archivedMatches.isEmpty()) {
                 EmptyState(
-                    emoji = "🥫",
-                    title = "零食柜还是空的",
-                    subtitle = "点击右下角的“+”添加第一件食品吧",
-                )
-            } else if (state.filtered.isEmpty()) {
-                EmptyState(
-                    emoji = "🔍",
-                    title = "没有找到匹配的食品",
-                    subtitle = "试试清除筛选条件或换个关键词",
-                    actionLabel = "清除筛选",
-                    onAction = { state.resetFilters() },
+                    emoji = if (items.isEmpty()) "🧺" else "🔍",
+                    title = if (items.isEmpty()) "零食柜还是空的" else "没有符合条件的食品",
+                    subtitle = if (items.isEmpty()) "点击下方“添加”开始记录吧" else "换个关键词或筛选条件试试",
                 )
             } else {
                 LazyColumn(
@@ -245,41 +304,99 @@ fun MiuixFoodListScreen(
                         top = 4.dp,
                         bottom = padding.calculateBottomPadding() + 96.dp,
                     ),
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    items(state.filtered, key = { it.id }) { item ->
-                        val selected = item.id in state.selectedIds
+                    items(filtered, key = { it.id }) { item ->
                         FoodCard(
                             item = item,
-                            category = state.categories.byId(item.category),
-                            status = item.statusForAt(state.today, state.thresholds),
+                            category = categories.byId(item.category),
+                            status = item.statusForAt(LocalToday.current, thresholds),
+                            selectionMode = selectionMode,
+                            selected = item.id in selectedIds,
                             onClick = {
-                                if (state.selectionMode) state.toggleSelection(item.id)
-                                else onOpenItem(item.id)
+                                if (selectionMode) {
+                                    viewModel.toggleSelection(item.id)
+                                } else {
+                                    onOpenItem(item.id)
+                                }
                             },
                             onLongClick = {
-                                state.toggleSelection(item.id)
+                                viewModel.toggleSelection(item.id)
                             },
-                            selected = selected,
-                            selectionMode = state.selectionMode,
-                            onQuantityChange = { delta ->
-                                state.changeQuantity(item.id, delta)
-                            },
-                            modifier = Modifier.animateItem(),
+                            onQuantityChange = { delta -> viewModel.changeQuantity(item.id, delta, withUndo = delta < 0) },
+                            modifier = Modifier.animateItem(
+                                fadeInSpec = tween(280, easing = MotionEasing.EmphasizedDecelerate),
+                                fadeOutSpec = tween(200, easing = MotionEasing.EmphasizedAccelerate),
+                            ),
                         )
                     }
 
-                    // 列表底部入口：归档历史快速直达
-                    if (state.archived.isNotEmpty()) {
-                        item {
-                            MiuixRecentArchivedEntry(
-                                count = state.archived.size,
-                                latestName = state.archived.firstOrNull()?.item?.name,
-                                latestEmoji = state.archived.firstOrNull()?.let {
-                                    state.categories.byId(it.item.category).emoji
-                                } ?: "🧺",
-                                onClick = onOpenArchive,
-                            )
+                    if (archivedMatches.isNotEmpty()) {
+                        item(key = "archive_header") {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 8.dp)
+                                    .animateItem(),
+                            ) {
+                                Icon(
+                                    MiuixIcons.Recent,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp),
+                                    tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                                )
+                                Spacer(Modifier.width(6.dp))
+                                Text(
+                                    "归档中找到 ${archivedMatches.size} 条",
+                                    style = MiuixTheme.textStyles.footnote2,
+                                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                                )
+                            }
+                        }
+                        items(archivedMatches, key = { "arch_${it.item.id}" }) { entry ->
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .animateItem(),
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    FoodAvatar(entry.item, categories.byId(entry.item.category).emoji, size = 40.dp)
+                                    Spacer(Modifier.width(12.dp))
+                                    Column(Modifier.weight(1f)) {
+                                        Text(
+                                            entry.item.name,
+                                            style = MiuixTheme.textStyles.subtitle,
+                                            fontWeight = FontWeight.SemiBold,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                        )
+                                        Text(
+                                            "${entry.reason.emoji} ${entry.reason.label}",
+                                            style = MiuixTheme.textStyles.footnote2,
+                                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                                        )
+                                    }
+                                    IconButton(onClick = { viewModel.restoreArchived(entry.item.id) }) {
+                                        Icon(
+                                            MiuixIcons.Refresh,
+                                            contentDescription = "恢复 ${entry.item.name}",
+                                            tint = MiuixTheme.colorScheme.primary,
+                                        )
+                                    }
+                                    IconButton(onClick = { viewModel.deleteArchived(entry.item.id) }) {
+                                        Icon(
+                                            MiuixIcons.Delete,
+                                            contentDescription = "彻底删除 ${entry.item.name}",
+                                            modifier = Modifier.size(20.dp),
+                                            tint = MiuixTheme.colorScheme.error,
+                                        )
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -289,118 +406,75 @@ fun MiuixFoodListScreen(
 }
 
 @Composable
-private fun MiuixFilterToggle(
-    activeCount: Int,
+private fun FilterSectionLabel(text: String) {
+    Text(
+        text,
+        style = MiuixTheme.textStyles.footnote2,
+        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+        modifier = Modifier.padding(start = 24.dp, bottom = 4.dp),
+    )
+}
+
+@Composable
+private fun FilterToggle(
     expanded: Boolean,
-    onToggle: () -> Unit,
+    activeCount: Int,
+    onClick: () -> Unit,
 ) {
-    val rotation by animateFloatAsState(
+    // Miuix Icon 读 Miuix 的 LocalContentColor，而此容器是 MD3 Surface（读 MD3 LocalContentColor），
+    // 故图标显式 tint，避免取到错误默认色。
+    val iconTint = if (activeCount > 0) MiuixTheme.colorScheme.onPrimaryContainer
+    else MiuixTheme.colorScheme.onSurfaceVariantSummary
+    // 对齐 Miuix CascadingListPopupLayout 箭头：folmeSpring(damping=0.95,
+    // expand response=0.2 / collapse=0.3)，经 graphicsLayer.rotationZ 驱动。
+    // ExpandMore 朝下，展开筛选项时转到 180° 朝上（级联菜单 ArrowRight 是 ±90°）。
+    val arrowRotation by animateFloatAsState(
         targetValue = if (expanded) 180f else 0f,
-        animationSpec = top.yukonga.miuix.kmp.anim.folmeSpring<Float>(
-            damping = 0.95f,
-            response = if (expanded) 0.2f else 0.3f,
-        ),
-        label = "miuixFilterArrow",
+        animationSpec = if (expanded) MotionSpring.expand<Float>() else MotionSpring.collapse<Float>(),
+        label = "filterArrowRotation",
     )
     Surface(
-        onClick = onToggle,
+        onClick = onClick,
         shape = RoundedCornerShape(50),
         color = if (activeCount > 0) MiuixTheme.colorScheme.primaryContainer
-        else MiuixTheme.colorScheme.surfaceContainerHighest,
+        else MiuixTheme.colorScheme.surfaceContainerHigh,
+        contentColor = iconTint,
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             Icon(
                 MiuixIcons.Filter,
-                contentDescription = null,
-                modifier = Modifier.size(16.dp),
-                tint = if (activeCount > 0) MiuixTheme.colorScheme.onPrimaryContainer
-                else MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                contentDescription = "筛选",
+                modifier = Modifier.size(18.dp),
+                tint = iconTint,
             )
-            AnimatedContent(
-                targetState = activeCount,
-                transitionSpec = {
-                    (fadeIn(tween(150)) + androidx.compose.animation.scaleIn(tween(150)))
-                        .togetherWith(fadeOut(tween(150)) + androidx.compose.animation.scaleOut(tween(150)))
-                },
-                label = "miuixFilterCount",
-            ) { count ->
-                if (count > 0) {
+            if (activeCount > 0) {
+                Spacer(Modifier.width(4.dp))
+                AnimatedContent(
+                    targetState = activeCount,
+                    transitionSpec = {
+                        fadeIn(tween(160, easing = MotionEasing.Standard)) togetherWith
+                            fadeOut(tween(120, easing = MotionEasing.Standard))
+                    },
+                    label = "filterCount",
+                ) { count ->
                     Text(
                         "$count",
                         style = MiuixTheme.textStyles.footnote2,
                         fontWeight = FontWeight.Bold,
-                        color = MiuixTheme.colorScheme.onPrimaryContainer,
-                    )
-                } else {
-                    Text(
-                        "筛选",
-                        style = MiuixTheme.textStyles.footnote2,
-                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                     )
                 }
             }
+            Spacer(Modifier.width(2.dp))
             Icon(
                 MiuixIcons.ExpandMore,
                 contentDescription = null,
                 modifier = Modifier
                     .size(16.dp)
-                    .graphicsLayer { rotationZ = rotation },
-                tint = if (activeCount > 0) MiuixTheme.colorScheme.onPrimaryContainer
-                else MiuixTheme.colorScheme.onSurfaceVariantSummary,
-            )
-        }
-    }
-}
-
-@Composable
-private fun MiuixRecentArchivedEntry(
-    count: Int,
-    latestName: String?,
-    latestEmoji: String,
-    onClick: () -> Unit,
-) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(top = 6.dp),
-        onClick = onClick,
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(
-                MiuixIcons.Recent,
-                contentDescription = null,
-                modifier = Modifier.size(20.dp),
-                tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-            )
-            Spacer(Modifier.width(10.dp))
-            Column(Modifier.weight(1f)) {
-                Text(
-                    "归档历史（$count 条记录）",
-                    style = MiuixTheme.textStyles.body2,
-                    fontWeight = FontWeight.Medium,
-                )
-                if (latestName != null) {
-                    Text(
-                        "最近归档：$latestEmoji $latestName · 点击查看/恢复",
-                        style = MiuixTheme.textStyles.footnote2,
-                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-            }
-            Text(
-                "查看",
-                style = MiuixTheme.textStyles.footnote2,
-                color = MiuixTheme.colorScheme.primary,
-                fontWeight = FontWeight.SemiBold,
+                    .graphicsLayer { rotationZ = arrowRotation },
+                tint = iconTint,
             )
         }
     }

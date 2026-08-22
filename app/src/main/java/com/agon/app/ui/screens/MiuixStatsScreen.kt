@@ -20,6 +20,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.History
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -35,9 +37,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.agon.app.data.ArchiveReason
+import com.agon.app.data.CategoryDef
 import com.agon.app.data.byId
 import com.agon.app.ui.components.EmptyState
 import com.agon.app.ui.components.ExpiryCalendarCard
+import com.agon.app.ui.theme.LocalToday
 import com.agon.app.ui.theme.MotionEasing
 import com.agon.app.viewmodel.AppViewModel
 import java.time.LocalDate
@@ -67,7 +73,52 @@ fun MiuixStatsScreen(
     onOpenItem: (String) -> Unit = {},
     onOpenConsumption: () -> Unit = {},
 ) {
-    val state = rememberStatsUiState(viewModel)
+    val items by viewModel.items.collectAsStateWithLifecycle()
+    val consumption by viewModel.consumption.collectAsStateWithLifecycle()
+    val archived by viewModel.archived.collectAsStateWithLifecycle()
+    val categories by viewModel.categories.collectAsStateWithLifecycle()
+    val thresholds by viewModel.thresholds.collectAsStateWithLifecycle()
+
+    val todayDate = LocalToday.current
+    val today = todayDate.toEpochDay()
+    val weekAgo = today - 6
+    val monthStart = todayDate.withDayOfMonth(1).toEpochDay()
+
+    val consumedThisWeek = remember(consumption, weekAgo) {
+        consumption.filter { it.epochDay >= weekAgo }.sumOf { it.amount }
+    }
+    val consumedThisMonth = remember(consumption, monthStart) {
+        consumption.filter { it.epochDay >= monthStart }.sumOf { it.amount }
+    }
+    val wastedTotal = archived.count { it.reason == ArchiveReason.EXPIRED }
+
+    val dailyTrend = remember(consumption, today) {
+        (0..6).map { offset ->
+            val day = today - (6 - offset)
+            val amount = consumption.filter { it.epochDay == day }.sumOf { it.amount }
+            LocalDate.ofEpochDay(day) to amount
+        }
+    }
+    val maxDaily = (dailyTrend.maxOfOrNull { it.second } ?: 0).coerceAtLeast(1)
+
+    val categoryShare = remember(items) {
+        items.groupBy { it.category }
+            .mapValues { (_, list) -> list.sumOf { it.quantity } }
+            .filterValues { it > 0 }
+            .toList()
+            .sortedByDescending { it.second }
+    }
+    val totalQty = categoryShare.sumOf { it.second }
+
+    val topConsumed = remember(consumption) {
+        consumption.groupBy { it.name }
+            .map { (name, records) ->
+                Triple(name, records.first().category, records.sumOf { it.amount })
+            }
+            .sortedByDescending { it.third }
+            .take(5)
+    }
+
     val chartColors = rememberChartColorsMiuix()
 
     Scaffold(
@@ -89,19 +140,20 @@ fun MiuixStatsScreen(
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(
-                start = 20.dp,
-                end = 20.dp,
                 top = padding.calculateTopPadding() + 4.dp,
                 bottom = padding.calculateBottomPadding() + 96.dp,
             ),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             item {
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 20.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
                     MiuixMiniStat(
                         modifier = Modifier.weight(1f),
                         emoji = "😋",
-                        value = "${state.consumedThisWeek}",
+                        value = "$consumedThisWeek",
                         label = "本周消耗",
                         container = MiuixTheme.colorScheme.primaryContainer,
                         content = MiuixTheme.colorScheme.onPrimaryContainer,
@@ -109,7 +161,7 @@ fun MiuixStatsScreen(
                     MiuixMiniStat(
                         modifier = Modifier.weight(1f),
                         emoji = "📅",
-                        value = "${state.consumedThisMonth}",
+                        value = "$consumedThisMonth",
                         label = "本月消耗",
                         container = MiuixTheme.colorScheme.secondaryContainer,
                         content = MiuixTheme.colorScheme.onSecondaryContainer,
@@ -117,7 +169,7 @@ fun MiuixStatsScreen(
                     MiuixMiniStat(
                         modifier = Modifier.weight(1f),
                         emoji = "🗑️",
-                        value = "${state.wastedTotal}",
+                        value = "$wastedTotal",
                         label = "过期浪费",
                         container = MiuixTheme.colorScheme.errorContainer,
                         content = MiuixTheme.colorScheme.onErrorContainer,
@@ -125,82 +177,69 @@ fun MiuixStatsScreen(
                 }
             }
 
-            // ---- 到期日历卡片（复用组件，桥接 MaterialTheme 取 Miuix 配色） ----
             item {
                 ExpiryCalendarCard(
-                    items = state.items,
-                    thresholds = state.thresholds,
-                    categories = state.categories,
+                    items = items,
+                    thresholds = thresholds,
+                    categories = categories,
                     onOpenItem = onOpenItem,
+                    modifier = Modifier.padding(horizontal = 20.dp),
                 )
             }
 
-            // ---- 7-Day bar chart（Miuix 包装：Card 分组） ----
             item {
-                Card(modifier = Modifier.fillMaxWidth()) {
-                    Column(Modifier.padding(16.dp)) {
-                        Text(
-                            "近 7 天消耗趋势",
-                            style = MiuixTheme.textStyles.title3,
-                            fontWeight = FontWeight.Bold,
-                        )
-                        Spacer(Modifier.height(16.dp))
+                SmallTitle(text = "消耗趋势")
+                Card(modifier = Modifier.padding(horizontal = 12.dp)) {
+                    Column(Modifier.padding(20.dp)) {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(120.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
                             verticalAlignment = Alignment.Bottom,
                         ) {
-                            state.dailyTrend.forEach { (date, amount) ->
-                                val heightRatio = if (state.maxDaily > 0) amount.toFloat() / state.maxDaily else 0f
-                                val isToday = date.toEpochDay() == state.todayDate.toEpochDay()
-                                val barTargetHeight = if (amount > 0) (80 * heightRatio).coerceAtLeast(8f) else 4f
-                                val barHeightAnim by animateFloatAsState(
-                                    targetValue = barTargetHeight,
-                                    animationSpec = tween(400, easing = MotionEasing.Emphasized),
-                                    label = "miuixBarHeight",
-                                )
+                            dailyTrend.forEach { (date, amount) ->
                                 Column(
-                                    horizontalAlignment = Alignment.CenterHorizontally,
                                     modifier = Modifier.weight(1f),
+                                    horizontalAlignment = Alignment.CenterHorizontally,
                                 ) {
                                     if (amount > 0) {
                                         Text(
                                             "$amount",
                                             style = MiuixTheme.textStyles.footnote2,
                                             fontWeight = FontWeight.Bold,
-                                            color = if (isToday) MiuixTheme.colorScheme.primary
-                                            else MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                                            color = MiuixTheme.colorScheme.primary,
                                         )
                                         Spacer(Modifier.height(2.dp))
                                     }
+                                    val ratio = amount.toFloat() / maxDaily
+                                    val animRatio = animateFloatAsState(
+                                        targetValue = ratio,
+                                        animationSpec = tween(600, easing = MotionEasing.EmphasizedDecelerate),
+                                        label = "bar",
+                                    )
                                     Box(
                                         modifier = Modifier
-                                            .width(20.dp)
+                                            .fillMaxWidth(0.62f)
                                             .layout { measurable, constraints ->
-                                                val hPx = barHeightAnim.dp.roundToPx()
+                                                val minH = if (amount > 0) 14.dp.roundToPx() else 8.dp.roundToPx()
+                                                val h = (84.dp.roundToPx() * animRatio.value).toInt().coerceAtLeast(minH)
                                                 val placeable = measurable.measure(
-                                                    constraints.copy(minHeight = hPx, maxHeight = hPx)
+                                                    constraints.copy(minHeight = h, maxHeight = h),
                                                 )
-                                                layout(placeable.width, placeable.height) {
-                                                    placeable.placeRelative(0, 0)
-                                                }
+                                                layout(placeable.width, h) { placeable.placeRelative(0, 0) }
                                             }
-                                            .clip(RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp))
+                                            .clip(RoundedCornerShape(50))
                                             .background(
-                                                if (amount == 0) MiuixTheme.colorScheme.surfaceContainerHighest
-                                                else if (isToday) MiuixTheme.colorScheme.primary
-                                                else MiuixTheme.colorScheme.primary.copy(alpha = 0.6f)
+                                                if (amount > 0) MiuixTheme.colorScheme.primary
+                                                else MiuixTheme.colorScheme.surfaceContainerHighest
                                             ),
                                     )
                                     Spacer(Modifier.height(6.dp))
                                     Text(
-                                        "${date.dayOfMonth}日",
+                                        "${date.monthValue}/${date.dayOfMonth}",
                                         style = MiuixTheme.textStyles.footnote2,
-                                        color = if (isToday) MiuixTheme.colorScheme.primary
-                                        else MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                                        fontWeight = if (isToday) FontWeight.Bold else FontWeight.Normal,
+                                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                                     )
                                 }
                             }
@@ -209,98 +248,36 @@ fun MiuixStatsScreen(
                 }
             }
 
-            // ---- Category distribution ring chart（Miuix 包装：Card） ----
             item {
-                Card(modifier = Modifier.fillMaxWidth()) {
-                    Column(Modifier.padding(16.dp)) {
-                        Text(
-                            "库存分类占比",
-                            style = MiuixTheme.textStyles.title3,
-                            fontWeight = FontWeight.Bold,
-                        )
-                        Spacer(Modifier.height(16.dp))
-                        if (state.categoryShare.isEmpty()) {
+                SmallTitle(text = "库存分类")
+                Card(modifier = Modifier.padding(horizontal = 12.dp)) {
+                    Column(Modifier.padding(20.dp)) {
+                        if (categoryShare.isEmpty()) {
                             Text(
                                 "暂无库存数据",
                                 style = MiuixTheme.textStyles.body2,
                                 color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                             )
                         } else {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                val animProgress by animateFloatAsState(
-                                    targetValue = 1f,
-                                    animationSpec = tween(600, easing = MotionEasing.Emphasized),
-                                    label = "miuixRingChart",
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                MiuixDonutChart(
+                                    data = categoryShare.map { it.second.toFloat() },
+                                    colors = categoryShare.mapIndexed { i, _ -> chartColors[i % chartColors.size] },
+                                    centerLabel = "$totalQty",
+                                    centerSub = "总件数",
                                 )
-                                Box(
-                                    contentAlignment = Alignment.Center,
-                                    modifier = Modifier.size(130.dp),
-                                ) {
-                                    Canvas(Modifier.size(130.dp)) {
-                                        val strokeWidth = 22.dp.toPx()
-                                        val arcSize = size.width - strokeWidth
-                                        var startAngle = -90f
-                                        state.categoryShare.forEachIndexed { i, (_, qty) ->
-                                            val sweep = (qty.toFloat() / state.totalQty) * 360f * animProgress
-                                            drawArc(
-                                                color = chartColors[i % chartColors.size],
-                                                startAngle = startAngle,
-                                                sweepAngle = sweep,
-                                                useCenter = false,
-                                                topLeft = Offset(strokeWidth / 2, strokeWidth / 2),
-                                                size = Size(arcSize, arcSize),
-                                                style = Stroke(width = strokeWidth),
-                                            )
-                                            startAngle += sweep
-                                        }
-                                    }
-                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                        Text(
-                                            "${state.totalQty}",
-                                            style = MiuixTheme.textStyles.title1,
-                                            fontWeight = FontWeight.Bold,
-                                        )
-                                        Text(
-                                            "总件数",
-                                            style = MiuixTheme.textStyles.footnote2,
-                                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                                        )
-                                    }
-                                }
-                                Spacer(Modifier.width(20.dp))
+                                Spacer(Modifier.height(16.dp))
                                 Column(
-                                    modifier = Modifier.weight(1f),
-                                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                                    modifier = Modifier.fillMaxWidth(),
                                 ) {
-                                    state.categoryShare.forEachIndexed { i, (catId, qty) ->
-                                        val def = state.categories.byId(catId)
-                                        val pct = (qty * 100f / state.totalQty).toInt()
-                                        Row(
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            modifier = Modifier.fillMaxWidth(),
-                                        ) {
-                                            Box(
-                                                modifier = Modifier
-                                                    .size(10.dp)
-                                                    .clip(CircleShape)
-                                                    .background(chartColors[i % chartColors.size]),
-                                            )
-                                            Spacer(Modifier.width(8.dp))
-                                            Text(
-                                                "${def.emoji} ${def.label}",
-                                                style = MiuixTheme.textStyles.body2,
-                                                modifier = Modifier.weight(1f),
-                                            )
-                                            Text(
-                                                "$qty 件 · $pct%",
-                                                style = MiuixTheme.textStyles.footnote2,
-                                                fontWeight = FontWeight.Medium,
-                                                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                                            )
-                                        }
+                                    categoryShare.forEachIndexed { i, (catId, qty) ->
+                                        MiuixLegendRow(
+                                            color = chartColors[i % chartColors.size],
+                                            category = categories.byId(catId),
+                                            qty = qty,
+                                            percent = if (totalQty > 0) qty * 100 / totalQty else 0,
+                                        )
                                     }
                                 }
                             }
@@ -309,27 +286,22 @@ fun MiuixStatsScreen(
                 }
             }
 
-            // ---- Top 5 consumed foods（Miuix 包装：Card） ----
             item {
-                Card(modifier = Modifier.fillMaxWidth()) {
-                    Column(Modifier.padding(16.dp)) {
-                        Text(
-                            "消耗排行 TOP 5",
-                            style = MiuixTheme.textStyles.title3,
-                            fontWeight = FontWeight.Bold,
-                        )
-                        Spacer(Modifier.height(12.dp))
-                        if (state.topConsumed.isEmpty()) {
-                            Text(
-                                "还没有消耗记录，多吃点零食吧 😋",
-                                style = MiuixTheme.textStyles.body2,
-                                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                SmallTitle(text = "消耗排行")
+                Card(modifier = Modifier.padding(horizontal = 12.dp)) {
+                    Column(Modifier.padding(20.dp)) {
+                        if (topConsumed.isEmpty()) {
+                            EmptyState(
+                                emoji = "🍽️",
+                                title = "还没有消耗记录",
+                                subtitle = "在详情页点“吃掉一份”或减少库存后这里会有数据",
                             )
                         } else {
-                            val maxAmount = state.topConsumed.first().third.coerceAtLeast(1)
+                            val maxAmount = topConsumed.first().third.coerceAtLeast(1)
                             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                                state.topConsumed.forEachIndexed { index, (name, cat, amount) ->
-                                    val targetId = state.findItemIdByName(name)
+                                topConsumed.forEachIndexed { index, (name, cat, amount) ->
+                                    // 点击进入对应食品详情（可编辑）
+                                    val targetId = items.firstOrNull { it.name == name }?.id
                                     Row(
                                         verticalAlignment = Alignment.CenterVertically,
                                         modifier = if (targetId != null) {
@@ -349,7 +321,7 @@ fun MiuixStatsScreen(
                                             color = MiuixTheme.colorScheme.primary,
                                             modifier = Modifier.width(20.dp),
                                         )
-                                        Text(state.categories.byId(cat).emoji, fontSize = 18.sp)
+                                        Text(categories.byId(cat).emoji, fontSize = 18.sp)
                                         Spacer(Modifier.width(8.dp))
                                         Column(Modifier.weight(1f)) {
                                             Text(
@@ -387,37 +359,6 @@ fun MiuixStatsScreen(
 }
 
 @Composable
-private fun MiuixMiniStat(
-    emoji: String,
-    value: String,
-    label: String,
-    container: Color,
-    content: Color,
-    modifier: Modifier = Modifier,
-) {
-    Card(
-        modifier = modifier,
-        colors = CardDefaults.cardColors(color = container),
-    ) {
-        Column(Modifier.padding(14.dp)) {
-            Text(emoji, fontSize = 18.sp)
-            Spacer(Modifier.height(6.dp))
-            Text(
-                value,
-                style = MiuixTheme.textStyles.title1,
-                fontWeight = FontWeight.Bold,
-                color = content,
-            )
-            Text(
-                label,
-                style = MiuixTheme.textStyles.footnote2,
-                color = content.copy(alpha = 0.8f),
-            )
-        }
-    }
-}
-
-@Composable
 private fun rememberChartColorsMiuix(): List<Color> {
     // Miuix Colors 无 tertiary / inversePrimary 字段，用其容器色/前景色替代，保持图表多色可辨。
     val cs = MiuixTheme.colorScheme
@@ -431,6 +372,100 @@ private fun rememberChartColorsMiuix(): List<Color> {
             cs.onPrimaryContainer,
             cs.onSecondaryContainer,
             cs.onTertiaryContainer,
+        )
+    }
+}
+
+@Composable
+private fun MiuixMiniStat(
+    modifier: Modifier,
+    emoji: String,
+    value: String,
+    label: String,
+    container: Color,
+    content: Color,
+) {
+    Card(
+        modifier = modifier,
+        colors = CardDefaults.defaultColors(color = container, contentColor = content),
+    ) {
+        Column(Modifier.padding(14.dp)) {
+            Text(emoji, fontSize = 20.sp)
+            Spacer(Modifier.height(6.dp))
+            Text(value, style = MiuixTheme.textStyles.title2, fontWeight = FontWeight.ExtraBold)
+            Text(label, style = MiuixTheme.textStyles.footnote2)
+        }
+    }
+}
+
+@Composable
+private fun MiuixDonutChart(
+    data: List<Float>,
+    colors: List<Color>,
+    centerLabel: String,
+    centerSub: String,
+) {
+    val total = data.sum().coerceAtLeast(0.001f)
+    val sweep = animateFloatAsState(
+        targetValue = 1f,
+        animationSpec = tween(800, easing = MotionEasing.EmphasizedDecelerate),
+        label = "donut",
+    )
+    Box(contentAlignment = Alignment.Center, modifier = Modifier.size(140.dp)) {
+        Canvas(modifier = Modifier.size(140.dp)) {
+            val stroke = Stroke(width = 30f)
+            var startAngle = -90f
+            val sweepValue = sweep.value
+            data.forEachIndexed { i, value ->
+                val angle = value / total * 360f * sweepValue
+                drawArc(
+                    color = colors[i],
+                    startAngle = startAngle,
+                    sweepAngle = (angle - 3f).coerceAtLeast(1f),
+                    useCenter = false,
+                    style = stroke,
+                    topLeft = Offset(15f, 15f),
+                    size = Size(size.width - 30f, size.height - 30f),
+                )
+                startAngle += angle
+            }
+        }
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(centerLabel, style = MiuixTheme.textStyles.title2, fontWeight = FontWeight.ExtraBold)
+            Text(
+                centerSub,
+                style = MiuixTheme.textStyles.footnote2,
+                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+            )
+        }
+    }
+}
+
+@Composable
+private fun MiuixLegendRow(color: Color, category: CategoryDef, qty: Int, percent: Int) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Box(
+            modifier = Modifier
+                .size(10.dp)
+                .clip(CircleShape)
+                .background(color),
+        )
+        Spacer(Modifier.width(10.dp))
+        Text(
+            "${category.emoji} ${category.label}",
+            style = MiuixTheme.textStyles.body2,
+            fontWeight = FontWeight.Medium,
+            maxLines = 1,
+            modifier = Modifier.weight(1f),
+        )
+        Text(
+            "$qty 件 · $percent%",
+            style = MiuixTheme.textStyles.body2,
+            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+            maxLines = 1,
         )
     }
 }

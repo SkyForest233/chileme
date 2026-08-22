@@ -1,5 +1,7 @@
 package com.agon.app.ui.screens
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -37,8 +39,12 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -47,18 +53,23 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.agon.app.data.ArchiveReason
+import com.agon.app.data.byId
 import com.agon.app.data.cn
 import com.agon.app.data.effectiveThreshold
 import com.agon.app.data.expiryDate
 import com.agon.app.data.elapsedRatioAt
 import com.agon.app.data.productionDate
 import com.agon.app.data.remainingTextAt
+import com.agon.app.data.statusForAt
 import com.agon.app.ui.components.FoodAvatar
+import com.agon.app.ui.theme.LocalToday
+import com.agon.app.ui.theme.MotionEasing
 import com.agon.app.ui.components.QuantityStepper
 import com.agon.app.ui.components.StatusBadge
 import com.agon.app.ui.components.rememberStatusUi
 import com.agon.app.viewmodel.AppViewModel
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -69,10 +80,19 @@ fun FoodDetailScreen(
     onEdit: (String) -> Unit,
     onBack: () -> Unit,
 ) {
-    val state = rememberFoodDetailUiState(viewModel, itemId)
-    val item = state.item
+    val items by viewModel.items.collectAsStateWithLifecycle()
+    val thresholds by viewModel.thresholds.collectAsStateWithLifecycle()
+    val categories by viewModel.categories.collectAsStateWithLifecycle()
+    val item = items.find { it.id == itemId }
+    var showDeleteDialog by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+
+    // “Eat one” celebration animation state
+    val bounceScale = remember { Animatable(1f) }
+    val floatOffset = remember { Animatable(0f) }
+    val floatAlpha = remember { Animatable(0f) }
+    var burstCount by remember { mutableIntStateOf(0) }
 
     if (item == null) {
         Scaffold(containerColor = MaterialTheme.colorScheme.background) { padding ->
@@ -91,7 +111,25 @@ fun FoodDetailScreen(
         return
     }
 
-    val ui = rememberStatusUi(state.status)
+    val today = LocalToday.current
+    val status = item.statusForAt(today, thresholds)
+    val ui = rememberStatusUi(status)
+    val categoryDef = categories.byId(item.category)
+
+    fun playEatAnimation() {
+        burstCount++
+        scope.launch {
+            bounceScale.snapTo(1f)
+            bounceScale.animateTo(1.25f, tween(120, easing = MotionEasing.EmphasizedDecelerate))
+            bounceScale.animateTo(1f, tween(220, easing = MotionEasing.Emphasized))
+        }
+        scope.launch {
+            floatOffset.snapTo(0f)
+            floatAlpha.snapTo(1f)
+            launch { floatOffset.animateTo(-72f, tween(700, easing = MotionEasing.EmphasizedDecelerate)) }
+            floatAlpha.animateTo(0f, tween(700, easing = MotionEasing.Standard))
+        }
+    }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -108,7 +146,7 @@ fun FoodDetailScreen(
                     IconButton(onClick = { onEdit(item.id) }) {
                         Icon(Icons.Rounded.Edit, contentDescription = "编辑")
                     }
-                    IconButton(onClick = { state.setShowDeleteDialog(true) }) {
+                    IconButton(onClick = { showDeleteDialog = true }) {
                         Icon(
                             Icons.Rounded.Delete,
                             contentDescription = "删除",
@@ -143,11 +181,11 @@ fun FoodDetailScreen(
                         val density = LocalDensity.current
                         FoodAvatar(
                             item,
-                            state.categoryDef.emoji,
+                            categoryDef.emoji,
                             size = 80.dp,
                             background = MaterialTheme.colorScheme.surface,
                             modifier = Modifier.graphicsLayer {
-                                val s = state.bounceScale.value
+                                val s = bounceScale.value
                                 scaleX = s
                                 scaleY = s
                             },
@@ -156,8 +194,8 @@ fun FoodDetailScreen(
                             "😋",
                             fontSize = 28.sp,
                             modifier = Modifier.graphicsLayer {
-                                translationY = with(density) { state.floatOffset.value.dp.toPx() }
-                                alpha = state.floatAlpha.value
+                                translationY = with(density) { floatOffset.value.dp.toPx() }
+                                alpha = floatAlpha.value
                             },
                         )
                     }
@@ -169,11 +207,11 @@ fun FoodDetailScreen(
                         color = ui.content,
                     )
                     Spacer(Modifier.height(6.dp))
-                    StatusBadge(state.status)
+                    StatusBadge(status)
                     Spacer(Modifier.height(16.dp))
                     // 正相关进度：时间过去多少走多少
                     LinearProgressIndicator(
-                        progress = { item.elapsedRatioAt(state.today) },
+                        progress = { item.elapsedRatioAt(today) },
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(8.dp)
@@ -183,147 +221,149 @@ fun FoodDetailScreen(
                     )
                     Spacer(Modifier.height(8.dp))
                     Text(
-                        item.remainingTextAt(state.today),
+                        item.remainingTextAt(today),
                         style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
+                        fontWeight = FontWeight.Bold,
                         color = ui.content,
                     )
                 }
             }
 
-            // ---- Eat one CTA button ----
+            // “Eat one” big fun button
             Button(
                 onClick = {
-                    state.playEatAnimation()
-                    state.consumeOne(
-                        onAutoArchived = {
+                    if (item.quantity > 0) {
+                        val isLast = item.quantity == 1
+                        if (isLast) {
+                            // 吃完 → 仓库层自动归档；先播动画再消耗，避免页面瞬间切换
+                            playEatAnimation()
                             scope.launch {
-                                delay(600)
+                                kotlinx.coroutines.delay(750)
+                                viewModel.consumeOne(item.id)
                                 onBack()
                             }
+                        } else {
+                            viewModel.consumeOne(item.id)
+                            playEatAnimation()
                         }
-                    )
+                    }
                 },
+                enabled = item.quantity > 0,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(60.dp),
                 shape = RoundedCornerShape(50),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
+                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
                 ),
             ) {
+                Text("😋", fontSize = 22.sp)
+                Spacer(Modifier.width(10.dp))
                 Text(
-                    if (state.burstCount > 1) "连击打卡 ×${state.burstCount} 😋" else "吃掉一份！😋",
+                    if (item.quantity > 0) "吃掉一份！" else "已经吃光啦",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                 )
+                if (burstCount > 0) {
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        "×$burstCount",
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Bold,
+                    )
+                }
             }
 
-            // ---- Quantity & stepper ----
+            Surface(
+                shape = MaterialTheme.shapes.large,
+                color = MaterialTheme.colorScheme.surfaceContainer,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Column(Modifier.padding(20.dp)) {
+                    DetailRow("分类", "${categoryDef.emoji} ${categoryDef.label}")
+                    HorizontalDivider(Modifier.padding(vertical = 10.dp))
+                    DetailRow("存放位置", item.location.ifBlank { "未设置" })
+                    HorizontalDivider(Modifier.padding(vertical = 10.dp))
+                    DetailRow("生产日期", item.productionDate.cn())
+                    HorizontalDivider(Modifier.padding(vertical = 10.dp))
+                    DetailRow("保质期", "${item.shelfLifeDays} 天")
+                    HorizontalDivider(Modifier.padding(vertical = 10.dp))
+                    DetailRow("预计过期", item.expiryDate.cn())
+                    HorizontalDivider(Modifier.padding(vertical = 10.dp))
+                    DetailRow(
+                        "临期提醒",
+                        "提前 ${item.effectiveThreshold(thresholds)} 天" +
+                            if (item.expiringThresholdDays != null) "（单独设置）" else "（分类默认）",
+                    )
+                    if (item.note.isNotBlank()) {
+                        HorizontalDivider(Modifier.padding(vertical = 10.dp))
+                        DetailRow("备注", item.note)
+                    }
+                }
+            }
+
             Surface(
                 shape = MaterialTheme.shapes.large,
                 color = MaterialTheme.colorScheme.surfaceContainer,
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 Row(
-                    modifier = Modifier.padding(16.dp),
+                    modifier = Modifier.padding(20.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Column(Modifier.weight(1f)) {
                         Text(
-                            "当前库存",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            "库存数量",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.SemiBold,
                         )
                         Text(
-                            "${item.quantity} ${item.unit}",
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold,
+                            "减少会计入消耗统计",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                     QuantityStepper(
                         quantity = item.quantity,
                         unit = item.unit,
-                        onChange = { delta ->
-                            state.changeQuantity(delta) { if (delta < 0) onBack() }
-                        },
+                        onChange = { delta -> viewModel.changeQuantity(item.id, delta) },
                     )
                 }
             }
 
-            // ---- Detail metadata ----
-            Surface(
-                shape = MaterialTheme.shapes.large,
-                color = MaterialTheme.colorScheme.surfaceContainer,
-                modifier = Modifier.fillMaxWidth(),
+            OutlinedButton(
+                onClick = { onEdit(item.id) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(52.dp),
+                shape = RoundedCornerShape(50),
             ) {
-                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    DetailRow("分类", "${state.categoryDef.emoji} ${state.categoryDef.label}")
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-                    DetailRow("存放位置", item.location.ifBlank { "未设置" })
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-                    DetailRow("生产日期", item.productionDate.cn())
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-                    DetailRow("保质期", "${item.shelfLifeDays} 天")
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-                    DetailRow("过期日期", item.expiryDate.cn())
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-                    DetailRow(
-                        "临期提醒",
-                        "提前 ${item.effectiveThreshold(state.thresholds)} 天" +
-                            if (item.expiringThresholdDays != null) "（单独设置）" else "（分类默认）",
-                    )
-                    if (item.note.isNotBlank()) {
-                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-                        DetailRow("备注", item.note)
-                    }
-                }
+                Icon(Icons.Rounded.Edit, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text("编辑食品信息")
             }
 
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedButton(
-                    onClick = { onEdit(item.id) },
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(50),
-                ) {
-                    Icon(Icons.Rounded.Edit, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(6.dp))
-                    Text("编辑")
-                }
-                OutlinedButton(
-                    onClick = { state.setShowDeleteDialog(true) },
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(50),
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        contentColor = MaterialTheme.colorScheme.error,
-                    ),
-                ) {
-                    Icon(Icons.Rounded.Delete, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(6.dp))
-                    Text("删除")
-                }
-            }
-
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(24.dp))
         }
     }
 
-    if (state.showDeleteDialog) {
+    if (showDeleteDialog) {
         AlertDialog(
-            onDismissRequest = { state.setShowDeleteDialog(false) },
+            onDismissRequest = { showDeleteDialog = false },
             title = { Text("移入归档") },
-            text = { Text("确定要将“${item.name}”移入归档吗？（可在设置页的归档历史中查看或恢复）") },
+            text = { Text("确定要将“${item.name}”移入归档吗？可在“归档历史”中恢复。") },
             confirmButton = {
                 TextButton(onClick = {
-                    state.setShowDeleteDialog(false)
-                    state.deleteItem()
+                    showDeleteDialog = false
+                    viewModel.archive(item.id, ArchiveReason.DELETED)
                     onBack()
                 }) {
-                    Text("归档", color = MaterialTheme.colorScheme.error)
+                    Text("移入归档", color = MaterialTheme.colorScheme.error)
                 }
             },
             dismissButton = {
-                TextButton(onClick = { state.setShowDeleteDialog(false) }) { Text("取消") }
+                TextButton(onClick = { showDeleteDialog = false }) { Text("取消") }
             },
         )
     }
@@ -331,19 +371,16 @@ fun FoodDetailScreen(
 
 @Composable
 private fun DetailRow(label: String, value: String) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
         Text(
             label,
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.width(88.dp),
         )
         Text(
             value,
-            style = MaterialTheme.typography.bodyMedium,
+            style = MaterialTheme.typography.bodyLarge,
             fontWeight = FontWeight.Medium,
         )
     }

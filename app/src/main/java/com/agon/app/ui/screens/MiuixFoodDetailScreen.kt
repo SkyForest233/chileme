@@ -1,5 +1,7 @@
 package com.agon.app.ui.screens
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,9 +16,17 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
@@ -24,18 +34,23 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.agon.app.data.ArchiveReason
+import com.agon.app.data.byId
 import com.agon.app.data.cn
 import com.agon.app.data.effectiveThreshold
 import com.agon.app.data.expiryDate
 import com.agon.app.data.elapsedRatioAt
 import com.agon.app.data.productionDate
 import com.agon.app.data.remainingTextAt
+import com.agon.app.data.statusForAt
 import com.agon.app.ui.components.FoodAvatar
 import com.agon.app.ui.components.QuantityStepper
 import com.agon.app.ui.components.StatusBadge
 import com.agon.app.ui.components.rememberStatusUi
+import com.agon.app.ui.theme.LocalToday
+import com.agon.app.ui.theme.MotionEasing
 import com.agon.app.viewmodel.AppViewModel
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
@@ -73,10 +88,18 @@ fun MiuixFoodDetailScreen(
     onEdit: (String) -> Unit,
     onBack: () -> Unit,
 ) {
-    val state = rememberFoodDetailUiState(viewModel, itemId)
-    val item = state.item
+    val items by viewModel.items.collectAsStateWithLifecycle()
+    val thresholds by viewModel.thresholds.collectAsStateWithLifecycle()
+    val categories by viewModel.categories.collectAsStateWithLifecycle()
+    val item = items.find { it.id == itemId }
+    var showDeleteDialog by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+
+    val bounceScale = remember { Animatable(1f) }
+    val floatOffset = remember { Animatable(0f) }
+    val floatAlpha = remember { Animatable(0f) }
+    var burstCount by remember { mutableIntStateOf(0) }
 
     if (item == null) {
         Scaffold { padding ->
@@ -97,7 +120,24 @@ fun MiuixFoodDetailScreen(
         return
     }
 
-    val ui = rememberStatusUi(state.status)
+    val status = item.statusForAt(LocalToday.current, thresholds)
+    val ui = rememberStatusUi(status)
+    val categoryDef = categories.byId(item.category)
+
+    fun playEatAnimation() {
+        burstCount++
+        scope.launch {
+            bounceScale.snapTo(1f)
+            bounceScale.animateTo(1.25f, tween(120, easing = MotionEasing.EmphasizedDecelerate))
+            bounceScale.animateTo(1f, tween(220, easing = MotionEasing.Emphasized))
+        }
+        scope.launch {
+            floatOffset.snapTo(0f)
+            floatAlpha.snapTo(1f)
+            launch { floatOffset.animateTo(-72f, tween(700, easing = MotionEasing.EmphasizedDecelerate)) }
+            floatAlpha.animateTo(0f, tween(700, easing = MotionEasing.Standard))
+        }
+    }
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -113,7 +153,7 @@ fun MiuixFoodDetailScreen(
                     IconButton(onClick = { onEdit(item.id) }) {
                         Icon(MiuixIcons.Edit, contentDescription = "编辑")
                     }
-                    IconButton(onClick = { state.setShowDeleteDialog(true) }) {
+                    IconButton(onClick = { showDeleteDialog = true }) {
                         Icon(
                             MiuixIcons.Delete,
                             contentDescription = "删除",
@@ -133,8 +173,9 @@ fun MiuixFoodDetailScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             Surface(
-                shape = RoundedCornerShape(24.dp),
+                shape = RoundedCornerShape(28.dp),
                 color = ui.container,
+                contentColor = ui.content,
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 Column(
@@ -145,11 +186,11 @@ fun MiuixFoodDetailScreen(
                         val density = LocalDensity.current
                         FoodAvatar(
                             item,
-                            state.categoryDef.emoji,
+                            categoryDef.emoji,
                             size = 80.dp,
                             background = MiuixTheme.colorScheme.surface,
                             modifier = Modifier.graphicsLayer {
-                                val s = state.bounceScale.value
+                                val s = bounceScale.value
                                 scaleX = s
                                 scaleY = s
                             },
@@ -158,23 +199,23 @@ fun MiuixFoodDetailScreen(
                             "😋",
                             fontSize = 28.sp,
                             modifier = Modifier.graphicsLayer {
-                                translationY = with(density) { state.floatOffset.value.dp.toPx() }
-                                alpha = state.floatAlpha.value
+                                translationY = with(density) { floatOffset.value.dp.toPx() }
+                                alpha = floatAlpha.value
                             },
                         )
                     }
                     Spacer(Modifier.height(12.dp))
                     Text(
                         item.name,
-                        style = MiuixTheme.textStyles.title1,
+                        style = MiuixTheme.textStyles.title2,
                         fontWeight = FontWeight.Bold,
                         color = ui.content,
                     )
                     Spacer(Modifier.height(6.dp))
-                    StatusBadge(state.status)
+                    StatusBadge(status)
                     Spacer(Modifier.height(16.dp))
                     LinearProgressIndicator(
-                        progress = item.elapsedRatioAt(state.today),
+                        progress = item.elapsedRatioAt(LocalToday.current),
                         height = 8.dp,
                         colors = ProgressIndicatorDefaults.progressIndicatorColors(
                             foregroundColor = ui.content,
@@ -183,130 +224,145 @@ fun MiuixFoodDetailScreen(
                     )
                     Spacer(Modifier.height(8.dp))
                     Text(
-                        item.remainingTextAt(state.today),
-                        style = MiuixTheme.textStyles.subtitle,
-                        fontWeight = FontWeight.SemiBold,
+                        item.remainingTextAt(LocalToday.current),
+                        style = MiuixTheme.textStyles.body1,
+                        fontWeight = FontWeight.Bold,
                         color = ui.content,
                     )
                 }
             }
 
-            // ---- Eat one CTA button ----
             Button(
                 onClick = {
-                    state.playEatAnimation()
-                    state.consumeOne(
-                        onAutoArchived = {
+                    if (item.quantity > 0) {
+                        val isLast = item.quantity == 1
+                        if (isLast) {
+                            playEatAnimation()
                             scope.launch {
-                                delay(600)
+                                kotlinx.coroutines.delay(750)
+                                viewModel.consumeOne(item.id)
                                 onBack()
                             }
+                        } else {
+                            viewModel.consumeOne(item.id)
+                            playEatAnimation()
                         }
-                    )
+                    }
                 },
+                enabled = item.quantity > 0,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(60.dp),
+                colors = ButtonDefaults.buttonColorsPrimary(),
             ) {
+                Text("😋", fontSize = 22.sp, color = MiuixTheme.colorScheme.onPrimary)
+                Spacer(Modifier.width(10.dp))
                 Text(
-                    if (state.burstCount > 1) "连击打卡 ×${state.burstCount} 😋" else "吃掉一份！😋",
-                    style = MiuixTheme.textStyles.title3,
+                    if (item.quantity > 0) "吃掉一份！" else "已经吃光啦",
+                    style = MiuixTheme.textStyles.body1,
                     fontWeight = FontWeight.Bold,
-                    color = MiuixTheme.colorScheme.onSecondaryVariant,
+                    color = MiuixTheme.colorScheme.onPrimary,
                 )
+                if (burstCount > 0) {
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        "×$burstCount",
+                        style = MiuixTheme.textStyles.body2,
+                        fontWeight = FontWeight.Bold,
+                        color = MiuixTheme.colorScheme.onPrimary,
+                    )
+                }
             }
 
-            // ---- Quantity & stepper ----
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(20.dp)) {
+                    DetailRow("分类", "${categoryDef.emoji} ${categoryDef.label}")
+                    HorizontalDivider(Modifier.padding(vertical = 10.dp))
+                    DetailRow("存放位置", item.location.ifBlank { "未设置" })
+                    HorizontalDivider(Modifier.padding(vertical = 10.dp))
+                    DetailRow("生产日期", item.productionDate.cn())
+                    HorizontalDivider(Modifier.padding(vertical = 10.dp))
+                    DetailRow("保质期", "${item.shelfLifeDays} 天")
+                    HorizontalDivider(Modifier.padding(vertical = 10.dp))
+                    DetailRow("预计过期", item.expiryDate.cn())
+                    HorizontalDivider(Modifier.padding(vertical = 10.dp))
+                    DetailRow(
+                        "临期提醒",
+                        "提前 ${item.effectiveThreshold(thresholds)} 天" +
+                            if (item.expiringThresholdDays != null) "（单独设置）" else "（分类默认）",
+                    )
+                    if (item.note.isNotBlank()) {
+                        HorizontalDivider(Modifier.padding(vertical = 10.dp))
+                        DetailRow("备注", item.note)
+                    }
+                }
+            }
+
             Card(modifier = Modifier.fillMaxWidth()) {
                 Row(
-                    modifier = Modifier.padding(16.dp),
+                    modifier = Modifier.padding(20.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Column(Modifier.weight(1f)) {
                         Text(
-                            "当前库存",
-                            style = MiuixTheme.textStyles.footnote2,
-                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                            "库存数量",
+                            style = MiuixTheme.textStyles.subtitle,
+                            fontWeight = FontWeight.SemiBold,
                         )
                         Text(
-                            "${item.quantity} ${item.unit}",
-                            style = MiuixTheme.textStyles.title2,
-                            fontWeight = FontWeight.Bold,
+                            "减少会计入消耗统计",
+                            style = MiuixTheme.textStyles.footnote2,
+                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                         )
                     }
                     QuantityStepper(
                         quantity = item.quantity,
                         unit = item.unit,
-                        onChange = { delta ->
-                            state.changeQuantity(delta) { if (delta < 0) onBack() }
-                        },
+                        onChange = { delta -> viewModel.changeQuantity(item.id, delta) },
                     )
                 }
             }
 
-            // ---- Detail metadata ----
-            Card(modifier = Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    MiuixDetailRow("分类", "${state.categoryDef.emoji} ${state.categoryDef.label}")
-                    HorizontalDivider()
-                    MiuixDetailRow("存放位置", item.location.ifBlank { "未设置" })
-                    HorizontalDivider()
-                    MiuixDetailRow("生产日期", item.productionDate.cn())
-                    HorizontalDivider()
-                    MiuixDetailRow("保质期", "${item.shelfLifeDays} 天")
-                    HorizontalDivider()
-                    MiuixDetailRow("过期日期", item.expiryDate.cn())
-                    HorizontalDivider()
-                    MiuixDetailRow(
-                        "临期提醒",
-                        if (item.expiringThresholdDays != null) "${item.expiringThresholdDays} 天（单品覆盖）"
-                        else "提前 ${item.effectiveThreshold(state.thresholds)} 天（分类默认）",
-                    )
-                    if (item.note.isNotBlank()) {
-                        HorizontalDivider()
-                        MiuixDetailRow("备注", item.note)
-                    }
-                }
+            Button(
+                onClick = { onEdit(item.id) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(52.dp),
+                colors = ButtonDefaults.buttonColors(
+                    color = MiuixTheme.colorScheme.secondaryVariant,
+                    contentColor = MiuixTheme.colorScheme.onSecondaryVariant,
+                ),
+            ) {
+                Icon(
+                    MiuixIcons.Edit,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp),
+                    tint = MiuixTheme.colorScheme.onSecondaryVariant,
+                )
+                Spacer(Modifier.width(8.dp))
+                Text("编辑食品信息", color = MiuixTheme.colorScheme.onSecondaryVariant)
             }
 
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                TextButton(
-                    text = "编辑",
-                    onClick = { onEdit(item.id) },
-                    modifier = Modifier.weight(1f),
-                    minHeight = 48.dp,
-                )
-                TextButton(
-                    text = "删除",
-                    onClick = { state.setShowDeleteDialog(true) },
-                    modifier = Modifier.weight(1f),
-                    minHeight = 48.dp,
-                    colors = ButtonDefaults.textButtonColors(
-                        textColor = MiuixTheme.colorScheme.error,
-                    ),
-                )
-            }
-
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(24.dp))
         }
 
         OverlayDialog(
             title = "移入归档",
-            summary = "确定要将“${item.name}”移入归档吗？（可在设置页的归档历史中查看或恢复）",
-            show = state.showDeleteDialog,
-            onDismissRequest = { state.setShowDeleteDialog(false) },
+            summary = "确定要将“${item.name}”移入归档吗？可在“归档历史”中恢复。",
+            show = showDeleteDialog,
+            onDismissRequest = { showDeleteDialog = false },
         ) {
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 TextButton(
                     text = "取消",
-                    onClick = { state.setShowDeleteDialog(false) },
+                    onClick = { showDeleteDialog = false },
                     modifier = Modifier.weight(1f),
                 )
                 TextButton(
-                    text = "归档",
+                    text = "移入归档",
                     onClick = {
-                        state.setShowDeleteDialog(false)
-                        state.deleteItem()
+                        showDeleteDialog = false
+                        viewModel.archive(item.id, ArchiveReason.DELETED)
                         onBack()
                     },
                     modifier = Modifier.weight(1f),
@@ -320,20 +376,17 @@ fun MiuixFoodDetailScreen(
 }
 
 @Composable
-private fun MiuixDetailRow(label: String, value: String) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
+private fun DetailRow(label: String, value: String) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
         Text(
             label,
             style = MiuixTheme.textStyles.body2,
             color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+            modifier = Modifier.width(88.dp),
         )
         Text(
             value,
-            style = MiuixTheme.textStyles.body2,
+            style = MiuixTheme.textStyles.body1,
             fontWeight = FontWeight.Medium,
         )
     }
