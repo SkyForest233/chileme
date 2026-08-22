@@ -40,6 +40,8 @@ class SettingsUiState(
     val showNutstoreDialog: Boolean,
     val showBackupPicker: Boolean,
     val showSnapshotPicker: Boolean,
+    val showExportFormatDialog: Boolean,
+    val showRestoreSourceDialog: Boolean,
     val restoreCandidate: CloudBackup?,
     val restoreSnapshotCandidate: LocalSnapshot?,
     val accountInput: String,
@@ -49,6 +51,8 @@ class SettingsUiState(
     private val onShowNutstoreDialogChanged: (Boolean) -> Unit,
     private val onShowBackupPickerChanged: (Boolean) -> Unit,
     private val onShowSnapshotPickerChanged: (Boolean) -> Unit,
+    private val onShowExportFormatDialogChanged: (Boolean) -> Unit,
+    private val onShowRestoreSourceDialogChanged: (Boolean) -> Unit,
     private val onRestoreCandidateChanged: (CloudBackup?) -> Unit,
     private val onRestoreSnapshotCandidateChanged: (LocalSnapshot?) -> Unit,
     private val onAccountInputChanged: (String) -> Unit,
@@ -58,6 +62,8 @@ class SettingsUiState(
     fun setShowNutstoreDialog(show: Boolean) = onShowNutstoreDialogChanged(show)
     fun setShowBackupPicker(show: Boolean) = onShowBackupPickerChanged(show)
     fun setShowSnapshotPicker(show: Boolean) = onShowSnapshotPickerChanged(show)
+    fun setShowExportFormatDialog(show: Boolean) = onShowExportFormatDialogChanged(show)
+    fun setShowRestoreSourceDialog(show: Boolean) = onShowRestoreSourceDialogChanged(show)
     fun setRestoreCandidate(candidate: CloudBackup?) = onRestoreCandidateChanged(candidate)
     fun setRestoreSnapshotCandidate(candidate: LocalSnapshot?) = onRestoreSnapshotCandidateChanged(candidate)
     fun setAccountInput(account: String) = onAccountInputChanged(account)
@@ -114,6 +120,8 @@ fun rememberSettingsUiState(viewModel: AppViewModel): SettingsUiState {
     var showNutstoreDialog by remember { mutableStateOf(false) }
     var showBackupPicker by remember { mutableStateOf(false) }
     var showSnapshotPicker by remember { mutableStateOf(false) }
+    var showExportFormatDialog by remember { mutableStateOf(false) }
+    var showRestoreSourceDialog by remember { mutableStateOf(false) }
     var restoreCandidate by remember { mutableStateOf<CloudBackup?>(null) }
     var restoreSnapshotCandidate by remember { mutableStateOf<LocalSnapshot?>(null) }
 
@@ -149,6 +157,8 @@ fun rememberSettingsUiState(viewModel: AppViewModel): SettingsUiState {
         showNutstoreDialog,
         showBackupPicker,
         showSnapshotPicker,
+        showExportFormatDialog,
+        showRestoreSourceDialog,
         restoreCandidate,
         restoreSnapshotCandidate,
         accountInput,
@@ -177,6 +187,8 @@ fun rememberSettingsUiState(viewModel: AppViewModel): SettingsUiState {
             showNutstoreDialog = showNutstoreDialog,
             showBackupPicker = showBackupPicker,
             showSnapshotPicker = showSnapshotPicker,
+            showExportFormatDialog = showExportFormatDialog,
+            showRestoreSourceDialog = showRestoreSourceDialog,
             restoreCandidate = restoreCandidate,
             restoreSnapshotCandidate = restoreSnapshotCandidate,
             accountInput = accountInput,
@@ -186,6 +198,8 @@ fun rememberSettingsUiState(viewModel: AppViewModel): SettingsUiState {
             onShowNutstoreDialogChanged = { showNutstoreDialog = it },
             onShowBackupPickerChanged = { showBackupPicker = it },
             onShowSnapshotPickerChanged = { showSnapshotPicker = it },
+            onShowExportFormatDialogChanged = { showExportFormatDialog = it },
+            onShowRestoreSourceDialogChanged = { showRestoreSourceDialog = it },
             onRestoreCandidateChanged = { restoreCandidate = it },
             onRestoreSnapshotCandidateChanged = { restoreSnapshotCandidate = it },
             onAccountInputChanged = { accountInput = it },

@@ -355,57 +355,29 @@ fun SettingsScreen(
                     )
                     Spacer(Modifier.height(4.dp))
                     Text(
-                        "导出为 JSON 文件，包含库存、归档、消耗记录和设置",
+                        "管理本地与云端数据，定期备份防止意外丢失",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     Spacer(Modifier.height(12.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         OutlinedButton(
-                            onClick = {
-                                exportLauncher.launch("吃了么备份_${LocalDate.now()}.json")
-                            },
+                            onClick = { state.setShowExportFormatDialog(true) },
                             modifier = Modifier.weight(1f),
                             shape = RoundedCornerShape(50),
                         ) {
                             Icon(Icons.Rounded.FileUpload, contentDescription = null, modifier = Modifier.size(16.dp))
                             Spacer(Modifier.width(6.dp))
-                            Text("导出 JSON")
+                            Text("导出数据")
                         }
                         OutlinedButton(
-                            onClick = { importLauncher.launch(arrayOf("application/json", "text/plain", "*/*")) },
+                            onClick = { state.setShowRestoreSourceDialog(true) },
                             modifier = Modifier.weight(1f),
                             shape = RoundedCornerShape(50),
                         ) {
                             Icon(Icons.Rounded.FileDownload, contentDescription = null, modifier = Modifier.size(16.dp))
                             Spacer(Modifier.width(6.dp))
-                            Text("导入 JSON")
-                        }
-                    }
-                    Spacer(Modifier.height(8.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        OutlinedButton(
-                            onClick = {
-                                csvExportLauncher.launch("吃了么库存_${LocalDate.now()}.csv")
-                            },
-                            modifier = Modifier.weight(1f),
-                            shape = RoundedCornerShape(50),
-                        ) {
-                            Icon(Icons.Rounded.TableChart, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Spacer(Modifier.width(6.dp))
-                            Text("导出 CSV")
-                        }
-                        OutlinedButton(
-                            onClick = {
-                                state.loadLocalSnapshots()
-                                state.setShowSnapshotPicker(true)
-                            },
-                            modifier = Modifier.weight(1f),
-                            shape = RoundedCornerShape(50),
-                        ) {
-                            Icon(Icons.Rounded.History, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Spacer(Modifier.width(6.dp))
-                            Text("本地快照")
+                            Text("恢复数据")
                         }
                     }
 
@@ -463,11 +435,31 @@ fun SettingsScreen(
                                 Icon(Icons.Rounded.CloudUpload, contentDescription = null, modifier = Modifier.size(16.dp))
                             }
                             Spacer(Modifier.width(6.dp))
-                            Text("上传到云端")
+                            Text("上传云端")
                         }
                         OutlinedButton(
                             onClick = {
                                 state.setShowBackupPicker(true)
+                                state.loadCloudBackups { ok, msg ->
+                                    if (!ok) {
+                                        state.setShowBackupPicker(false)
+                                        scope.launch { snackbarHostState.showSnackbar(msg) }
+                                    }
+                                }
+                            },
+                            enabled = !state.syncing && !state.loadingBackups && state.nutstoreAccount.isNotBlank(),
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(50),
+                        ) {
+                            if (state.loadingBackups) {
+                                CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                            } else {
+                                Icon(Icons.Rounded.CloudDownload, contentDescription = null, modifier = Modifier.size(16.dp))
+                            }
+                            Spacer(Modifier.width(6.dp))
+                            Text("云端恢复")
+                        }
+                    }
                                 state.loadCloudBackups { ok, msg ->
                                     if (!ok) {
                                         state.setShowBackupPicker(false)
@@ -580,6 +572,123 @@ fun SettingsScreen(
 
             Spacer(Modifier.height(80.dp))
         }
+    }
+
+    // ---- 导出格式选择弹窗 ----
+    if (state.showExportFormatDialog) {
+        AlertDialog(
+            onDismissRequest = { state.setShowExportFormatDialog(false) },
+            title = { Text("选择导出格式") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Surface(
+                        onClick = {
+                            state.setShowExportFormatDialog(false)
+                            exportLauncher.launch("吃了么备份_${LocalDate.now()}.json")
+                        },
+                        shape = RoundedCornerShape(16.dp),
+                        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(14.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(Icons.Rounded.FileUpload, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                            Spacer(Modifier.width(12.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text("JSON 完整备份", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                                Text("包含库存、归档、消耗记录与全部设置，适合换机与数据迁移", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                    }
+                    Surface(
+                        onClick = {
+                            state.setShowExportFormatDialog(false)
+                            csvExportLauncher.launch("吃了么库存_${LocalDate.now()}.csv")
+                        },
+                        shape = RoundedCornerShape(16.dp),
+                        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(14.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(Icons.Rounded.TableChart, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                            Spacer(Modifier.width(12.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text("CSV 数据表格", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                                Text("表格文件，自带 UTF-8 BOM，支持 Excel、WPS 直接打开查看", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = { state.setShowExportFormatDialog(false) }) { Text("取消") }
+            },
+        )
+    }
+
+    // ---- 恢复来源选择弹窗 ----
+    if (state.showRestoreSourceDialog) {
+        AlertDialog(
+            onDismissRequest = { state.setShowRestoreSourceDialog(false) },
+            title = { Text("选择恢复来源") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Surface(
+                        onClick = {
+                            state.setShowRestoreSourceDialog(false)
+                            importLauncher.launch(arrayOf("application/json", "text/plain", "*/*"))
+                        },
+                        shape = RoundedCornerShape(16.dp),
+                        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(14.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(Icons.Rounded.FileDownload, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                            Spacer(Modifier.width(12.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text("从 JSON 文件导入", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                                Text("从手机存储选取 .json 备份文件进行整体恢复", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                    }
+                    Surface(
+                        onClick = {
+                            state.setShowRestoreSourceDialog(false)
+                            state.loadLocalSnapshots()
+                            state.setShowSnapshotPicker(true)
+                        },
+                        shape = RoundedCornerShape(16.dp),
+                        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(14.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(Icons.Rounded.Restore, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                            Spacer(Modifier.width(12.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text("从本地历史快照恢复", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                                Text("系统自动滚动保留的最近 3 份本地冷备快照", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = { state.setShowRestoreSourceDialog(false) }) { Text("取消") }
+            },
+        )
     }
 
     if (state.showClearDialog) {

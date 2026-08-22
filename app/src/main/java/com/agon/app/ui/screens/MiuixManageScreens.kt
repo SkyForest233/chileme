@@ -32,7 +32,7 @@ import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.basic.TopAppBar
-import top.yukonga.miuix.kmp.overlay.OverlayDialog
+import top.yukonga.miuix.kmp.window.WindowDialog
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Add
 import top.yukonga.miuix.kmp.icon.extended.Back
@@ -249,7 +249,7 @@ fun MiuixCategoryManageScreen(viewModel: AppViewModel, onBack: () -> Unit) {
                 onDismiss = { state.setEditing(null) },
             )
         }
-        OverlayDialog(
+        WindowDialog(
             title = "删除分类",
             summary = state.deleting?.let { cat ->
                 val inUse = state.getInUseCount(cat.id)
@@ -293,7 +293,7 @@ private fun MiuixCategoryEditDialog(
     // show/initial 变化时重建输入状态（打开时清空/同步，编辑不同分类时更新）
     val labelState = remember(show, initialLabel) { TextFieldState(initialLabel) }
     val emojiState = remember(show, initialEmoji) { TextFieldState(initialEmoji) }
-    OverlayDialog(
+    WindowDialog(
         title = title,
         show = show,
         onDismissRequest = onDismiss,
@@ -403,7 +403,7 @@ fun MiuixLocationManageScreen(viewModel: AppViewModel, onBack: () -> Unit) {
         }
 
         val locState = remember(state.showAdd) { TextFieldState("") }
-        OverlayDialog(
+        WindowDialog(
             title = "添加存放位置",
             show = state.showAdd,
             onDismissRequest = { state.setShowAdd(false) },

@@ -79,7 +79,7 @@ import top.yukonga.miuix.kmp.basic.SnackbarHost as MiuixSnackbarHost
 import top.yukonga.miuix.kmp.basic.SnackbarHostState as MiuixSnackbarHostState
 import top.yukonga.miuix.kmp.basic.SnackbarResult as MiuixSnackbarResult
 import top.yukonga.miuix.kmp.basic.TextButton as MiuixTextButton
-import top.yukonga.miuix.kmp.overlay.OverlayDialog as MiuixOverlayDialog
+import top.yukonga.miuix.kmp.window.WindowDialog as MiuixWindowDialog
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.GridView
 import top.yukonga.miuix.kmp.icon.extended.Home
@@ -561,7 +561,7 @@ fun MainApp(viewModel: AppViewModel) {
         var customLocation by remember { mutableStateOf("") }
 
         if (isMiuix) {
-            MiuixOverlayDialog(
+            MiuixWindowDialog(
                 title = "批量修改存放位置",
                 summary = "已选 ${selectedIds.size} 件食品，请选择目标位置：",
                 show = showMoveLocationDialog,

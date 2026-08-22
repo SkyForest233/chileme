@@ -48,7 +48,7 @@ import top.yukonga.miuix.kmp.basic.SnackbarResult as MiuixSnackbarResult
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.TopAppBar
-import top.yukonga.miuix.kmp.overlay.OverlayDialog
+import top.yukonga.miuix.kmp.window.WindowDialog
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.icon.extended.Delete
@@ -177,7 +177,7 @@ fun MiuixArchiveScreen(
             }
         }
 
-        OverlayDialog(
+        WindowDialog(
             title = "清空归档",
             summary = "确定要彻底删除全部 ${state.archived.size} 条归档记录吗？此操作无法撤销。",
             show = state.showClearDialog,
