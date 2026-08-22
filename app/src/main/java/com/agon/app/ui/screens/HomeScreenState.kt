@@ -33,8 +33,12 @@ class HomeUiState(
         viewModel.consumeAutoSyncMessage()
     }
 
-    fun cleanExpired() {
-        viewModel.cleanExpired()
+    fun cleanExpired(onDone: ((Set<String>) -> Unit)? = null) {
+        viewModel.cleanExpired(onDone)
+    }
+
+    fun restoreArchivedBatch(ids: Set<String>) {
+        viewModel.restoreArchivedBatch(ids)
     }
 }
 

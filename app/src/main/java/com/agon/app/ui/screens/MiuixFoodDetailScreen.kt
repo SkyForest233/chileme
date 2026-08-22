@@ -20,7 +20,9 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -77,6 +79,7 @@ fun MiuixFoodDetailScreen(
     val item = state.item
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+    val haptic = LocalHapticFeedback.current
 
     if (item == null) {
         Scaffold { padding ->
@@ -196,6 +199,7 @@ fun MiuixFoodDetailScreen(
                     if (item.quantity > 0) {
                         val isLast = item.quantity == 1
                         if (isLast) {
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                             state.playEatAnimation()
                             scope.launch {
                                 delay(750)
@@ -203,6 +207,7 @@ fun MiuixFoodDetailScreen(
                                 onBack()
                             }
                         } else {
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                             state.consumeOne(item.id)
                             state.playEatAnimation()
                         }

@@ -268,9 +268,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         onDone(repo.restoreArchived(id))
     }
 
-    fun cleanExpired() = viewModelScope.launch {
+    fun cleanExpired(onDone: ((Set<String>) -> Unit)? = null) = viewModelScope.launch {
         val ids = items.value.filter { it.daysLeft < 0 }.map { it.id }.toSet()
-        repo.archiveItems(ids, ArchiveReason.EXPIRED)
+        if (ids.isNotEmpty()) {
+            repo.archiveItems(ids, ArchiveReason.EXPIRED)
+            onDone?.invoke(ids)
+        }
     }
 
     fun restoreArchived(id: String) = viewModelScope.launch { repo.restoreArchived(id) }

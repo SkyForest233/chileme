@@ -44,6 +44,7 @@ import com.agon.app.ui.components.EmptyState
 import com.agon.app.ui.components.FoodAvatar
 import com.agon.app.ui.components.StatusBadge
 import com.agon.app.ui.components.rememberStatusUi
+import com.agon.app.ui.components.showUndoSnackbar
 import com.agon.app.viewmodel.AppViewModel
 import kotlinx.coroutines.launch
 import java.time.LocalDate
@@ -54,6 +55,7 @@ import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SnackbarHost
 import top.yukonga.miuix.kmp.basic.SnackbarHostState
+import top.yukonga.miuix.kmp.basic.SnackbarResult as MiuixSnackbarResult
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.icon.MiuixIcons
@@ -147,9 +149,13 @@ fun MiuixHomeScreen(
                     Button(
                         onClick = {
                             val count = state.expired
-                            state.cleanExpired()
-                            scope.launch {
-                                snackbarHostState.showSnackbar("已将 $count 件过期食品移入归档")
+                            state.cleanExpired { cleanedIds ->
+                                scope.launch {
+                                    val result = snackbarHostState.showUndoSnackbar("已将 $count 件过期食品移入归档")
+                                    if (result == MiuixSnackbarResult.ActionPerformed) {
+                                        state.restoreArchivedBatch(cleanedIds)
+                                    }
+                                }
                             }
                         },
                         modifier = Modifier.fillMaxWidth(),

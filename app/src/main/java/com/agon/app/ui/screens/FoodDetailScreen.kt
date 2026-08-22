@@ -43,7 +43,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -73,6 +75,7 @@ fun FoodDetailScreen(
     val item = state.item
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+    val haptic = LocalHapticFeedback.current
 
     if (item == null) {
         Scaffold(containerColor = MaterialTheme.colorScheme.background) { padding ->
@@ -197,6 +200,7 @@ fun FoodDetailScreen(
                     if (item.quantity > 0) {
                         val isLast = item.quantity == 1
                         if (isLast) {
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                             // 吃完 → 仓库层自动归档；先播动画再消耗，避免页面瞬间切换
                             state.playEatAnimation()
                             scope.launch {
@@ -205,6 +209,7 @@ fun FoodDetailScreen(
                                 onBack()
                             }
                         } else {
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                             state.consumeOne(item.id)
                             state.playEatAnimation()
                         }

@@ -30,8 +30,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.LargeTopAppBar
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
@@ -57,7 +57,9 @@ import com.agon.app.ui.components.DataCorruptBanner
 import com.agon.app.ui.components.EmptyState
 import com.agon.app.ui.components.FoodAvatar
 import com.agon.app.ui.components.StatusBadge
+import com.agon.app.ui.components.SwipeDismissSnackbarHost
 import com.agon.app.ui.components.rememberStatusUi
+import com.agon.app.ui.components.showUndoSnackbar
 import com.agon.app.viewmodel.AppViewModel
 import kotlinx.coroutines.launch
 import java.time.LocalDate
@@ -89,7 +91,7 @@ fun HomeScreen(
         containerColor = MaterialTheme.colorScheme.background,
         snackbarHost = {
             // 上移避免被悬浮导航栏遮挡
-            SnackbarHost(snackbarHostState, modifier = Modifier.padding(bottom = 84.dp))
+            SwipeDismissSnackbarHost(snackbarHostState, modifier = Modifier.padding(bottom = 84.dp))
         },
         topBar = {
             LargeTopAppBar(
@@ -166,9 +168,13 @@ fun HomeScreen(
                     FilledTonalButton(
                         onClick = {
                             val count = state.expired
-                            state.cleanExpired()
-                            scope.launch {
-                                snackbarHostState.showSnackbar("已将 $count 件过期食品移入归档")
+                            state.cleanExpired { cleanedIds ->
+                                scope.launch {
+                                    val result = snackbarHostState.showUndoSnackbar("已将 $count 件过期食品移入归档")
+                                    if (result == SnackbarResult.ActionPerformed) {
+                                        state.restoreArchivedBatch(cleanedIds)
+                                    }
+                                }
                             }
                         },
                         modifier = Modifier.fillMaxWidth(),
