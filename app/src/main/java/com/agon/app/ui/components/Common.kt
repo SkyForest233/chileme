@@ -938,11 +938,15 @@ fun DataCorruptBanner(
     }
 }
 
+import top.yukonga.miuix.kmp.window.WindowDialog
+
 /**
- * Miuix（HyperOS）独立 Window 弹窗。
+ * Miuix（HyperOS）标准弹窗。
  *
- * 基于 Android 顶层 Dialog Window 渲染，不受页面 Scaffold 或底部悬浮导航栏遮挡，
- * 拥有完整的软键盘自适应与 Miuix Squircle 视觉风格。
+ * 基于 MIUIX 官方 WindowDialog 实现，遵循 HyperOS 规范：
+ * - 手机竖屏（常规设备）：标准底部贴合弹出（Bottom-attached），顶部自适应屏幕 Squircle 大圆角；
+ * - 大屏/平板/横屏：自动响应式转为屏幕居中卡片（Centered）；
+ * - 独立 Window 层：拥有专属系统 Window 图层，不受外部悬浮底栏遮挡，且自适应软键盘。
  */
 @Composable
 fun MiuixDialog(
@@ -950,36 +954,13 @@ fun MiuixDialog(
     onDismissRequest: () -> Unit,
     title: String,
     summary: String = "",
-    content: @Composable ColumnScope.() -> Unit,
+    content: @Composable () -> Unit,
 ) {
-    if (!show) return
-    Dialog(
+    WindowDialog(
+        show = show,
         onDismissRequest = onDismissRequest,
-        properties = DialogProperties(usePlatformDefaultWidth = false),
-    ) {
-        MiuixCard(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 24.dp),
-        ) {
-            Column(
-                modifier = Modifier.padding(24.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                MiuixText(
-                    title,
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
-                )
-                if (summary.isNotBlank()) {
-                    MiuixText(
-                        summary,
-                        fontSize = 13.sp,
-                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                    )
-                }
-                content()
-            }
-        }
-    }
+        title = title,
+        summary = summary,
+        content = content,
+    )
 }
