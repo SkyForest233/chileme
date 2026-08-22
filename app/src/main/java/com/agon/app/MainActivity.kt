@@ -99,6 +99,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.times
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.agon.app.data.ArchiveReason
@@ -129,6 +131,7 @@ import com.agon.app.ui.components.showUndoSnackbar
 import com.agon.app.ui.theme.AgonAppTheme
 import com.agon.app.ui.theme.AppPalette
 import com.agon.app.ui.theme.LocalThemeStyle
+import com.agon.app.ui.theme.LocalToday
 import com.agon.app.ui.theme.MiuixRootTheme
 import com.agon.app.ui.theme.MotionEasing
 import com.agon.app.ui.theme.MotionSpring
@@ -136,6 +139,8 @@ import com.agon.app.ui.theme.ThemeStyle
 import com.agon.app.viewmodel.AppViewModel
 import kotlin.math.abs
 import kotlin.math.roundToInt
+import java.time.LocalDate
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.nav.core.NavCornerClipMode
@@ -165,6 +170,22 @@ class MainActivity : ComponentActivity() {
             val darkMode by viewModel.darkMode.collectAsStateWithLifecycle()
             val paletteName by viewModel.palette.collectAsStateWithLifecycle()
             val themeStyleName by viewModel.themeStyle.collectAsStateWithLifecycle()
+            // 跨零点刷新：每次回到前台用最新日期提供 LocalToday。
+            // 日期未变（同日多次 resume）时值相等，不会触发重组；跨过午夜则值变化，
+            // 所有读取 LocalToday 的屏幕（剩余天数/状态/新鲜度）随之刷新。
+            var today by remember { mutableStateOf(LocalDate.now()) }
+            LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { today = LocalDate.now() }
+            // 周期性检查：每 30 秒比对一次当前日期，变了就更新 today。
+            // 覆盖所有「日期变化」场景（自然跨午夜、手动拨时钟前进/后退、时区变化），
+            // 比「一次性睡到下一个午夜」更稳健——后者在时钟被改动后会失效。
+            // 与 ON_RESUME 互补（后台跨午夜由后者即时兜底，这里兜前台）。
+            LaunchedEffect(Unit) {
+                while (true) {
+                    val now = LocalDate.now()
+                    if (now != today) today = now
+                    delay(30_000)
+                }
+            }
             LaunchedEffect(ready) { if (ready) contentReady = true }
             if (!ready) return@setContent
             val darkTheme = when (darkMode) {
@@ -173,7 +194,10 @@ class MainActivity : ComponentActivity() {
                 else -> isSystemInDarkTheme()
             }
             val themeStyle = ThemeStyle.fromName(themeStyleName)
-            CompositionLocalProvider(LocalThemeStyle provides themeStyle) {
+            CompositionLocalProvider(
+                LocalThemeStyle provides themeStyle,
+                LocalToday provides today,
+            ) {
                 if (themeStyle == ThemeStyle.MIUIX) {
                     MiuixRootTheme(darkMode = darkMode, dynamicColor = dynamicColor) {
                         MainApp(viewModel)

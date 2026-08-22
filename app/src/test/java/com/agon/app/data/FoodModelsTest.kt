@@ -1,6 +1,10 @@
 package com.agon.app.data
 
+import com.agon.app.ui.components.ExpiryUrgency
+import com.agon.app.ui.components.urgencyForAt
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.LocalDate
 
@@ -155,5 +159,126 @@ class FoodModelsTest {
     @Test
     fun `byId 已知分类正常返回`() {
         assertEquals("零食", DefaultCategories.byId("SNACK").label)
+    }
+
+    // ---- 可注入 today 的 `*At`：覆盖跨零点场景（此前只能靠相对今天构造，测不了午夜翻转） ----
+
+    private fun fixedExpiringOn(
+        expiry: LocalDate,
+        shelfLifeDays: Int = 30,
+        category: String = "SNACK",
+    ): FoodItem {
+        return FoodItem(
+            id = "test",
+            name = "测试食品",
+            category = category,
+            productionEpochDay = expiry.minusDays(shelfLifeDays.toLong()).toEpochDay(),
+            shelfLifeDays = shelfLifeDays,
+        )
+    }
+
+    @Test
+    fun `跨零点剩余天数递减`() {
+        // 到期日固定，today 从 5 天前走到明天
+        val expiry = LocalDate.of(2026, 9, 1)
+        val item = fixedExpiringOn(expiry)
+        assertEquals(5L, item.daysLeftAt(LocalDate.of(2026, 8, 27)))
+        assertEquals(0L, item.daysLeftAt(LocalDate.of(2026, 9, 1)))
+        assertEquals(-2L, item.daysLeftAt(LocalDate.of(2026, 9, 3)))
+    }
+
+    @Test
+    fun `跨零点从临期翻转为过期`() {
+        // 到期日 = 今天 → EXPIRING；明天 → 已过期
+        val item = fixedExpiringOn(LocalDate.of(2026, 9, 1))
+        val thresholds = mapOf("SNACK" to 7)
+        assertEquals(FoodStatus.EXPIRING, item.statusForAt(LocalDate.of(2026, 9, 1), thresholds))
+        assertEquals(FoodStatus.EXPIRED, item.statusForAt(LocalDate.of(2026, 9, 2), thresholds))
+    }
+
+    @Test
+    fun `跨零点剩余文案随之翻转`() {
+        val item = fixedExpiringOn(LocalDate.of(2026, 9, 1))
+        assertEquals("还剩 1 天", item.remainingTextAt(LocalDate.of(2026, 8, 31)))
+        assertEquals("今天到期", item.remainingTextAt(LocalDate.of(2026, 9, 1)))
+        assertEquals("已过期 1 天", item.remainingTextAt(LocalDate.of(2026, 9, 2)))
+    }
+
+    // ---- urgencyForAt：日历圆点四档紧急度（含 ≤3 天档） ----
+
+    @Test
+    fun `urgency 按剩余天数字段`() {
+        val thresholds = mapOf("SNACK" to 7)
+        val d = LocalDate.of(2026, 9, 1) // 到期日
+        assertEquals(ExpiryUrgency.EXPIRED, fixedExpiringOn(d).urgencyForAt(d.plusDays(1), thresholds))  // 剩-1天
+        assertEquals(ExpiryUrgency.URGENT, fixedExpiringOn(d).urgencyForAt(d.minusDays(3), thresholds))  // 剩3天
+        assertEquals(ExpiryUrgency.SOON, fixedExpiringOn(d).urgencyForAt(d.minusDays(5), thresholds))    // 剩5天(阈值7内)
+        assertEquals(ExpiryUrgency.SAFE, fixedExpiringOn(d).urgencyForAt(d.minusDays(8), thresholds))    // 剩8天
+    }
+
+    // ---- planRestore：归档恢复去重三分支 ----
+
+    private fun archivedItem(
+        name: String,
+        id: String = "arch-$name",
+        quantity: Int = 2,
+        prodDay: Long = 100,
+        shelfLife: Int = 30,
+    ) = ArchivedItem(
+        item = FoodItem(
+            id = id, name = name, quantity = quantity,
+            productionEpochDay = prodDay, shelfLifeDays = shelfLife,
+        ),
+        archivedEpochDay = 200,
+        reason = ArchiveReason.CONSUMED,
+    )
+
+    @Test
+    fun `planRestore 库存无冲突时作为新记录插入`() {
+        val plan = planRestore(archivedItem("牛奶", quantity = 2), items = emptyList())
+        assertFalse(plan.merged)
+        assertEquals(1, plan.newItems.size)
+        assertEquals(2, plan.newItems[0].quantity)
+    }
+
+    @Test
+    fun `planRestore 同 ID 已存在时库存不变不合并`() {
+        val existing = FoodItem(
+            id = "arch-牛奶", name = "牛奶", quantity = 5,
+            productionEpochDay = 100, shelfLifeDays = 30,
+        )
+        val plan = planRestore(archivedItem("牛奶", id = "arch-牛奶", quantity = 2), items = listOf(existing))
+        assertFalse(plan.merged)
+        assertEquals(1, plan.newItems.size)
+        assertEquals(5, plan.newItems[0].quantity) // 不重复加
+    }
+
+    @Test
+    fun `planRestore 同名同生产日期合并数量`() {
+        val existing = FoodItem(
+            id = "x", name = "牛奶", quantity = 5,
+            productionEpochDay = 100, shelfLifeDays = 30,
+        )
+        val plan = planRestore(archivedItem("牛奶", id = "arch-牛奶", quantity = 2, prodDay = 100), items = listOf(existing))
+        assertTrue(plan.merged)
+        assertEquals(1, plan.newItems.size)
+        assertEquals(7, plan.newItems[0].quantity) // 5 + 2
+    }
+
+    @Test
+    fun `planRestore 同名但不同生产日期不合并`() {
+        val existing = FoodItem(
+            id = "x", name = "牛奶", quantity = 5,
+            productionEpochDay = 100, shelfLifeDays = 30,
+        )
+        val plan = planRestore(archivedItem("牛奶", id = "arch-牛奶", quantity = 2, prodDay = 999), items = listOf(existing))
+        assertFalse(plan.merged)
+        assertEquals(2, plan.newItems.size)
+    }
+
+    @Test
+    fun `planRestore 已吃完数量0恢复为1`() {
+        val plan = planRestore(archivedItem("牛奶", quantity = 0), items = emptyList())
+        assertEquals(1, plan.newItems[0].quantity)
     }
 }

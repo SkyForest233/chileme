@@ -154,7 +154,7 @@ object NutstoreSync {
         }
 
     /** 解析 PROPFIND 响应，提取备份文件名与大小（容忍不同命名空间前缀）。 */
-    private fun parsePropfind(xml: String): List<CloudBackup> {
+    internal fun parsePropfind(xml: String): List<CloudBackup> {
         val results = mutableListOf<CloudBackup>()
         val blocks = xml.split(Regex("</[a-zA-Z0-9]*:?response>", RegexOption.IGNORE_CASE))
         val hrefRegex =

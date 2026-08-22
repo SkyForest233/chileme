@@ -59,11 +59,12 @@ import com.agon.app.data.byId
 import com.agon.app.data.cn
 import com.agon.app.data.effectiveThreshold
 import com.agon.app.data.expiryDate
-import com.agon.app.data.elapsedRatio
+import com.agon.app.data.elapsedRatioAt
 import com.agon.app.data.productionDate
-import com.agon.app.data.remainingText
-import com.agon.app.data.statusFor
+import com.agon.app.data.remainingTextAt
+import com.agon.app.data.statusForAt
 import com.agon.app.ui.components.FoodAvatar
+import com.agon.app.ui.theme.LocalToday
 import com.agon.app.ui.theme.MotionEasing
 import com.agon.app.ui.components.QuantityStepper
 import com.agon.app.ui.components.StatusBadge
@@ -110,7 +111,8 @@ fun FoodDetailScreen(
         return
     }
 
-    val status = item.statusFor(thresholds)
+    val today = LocalToday.current
+    val status = item.statusForAt(today, thresholds)
     val ui = rememberStatusUi(status)
     val categoryDef = categories.byId(item.category)
 
@@ -209,7 +211,7 @@ fun FoodDetailScreen(
                     Spacer(Modifier.height(16.dp))
                     // 正相关进度：时间过去多少走多少
                     LinearProgressIndicator(
-                        progress = { item.elapsedRatio },
+                        progress = { item.elapsedRatioAt(today) },
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(8.dp)
@@ -219,7 +221,7 @@ fun FoodDetailScreen(
                     )
                     Spacer(Modifier.height(8.dp))
                     Text(
-                        item.remainingText,
+                        item.remainingTextAt(today),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = ui.content,

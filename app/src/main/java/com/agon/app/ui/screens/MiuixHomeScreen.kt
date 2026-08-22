@@ -38,14 +38,15 @@ import com.agon.app.data.FoodItem
 import com.agon.app.data.FoodStatus
 import com.agon.app.data.byId
 import com.agon.app.data.cnDay
-import com.agon.app.data.daysLeft
-import com.agon.app.data.remainingText
-import com.agon.app.data.statusFor
+import com.agon.app.data.daysLeftAt
+import com.agon.app.data.remainingTextAt
+import com.agon.app.data.statusForAt
 import com.agon.app.ui.components.DataCorruptBanner
 import com.agon.app.ui.components.EmptyState
 import com.agon.app.ui.components.FoodAvatar
 import com.agon.app.ui.components.StatusBadge
 import com.agon.app.ui.components.rememberStatusUi
+import com.agon.app.ui.theme.LocalToday
 import com.agon.app.viewmodel.AppViewModel
 import kotlinx.coroutines.launch
 import java.time.LocalDate
@@ -92,10 +93,11 @@ fun MiuixHomeScreen(
     }
 
     val total = items.size
-    val expiring = items.count { it.statusFor(thresholds) == FoodStatus.EXPIRING }
-    val expired = items.count { it.statusFor(thresholds) == FoodStatus.EXPIRED }
-    val urgent = remember(items, thresholds) {
-        items.filter { it.statusFor(thresholds) != FoodStatus.SAFE }.sortedBy { it.daysLeft }
+    val today = LocalToday.current
+    val expiring = items.count { it.statusForAt(today, thresholds) == FoodStatus.EXPIRING }
+    val expired = items.count { it.statusForAt(today, thresholds) == FoodStatus.EXPIRED }
+    val urgent = remember(items, thresholds, today) {
+        items.filter { it.statusForAt(today, thresholds) != FoodStatus.SAFE }.sortedBy { it.daysLeftAt(today) }
     }
 
     Scaffold(
@@ -229,7 +231,7 @@ fun MiuixHomeScreen(
                     UrgentRow(
                         item = item,
                         emoji = categories.byId(item.category).emoji,
-                        status = item.statusFor(thresholds),
+                        status = item.statusForAt(LocalToday.current, thresholds),
                         onClick = { onOpenItem(item.id) },
                     )
                 }
@@ -324,7 +326,7 @@ private fun UrgentRow(item: FoodItem, emoji: String, status: FoodStatus, onClick
                     fontWeight = FontWeight.SemiBold,
                 )
                 Text(
-                    "${item.remainingText} · ${item.quantity} ${item.unit}",
+                    "${item.remainingTextAt(LocalToday.current)} · ${item.quantity} ${item.unit}",
                     style = MiuixTheme.textStyles.footnote2,
                     color = ui.content,
                 )

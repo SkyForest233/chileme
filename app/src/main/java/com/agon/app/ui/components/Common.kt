@@ -77,13 +77,14 @@ import com.agon.app.data.CategoryDef
 import com.agon.app.data.FoodItem
 import com.agon.app.data.FoodStatus
 import com.agon.app.data.cn
-import com.agon.app.data.daysLeft
-import com.agon.app.data.elapsedRatio
+import com.agon.app.data.daysLeftAt
+import com.agon.app.data.elapsedRatioAt
 import com.agon.app.data.expiryDate
 import com.agon.app.data.effectiveThreshold
 import com.agon.app.data.productionDate
-import com.agon.app.data.remainingText
+import com.agon.app.data.remainingTextAt
 import com.agon.app.ui.theme.LocalThemeStyle
+import com.agon.app.ui.theme.LocalToday
 import com.agon.app.ui.theme.MotionEasing
 import com.agon.app.ui.theme.ThemeStyle
 import top.yukonga.miuix.kmp.basic.Card as MiuixCard
@@ -123,6 +124,7 @@ import com.agon.app.ui.theme.WarnContainerLight
 import com.agon.app.ui.theme.WarnContentDark
 import com.agon.app.ui.theme.WarnContentLight
 import java.io.File
+import java.time.LocalDate
 
 data class StatusUi(
     val container: Color,
@@ -181,10 +183,11 @@ enum class ExpiryUrgency(val label: String) {
     SAFE("安全"),
 }
 
-fun FoodItem.urgencyFor(thresholds: Map<String, Int>): ExpiryUrgency = when {
-    daysLeft < 0 -> ExpiryUrgency.EXPIRED
-    daysLeft <= 3 -> ExpiryUrgency.URGENT
-    daysLeft <= effectiveThreshold(thresholds) -> ExpiryUrgency.SOON
+/** 可注入 today 的纯函数（供跨零点刷新与单测使用）。 */
+fun FoodItem.urgencyForAt(today: LocalDate, thresholds: Map<String, Int>): ExpiryUrgency = when {
+    daysLeftAt(today) < 0 -> ExpiryUrgency.EXPIRED
+    daysLeftAt(today) <= 3 -> ExpiryUrgency.URGENT
+    daysLeftAt(today) <= effectiveThreshold(thresholds) -> ExpiryUrgency.SOON
     else -> ExpiryUrgency.SAFE
 }
 
@@ -485,7 +488,7 @@ fun FoodCard(
 ) {
     val ui = rememberStatusUi(status)
     val progress by animateFloatAsState(
-        targetValue = item.elapsedRatio.coerceIn(0f, 1f),
+        targetValue = item.elapsedRatioAt(LocalToday.current).coerceIn(0f, 1f),
         animationSpec = tween(400, easing = MotionEasing.Standard),
         label = "elapsed",
     )
@@ -572,7 +575,7 @@ fun FoodCard(
                     )
                     Spacer(Modifier.width(12.dp))
                     MiuixText(
-                        item.remainingText,
+                        item.remainingTextAt(LocalToday.current),
                         fontSize = 12.sp,
                         fontWeight = FontWeight.SemiBold,
                         color = ui.content,
@@ -659,7 +662,7 @@ fun FoodCard(
                     )
                     Spacer(Modifier.width(12.dp))
                     Text(
-                        item.remainingText,
+                        item.remainingTextAt(LocalToday.current),
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.SemiBold,
                         color = ui.content,

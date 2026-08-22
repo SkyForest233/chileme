@@ -55,8 +55,9 @@ import com.agon.app.data.FoodStatus
 import com.agon.app.data.byId
 import com.agon.app.data.cn
 import com.agon.app.data.expiryDate
-import com.agon.app.data.remainingText
-import com.agon.app.data.statusFor
+import com.agon.app.data.remainingTextAt
+import com.agon.app.data.statusForAt
+import com.agon.app.ui.theme.LocalToday
 import com.agon.app.ui.theme.MotionEasing
 import java.time.LocalDate
 import java.time.YearMonth
@@ -76,7 +77,7 @@ fun ExpiryCalendarCard(
     onOpenItem: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val today = LocalDate.now()
+    val today = LocalToday.current
     var monthValue by rememberSaveable { mutableStateOf(YearMonth.now().toString()) }
     val month = remember(monthValue) { YearMonth.parse(monthValue) }
     var selectedDay by rememberSaveable { mutableStateOf(today.toString()) }
@@ -220,7 +221,7 @@ fun ExpiryCalendarCard(
                     CalendarItemRow(
                         item = item,
                         emoji = categories.byId(item.category).emoji,
-                        status = item.statusFor(thresholds),
+                        status = item.statusForAt(today, thresholds),
                         onClick = { onOpenItem(item.id) },
                     )
                 }
@@ -299,8 +300,10 @@ private fun DayCell(
     modifier: Modifier = Modifier,
 ) {
     // 当天到期食品包含的紧急度（去重），按紧急程度排序（enum 定义即此顺序），最多 3 点
-    val dotUrgencies = remember(dayItems, thresholds) {
-        dayItems.map { it.urgencyFor(thresholds) }
+    // today 参与 key：跨零点后 LocalToday 变化 → 重新计算圆点紧急度
+    val today = LocalToday.current
+    val dotUrgencies = remember(dayItems, thresholds, today) {
+        dayItems.map { it.urgencyForAt(today, thresholds) }
             .distinct()
             .sorted()
             .take(3)
@@ -386,7 +389,7 @@ private fun CalendarItemRow(
                     fontWeight = FontWeight.SemiBold,
                 )
                 Text(
-                    "${item.remainingText} · ${item.quantity} ${item.unit}",
+                    "${item.remainingTextAt(LocalToday.current)} · ${item.quantity} ${item.unit}",
                     style = MaterialTheme.typography.bodySmall,
                     color = ui.content,
                 )

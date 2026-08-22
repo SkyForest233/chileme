@@ -166,12 +166,15 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /** 删除单条消耗记录（修正统计），并记下原位置供撤销插回。 */
-    fun deleteConsumption(id: String) = viewModelScope.launch {
+    fun deleteConsumption(record: ConsumptionRecord) = viewModelScope.launch {
         val sorted = consumption.value.sortedByDescending { it.epochDay }
-        val index = sorted.indexOfFirst { it.id == id }
-        val record = sorted.getOrNull(index) ?: return@launch
-        repo.deleteConsumption(id)
-        _deletedConsumption.value = DeletedConsumption(record, index.coerceAtLeast(0))
+        // 优先按 id 精确定位；id 为 null 的旧记录按内容匹配，避免删除静默失效
+        val index = sorted.indexOfFirst {
+            if (record.id != null) it.id == record.id else it == record
+        }
+        val target = sorted.getOrNull(index) ?: return@launch
+        repo.deleteConsumption(target)
+        _deletedConsumption.value = DeletedConsumption(target, index.coerceAtLeast(0))
     }
 
     /** 撤销删除：按原下标插回，避免被提到列表最前。 */
@@ -242,7 +245,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch { repo.archiveItems(ids, reason) }
 
     fun restoreArchivedBatch(ids: Set<String>) = viewModelScope.launch {
-        ids.forEach { repo.restoreArchived(it) }
+        repo.restoreArchivedBatch(ids)
     }
 
     /** 恢复单条归档；回调参数 merged = 是否与现有库存合并（同名同生产日期去重）。 */

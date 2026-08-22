@@ -127,7 +127,7 @@ fun MiuixConsumptionLogScreen(
                             record = record,
                             emoji = categories.byId(record.category).emoji,
                             onDelete = {
-                                record.id?.let { viewModel.deleteConsumption(it) }
+                                viewModel.deleteConsumption(record)
                             },
                             modifier = Modifier.animateItem(
                                 fadeInSpec = tween(280, easing = MotionEasing.EmphasizedDecelerate),

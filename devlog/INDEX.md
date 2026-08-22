@@ -18,8 +18,9 @@
 | 优先级 | 事项 | 来源 | 状态 |
 |---|---|---|---|
 | **高** | **下个 Release 必须在说明中注明「签名已变更，请先导出备份、卸载旧版后再安装」** —— 已发布的 v1.0.0/v2.0/v2.0.1 是 debug 签名且互不相同，无法覆盖升级 | 2026-08-21 阶段 1 | ⚠️ 待发版时执行 |
-| 中 | fix-plan 阶段 5：纯函数单测基线（statusFor / compactConsumption / restoreArchived / parsePropfind 等） | 2026-08-21 | 待讨论 |
-| 中 | fix-plan 阶段 6：跨零点刷新、统计图表 semantics、README/LICENSE、Splash 图标发糊 | 2026-08-21 | 待讨论 |
+| ~~中~~ | ~~fix-plan 阶段 5：纯函数单测基线~~（statusFor / compactConsumption / restoreArchived→planRestore / parsePropfind / BackupData v1→v2 兼容 / Decoded 三态） | 2026-08-21 | ✅ 已完成（新增 25 例，第 30 轮） |
+| ~~中~~ | ~~fix-plan 阶段 6：跨零点刷新~~（可注入 today 的 `*At` + `LocalToday` CompositionLocal） | 2026-08-21 | ✅ 已完成（第 30 轮） |
+| 中 | fix-plan 阶段 6 其余：统计图表 semantics、README/LICENSE、Splash 图标发糊 | 2026-08-21 | 待讨论 |
 | 中 | fix-plan 阶段 7：MD3 / Miuix 双实现去重（8 对文件重复度 67–81%） | 2026-08-21 | 待讨论 |
 | **高** | **本地构建验证 v2.8**（工具链升级 Kotlin 2.4.10/AGP 9.3.1/Gradle 9.6.1 + Miuix 0.9.4-rc01 依赖，沙箱无工具链未验证） | 2026-08-20 | ⚠️ 待本地 assembleDebug |
 | ~~低~~ | ~~归档恢复同名/同 ID 冲突策略~~ | 2026-07-31 | ✅ 已修复（v2.4，同批次合并数量/同 ID 防重复） |
