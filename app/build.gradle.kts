@@ -158,18 +158,6 @@ gradle.taskGraph.whenReady {
     )
 }
 
-gradle.taskGraph.afterTask { task, state ->
-    val failure = state.failure
-    if (failure != null) {
-        println("::error::Task ${task.path} failed: ${failure.message}")
-        var current: Throwable? = failure.cause
-        while (current != null) {
-            println("::error::Caused by: ${current.message}")
-            current = current.cause
-        }
-    }
-}
-
 // AGP 9 起 kotlinOptions DSL 已移除，改用 KGP 的 compilerOptions。
 kotlin {
     // CI 仍可能是 setup-java 17；toolchain 让 Gradle 自行拉 JDK 21 来编译。
