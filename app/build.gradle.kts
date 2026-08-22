@@ -1,10 +1,24 @@
 import java.util.Properties
+import org.gradle.api.logging.StandardOutputListener
 
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
 }
+
+logging.addStandardOutputListener(StandardOutputListener { text ->
+    val s = text.toString()
+    if (s.startsWith("e: ") || s.contains("Unresolved reference") || s.contains("Type mismatch") || s.contains("None of the following") || s.contains("error:")) {
+        println("::error::$s")
+    }
+})
+logging.addStandardErrorListener(StandardOutputListener { text ->
+    val s = text.toString()
+    if (s.startsWith("e: ") || s.contains("error:") || s.contains("Exception")) {
+        println("::error::$s")
+    }
+})
 
 // ---- Release 签名凭据 ----
 // 优先级：环境变量（CI / GitHub Secrets）> 根目录 keystore.properties（本地，不入库）。
@@ -156,18 +170,6 @@ gradle.taskGraph.whenReady {
             "RELEASE_KEY_ALIAS / RELEASE_KEY_PASSWORD 四个 secrets 是否齐备；\n" +
             "本地仅做构建验证请加 -PallowUnsignedRelease=true。"
     )
-}
-
-gradle.taskGraph.afterTask { task, state ->
-    val failure = state.failure
-    if (failure != null) {
-        println("::error title=Task Failed::${task.path} failed: ${failure.message}")
-        var cause: Throwable? = failure
-        while (cause != null) {
-            println("::error title=Cause::${cause::class.simpleName}: ${cause.message}")
-            cause = cause.cause
-        }
-    }
 }
 
 // AGP 9 起 kotlinOptions DSL 已移除，改用 KGP 的 compilerOptions。
