@@ -17,6 +17,24 @@ gradle.addListener(object : org.gradle.api.execution.TaskExecutionListener {
                 java.lang.System.err.println("::error::Cause: ${cause.message}")
                 cause = cause.cause
             }
+            // 扫描 build 目录寻找 kotlin 编译器产生的日志文件
+            val buildDir = task.project.layout.buildDirectory.asFile.orNull
+            if (buildDir != null && buildDir.exists()) {
+                buildDir.walkTopDown().forEach { file ->
+                    if (file.isFile && (file.extension in listOf("log", "txt", "output") || file.name.contains("error") || file.name.contains("kotlin"))) {
+                        if (file.length() < 100_000) {
+                            java.lang.System.err.println("::notice::--- LOG FILE: ${file.path} ---")
+                            file.readLines().forEach { line ->
+                                if (line.contains("error") || line.contains("e: ") || line.contains("Unresolved") || line.contains("mismatch")) {
+                                    java.lang.System.err.println("::error::$line")
+                                } else {
+                                    java.lang.System.err.println("::notice::$line")
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 })
