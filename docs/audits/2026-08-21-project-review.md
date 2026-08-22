@@ -80,11 +80,11 @@
 | # | 事项 | 严重 | 难度 | 来源 | 状态 |
 |---|---|---|---|---|---|
 | B9 | **MD3 / Miuix 双实现去重**（最大长期维护税）：抽状态层（`rememberXxxState` / VM 派生 Flow），两套 UI 只留纯渲染 | 🟢 | 难（16+ 文件；**须在 B2 测试基线就位后再动**，否则无安全网） | 阶段7 | 待讨论 |
-| B10 | **`restoreArchivedBatch` 批量化/原子化**（见 §1.2） | 🟢 | 中 | 本轮走查 | 待做 |
-| B11 | **`deleteConsumption` 对 id=null 旧记录兜底**（见 §1.3） | 🟢 | 低 | 本轮走查 | 待做 |
+| B10 | ~~`restoreArchivedBatch` 批量化/原子化~~（见 §1.2）：新增 `repo.restoreArchivedBatch` 单次 edit 批量恢复 | 🟢 | 中 | 本轮走查 | ✅ 已完成（CI 全绿） |
+| B11 | ~~`deleteConsumption` 对 id=null 旧记录兜底~~（见 §1.3）：改传 record，无 id 按内容匹配删除 | 🟢 | 低 | 本轮走查 | ✅ 已完成（CI 全绿） |
 | B12 | **Miuix 0.9.4-rc01 → 稳定版回迁** | 🟢 | 低–中 | 08-20 | 等上游发版 |
 | B13 | **targetSdk 36→37**（`OldTargetApi`）——会触发新一档行为变更，需完整实机回归，未上架 Play 无合规压力，**建议暂不升** | 🟢 | 难 | backlog 1.3 | 待决策 |
-| B14 | 删 5 个 legacy `mipmap-*/ic_launcher.png`（minSdk 26 后已无设备使用，可减包体）——先确认无他处引用 | 🟢 | 低 | backlog 1.4 | 可选 |
+| B14 | ~~删 5 个 legacy `mipmap-*/ic_launcher.png`~~（minSdk 26 后已无设备使用）：`@mipmap/ic_launcher` 现只引用 `anydpi-v26` 自适应图标，legacy PNG 已删 | 🟢 | 低 | backlog 1.4 | ✅ 已完成（CI 全绿） |
 | B15 | 顺手清 `ObsoleteSdkInt`（3 处 `SDK_INT>=S` 动态取色判断，minSdk 26 下仍必要，可留可清） | 🟢 | 低 | backlog 1.5 | 可选 |
 
 ### 🟢 P3 · 待评估（既有 backlog 中未定项，非本轮新增）
