@@ -20,7 +20,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -69,6 +68,7 @@ fun MiuixStatsScreen(
     onOpenConsumption: () -> Unit = {},
 ) {
     val state = rememberStatsUiState(viewModel)
+    val chartColors = rememberChartColorsMiuix()
 
     Scaffold(
         topBar = {
@@ -226,7 +226,6 @@ fun MiuixStatsScreen(
                                 color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                             )
                         } else {
-                            val chartColors = rememberMiuixChartColors()
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 verticalAlignment = Alignment.CenterVertically,
@@ -331,7 +330,7 @@ fun MiuixStatsScreen(
                                 val def = state.categories.byId(catId)
                                 val rankColor = when (rank) {
                                     0 -> MiuixTheme.colorScheme.primary
-                                    1 -> MiuixTheme.colorScheme.tertiary
+                                    1 -> MiuixTheme.colorScheme.primaryContainer
                                     2 -> MiuixTheme.colorScheme.secondary
                                     else -> MiuixTheme.colorScheme.onSurfaceVariantSummary
                                 }
@@ -413,18 +412,19 @@ private fun MiuixMiniStat(
 }
 
 @Composable
-private fun rememberMiuixChartColors(): List<Color> {
+private fun rememberChartColorsMiuix(): List<Color> {
+    // Miuix Colors 无 tertiary / inversePrimary 字段，用其容器色/前景色替代，保持图表多色可辨。
     val cs = MiuixTheme.colorScheme
     return remember(cs) {
         listOf(
             cs.primary,
-            cs.tertiary,
             cs.secondary,
-            cs.onSecondaryVariant,
             cs.primaryContainer,
-            cs.tertiaryContainer,
             cs.secondaryContainer,
-            cs.dividerLine,
+            cs.tertiaryContainer,
+            cs.onPrimaryContainer,
+            cs.onSecondaryContainer,
+            cs.onTertiaryContainer,
         )
     }
 }
