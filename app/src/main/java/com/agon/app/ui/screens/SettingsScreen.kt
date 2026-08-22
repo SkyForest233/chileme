@@ -37,7 +37,9 @@ import androidx.compose.material.icons.rounded.FileDownload
 import androidx.compose.material.icons.rounded.FileUpload
 import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.Place
+import androidx.compose.material.icons.rounded.Restore
 import androidx.compose.material.icons.rounded.Schedule
+import androidx.compose.material.icons.rounded.TableChart
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -131,6 +133,28 @@ fun SettingsScreen(
                 val ok = raw != null && state.importBackupJson(raw)
                 snackbarHostState.showSnackbar(
                     if (ok) "导入成功，数据已恢复 ✅" else "导入失败：文件格式不正确"
+                )
+            }
+        }
+    }
+
+    // ---- CSV Export (SAF create document) ----
+    val csvExportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("text/csv")
+    ) { uri ->
+        if (uri != null) {
+            scope.launch {
+                val result = runCatching {
+                    val csvText = state.buildCsvExport()
+                    context.contentResolver.openOutputStream(uri)?.use { out ->
+                        out.write(csvText.toByteArray(Charsets.UTF_8))
+                    } ?: error("stream null")
+                }
+                snackbarHostState.showSnackbar(
+                    result.fold(
+                        onSuccess = { "CSV 表格导出成功 📊" },
+                        onFailure = { "导出 CSV 失败，请重试" },
+                    )
                 )
             }
         }
@@ -346,7 +370,7 @@ fun SettingsScreen(
                         ) {
                             Icon(Icons.Rounded.FileUpload, contentDescription = null, modifier = Modifier.size(16.dp))
                             Spacer(Modifier.width(6.dp))
-                            Text("导出备份")
+                            Text("导出 JSON")
                         }
                         OutlinedButton(
                             onClick = { importLauncher.launch(arrayOf("application/json", "text/plain", "*/*")) },
@@ -355,7 +379,33 @@ fun SettingsScreen(
                         ) {
                             Icon(Icons.Rounded.FileDownload, contentDescription = null, modifier = Modifier.size(16.dp))
                             Spacer(Modifier.width(6.dp))
-                            Text("导入备份")
+                            Text("导入 JSON")
+                        }
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        OutlinedButton(
+                            onClick = {
+                                csvExportLauncher.launch("吃了么库存_${LocalDate.now()}.csv")
+                            },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(50),
+                        ) {
+                            Icon(Icons.Rounded.TableChart, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text("导出 CSV")
+                        }
+                        OutlinedButton(
+                            onClick = {
+                                state.loadLocalSnapshots()
+                                state.setShowSnapshotPicker(true)
+                            },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(50),
+                        ) {
+                            Icon(Icons.Rounded.History, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text("本地快照")
                         }
                     }
 
@@ -695,6 +745,95 @@ fun SettingsScreen(
             },
             dismissButton = {
                 TextButton(onClick = { state.setRestoreCandidate(null) }) { Text("取消") }
+            },
+        )
+    }
+
+    // ---- 本地历史快照列表 ----
+    if (state.showSnapshotPicker) {
+        AlertDialog(
+            onDismissRequest = { state.setShowSnapshotPicker(false) },
+            title = { Text("本地历史快照") },
+            text = {
+                if (state.localSnapshots.isEmpty()) {
+                    Text("暂无本地历史快照，系统会在每天首次启动时自动备份。")
+                } else {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(
+                            "系统自动滚动保留最近 3 份本地快照，点击可还原：",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        state.localSnapshots.forEach { snapshot ->
+                            Surface(
+                                onClick = {
+                                    state.setRestoreSnapshotCandidate(snapshot)
+                                },
+                                shape = RoundedCornerShape(16.dp),
+                                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                modifier = Modifier.fillMaxWidth(),
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Icon(
+                                        Icons.Rounded.Restore,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(20.dp),
+                                        tint = MaterialTheme.colorScheme.primary,
+                                    )
+                                    Spacer(Modifier.width(10.dp))
+                                    Column(Modifier.weight(1f)) {
+                                        Text(
+                                            snapshot.displayTime,
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            fontWeight = FontWeight.Medium,
+                                        )
+                                        Text(
+                                            "包含 ${snapshot.itemCount} 项资产 · ${snapshot.displaySize}",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = { state.setShowSnapshotPicker(false) }) { Text("关闭") }
+            },
+        )
+    }
+
+    // ---- 本地快照还原二次确认 ----
+    state.restoreSnapshotCandidate?.let { snapshot ->
+        AlertDialog(
+            onDismissRequest = { state.setRestoreSnapshotCandidate(null) },
+            title = { Text("确认从快照还原") },
+            text = {
+                Text(
+                    "将从本地快照还原数据：\n${snapshot.displayTime}\n\n" +
+                        "此操作会整体替换当前全部数据（库存、归档、消耗记录与设置）。确定继续吗？"
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val fileName = snapshot.fileName
+                    state.setRestoreSnapshotCandidate(null)
+                    state.setShowSnapshotPicker(false)
+                    state.restoreLocalSnapshot(fileName) { _, msg ->
+                        scope.launch { snackbarHostState.showSnackbar(msg) }
+                    }
+                }) {
+                    Text("确定还原", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { state.setRestoreSnapshotCandidate(null) }) { Text("取消") }
             },
         )
     }

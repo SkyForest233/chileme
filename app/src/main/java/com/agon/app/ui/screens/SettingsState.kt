@@ -11,6 +11,7 @@ import com.agon.app.data.ArchivedItem
 import com.agon.app.data.CategoryDef
 import com.agon.app.data.CloudBackup
 import com.agon.app.data.FoodItem
+import com.agon.app.data.LocalSnapshot
 import com.agon.app.viewmodel.AppViewModel
 
 /**
@@ -34,24 +35,31 @@ class SettingsUiState(
     val autoSyncDays: Int,
     val cloudBackups: List<CloudBackup>,
     val loadingBackups: Boolean,
+    val localSnapshots: List<LocalSnapshot>,
     val showClearDialog: Boolean,
     val showNutstoreDialog: Boolean,
     val showBackupPicker: Boolean,
+    val showSnapshotPicker: Boolean,
     val restoreCandidate: CloudBackup?,
+    val restoreSnapshotCandidate: LocalSnapshot?,
     val accountInput: String,
     val passwordInput: String,
     private val viewModel: AppViewModel,
     private val onShowClearDialogChanged: (Boolean) -> Unit,
     private val onShowNutstoreDialogChanged: (Boolean) -> Unit,
     private val onShowBackupPickerChanged: (Boolean) -> Unit,
+    private val onShowSnapshotPickerChanged: (Boolean) -> Unit,
     private val onRestoreCandidateChanged: (CloudBackup?) -> Unit,
+    private val onRestoreSnapshotCandidateChanged: (LocalSnapshot?) -> Unit,
     private val onAccountInputChanged: (String) -> Unit,
     private val onPasswordInputChanged: (String) -> Unit,
 ) {
     fun setShowClearDialog(show: Boolean) = onShowClearDialogChanged(show)
     fun setShowNutstoreDialog(show: Boolean) = onShowNutstoreDialogChanged(show)
     fun setShowBackupPicker(show: Boolean) = onShowBackupPickerChanged(show)
+    fun setShowSnapshotPicker(show: Boolean) = onShowSnapshotPickerChanged(show)
     fun setRestoreCandidate(candidate: CloudBackup?) = onRestoreCandidateChanged(candidate)
+    fun setRestoreSnapshotCandidate(candidate: LocalSnapshot?) = onRestoreSnapshotCandidateChanged(candidate)
     fun setAccountInput(account: String) = onAccountInputChanged(account)
     fun setPasswordInput(password: String) = onPasswordInputChanged(password)
 
@@ -68,9 +76,16 @@ class SettingsUiState(
     fun syncUpload(onResult: (Boolean, String) -> Unit) = viewModel.syncUpload(onResult)
     fun loadCloudBackups(onResult: (Boolean, String) -> Unit) = viewModel.loadCloudBackups(onResult)
     fun syncDownload(fileName: String, onResult: (Boolean, String) -> Unit) = viewModel.syncDownload(fileName, onResult)
+
+    fun loadLocalSnapshots() = viewModel.loadLocalSnapshots()
+    fun saveLocalSnapshot(onDone: ((Boolean) -> Unit)? = null) = viewModel.saveLocalSnapshot(onDone)
+    fun restoreLocalSnapshot(fileName: String, onResult: (Boolean, String) -> Unit) =
+        viewModel.restoreLocalSnapshot(fileName, onResult)
+
     fun clearAll() = viewModel.clearAll()
 
     suspend fun buildBackupJson(): String = viewModel.buildBackupJson()
+    suspend fun buildCsvExport(): String = viewModel.buildCsvExport()
     suspend fun importBackupJson(raw: String): Boolean = viewModel.importBackupJson(raw)
 }
 
@@ -93,11 +108,14 @@ fun rememberSettingsUiState(viewModel: AppViewModel): SettingsUiState {
     val autoSyncDays by viewModel.autoSyncDays.collectAsStateWithLifecycle()
     val cloudBackups by viewModel.cloudBackups.collectAsStateWithLifecycle()
     val loadingBackups by viewModel.loadingBackups.collectAsStateWithLifecycle()
+    val localSnapshots by viewModel.localSnapshots.collectAsStateWithLifecycle()
 
     var showClearDialog by remember { mutableStateOf(false) }
     var showNutstoreDialog by remember { mutableStateOf(false) }
     var showBackupPicker by remember { mutableStateOf(false) }
+    var showSnapshotPicker by remember { mutableStateOf(false) }
     var restoreCandidate by remember { mutableStateOf<CloudBackup?>(null) }
+    var restoreSnapshotCandidate by remember { mutableStateOf<LocalSnapshot?>(null) }
 
     var accountInput by remember { mutableStateOf("") }
     var passwordInput by remember { mutableStateOf("") }
@@ -126,10 +144,13 @@ fun rememberSettingsUiState(viewModel: AppViewModel): SettingsUiState {
         autoSyncDays,
         cloudBackups,
         loadingBackups,
+        localSnapshots,
         showClearDialog,
         showNutstoreDialog,
         showBackupPicker,
+        showSnapshotPicker,
         restoreCandidate,
+        restoreSnapshotCandidate,
         accountInput,
         passwordInput,
     ) {
@@ -151,17 +172,22 @@ fun rememberSettingsUiState(viewModel: AppViewModel): SettingsUiState {
             autoSyncDays = autoSyncDays,
             cloudBackups = cloudBackups,
             loadingBackups = loadingBackups,
+            localSnapshots = localSnapshots,
             showClearDialog = showClearDialog,
             showNutstoreDialog = showNutstoreDialog,
             showBackupPicker = showBackupPicker,
+            showSnapshotPicker = showSnapshotPicker,
             restoreCandidate = restoreCandidate,
+            restoreSnapshotCandidate = restoreSnapshotCandidate,
             accountInput = accountInput,
             passwordInput = passwordInput,
             viewModel = viewModel,
             onShowClearDialogChanged = { showClearDialog = it },
             onShowNutstoreDialogChanged = { showNutstoreDialog = it },
             onShowBackupPickerChanged = { showBackupPicker = it },
+            onShowSnapshotPickerChanged = { showSnapshotPicker = it },
             onRestoreCandidateChanged = { restoreCandidate = it },
+            onRestoreSnapshotCandidateChanged = { restoreSnapshotCandidate = it },
             onAccountInputChanged = { accountInput = it },
             onPasswordInputChanged = { passwordInput = it },
         )

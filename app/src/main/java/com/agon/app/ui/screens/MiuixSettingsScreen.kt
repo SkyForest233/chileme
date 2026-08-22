@@ -126,6 +126,28 @@ fun MiuixSettingsScreen(
         }
     }
 
+    // ---- CSV Export (SAF create document) ----
+    val csvExportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("text/csv")
+    ) { uri ->
+        if (uri != null) {
+            scope.launch {
+                val result = runCatching {
+                    val csvText = state.buildCsvExport()
+                    context.contentResolver.openOutputStream(uri)?.use { out ->
+                        out.write(csvText.toByteArray(Charsets.UTF_8))
+                    } ?: error("stream null")
+                }
+                snackbarHostState.showSnackbar(
+                    result.fold(
+                        onSuccess = { "CSV 表格导出成功 📊" },
+                        onFailure = { "导出 CSV 失败，请重试" },
+                    )
+                )
+            }
+        }
+    }
+
     Scaffold(
         topBar = { TopAppBar(title = "设置") },
         snackbarHost = {
@@ -225,6 +247,33 @@ fun MiuixSettingsScreen(
                             )
                         },
                         onClick = { importLauncher.launch(arrayOf("application/json", "text/plain", "*/*")) },
+                    )
+                    ArrowPreference(
+                        title = "导出 CSV 表格",
+                        summary = "导出为表格文件（支持 Excel 打开）",
+                        startAction = {
+                            MiuixIcon(
+                                MiuixIcons.FileDownloads,
+                                contentDescription = null,
+                                tint = MiuixTheme.colorScheme.primary,
+                            )
+                        },
+                        onClick = { csvExportLauncher.launch("吃了么库存_${LocalDate.now()}.csv") },
+                    )
+                    ArrowPreference(
+                        title = "本地历史快照",
+                        summary = "自动滚动保留最近 3 份本地冷备快照",
+                        startAction = {
+                            MiuixIcon(
+                                MiuixIcons.Download,
+                                contentDescription = null,
+                                tint = MiuixTheme.colorScheme.primary,
+                            )
+                        },
+                        onClick = {
+                            state.loadLocalSnapshots()
+                            state.setShowSnapshotPicker(true)
+                        },
                     )
                     ArrowPreference(
                         title = "坚果云同步",
@@ -540,6 +589,128 @@ fun MiuixSettingsScreen(
                         state.setRestoreCandidate(null)
                         if (fileName != null) {
                             state.syncDownload(fileName) { _, msg ->
+                                scope.launch { snackbarHostState.showSnackbar(msg) }
+                            }
+                        }
+                    },
+                    modifier = Modifier.weight(1f),
+                    minHeight = 48.dp,
+                    colors = ButtonDefaults.textButtonColors(textColor = MiuixTheme.colorScheme.error),
+                )
+            }
+        }
+
+        // ---- 本地快照列表弹窗 ----
+        OverlayDialog(
+            title = "本地历史快照",
+            summary = "系统自动滚动保留最近 3 份冷备快照，点击可还原：",
+            show = state.showSnapshotPicker,
+            onDismissRequest = { state.setShowSnapshotPicker(false) },
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                if (state.localSnapshots.isEmpty()) {
+                    Text(
+                        "暂无本地快照，系统会在每天首次启动时自动备份。",
+                        style = MiuixTheme.textStyles.body2,
+                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                        modifier = Modifier.padding(vertical = 12.dp),
+                    )
+                } else {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        state.localSnapshots.forEach { snapshot ->
+                            Surface(
+                                shape = RoundedCornerShape(16.dp),
+                                color = MiuixTheme.colorScheme.surfaceContainerHigh,
+                                onClick = {
+                                    state.setRestoreSnapshotCandidate(snapshot)
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(36.dp)
+                                            .clip(CircleShape)
+                                            .background(MiuixTheme.colorScheme.primaryContainer),
+                                        contentAlignment = Alignment.Center,
+                                    ) {
+                                        MiuixIcon(
+                                            MiuixIcons.Download,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(18.dp),
+                                            tint = MiuixTheme.colorScheme.onPrimaryContainer,
+                                        )
+                                    }
+                                    Spacer(Modifier.width(12.dp))
+                                    Column(Modifier.weight(1f)) {
+                                        Text(
+                                            snapshot.displayTime,
+                                            style = MiuixTheme.textStyles.body1,
+                                            fontWeight = FontWeight.SemiBold,
+                                        )
+                                        Text(
+                                            "包含 ${snapshot.itemCount} 项资产 · ${snapshot.displaySize}",
+                                            style = MiuixTheme.textStyles.footnote2,
+                                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                                        )
+                                    }
+                                    Spacer(Modifier.width(8.dp))
+                                    MiuixIcon(
+                                        MiuixIcons.Forward,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(16.dp),
+                                        tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                TextButton(
+                    text = "关闭",
+                    onClick = { state.setShowSnapshotPicker(false) },
+                    modifier = Modifier.fillMaxWidth(),
+                    minHeight = 48.dp,
+                )
+            }
+        }
+
+        // ---- 本地快照还原二次确认 ----
+        OverlayDialog(
+            title = "确认从快照还原",
+            summary = state.restoreSnapshotCandidate?.let {
+                "将从本地快照还原数据：\n${it.displayTime}\n\n此操作会整体替换当前全部数据（库存、归档、消耗记录与设置）。确定继续吗？"
+            },
+            show = state.restoreSnapshotCandidate != null,
+            onDismissRequest = { state.setRestoreSnapshotCandidate(null) },
+        ) {
+            Row(
+                modifier = Modifier.padding(top = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                TextButton(
+                    text = "取消",
+                    onClick = { state.setRestoreSnapshotCandidate(null) },
+                    modifier = Modifier.weight(1f),
+                    minHeight = 48.dp,
+                )
+                TextButton(
+                    text = "确定还原",
+                    onClick = {
+                        val fileName = state.restoreSnapshotCandidate?.fileName
+                        state.setRestoreSnapshotCandidate(null)
+                        state.setShowSnapshotPicker(false)
+                        if (fileName != null) {
+                            state.restoreLocalSnapshot(fileName) { _, msg ->
                                 scope.launch { snackbarHostState.showSnackbar(msg) }
                             }
                         }
