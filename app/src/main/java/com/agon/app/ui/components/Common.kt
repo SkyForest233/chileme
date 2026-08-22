@@ -25,6 +25,7 @@ import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -74,6 +75,8 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import coil3.compose.AsyncImage
 import com.agon.app.data.CategoryDef
 import com.agon.app.data.FoodItem
@@ -928,6 +931,57 @@ fun DataCorruptBanner(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onErrorContainer,
                 )
+            }
+        }
+    }
+}
+
+/**
+ * Miuix（HyperOS）独立 Window 弹窗。
+ *
+ * 基于 Android 顶层 Dialog Window 渲染，不受页面 Scaffold 或底部悬浮导航栏遮挡，
+ * 拥有完整的软键盘自适应与 Miuix Squircle 视觉风格。
+ */
+@Composable
+fun MiuixDialog(
+    show: Boolean,
+    onDismissRequest: () -> Unit,
+    title: String,
+    summary: String = "",
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    if (!show) return
+    Dialog(
+        onDismissRequest = onDismissRequest,
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+    ) {
+        MiuixCard(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp),
+            colors = MiuixCardDefaults.defaultColors(
+                color = MiuixTheme.colorScheme.surface,
+                contentColor = MiuixTheme.colorScheme.onSurface,
+            ),
+        ) {
+            Column(
+                modifier = Modifier.padding(24.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                MiuixText(
+                    title,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MiuixTheme.colorScheme.onSurface,
+                )
+                if (summary.isNotBlank()) {
+                    MiuixText(
+                        summary,
+                        fontSize = 13.sp,
+                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                    )
+                }
+                content()
             }
         }
     }

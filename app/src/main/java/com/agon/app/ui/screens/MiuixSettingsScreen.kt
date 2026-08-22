@@ -53,7 +53,7 @@ import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
 import top.yukonga.miuix.kmp.preference.RadioButtonPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
-import top.yukonga.miuix.kmp.window.WindowDialog
+import com.agon.app.ui.components.MiuixDialog
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.CloudFill
 import top.yukonga.miuix.kmp.icon.extended.Download
@@ -340,7 +340,7 @@ fun MiuixSettingsScreen(
         }
 
         // ---- 清空库存确认 ----
-        WindowDialog(
+        MiuixDialog(
             title = "清空库存记录",
             summary = "确定要删除全部 ${state.items.size} 条食品记录吗？建议先导出备份。",
             show = state.showClearDialog,
@@ -370,7 +370,7 @@ fun MiuixSettingsScreen(
         }
 
         // ---- 导出格式选择弹窗 ----
-        WindowDialog(
+        MiuixDialog(
             title = "选择导出格式",
             show = state.showExportFormatDialog,
             onDismissRequest = { state.setShowExportFormatDialog(false) },
@@ -463,7 +463,7 @@ fun MiuixSettingsScreen(
         }
 
         // ---- 恢复来源选择弹窗 ----
-        WindowDialog(
+        MiuixDialog(
             title = "选择恢复来源",
             show = state.showRestoreSourceDialog,
             onDismissRequest = { state.setShowRestoreSourceDialog(false) },
@@ -557,7 +557,7 @@ fun MiuixSettingsScreen(
         }
 
         // ---- 坚果云账号配置 ----
-        WindowDialog(
+        MiuixDialog(
             title = "坚果云账号",
             show = state.showNutstoreDialog,
             onDismissRequest = { state.setShowNutstoreDialog(false) },
@@ -610,7 +610,7 @@ fun MiuixSettingsScreen(
         }
 
         // ---- 云端备份选择（恢复哪一份） ----
-        WindowDialog(
+        MiuixDialog(
             title = "选择要恢复的备份",
             show = state.showBackupPicker,
             onDismissRequest = { if (!state.loadingBackups) state.setShowBackupPicker(false) },
@@ -734,7 +734,7 @@ fun MiuixSettingsScreen(
         }
 
         // ---- 恢复二次确认 ----
-        WindowDialog(
+        MiuixDialog(
             title = "确认恢复",
             summary = state.restoreCandidate?.let {
                 "将恢复备份：\n${it.displayTime}\n\n此操作会整体替换本机全部数据（库存、归档、消耗记录和设置）。确定继续吗？"
@@ -771,7 +771,7 @@ fun MiuixSettingsScreen(
         }
 
         // ---- 本地快照列表弹窗 ----
-        WindowDialog(
+        MiuixDialog(
             title = "本地历史快照",
             summary = "系统自动滚动保留最近 3 份冷备快照，点击可还原：",
             show = state.showSnapshotPicker,
@@ -857,7 +857,7 @@ fun MiuixSettingsScreen(
         }
 
         // ---- 本地快照还原二次确认 ----
-        WindowDialog(
+        MiuixDialog(
             title = "确认从快照还原",
             summary = state.restoreSnapshotCandidate?.let {
                 "将从本地快照还原数据：\n${it.displayTime}\n\n此操作会整体替换当前全部数据（库存、归档、消耗记录与设置）。确定继续吗？"
