@@ -959,10 +959,6 @@ fun MiuixDialog(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 24.dp),
-            colors = MiuixCardDefaults.defaultColors(
-                color = MiuixTheme.colorScheme.surface,
-                contentColor = MiuixTheme.colorScheme.onSurface,
-            ),
         ) {
             Column(
                 modifier = Modifier.padding(24.dp),
@@ -972,7 +968,6 @@ fun MiuixDialog(
                     title,
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
-                    color = MiuixTheme.colorScheme.onSurface,
                 )
                 if (summary.isNotBlank()) {
                     MiuixText(
