@@ -9,7 +9,6 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -47,34 +46,22 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.agon.app.data.FoodStatus
 import com.agon.app.data.byId
-import com.agon.app.data.daysLeftAt
 import com.agon.app.data.statusForAt
 import com.agon.app.ui.components.EmptyState
-import com.agon.app.ui.theme.LocalToday
-import com.agon.app.ui.theme.MotionSpring
-import com.agon.app.ui.theme.MotionEasing
-import com.agon.app.ui.theme.filterPanelEnter
-import com.agon.app.ui.theme.filterPanelExit
 import com.agon.app.ui.components.FoodAvatar
 import com.agon.app.ui.components.FoodCard
+import com.agon.app.ui.theme.MotionEasing
+import com.agon.app.ui.theme.MotionSpring
+import com.agon.app.ui.theme.filterPanelEnter
+import com.agon.app.ui.theme.filterPanelExit
 import com.agon.app.viewmodel.AppViewModel
-
-private enum class StatusFilter(val label: String) {
-    ALL("全部"), SAFE("安全"), EXPIRING("临期"), EXPIRED("已过期")
-}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -84,91 +71,35 @@ fun FoodListScreen(
     onOpenItem: (String) -> Unit,
     onOpenArchive: () -> Unit,
 ) {
-    val items by viewModel.items.collectAsStateWithLifecycle()
-    val archived by viewModel.archived.collectAsStateWithLifecycle()
-    val thresholds by viewModel.thresholds.collectAsStateWithLifecycle()
-    val categories by viewModel.categories.collectAsStateWithLifecycle()
-    var query by rememberSaveable { mutableStateOf("") }
-    var statusFilter by rememberSaveable(initialFilter) {
-        mutableStateOf(
-            when (initialFilter) {
-                "expiring" -> StatusFilter.EXPIRING
-                "expired" -> StatusFilter.EXPIRED
-                else -> StatusFilter.ALL
-            }
-        )
-    }
-    var categoryFilter by rememberSaveable { mutableStateOf<String?>(null) }
-    var locationFilter by rememberSaveable { mutableStateOf<String?>(null) }
-    var filtersExpanded by rememberSaveable(initialFilter) {
-        mutableStateOf(initialFilter != null)
-    }
-    // ---- 长按多选（批量归档，选中状态提升到 ViewModel，供 MainActivity 批量操作栏共用）----
-    val selectedIds by viewModel.selectedIds.collectAsStateWithLifecycle()
-    val selectionMode = selectedIds.isNotEmpty()
+    val state = rememberFoodListUiState(viewModel, initialFilter)
 
     // 系统返回键：多选时只退出多选，不切页（在 NavHost 内部，优先级高于导航返回）
-    BackHandler(enabled = selectionMode) {
-        viewModel.clearSelection()
-    }
-
-    val usedLocations = remember(items) {
-        items.map { it.location }.filter { it.isNotBlank() }.distinct().sorted()
-    }
-
-    val activeFilterCount =
-        (if (statusFilter != StatusFilter.ALL) 1 else 0) +
-            (if (categoryFilter != null) 1 else 0) +
-            (if (locationFilter != null) 1 else 0)
-
-    val today = LocalToday.current
-    val filtered = remember(items, thresholds, query, statusFilter, categoryFilter, locationFilter, today) {
-        items
-            .filter { query.isBlank() || it.name.contains(query.trim(), ignoreCase = true) }
-            .filter {
-                when (statusFilter) {
-                    StatusFilter.ALL -> true
-                    StatusFilter.SAFE -> it.statusForAt(today, thresholds) == FoodStatus.SAFE
-                    StatusFilter.EXPIRING -> it.statusForAt(today, thresholds) == FoodStatus.EXPIRING
-                    StatusFilter.EXPIRED -> it.statusForAt(today, thresholds) == FoodStatus.EXPIRED
-                }
-            }
-            .filter { categoryFilter == null || it.category == categoryFilter }
-            .filter { locationFilter == null || it.location == locationFilter }
-            // 吃完（数量 0）的自动沉底，其余按剩余天数升序
-            .sortedWith(compareBy({ it.quantity == 0 }, { it.daysLeftAt(today) }))
-    }
-
-    // 搜索时同时命中归档记录
-    val archivedMatches = remember(archived, query) {
-        if (query.isBlank()) emptyList()
-        else archived.filter { it.item.name.contains(query.trim(), ignoreCase = true) }
+    BackHandler(enabled = state.selectionMode) {
+        state.clearSelection()
     }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
-            if (selectionMode) {
+            if (state.selectionMode) {
                 TopAppBar(
                     title = {
-                        Text("已选 ${selectedIds.size} 项", fontWeight = FontWeight.Bold)
+                        Text("已选 ${state.selectedIds.size} 项", fontWeight = FontWeight.Bold)
                     },
                     navigationIcon = {
-                        IconButton(onClick = { viewModel.clearSelection() }) {
+                        IconButton(onClick = { state.clearSelection() }) {
                             Icon(Icons.Rounded.Close, contentDescription = "退出多选")
                         }
                     },
                     actions = {
                         // 全选 / 取消全选
                         IconButton(onClick = {
-                            viewModel.setSelection(
-                                if (selectedIds.size == filtered.size) emptySet()
-                                else filtered.map { it.id }.toSet()
-                            )
+                            if (state.selectedIds.size == state.filtered.size) state.clearSelection()
+                            else state.selectAll()
                         }) {
                             Icon(
                                 Icons.Rounded.SelectAll,
-                                contentDescription = if (selectedIds.size == filtered.size) "取消全选" else "全选",
+                                contentDescription = if (state.selectedIds.size == state.filtered.size) "取消全选" else "全选",
                                 tint = MaterialTheme.colorScheme.primary,
                             )
                         }
@@ -208,8 +139,8 @@ fun FoodListScreen(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 OutlinedTextField(
-                    value = query,
-                    onValueChange = { query = it },
+                    value = state.query,
+                    onValueChange = { state.setQuery(it) },
                     modifier = Modifier.weight(1f),
                     placeholder = { Text("搜索食品（含归档）…") },
                     leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null) },
@@ -218,14 +149,14 @@ fun FoodListScreen(
                 )
                 Spacer(Modifier.width(10.dp))
                 FilterToggle(
-                    expanded = filtersExpanded,
-                    activeCount = activeFilterCount,
-                    onClick = { filtersExpanded = !filtersExpanded },
+                    expanded = state.filtersExpanded,
+                    activeCount = state.activeFilterCount,
+                    onClick = { state.setFiltersExpanded(!state.filtersExpanded) },
                 )
             }
 
             AnimatedVisibility(
-                visible = filtersExpanded,
+                visible = state.filtersExpanded,
                 enter = filterPanelEnter(),
                 exit = filterPanelExit(),
             ) {
@@ -235,10 +166,10 @@ fun FoodListScreen(
                         contentPadding = PaddingValues(horizontal = 20.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                        items(StatusFilter.entries.toList()) { f ->
+                        items(FoodStatusFilter.entries.toList()) { f ->
                             FilterChip(
-                                selected = statusFilter == f,
-                                onClick = { statusFilter = f },
+                                selected = state.statusFilter == f,
+                                onClick = { state.setStatusFilter(f) },
                                 label = { Text(f.label) },
                                 shape = RoundedCornerShape(50),
                                 colors = FilterChipDefaults.filterChipColors(
@@ -254,10 +185,10 @@ fun FoodListScreen(
                         contentPadding = PaddingValues(horizontal = 20.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                        items(categories, key = { it.id }) { c ->
+                        items(state.categories, key = { it.id }) { c ->
                             FilterChip(
-                                selected = categoryFilter == c.id,
-                                onClick = { categoryFilter = if (categoryFilter == c.id) null else c.id },
+                                selected = state.categoryFilter == c.id,
+                                onClick = { state.setCategoryFilter(if (state.categoryFilter == c.id) null else c.id) },
                                 label = { Text("${c.emoji} ${c.label}") },
                                 shape = RoundedCornerShape(50),
                                 colors = FilterChipDefaults.filterChipColors(
@@ -266,17 +197,17 @@ fun FoodListScreen(
                             )
                         }
                     }
-                    if (usedLocations.isNotEmpty()) {
+                    if (state.usedLocations.isNotEmpty()) {
                         Spacer(Modifier.height(4.dp))
                         FilterSectionLabel("位置")
                         LazyRow(
                             contentPadding = PaddingValues(horizontal = 20.dp),
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                         ) {
-                            items(usedLocations, key = { it }) { loc ->
+                            items(state.usedLocations, key = { it }) { loc ->
                                 FilterChip(
-                                    selected = locationFilter == loc,
-                                    onClick = { locationFilter = if (locationFilter == loc) null else loc },
+                                    selected = state.locationFilter == loc,
+                                    onClick = { state.setLocationFilter(if (state.locationFilter == loc) null else loc) },
                                     label = { Text(loc) },
                                     shape = RoundedCornerShape(50),
                                     colors = FilterChipDefaults.filterChipColors(
@@ -290,11 +221,11 @@ fun FoodListScreen(
             }
             Spacer(Modifier.height(8.dp))
 
-            if (filtered.isEmpty() && archivedMatches.isEmpty()) {
+            if (state.filtered.isEmpty() && state.archivedMatches.isEmpty()) {
                 EmptyState(
-                    emoji = if (items.isEmpty()) "🧺" else "🔍",
-                    title = if (items.isEmpty()) "零食柜还是空的" else "没有符合条件的食品",
-                    subtitle = if (items.isEmpty()) "点击下方“添加”开始记录吧" else "换个关键词或筛选条件试试",
+                    emoji = if (state.items.isEmpty()) "🧺" else "🔍",
+                    title = if (state.items.isEmpty()) "零食柜还是空的" else "没有符合条件的食品",
+                    subtitle = if (state.items.isEmpty()) "点击下方“添加”开始记录吧" else "换个关键词或筛选条件试试",
                 )
             } else {
                 LazyColumn(
@@ -307,24 +238,24 @@ fun FoodListScreen(
                     ),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    items(filtered, key = { it.id }) { item ->
+                    items(state.filtered, key = { it.id }) { item ->
                         FoodCard(
                             item = item,
-                            category = categories.byId(item.category),
-                            status = item.statusForAt(LocalToday.current, thresholds),
-                            selectionMode = selectionMode,
-                            selected = item.id in selectedIds,
+                            category = state.categories.byId(item.category),
+                            status = item.statusForAt(state.today, state.thresholds),
+                            selectionMode = state.selectionMode,
+                            selected = item.id in state.selectedIds,
                             onClick = {
-                                if (selectionMode) {
-                                    viewModel.toggleSelection(item.id)
+                                if (state.selectionMode) {
+                                    state.toggleSelection(item.id)
                                 } else {
                                     onOpenItem(item.id)
                                 }
                             },
                             onLongClick = {
-                                viewModel.toggleSelection(item.id)
+                                state.toggleSelection(item.id)
                             },
-                            onQuantityChange = { delta -> viewModel.changeQuantity(item.id, delta, withUndo = delta < 0) },
+                            onQuantityChange = { delta -> state.changeQuantity(item.id, delta) },
                             modifier = Modifier.animateItem(
                                 fadeInSpec = tween(280, easing = MotionEasing.EmphasizedDecelerate),
                                 fadeOutSpec = tween(200, easing = MotionEasing.EmphasizedAccelerate),
@@ -333,7 +264,7 @@ fun FoodListScreen(
                     }
 
                     // 归档中的搜索结果
-                    if (archivedMatches.isNotEmpty()) {
+                    if (state.archivedMatches.isNotEmpty()) {
                         item(key = "archive_header") {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
@@ -350,13 +281,13 @@ fun FoodListScreen(
                                 )
                                 Spacer(Modifier.width(6.dp))
                                 Text(
-                                    "归档中找到 ${archivedMatches.size} 条",
+                                    "归档中找到 ${state.archivedMatches.size} 条",
                                     style = MaterialTheme.typography.labelMedium,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
                             }
                         }
-                        items(archivedMatches, key = { "arch_${it.item.id}" }) { entry ->
+                        items(state.archivedMatches, key = { "arch_${it.item.id}" }) { entry ->
                             Surface(
                                 shape = MaterialTheme.shapes.large,
                                 color = MaterialTheme.colorScheme.surfaceContainerLow,
@@ -368,7 +299,7 @@ fun FoodListScreen(
                                     modifier = Modifier.padding(12.dp),
                                     verticalAlignment = Alignment.CenterVertically,
                                 ) {
-                                    FoodAvatar(entry.item, categories.byId(entry.item.category).emoji, size = 40.dp)
+                                    FoodAvatar(entry.item, state.categories.byId(entry.item.category).emoji, size = 40.dp)
                                     Spacer(Modifier.width(12.dp))
                                     Column(Modifier.weight(1f)) {
                                         Text(
@@ -384,14 +315,14 @@ fun FoodListScreen(
                                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         )
                                     }
-                                    IconButton(onClick = { viewModel.restoreArchived(entry.item.id) }) {
+                                    IconButton(onClick = { state.restoreArchived(entry.item.id) }) {
                                         Icon(
                                             Icons.Rounded.RestartAlt,
                                             contentDescription = "恢复 ${entry.item.name}",
                                             tint = MaterialTheme.colorScheme.primary,
                                         )
                                     }
-                                    IconButton(onClick = { viewModel.deleteArchived(entry.item.id) }) {
+                                    IconButton(onClick = { state.deleteArchived(entry.item.id) }) {
                                         Icon(
                                             Icons.Rounded.DeleteForever,
                                             contentDescription = "彻底删除 ${entry.item.name}",
@@ -415,7 +346,7 @@ private fun FilterSectionLabel(text: String) {
         text,
         style = MaterialTheme.typography.labelSmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.padding(start = 24.dp, bottom = 4.dp),
+        modifier = Modifier.padding(horizontal = 20.dp, vertical = 2.dp),
     )
 }
 
@@ -425,50 +356,53 @@ private fun FilterToggle(
     activeCount: Int,
     onClick: () -> Unit,
 ) {
-    val arrowRotation by animateFloatAsState(
+    val rotation by animateFloatAsState(
         targetValue = if (expanded) 180f else 0f,
-        animationSpec = if (expanded) MotionSpring.expand<Float>() else MotionSpring.collapse<Float>(),
-        label = "filterArrowRotation",
+        animationSpec = MotionSpring.expand<Float>(),
+        label = "filterArrow",
     )
     Surface(
         onClick = onClick,
         shape = RoundedCornerShape(50),
         color = if (activeCount > 0) MaterialTheme.colorScheme.primaryContainer
-        else MaterialTheme.colorScheme.surfaceContainerHigh,
-        contentColor = if (activeCount > 0) MaterialTheme.colorScheme.onPrimaryContainer
-        else MaterialTheme.colorScheme.onSurfaceVariant,
+        else MaterialTheme.colorScheme.surfaceContainerHighest,
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 12.dp),
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
         ) {
-            Icon(Icons.Rounded.FilterList, contentDescription = "筛选", modifier = Modifier.size(18.dp))
-            if (activeCount > 0) {
-                Spacer(Modifier.width(4.dp))
-                AnimatedContent(
-                    targetState = activeCount,
-                    transitionSpec = {
-                        fadeIn(tween(160, easing = MotionEasing.Standard)) togetherWith
-                            fadeOut(tween(120, easing = MotionEasing.Standard))
-                    },
-                    label = "filterCount",
-                ) { count ->
-                    Text(
-                        "$count",
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.Bold,
-                    )
-                }
+            Icon(
+                Icons.Rounded.FilterList,
+                contentDescription = null,
+                modifier = Modifier.size(18.dp),
+                tint = if (activeCount > 0) MaterialTheme.colorScheme.onPrimaryContainer
+                else MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            AnimatedContent(
+                targetState = activeCount,
+                transitionSpec = {
+                    (fadeIn(tween(150)) + androidx.compose.animation.scaleIn(tween(150)))
+                        .togetherWith(fadeOut(tween(150)) + androidx.compose.animation.scaleOut(tween(150)))
+                },
+                label = "filterCount",
+            ) { count ->
+                Text(
+                    if (count > 0) "筛选($count)" else "筛选",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = if (count > 0) MaterialTheme.colorScheme.onPrimaryContainer
+                    else MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
-            Spacer(Modifier.width(2.dp))
             Icon(
                 Icons.Rounded.ExpandMore,
                 contentDescription = null,
                 modifier = Modifier
-                    .size(16.dp)
-                    .graphicsLayer { rotationZ = arrowRotation },
+                    .size(18.dp)
+                    .graphicsLayer { rotationZ = rotation },
+                tint = if (activeCount > 0) MaterialTheme.colorScheme.onPrimaryContainer
+                else MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
     }
 }
-

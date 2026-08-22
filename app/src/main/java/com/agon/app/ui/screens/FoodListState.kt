@@ -38,6 +38,7 @@ class FoodListUiState(
     val usedLocations: List<String>,
     val activeFilterCount: Int,
     val filtered: List<FoodItem>,
+    val archivedMatches: List<ArchivedItem>,
     val selectedIds: Set<String>,
     val selectionMode: Boolean,
     private val viewModel: AppViewModel,
@@ -61,6 +62,9 @@ class FoodListUiState(
 
     fun changeQuantity(id: String, delta: Int) =
         viewModel.changeQuantity(id, delta, withUndo = true)
+
+    fun restoreArchived(id: String) = viewModel.restoreArchived(id)
+    fun deleteArchived(id: String) = viewModel.deleteArchived(id)
 }
 
 @Composable
@@ -119,6 +123,11 @@ fun rememberFoodListUiState(
             .sortedWith(compareBy({ it.quantity == 0 }, { it.daysLeftAt(today) }))
     }
 
+    val archivedMatches = remember(archived, query) {
+        if (query.isBlank()) emptyList()
+        else archived.filter { it.item.name.contains(query.trim(), ignoreCase = true) }
+    }
+
     fun performReset() {
         query = ""
         statusFilter = FoodStatusFilter.ALL
@@ -140,6 +149,7 @@ fun rememberFoodListUiState(
         usedLocations,
         activeFilterCount,
         filtered,
+        archivedMatches,
         selectedIds,
         selectionMode,
     ) {
@@ -157,6 +167,7 @@ fun rememberFoodListUiState(
             usedLocations = usedLocations,
             activeFilterCount = activeFilterCount,
             filtered = filtered,
+            archivedMatches = archivedMatches,
             selectedIds = selectedIds,
             selectionMode = selectionMode,
             viewModel = viewModel,
