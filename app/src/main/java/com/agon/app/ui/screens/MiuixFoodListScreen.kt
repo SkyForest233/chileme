@@ -3,6 +3,7 @@ package com.agon.app.ui.screens
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -222,111 +223,117 @@ fun MiuixFoodListScreen(
             }
             Spacer(Modifier.height(8.dp))
 
-            if (state.filtered.isEmpty() && state.archivedMatches.isEmpty()) {
-                EmptyState(
-                    emoji = if (state.items.isEmpty()) "🧺" else "🔍",
-                    title = if (state.items.isEmpty()) "零食柜还是空的" else "没有符合条件的食品",
-                    subtitle = if (state.items.isEmpty()) "点击下方“添加”开始记录吧" else "换个关键词或筛选条件试试",
-                )
-            } else {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(
-                        start = 20.dp,
-                        end = 20.dp,
-                        top = 4.dp,
-                        bottom = padding.calculateBottomPadding() + 96.dp,
-                    ),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    items(state.filtered, key = { it.id }) { item ->
-                        FoodCard(
-                            item = item,
-                            category = state.categories.byId(item.category),
-                            status = item.statusForAt(state.today, state.thresholds),
-                            selectionMode = state.selectionMode,
-                            selected = item.id in state.selectedIds,
-                            onClick = {
-                                if (state.selectionMode) {
+            Crossfade(
+                targetState = state.filtered.isEmpty() && state.archivedMatches.isEmpty(),
+                label = "miuixFoodListEmptyCrossfade",
+                modifier = Modifier.fillMaxSize(),
+            ) { isEmpty ->
+                if (isEmpty) {
+                    EmptyState(
+                        emoji = if (state.items.isEmpty()) "🧺" else "🔍",
+                        title = if (state.items.isEmpty()) "零食柜还是空的" else "没有符合条件的食品",
+                        subtitle = if (state.items.isEmpty()) "点击下方“添加”开始记录吧" else "换个关键词或筛选条件试试",
+                    )
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(
+                            start = 20.dp,
+                            end = 20.dp,
+                            top = 4.dp,
+                            bottom = padding.calculateBottomPadding() + 96.dp,
+                        ),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        items(state.filtered, key = { it.id }) { item ->
+                            FoodCard(
+                                item = item,
+                                category = state.categories.byId(item.category),
+                                status = item.statusForAt(state.today, state.thresholds),
+                                selectionMode = state.selectionMode,
+                                selected = item.id in state.selectedIds,
+                                onClick = {
+                                    if (state.selectionMode) {
+                                        state.toggleSelection(item.id)
+                                    } else {
+                                        onOpenItem(item.id)
+                                    }
+                                },
+                                onLongClick = {
                                     state.toggleSelection(item.id)
-                                } else {
-                                    onOpenItem(item.id)
-                                }
-                            },
-                            onLongClick = {
-                                state.toggleSelection(item.id)
-                            },
-                            onQuantityChange = { delta -> state.changeQuantity(item.id, delta) },
-                            modifier = Modifier.animateItem(
-                                fadeInSpec = tween(280, easing = MotionEasing.EmphasizedDecelerate),
-                                fadeOutSpec = tween(200, easing = MotionEasing.EmphasizedAccelerate),
-                            ),
-                        )
-                    }
-
-                    if (state.archivedMatches.isNotEmpty()) {
-                        item(key = "archive_header") {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(top = 8.dp)
-                                    .animateItem(),
-                            ) {
-                                Icon(
-                                    MiuixIcons.Recent,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(16.dp),
-                                    tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                                )
-                                Spacer(Modifier.width(6.dp))
-                                Text(
-                                    "归档中找到 ${state.archivedMatches.size} 条",
-                                    style = MiuixTheme.textStyles.footnote2,
-                                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                                )
-                            }
+                                },
+                                onQuantityChange = { delta -> state.changeQuantity(item.id, delta) },
+                                modifier = Modifier.animateItem(
+                                    fadeInSpec = tween(280, easing = MotionEasing.EmphasizedDecelerate),
+                                    fadeOutSpec = tween(200, easing = MotionEasing.EmphasizedAccelerate),
+                                ),
+                            )
                         }
-                        items(state.archivedMatches, key = { "arch_${it.item.id}" }) { entry ->
-                            Card(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .animateItem(),
-                            ) {
+
+                        if (state.archivedMatches.isNotEmpty()) {
+                            item(key = "archive_header") {
                                 Row(
-                                    modifier = Modifier.padding(12.dp),
                                     verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(top = 8.dp)
+                                        .animateItem(),
                                 ) {
-                                    FoodAvatar(entry.item, state.categories.byId(entry.item.category).emoji, size = 40.dp)
-                                    Spacer(Modifier.width(12.dp))
-                                    Column(Modifier.weight(1f)) {
-                                        Text(
-                                            entry.item.name,
-                                            style = MiuixTheme.textStyles.subtitle,
-                                            fontWeight = FontWeight.SemiBold,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis,
-                                        )
-                                        Text(
-                                            "${entry.reason.emoji} ${entry.reason.label}",
-                                            style = MiuixTheme.textStyles.footnote2,
-                                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                                        )
-                                    }
-                                    IconButton(onClick = { state.restoreArchivedWithUndo(entry) }) {
-                                        Icon(
-                                            MiuixIcons.Refresh,
-                                            contentDescription = "恢复 ${entry.item.name}",
-                                            tint = MiuixTheme.colorScheme.primary,
-                                        )
-                                    }
-                                    IconButton(onClick = { state.deleteArchived(entry.item.id) }) {
-                                        Icon(
-                                            MiuixIcons.Delete,
-                                            contentDescription = "彻底删除 ${entry.item.name}",
-                                            modifier = Modifier.size(20.dp),
-                                            tint = MiuixTheme.colorScheme.error,
-                                        )
+                                    Icon(
+                                        MiuixIcons.Recent,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(16.dp),
+                                        tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                                    )
+                                    Spacer(Modifier.width(6.dp))
+                                    Text(
+                                        "归档中找到 ${state.archivedMatches.size} 条",
+                                        style = MiuixTheme.textStyles.footnote2,
+                                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                                    )
+                                }
+                            }
+                            items(state.archivedMatches, key = { "arch_${it.item.id}" }) { entry ->
+                                Card(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .animateItem(),
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(12.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                    ) {
+                                        FoodAvatar(entry.item, state.categories.byId(entry.item.category).emoji, size = 40.dp)
+                                        Spacer(Modifier.width(12.dp))
+                                        Column(Modifier.weight(1f)) {
+                                            Text(
+                                                entry.item.name,
+                                                style = MiuixTheme.textStyles.subtitle,
+                                                fontWeight = FontWeight.SemiBold,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis,
+                                            )
+                                            Text(
+                                                "${entry.reason.emoji} ${entry.reason.label}",
+                                                style = MiuixTheme.textStyles.footnote2,
+                                                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                                            )
+                                        }
+                                        IconButton(onClick = { state.restoreArchivedWithUndo(entry) }) {
+                                            Icon(
+                                                MiuixIcons.Refresh,
+                                                contentDescription = "恢复 ${entry.item.name}",
+                                                tint = MiuixTheme.colorScheme.primary,
+                                            )
+                                        }
+                                        IconButton(onClick = { state.deleteArchived(entry.item.id) }) {
+                                            Icon(
+                                                MiuixIcons.Delete,
+                                                contentDescription = "彻底删除 ${entry.item.name}",
+                                                modifier = Modifier.size(20.dp),
+                                                tint = MiuixTheme.colorScheme.error,
+                                            )
+                                        }
                                     }
                                 }
                             }

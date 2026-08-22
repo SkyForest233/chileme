@@ -1,5 +1,6 @@
 package com.agon.app.ui.screens
 
+import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -129,41 +130,48 @@ fun MiuixArchiveScreen(
             }
             Spacer(Modifier.height(8.dp))
 
-            if (state.filtered.isEmpty()) {
-                EmptyState(
-                    emoji = if (state.query.isNotBlank()) "🔍" else "📚",
-                    title = if (state.archived.isEmpty()) "归档是空的" else "没有符合条件的记录",
-                    subtitle = if (state.query.isNotBlank()) "换个关键词试试" else "删除、清理过期的食品会保存在这里，可随时恢复",
-                )
-            } else {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(
-                        start = 20.dp,
-                        end = 20.dp,
-                        top = 4.dp,
-                        bottom = padding.calculateBottomPadding() + 32.dp,
-                    ),
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
-                ) {
-                    items(state.filtered, key = { it.item.id }) { entry ->
-                        MiuixArchiveRow(
-                            entry = entry,
-                            emoji = state.categories.byId(entry.item.category).emoji,
-                            onRestore = {
-                                state.restoreEntry(entry.item.id) { merged ->
-                                    scope.launch {
-                                        val msg = if (merged) "库存中已有同批次「${entry.item.name}」，已合并数量"
-                                                  else "已恢复「${entry.item.name}」到零食柜"
-                                        val result = snackbarHostState.showUndoSnackbar(msg)
-                                        if (result == MiuixSnackbarResult.ActionPerformed) {
-                                            state.archiveBatch(setOf(entry.item.id), entry.reason)
+            Crossfade(
+                targetState = state.filtered.isEmpty(),
+                label = "miuixArchiveCrossfade",
+                modifier = Modifier.fillMaxSize(),
+            ) { isEmpty ->
+                if (isEmpty) {
+                    EmptyState(
+                        emoji = if (state.query.isNotBlank()) "🔍" else "📚",
+                        title = if (state.archived.isEmpty()) "归档是空的" else "没有符合条件的记录",
+                        subtitle = if (state.query.isNotBlank()) "换个关键词试试" else "删除、清理过期的食品会保存在这里，可随时恢复",
+                    )
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(
+                            start = 20.dp,
+                            end = 20.dp,
+                            top = 4.dp,
+                            bottom = padding.calculateBottomPadding() + 32.dp,
+                        ),
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        items(state.filtered, key = { it.item.id }) { entry ->
+                            MiuixArchiveRow(
+                                entry = entry,
+                                emoji = state.categories.byId(entry.item.category).emoji,
+                                onRestore = {
+                                    state.restoreEntry(entry.item.id) { merged ->
+                                        scope.launch {
+                                            val msg = if (merged) "库存中已有同批次「${entry.item.name}」，已合并数量"
+                                                      else "已恢复「${entry.item.name}」到零食柜"
+                                            val result = snackbarHostState.showUndoSnackbar(msg)
+                                            if (result == MiuixSnackbarResult.ActionPerformed) {
+                                                state.archiveBatch(setOf(entry.item.id), entry.reason)
+                                            }
                                         }
                                     }
-                                }
-                            },
-                            onDelete = { state.deleteEntry(entry.item.id) },
-                        )
+                                },
+                                onDelete = { state.deleteEntry(entry.item.id) },
+                                modifier = Modifier.animateItem(),
+                            )
+                        }
                     }
                 }
             }
@@ -203,8 +211,9 @@ private fun MiuixArchiveRow(
     emoji: String,
     onRestore: () -> Unit,
     onDelete: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
-    Card(modifier = Modifier.fillMaxWidth()) {
+    Card(modifier = modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier.padding(12.dp),
             verticalAlignment = Alignment.CenterVertically,

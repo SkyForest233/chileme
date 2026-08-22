@@ -95,7 +95,9 @@ fun MiuixThresholdManageScreen(viewModel: AppViewModel, onBack: () -> Unit) {
                 Surface(
                     shape = RoundedCornerShape(24.dp),
                     color = MiuixTheme.colorScheme.surfaceContainer,
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .animateItem(),
                 ) {
                     Row(
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
@@ -169,7 +171,9 @@ fun MiuixCategoryManageScreen(viewModel: AppViewModel, onBack: () -> Unit) {
                 Surface(
                     shape = RoundedCornerShape(24.dp),
                     color = MiuixTheme.colorScheme.surfaceContainer,
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .animateItem(),
                 ) {
                     Row(
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
@@ -351,7 +355,9 @@ fun MiuixLocationManageScreen(viewModel: AppViewModel, onBack: () -> Unit) {
                 Surface(
                     shape = RoundedCornerShape(24.dp),
                     color = MiuixTheme.colorScheme.surfaceContainer,
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .animateItem(),
                 ) {
                     Row(
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),

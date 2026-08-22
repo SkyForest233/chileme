@@ -1,5 +1,11 @@
 package com.agon.app.ui.screens
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -144,8 +150,12 @@ fun MiuixHomeScreen(
                 FreshnessBanner(total = state.total, expiring = state.expiring, expired = state.expired)
             }
 
-            if (state.expired > 0) {
-                item {
+            item(key = "clean_expired_btn") {
+                AnimatedVisibility(
+                    visible = state.expired > 0,
+                    enter = expandVertically(tween(300)) + fadeIn(tween(200)),
+                    exit = shrinkVertically(tween(300)) + fadeOut(tween(200)),
+                ) {
                     Button(
                         onClick = {
                             val count = state.expired
@@ -225,6 +235,7 @@ fun MiuixHomeScreen(
                         status = item.statusForAt(state.today, state.thresholds),
                         today = state.today,
                         onClick = { onOpenItem(item.id) },
+                        modifier = Modifier.animateItem(),
                     )
                 }
             }
@@ -300,9 +311,19 @@ private fun FreshnessBanner(total: Int, expiring: Int, expired: Int) {
 }
 
 @Composable
-private fun UrgentRow(item: FoodItem, emoji: String, status: FoodStatus, today: LocalDate, onClick: () -> Unit) {
+private fun UrgentRow(
+    item: FoodItem,
+    emoji: String,
+    status: FoodStatus,
+    today: LocalDate,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val ui = rememberStatusUi(status)
-    Card(onClick = onClick) {
+    Card(
+        onClick = onClick,
+        modifier = modifier.fillMaxWidth(),
+    ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()

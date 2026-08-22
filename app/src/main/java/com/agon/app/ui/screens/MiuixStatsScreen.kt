@@ -332,9 +332,14 @@ fun MiuixStatsScreen(
                                                 overflow = TextOverflow.Ellipsis,
                                             )
                                             Spacer(Modifier.height(4.dp))
+                                            val animFraction by animateFloatAsState(
+                                                targetValue = (amount.toFloat() / maxAmount).coerceIn(0.04f, 1f),
+                                                animationSpec = tween(600, easing = MotionEasing.EmphasizedDecelerate),
+                                                label = "miuixTopRankBar",
+                                            )
                                             Box(
                                                 modifier = Modifier
-                                                    .fillMaxWidth(amount.toFloat() / maxAmount)
+                                                    .fillMaxWidth(animFraction)
                                                     .height(10.dp)
                                                     .clip(RoundedCornerShape(50))
                                                     .background(MiuixTheme.colorScheme.primaryContainer),
