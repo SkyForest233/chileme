@@ -326,50 +326,56 @@ fun MiuixStatsScreen(
                                 color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                             )
                         } else {
-                            state.topConsumed.forEachIndexed { rank, (name, catId, totalAmount) ->
-                                val def = state.categories.byId(catId)
-                                val rankColor = when (rank) {
-                                    0 -> MiuixTheme.colorScheme.primary
-                                    1 -> MiuixTheme.colorScheme.primaryContainer
-                                    2 -> MiuixTheme.colorScheme.secondary
-                                    else -> MiuixTheme.colorScheme.onSurfaceVariantSummary
-                                }
-                                val itemId = state.findItemIdByName(name)
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .then(
-                                            if (itemId != null) Modifier.clickable { onOpenItem(itemId) }
-                                            else Modifier
+                            val maxAmount = state.topConsumed.first().third.coerceAtLeast(1)
+                            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                state.topConsumed.forEachIndexed { index, (name, cat, amount) ->
+                                    val targetId = state.findItemIdByName(name)
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = if (targetId != null) {
+                                            Modifier
+                                                .fillMaxWidth()
+                                                .clip(RoundedCornerShape(12.dp))
+                                                .clickable { onOpenItem(targetId) }
+                                                .padding(vertical = 4.dp)
+                                        } else {
+                                            Modifier.fillMaxWidth()
+                                        },
+                                    ) {
+                                        Text(
+                                            "${index + 1}",
+                                            style = MiuixTheme.textStyles.subtitle,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MiuixTheme.colorScheme.primary,
+                                            modifier = Modifier.width(20.dp),
                                         )
-                                        .padding(vertical = 8.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                ) {
-                                    Text(
-                                        "#${rank + 1}",
-                                        style = MiuixTheme.textStyles.title4,
-                                        fontWeight = FontWeight.Bold,
-                                        color = rankColor,
-                                        modifier = Modifier.width(32.dp),
-                                    )
-                                    Text(def.emoji, fontSize = 18.sp)
-                                    Spacer(Modifier.width(8.dp))
-                                    Text(
-                                        name,
-                                        style = MiuixTheme.textStyles.body2,
-                                        fontWeight = FontWeight.Medium,
-                                        modifier = Modifier.weight(1f),
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
-                                    )
-                                    Text(
-                                        "共消耗 $totalAmount",
-                                        style = MiuixTheme.textStyles.footnote2,
-                                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                                    )
-                                }
-                                if (rank < state.topConsumed.size - 1) {
-                                    Spacer(Modifier.height(4.dp))
+                                        Text(state.categories.byId(cat).emoji, fontSize = 18.sp)
+                                        Spacer(Modifier.width(8.dp))
+                                        Column(Modifier.weight(1f)) {
+                                            Text(
+                                                name,
+                                                style = MiuixTheme.textStyles.body2,
+                                                fontWeight = FontWeight.Medium,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis,
+                                            )
+                                            Spacer(Modifier.height(4.dp))
+                                            Box(
+                                                modifier = Modifier
+                                                    .fillMaxWidth(amount.toFloat() / maxAmount)
+                                                    .height(10.dp)
+                                                    .clip(RoundedCornerShape(50))
+                                                    .background(MiuixTheme.colorScheme.primaryContainer),
+                                            )
+                                        }
+                                        Spacer(Modifier.width(12.dp))
+                                        Text(
+                                            "×$amount",
+                                            style = MiuixTheme.textStyles.body2,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MiuixTheme.colorScheme.primary,
+                                        )
+                                    }
                                 }
                             }
                         }
