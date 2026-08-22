@@ -257,7 +257,7 @@ fun MiuixCategoryManageScreen(viewModel: AppViewModel, onBack: () -> Unit) {
                     "有 $inUse 条食品记录正在使用「${cat.emoji} ${cat.label}」，删除后这些记录将显示为“其他”。确定删除吗？"
                 else
                     "确定要删除分类「${cat.emoji} ${cat.label}」吗？"
-            },
+            }.orEmpty(),
             show = state.deleting != null,
             onDismissRequest = { state.setDeleting(null) },
         ) {

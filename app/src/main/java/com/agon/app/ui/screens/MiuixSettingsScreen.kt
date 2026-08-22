@@ -727,7 +727,7 @@ fun MiuixSettingsScreen(
             title = "确认恢复",
             summary = state.restoreCandidate?.let {
                 "将恢复备份：\n${it.displayTime}\n\n此操作会整体替换本机全部数据（库存、归档、消耗记录和设置）。确定继续吗？"
-            },
+            }.orEmpty(),
             show = state.restoreCandidate != null,
             onDismissRequest = { state.setRestoreCandidate(null) },
         ) {
@@ -848,7 +848,7 @@ fun MiuixSettingsScreen(
             title = "确认从快照还原",
             summary = state.restoreSnapshotCandidate?.let {
                 "将从本地快照还原数据：\n${it.displayTime}\n\n此操作会整体替换当前全部数据（库存、归档、消耗记录与设置）。确定继续吗？"
-            },
+            }.orEmpty(),
             show = state.restoreSnapshotCandidate != null,
             onDismissRequest = { state.setRestoreSnapshotCandidate(null) },
         ) {
