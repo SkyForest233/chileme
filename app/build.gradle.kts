@@ -1,24 +1,10 @@
 import java.util.Properties
-import org.gradle.api.logging.StandardOutputListener
 
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
 }
-
-logging.addStandardOutputListener(StandardOutputListener { text ->
-    val s = text.toString()
-    if (s.startsWith("e: ") || s.contains("Unresolved reference") || s.contains("Type mismatch") || s.contains("None of the following") || s.contains("error:")) {
-        println("::error::$s")
-    }
-})
-logging.addStandardErrorListener(StandardOutputListener { text ->
-    val s = text.toString()
-    if (s.startsWith("e: ") || s.contains("error:") || s.contains("Exception")) {
-        println("::error::$s")
-    }
-})
 
 // ---- Release 签名凭据 ----
 // 优先级：环境变量（CI / GitHub Secrets）> 根目录 keystore.properties（本地，不入库）。
