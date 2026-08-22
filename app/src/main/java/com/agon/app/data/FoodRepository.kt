@@ -366,6 +366,30 @@ class FoodRepository(private val context: Context) {
         return merged
     }
 
+    /**
+     * 批量恢复归档（一次性 edit，原子化）。旧实现是 N 次独立 `restoreArchived`，
+     * 每次 edit 都会重发整份 Preferences 并全量解码；批量较大时非原子且性能差。
+     * 语义与 `planRestore` 一致（同 ID 去重 / 同名同生产日期合并 / 数量 0 恢复为 1）。
+     */
+    suspend fun restoreArchivedBatch(ids: Set<String>) {
+        if (ids.isEmpty()) return
+        context.dataStore.edit { prefs ->
+            val archiveDecoded = decodeArchive(prefs[archiveKey])
+            val itemsDecoded = decodeItems(prefs[itemsKey])
+            if (isCorrupt(archiveDecoded, itemsDecoded)) return@edit
+            var items = itemsDecoded.orElse(emptyList())
+            var archive = archiveDecoded.orElse(emptyList())
+            for (id in ids) {
+                val entry = archive.find { it.item.id == id } ?: continue
+                val plan = planRestore(entry, items)
+                items = plan.newItems
+                archive = archive.filterNot { it.item.id == id }
+            }
+            prefs[itemsKey] = json.encodeToString(items)
+            prefs[archiveKey] = json.encodeToString(archive)
+        }
+    }
+
     suspend fun deleteArchived(id: String) {
         context.dataStore.edit { prefs ->
             val decoded = decodeArchive(prefs[archiveKey])
@@ -435,13 +459,22 @@ class FoodRepository(private val context: Context) {
         return QuantityChangeResult(autoArchived, consumptionId)
     }
 
-    /** 删除单条消耗记录（修正误触/错误统计；仅删记录，不回滚库存数量）。 */
-    suspend fun deleteConsumption(id: String) {
+    /**
+     * 删除单条消耗记录（修正误触/错误统计；仅删记录，不回滚库存数量）。
+     * 优先按 id 精确定位；id 为 null 的旧记录（迁移前）按「内容完全相等」匹配，
+     * 避免 `record.id?.let{...}` 把关导致的无 id 记录删除按钮静默无效。
+     */
+    suspend fun deleteConsumption(record: ConsumptionRecord) {
         context.dataStore.edit { prefs ->
             val decoded = decodeConsumption(prefs[consumptionKey])
             if (isCorrupt(decoded)) return@edit
             val records = decoded.orElse(emptyList())
-            prefs[consumptionKey] = json.encodeToString(records.filterNot { it.id == id })
+            val filtered = if (record.id != null) {
+                records.filterNot { it.id == record.id }
+            } else {
+                records.filterNot { it == record }
+            }
+            prefs[consumptionKey] = json.encodeToString(filtered)
         }
     }
 
