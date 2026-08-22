@@ -605,7 +605,6 @@ fun MainApp(viewModel: AppViewModel) {
                             text = "取消",
                             onClick = { showMoveLocationDialog = false },
                             modifier = Modifier.weight(1f),
-                            minHeight = 48.dp,
                         )
                         MiuixButton(
                             onClick = {
@@ -621,7 +620,6 @@ fun MainApp(viewModel: AppViewModel) {
                                 }
                             },
                             modifier = Modifier.weight(1f),
-                            minHeight = 48.dp,
                             colors = MiuixButtonDefaults.buttonColorsPrimary(),
                         ) {
                             Text("确定移动", fontWeight = FontWeight.SemiBold, color = MiuixTheme.colorScheme.onPrimary)
@@ -758,7 +756,6 @@ private fun BatchCancelButton(
             text = "取消",
             onClick = onClick,
             modifier = modifier,
-            minHeight = 48.dp,
         )
     } else {
         // MD3 实心胶囊（中性色），与归档实心胶囊视觉统一
@@ -786,7 +783,6 @@ private fun BatchMoveLocationButton(
         MiuixButton(
             onClick = onClick,
             modifier = modifier,
-            minHeight = 48.dp,
             colors = MiuixButtonDefaults.buttonColors(
                 color = MiuixTheme.colorScheme.secondaryContainer,
                 contentColor = MiuixTheme.colorScheme.onSecondaryContainer,
@@ -829,7 +825,6 @@ private fun BatchArchiveButton(isMiuix: Boolean, count: Int, onClick: () -> Unit
         MiuixButton(
             onClick = onClick,
             modifier = modifier,
-            minHeight = 48.dp,
             colors = MiuixButtonDefaults.buttonColors(
                 color = MiuixTheme.colorScheme.error,
                 contentColor = MiuixTheme.colorScheme.onError,

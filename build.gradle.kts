@@ -5,17 +5,3 @@ plugins {
     alias(libs.plugins.kotlin.compose) apply false
     alias(libs.plugins.kotlin.serialization) apply false
 }
-
-gradle.addBuildListener(object : org.gradle.BuildAdapter() {
-    override fun buildFinished(result: org.gradle.BuildResult) {
-        val failure = result.failure
-        if (failure != null) {
-            println("::error::Build failure: ${failure.message}")
-            var cur = failure.cause
-            while (cur != null) {
-                println("::error::Caused by: ${cur.message}")
-                cur = cur.cause
-            }
-        }
-    }
-})

@@ -354,7 +354,6 @@ fun MiuixSettingsScreen(
                     text = "取消",
                     onClick = { state.setShowClearDialog(false) },
                     modifier = Modifier.weight(1f),
-                    minHeight = 48.dp,
                 )
                 TextButton(
                     text = "清空",
@@ -363,7 +362,6 @@ fun MiuixSettingsScreen(
                         state.clearAll()
                     },
                     modifier = Modifier.weight(1f),
-                    minHeight = 48.dp,
                     colors = ButtonDefaults.textButtonColors(textColor = MiuixTheme.colorScheme.error),
                 )
             }
@@ -457,7 +455,6 @@ fun MiuixSettingsScreen(
                     text = "取消",
                     onClick = { state.setShowExportFormatDialog(false) },
                     modifier = Modifier.fillMaxWidth(),
-                    minHeight = 48.dp,
                 )
             }
         }
@@ -551,7 +548,6 @@ fun MiuixSettingsScreen(
                     text = "取消",
                     onClick = { state.setShowRestoreSourceDialog(false) },
                     modifier = Modifier.fillMaxWidth(),
-                    minHeight = 48.dp,
                 )
             }
         }
@@ -593,7 +589,6 @@ fun MiuixSettingsScreen(
                         text = "取消",
                         onClick = { state.setShowNutstoreDialog(false) },
                         modifier = Modifier.weight(1f),
-                        minHeight = 48.dp,
                     )
                     TextButton(
                         text = "保存",
@@ -603,7 +598,6 @@ fun MiuixSettingsScreen(
                             scope.launch { snackbarHostState.showSnackbar("坚果云账号已保存") }
                         },
                         modifier = Modifier.weight(1f),
-                        minHeight = 48.dp,
                     )
                 }
             }
@@ -728,7 +722,6 @@ fun MiuixSettingsScreen(
                     text = "取消",
                     onClick = { state.setShowBackupPicker(false) },
                     modifier = Modifier.fillMaxWidth(),
-                    minHeight = 48.dp,
                 )
             }
         }
@@ -750,7 +743,6 @@ fun MiuixSettingsScreen(
                     text = "取消",
                     onClick = { state.setRestoreCandidate(null) },
                     modifier = Modifier.weight(1f),
-                    minHeight = 48.dp,
                 )
                 TextButton(
                     text = "恢复这一份",
@@ -764,7 +756,6 @@ fun MiuixSettingsScreen(
                         }
                     },
                     modifier = Modifier.weight(1f),
-                    minHeight = 48.dp,
                     colors = ButtonDefaults.textButtonColors(textColor = MiuixTheme.colorScheme.error),
                 )
             }
@@ -851,7 +842,6 @@ fun MiuixSettingsScreen(
                     text = "关闭",
                     onClick = { state.setShowSnapshotPicker(false) },
                     modifier = Modifier.fillMaxWidth(),
-                    minHeight = 48.dp,
                 )
             }
         }
@@ -873,7 +863,6 @@ fun MiuixSettingsScreen(
                     text = "取消",
                     onClick = { state.setRestoreSnapshotCandidate(null) },
                     modifier = Modifier.weight(1f),
-                    minHeight = 48.dp,
                 )
                 TextButton(
                     text = "确定还原",
@@ -888,7 +877,6 @@ fun MiuixSettingsScreen(
                         }
                     },
                     modifier = Modifier.weight(1f),
-                    minHeight = 48.dp,
                     colors = ButtonDefaults.textButtonColors(textColor = MiuixTheme.colorScheme.error),
                 )
             }
