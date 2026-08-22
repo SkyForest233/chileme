@@ -625,8 +625,7 @@ fun SettingsScreen(
                     }
                 }
             },
-            confirmButton = {},
-            dismissButton = {
+            confirmButton = {
                 TextButton(onClick = { state.setShowExportFormatDialog(false) }) { Text("取消") }
             },
         )
@@ -684,8 +683,7 @@ fun SettingsScreen(
                     }
                 }
             },
-            confirmButton = {},
-            dismissButton = {
+            confirmButton = {
                 TextButton(onClick = { state.setShowRestoreSourceDialog(false) }) { Text("取消") }
             },
         )
@@ -823,8 +821,7 @@ fun SettingsScreen(
                     }
                 }
             },
-            confirmButton = {},
-            dismissButton = {
+            confirmButton = {
                 TextButton(onClick = { state.setShowBackupPicker(false) }) { Text("取消") }
             },
         )
@@ -911,8 +908,7 @@ fun SettingsScreen(
                     }
                 }
             },
-            confirmButton = {},
-            dismissButton = {
+            confirmButton = {
                 TextButton(onClick = { state.setShowSnapshotPicker(false) }) { Text("关闭") }
             },
         )

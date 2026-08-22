@@ -3,6 +3,7 @@ package com.agon.app.ui.screens
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -383,11 +384,13 @@ fun MiuixSettingsScreen(
                 Surface(
                     shape = RoundedCornerShape(16.dp),
                     color = MiuixTheme.colorScheme.surfaceContainerHigh,
-                    onClick = {
-                        state.setShowExportFormatDialog(false)
-                        exportLauncher.launch("吃了么备份_${LocalDate.now()}.json")
-                    },
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(16.dp))
+                        .clickable {
+                            state.setShowExportFormatDialog(false)
+                            exportLauncher.launch("吃了么备份_${LocalDate.now()}.json")
+                        },
                 ) {
                     Row(
                         modifier = Modifier.padding(14.dp),
@@ -417,11 +420,13 @@ fun MiuixSettingsScreen(
                 Surface(
                     shape = RoundedCornerShape(16.dp),
                     color = MiuixTheme.colorScheme.surfaceContainerHigh,
-                    onClick = {
-                        state.setShowExportFormatDialog(false)
-                        csvExportLauncher.launch("吃了么库存_${LocalDate.now()}.csv")
-                    },
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(16.dp))
+                        .clickable {
+                            state.setShowExportFormatDialog(false)
+                            csvExportLauncher.launch("吃了么库存_${LocalDate.now()}.csv")
+                        },
                 ) {
                     Row(
                         modifier = Modifier.padding(14.dp),
@@ -472,11 +477,13 @@ fun MiuixSettingsScreen(
                 Surface(
                     shape = RoundedCornerShape(16.dp),
                     color = MiuixTheme.colorScheme.surfaceContainerHigh,
-                    onClick = {
-                        state.setShowRestoreSourceDialog(false)
-                        importLauncher.launch(arrayOf("application/json", "text/plain", "*/*"))
-                    },
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(16.dp))
+                        .clickable {
+                            state.setShowRestoreSourceDialog(false)
+                            importLauncher.launch(arrayOf("application/json", "text/plain", "*/*"))
+                        },
                 ) {
                     Row(
                         modifier = Modifier.padding(14.dp),
@@ -506,12 +513,14 @@ fun MiuixSettingsScreen(
                 Surface(
                     shape = RoundedCornerShape(16.dp),
                     color = MiuixTheme.colorScheme.surfaceContainerHigh,
-                    onClick = {
-                        state.setShowRestoreSourceDialog(false)
-                        state.loadLocalSnapshots()
-                        state.setShowSnapshotPicker(true)
-                    },
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(16.dp))
+                        .clickable {
+                            state.setShowRestoreSourceDialog(false)
+                            state.loadLocalSnapshots()
+                            state.setShowSnapshotPicker(true)
+                        },
                 ) {
                     Row(
                         modifier = Modifier.padding(14.dp),
@@ -634,14 +643,16 @@ fun MiuixSettingsScreen(
                         state.cloudBackups.forEachIndexed { index, backup ->
                             val isLatest = index == 0 && !backup.isLegacy
                             Surface(
-                                onClick = {
-                                    state.setShowBackupPicker(false)
-                                    state.setRestoreCandidate(backup)
-                                },
                                 shape = RoundedCornerShape(16.dp),
                                 color = if (isLatest) MiuixTheme.colorScheme.surfaceContainerHighest
                                 else MiuixTheme.colorScheme.surfaceContainerHigh,
-                                modifier = Modifier.fillMaxWidth(),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(16.dp))
+                                    .clickable {
+                                        state.setShowBackupPicker(false)
+                                        state.setRestoreCandidate(backup)
+                                    },
                             ) {
                                 Row(
                                     modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
@@ -785,10 +796,12 @@ fun MiuixSettingsScreen(
                             Surface(
                                 shape = RoundedCornerShape(16.dp),
                                 color = MiuixTheme.colorScheme.surfaceContainerHigh,
-                                onClick = {
-                                    state.setRestoreSnapshotCandidate(snapshot)
-                                },
-                                modifier = Modifier.fillMaxWidth(),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(16.dp))
+                                    .clickable {
+                                        state.setRestoreSnapshotCandidate(snapshot)
+                                    },
                             ) {
                                 Row(
                                     modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
