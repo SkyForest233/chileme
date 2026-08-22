@@ -54,7 +54,7 @@ import top.yukonga.miuix.kmp.basic.SnackbarHostState
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.TopAppBar
-import top.yukonga.miuix.kmp.overlay.OverlayDialog
+import com.agon.app.ui.components.MiuixDialog
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.icon.extended.Delete
@@ -298,7 +298,7 @@ fun MiuixFoodDetailScreen(
             Spacer(Modifier.height(24.dp))
         }
 
-        OverlayDialog(
+        MiuixDialog(
             title = "移入归档",
             summary = "确定要将“${item.name}”移入归档吗？可在“归档历史”中恢复。",
             show = state.showDeleteDialog,

@@ -461,26 +461,6 @@ fun SettingsScreen(
                             Text("云端恢复")
                         }
                     }
-                                state.loadCloudBackups { ok, msg ->
-                                    if (!ok) {
-                                        state.setShowBackupPicker(false)
-                                        scope.launch { snackbarHostState.showSnackbar(msg) }
-                                    }
-                                }
-                            },
-                            enabled = !state.syncing && !state.loadingBackups && state.nutstoreAccount.isNotBlank(),
-                            modifier = Modifier.weight(1f),
-                            shape = RoundedCornerShape(50),
-                        ) {
-                            if (state.loadingBackups) {
-                                CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
-                            } else {
-                                Icon(Icons.Rounded.CloudDownload, contentDescription = null, modifier = Modifier.size(16.dp))
-                            }
-                            Spacer(Modifier.width(6.dp))
-                            Text("从云端恢复")
-                        }
-                    }
                     Spacer(Modifier.height(6.dp))
                     Text(
                         "云端自动保留最近 $CLOUD_BACKUP_KEEP 次备份，恢复时可选择任意一份",
