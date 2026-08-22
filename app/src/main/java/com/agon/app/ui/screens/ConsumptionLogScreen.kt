@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.DeleteForever
@@ -31,7 +30,6 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -39,7 +37,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.agon.app.data.ConsumptionRecord
 import com.agon.app.data.byId
 import com.agon.app.data.cn
@@ -61,14 +58,8 @@ fun ConsumptionLogScreen(
     viewModel: AppViewModel,
     onBack: () -> Unit,
 ) {
-    val consumption by viewModel.consumption.collectAsStateWithLifecycle()
-    val categories by viewModel.categories.collectAsStateWithLifecycle()
+    val state = rememberConsumptionLogUiState(viewModel)
     val snackbarHostState = remember { SnackbarHostState() }
-
-    // 按日期倒序（最新在前）
-    val sorted = remember(consumption) {
-        consumption.sortedByDescending { it.epochDay }
-    }
 
     // 删除后的撤销提示（collect 模式避免 consume 改变 key 取消协程）
     LaunchedEffect(Unit) {
@@ -118,7 +109,7 @@ fun ConsumptionLogScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
             )
-            if (sorted.isEmpty()) {
+            if (state.sortedRecords.isEmpty()) {
                 EmptyState(
                     emoji = "🍽️",
                     title = "还没有消耗记录",
@@ -136,13 +127,11 @@ fun ConsumptionLogScreen(
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
                     // key 用 index 兜底：旧数据 id=null，若同天同名同数量会出现 key 冲突崩溃
-                    itemsIndexed(sorted, key = { index, record -> record.id ?: "idx-$index" }) { _, record ->
+                    itemsIndexed(state.sortedRecords, key = { index, record -> record.id ?: "idx-$index" }) { _, record ->
                         ConsumptionRow(
                             record = record,
-                            emoji = categories.byId(record.category).emoji,
-                            onDelete = {
-                                viewModel.deleteConsumption(record)
-                            },
+                            emoji = state.categories.byId(record.category).emoji,
+                            onDelete = { state.onDeleteRecord(record) },
                             modifier = Modifier.animateItem(
                                 fadeInSpec = tween(280, easing = MotionEasing.EmphasizedDecelerate),
                                 fadeOutSpec = tween(200, easing = MotionEasing.EmphasizedAccelerate),

@@ -46,13 +46,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.agon.app.data.ArchiveReason
-import com.agon.app.data.CategoryDef
 import com.agon.app.data.byId
 import com.agon.app.ui.components.EmptyState
 import com.agon.app.ui.components.ExpiryCalendarCard
-import com.agon.app.ui.theme.LocalToday
 import com.agon.app.ui.theme.MotionEasing
 import com.agon.app.viewmodel.AppViewModel
 import java.time.LocalDate
@@ -86,54 +82,7 @@ fun StatsScreen(
     onOpenItem: (String) -> Unit = {},
     onOpenConsumption: () -> Unit = {},
 ) {
-    val items by viewModel.items.collectAsStateWithLifecycle()
-    val consumption by viewModel.consumption.collectAsStateWithLifecycle()
-    val archived by viewModel.archived.collectAsStateWithLifecycle()
-    val categories by viewModel.categories.collectAsStateWithLifecycle()
-    val thresholds by viewModel.thresholds.collectAsStateWithLifecycle()
-
-    val todayDate = LocalToday.current
-    val today = todayDate.toEpochDay()
-    val weekAgo = today - 6
-    val monthStart = todayDate.withDayOfMonth(1).toEpochDay()
-
-    val consumedThisWeek = remember(consumption, weekAgo) {
-        consumption.filter { it.epochDay >= weekAgo }.sumOf { it.amount }
-    }
-    val consumedThisMonth = remember(consumption, monthStart) {
-        consumption.filter { it.epochDay >= monthStart }.sumOf { it.amount }
-    }
-    val wastedTotal = archived.count { it.reason == ArchiveReason.EXPIRED }
-
-    // Last 7 days consumption trend
-    val dailyTrend = remember(consumption, today) {
-        (0..6).map { offset ->
-            val day = today - (6 - offset)
-            val amount = consumption.filter { it.epochDay == day }.sumOf { it.amount }
-            LocalDate.ofEpochDay(day) to amount
-        }
-    }
-    val maxDaily = (dailyTrend.maxOfOrNull { it.second } ?: 0).coerceAtLeast(1)
-
-    // Category share of current inventory (by quantity)
-    val categoryShare = remember(items) {
-        items.groupBy { it.category }
-            .mapValues { (_, list) -> list.sumOf { it.quantity } }
-            .filterValues { it > 0 }
-            .toList()
-            .sortedByDescending { it.second }
-    }
-    val totalQty = categoryShare.sumOf { it.second }
-
-    // Top consumed foods
-    val topConsumed = remember(consumption) {
-        consumption.groupBy { it.name }
-            .map { (name, records) ->
-                Triple(name, records.first().category, records.sumOf { it.amount })
-            }
-            .sortedByDescending { it.third }
-            .take(5)
-    }
+    val state = rememberStatsUiState(viewModel)
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -170,7 +119,7 @@ fun StatsScreen(
                     MiniStat(
                         modifier = Modifier.weight(1f),
                         emoji = "😋",
-                        value = "$consumedThisWeek",
+                        value = "${state.consumedThisWeek}",
                         label = "本周消耗",
                         container = MaterialTheme.colorScheme.primaryContainer,
                         content = MaterialTheme.colorScheme.onPrimaryContainer,
@@ -178,7 +127,7 @@ fun StatsScreen(
                     MiniStat(
                         modifier = Modifier.weight(1f),
                         emoji = "📅",
-                        value = "$consumedThisMonth",
+                        value = "${state.consumedThisMonth}",
                         label = "本月消耗",
                         container = MaterialTheme.colorScheme.secondaryContainer,
                         content = MaterialTheme.colorScheme.onSecondaryContainer,
@@ -186,7 +135,7 @@ fun StatsScreen(
                     MiniStat(
                         modifier = Modifier.weight(1f),
                         emoji = "🗑️",
-                        value = "$wastedTotal",
+                        value = "${state.wastedTotal}",
                         label = "过期浪费",
                         container = MaterialTheme.colorScheme.errorContainer,
                         content = MaterialTheme.colorScheme.onErrorContainer,
@@ -194,24 +143,24 @@ fun StatsScreen(
                 }
             }
 
-            // ---- 到期日历（带紧急度彩色圆点 + 左右滑动切换月份）----
+            // ---- 到期日历卡片 ----
             item {
                 ExpiryCalendarCard(
-                    items = items,
-                    thresholds = thresholds,
-                    categories = categories,
+                    items = state.items,
+                    thresholds = state.thresholds,
+                    categories = state.categories,
                     onOpenItem = onOpenItem,
                 )
             }
 
-            // ---- 7-day consumption bar chart ----
+            // ---- 7-Day bar chart ----
             item {
                 Surface(
                     shape = MaterialTheme.shapes.large,
                     color = MaterialTheme.colorScheme.surfaceContainer,
                     modifier = Modifier.fillMaxWidth(),
                 ) {
-                    Column(Modifier.padding(20.dp)) {
+                    Column(Modifier.padding(16.dp)) {
                         Text(
                             "近 7 天消耗趋势",
                             style = MaterialTheme.typography.titleMedium,
@@ -222,52 +171,58 @@ fun StatsScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(120.dp),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.Bottom,
                         ) {
-                            dailyTrend.forEach { (date, amount) ->
+                            state.dailyTrend.forEach { (date, amount) ->
+                                val heightRatio = if (state.maxDaily > 0) amount.toFloat() / state.maxDaily else 0f
+                                val isToday = date.toEpochDay() == state.todayDate.toEpochDay()
+                                val barTargetHeight = if (amount > 0) (80 * heightRatio).coerceAtLeast(8f) else 4f
+                                val barHeightAnim by animateFloatAsState(
+                                    targetValue = barTargetHeight,
+                                    animationSpec = tween(400, easing = MotionEasing.Emphasized),
+                                    label = "barHeight",
+                                )
                                 Column(
-                                    modifier = Modifier.weight(1f),
                                     horizontalAlignment = Alignment.CenterHorizontally,
+                                    modifier = Modifier.weight(1f),
                                 ) {
                                     if (amount > 0) {
                                         Text(
                                             "$amount",
                                             style = MaterialTheme.typography.labelSmall,
                                             fontWeight = FontWeight.Bold,
-                                            color = MaterialTheme.colorScheme.primary,
+                                            color = if (isToday) MaterialTheme.colorScheme.primary
+                                            else MaterialTheme.colorScheme.onSurfaceVariant,
                                         )
                                         Spacer(Modifier.height(2.dp))
                                     }
-                                    val ratio = amount.toFloat() / maxDaily
-                                    val animRatio = animateFloatAsState(
-                                        targetValue = ratio,
-                                        animationSpec = tween(600, easing = MotionEasing.EmphasizedDecelerate),
-                                        label = "bar",
-                                    )
-                                    // \u80f6\u56ca\u5f62\u67f1\u5b50\uff08\u4e24\u7aef\u5168\u5706\u89d2\uff09\uff0c\u5bf9\u9f50\u53c2\u8003\u8bbe\u8ba1\u7684 rounded bar \u98ce\u683c
                                     Box(
                                         modifier = Modifier
-                                            .fillMaxWidth(0.62f)
+                                            .width(20.dp)
                                             .layout { measurable, constraints ->
-                                                val minH = if (amount > 0) 14.dp.roundToPx() else 8.dp.roundToPx()
-                                                val h = (84.dp.roundToPx() * animRatio.value).toInt().coerceAtLeast(minH)
+                                                val hPx = barHeightAnim.dp.roundToPx()
                                                 val placeable = measurable.measure(
-                                                    constraints.copy(minHeight = h, maxHeight = h),
+                                                    constraints.copy(minHeight = hPx, maxHeight = hPx)
                                                 )
-                                                layout(placeable.width, h) { placeable.placeRelative(0, 0) }
+                                                layout(placeable.width, placeable.height) {
+                                                    placeable.placeRelative(0, 0)
+                                                }
                                             }
-                                            .clip(RoundedCornerShape(50))
+                                            .clip(RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp))
                                             .background(
-                                                if (amount > 0) MaterialTheme.colorScheme.primary
-                                                else MaterialTheme.colorScheme.surfaceContainerHighest
+                                                if (amount == 0) MaterialTheme.colorScheme.surfaceContainerHighest
+                                                else if (isToday) MaterialTheme.colorScheme.primary
+                                                else MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)
                                             ),
                                     )
                                     Spacer(Modifier.height(6.dp))
                                     Text(
-                                        "${date.monthValue}/${date.dayOfMonth}",
+                                        "${date.dayOfMonth}日",
                                         style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        color = if (isToday) MaterialTheme.colorScheme.primary
+                                        else MaterialTheme.colorScheme.onSurfaceVariant,
+                                        fontWeight = if (isToday) FontWeight.Bold else FontWeight.Normal,
                                     )
                                 }
                             }
@@ -276,21 +231,21 @@ fun StatsScreen(
                 }
             }
 
-            // ---- Category pie chart ----
+            // ---- Category distribution ring chart ----
             item {
                 Surface(
                     shape = MaterialTheme.shapes.large,
                     color = MaterialTheme.colorScheme.surfaceContainer,
                     modifier = Modifier.fillMaxWidth(),
                 ) {
-                    Column(Modifier.padding(20.dp)) {
+                    Column(Modifier.padding(16.dp)) {
                         Text(
                             "库存分类占比",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
                         )
                         Spacer(Modifier.height(16.dp))
-                        if (categoryShare.isEmpty()) {
+                        if (state.categoryShare.isEmpty()) {
                             Text(
                                 "暂无库存数据",
                                 style = MaterialTheme.typography.bodyMedium,
@@ -298,26 +253,81 @@ fun StatsScreen(
                             )
                         } else {
                             val chartColors = rememberChartColors()
-                            // 环形图居中 + 图例整行排列，避免右侧文字被挤成两行
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                DonutChart(
-                                    data = categoryShare.map { it.second.toFloat() },
-                                    colors = categoryShare.mapIndexed { i, _ -> chartColors[i % chartColors.size] },
-                                    centerLabel = "$totalQty",
-                                    centerSub = "总件数",
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                val animProgress by animateFloatAsState(
+                                    targetValue = 1f,
+                                    animationSpec = tween(600, easing = MotionEasing.Emphasized),
+                                    label = "ringChart",
                                 )
-                                Spacer(Modifier.height(16.dp))
-                                Column(
-                                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                                    modifier = Modifier.fillMaxWidth(),
+                                Box(
+                                    contentAlignment = Alignment.Center,
+                                    modifier = Modifier.size(130.dp),
                                 ) {
-                                    categoryShare.forEachIndexed { i, (catId, qty) ->
-                                        LegendRow(
-                                            color = chartColors[i % chartColors.size],
-                                            category = categories.byId(catId),
-                                            qty = qty,
-                                            percent = if (totalQty > 0) qty * 100 / totalQty else 0,
+                                    Canvas(Modifier.size(130.dp)) {
+                                        val strokeWidth = 22.dp.toPx()
+                                        val arcSize = size.width - strokeWidth
+                                        var startAngle = -90f
+                                        state.categoryShare.forEachIndexed { i, (_, qty) ->
+                                            val sweep = (qty.toFloat() / state.totalQty) * 360f * animProgress
+                                            drawArc(
+                                                color = chartColors[i % chartColors.size],
+                                                startAngle = startAngle,
+                                                sweepAngle = sweep,
+                                                useCenter = false,
+                                                topLeft = Offset(strokeWidth / 2, strokeWidth / 2),
+                                                size = Size(arcSize, arcSize),
+                                                style = Stroke(width = strokeWidth),
+                                            )
+                                            startAngle += sweep
+                                        }
+                                    }
+                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                        Text(
+                                            "${state.totalQty}",
+                                            style = MaterialTheme.typography.titleLarge,
+                                            fontWeight = FontWeight.Bold,
                                         )
+                                        Text(
+                                            "总件数",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                    }
+                                }
+                                Spacer(Modifier.width(20.dp))
+                                Column(
+                                    modifier = Modifier.weight(1f),
+                                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                                ) {
+                                    state.categoryShare.forEachIndexed { i, (catId, qty) ->
+                                        val def = state.categories.byId(catId)
+                                        val pct = (qty * 100f / state.totalQty).toInt()
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            modifier = Modifier.fillMaxWidth(),
+                                        ) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(10.dp)
+                                                    .clip(CircleShape)
+                                                    .background(chartColors[i % chartColors.size]),
+                                            )
+                                            Spacer(Modifier.width(8.dp))
+                                            Text(
+                                                "${def.emoji} ${def.label}",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                modifier = Modifier.weight(1f),
+                                            )
+                                            Text(
+                                                "$qty 件 · $pct%",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                fontWeight = FontWeight.Medium,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            )
+                                        }
                                     }
                                 }
                             }
@@ -326,78 +336,71 @@ fun StatsScreen(
                 }
             }
 
-            // ---- Top consumed ----
+            // ---- Top 5 consumed foods ----
             item {
                 Surface(
                     shape = MaterialTheme.shapes.large,
                     color = MaterialTheme.colorScheme.surfaceContainer,
                     modifier = Modifier.fillMaxWidth(),
                 ) {
-                    Column(Modifier.padding(20.dp)) {
+                    Column(Modifier.padding(16.dp)) {
                         Text(
-                            "消耗排行榜",
+                            "消耗排行 TOP 5",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
                         )
                         Spacer(Modifier.height(12.dp))
-                        if (topConsumed.isEmpty()) {
-                            EmptyState(
-                                emoji = "🍽️",
-                                title = "还没有消耗记录",
-                                subtitle = "在详情页点“吃掉一份”或减少库存后这里会有数据",
+                        if (state.topConsumed.isEmpty()) {
+                            Text(
+                                "还没有消耗记录，多吃点零食吧 😋",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         } else {
-                            val maxAmount = topConsumed.first().third.coerceAtLeast(1)
-                            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                                topConsumed.forEachIndexed { index, (name, cat, amount) ->
-                                    // 点击进入对应食品详情（可编辑）
-                                    val targetId = items.firstOrNull { it.name == name }?.id
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        modifier = if (targetId != null) {
-                                            Modifier
-                                                .fillMaxWidth()
-                                                .clip(RoundedCornerShape(12.dp))
-                                                .clickable { onOpenItem(targetId) }
-                                                .padding(vertical = 4.dp)
-                                        } else {
-                                            Modifier.fillMaxWidth()
-                                        },
-                                    ) {
-                                        Text(
-                                            "${index + 1}",
-                                            style = MaterialTheme.typography.titleSmall,
-                                            fontWeight = FontWeight.Bold,
-                                            color = MaterialTheme.colorScheme.primary,
-                                            modifier = Modifier.width(20.dp),
+                            state.topConsumed.forEachIndexed { rank, (name, catId, totalAmount) ->
+                                val def = state.categories.byId(catId)
+                                val rankColor = when (rank) {
+                                    0 -> MaterialTheme.colorScheme.primary
+                                    1 -> MaterialTheme.colorScheme.tertiary
+                                    2 -> MaterialTheme.colorScheme.secondary
+                                    else -> MaterialTheme.colorScheme.onSurfaceVariant
+                                }
+                                val itemId = state.findItemIdByName(name)
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .then(
+                                            if (itemId != null) Modifier.clickable { onOpenItem(itemId) }
+                                            else Modifier
                                         )
-                                        Text(categories.byId(cat).emoji, fontSize = 18.sp)
-                                        Spacer(Modifier.width(8.dp))
-                                        Column(Modifier.weight(1f)) {
-                                            Text(
-                                                name,
-                                                style = MaterialTheme.typography.bodyMedium,
-                                                fontWeight = FontWeight.Medium,
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis,
-                                            )
-                                            Spacer(Modifier.height(4.dp))
-                                            Box(
-                                                modifier = Modifier
-                                                    .fillMaxWidth(amount.toFloat() / maxAmount)
-                                                    .height(10.dp)
-                                                    .clip(RoundedCornerShape(50))
-                                                    .background(MaterialTheme.colorScheme.primaryContainer),
-                                            )
-                                        }
-                                        Spacer(Modifier.width(12.dp))
-                                        Text(
-                                            "×$amount",
-                                            style = MaterialTheme.typography.labelLarge,
-                                            fontWeight = FontWeight.Bold,
-                                            color = MaterialTheme.colorScheme.primary,
-                                        )
-                                    }
+                                        .padding(vertical = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Text(
+                                        "#${rank + 1}",
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = rankColor,
+                                        modifier = Modifier.width(32.dp),
+                                    )
+                                    Text(def.emoji, fontSize = 18.sp)
+                                    Spacer(Modifier.width(8.dp))
+                                    Text(
+                                        name,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = FontWeight.Medium,
+                                        modifier = Modifier.weight(1f),
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                    Text(
+                                        "共消耗 $totalAmount",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                                if (rank < state.topConsumed.size - 1) {
+                                    Spacer(Modifier.height(4.dp))
                                 }
                             }
                         }
@@ -410,97 +413,32 @@ fun StatsScreen(
 
 @Composable
 private fun MiniStat(
-    modifier: Modifier,
     emoji: String,
     value: String,
     label: String,
     container: Color,
     content: Color,
+    modifier: Modifier = Modifier,
 ) {
     Surface(
-        modifier = modifier,
         shape = MaterialTheme.shapes.large,
         color = container,
-        contentColor = content,
+        modifier = modifier,
     ) {
         Column(Modifier.padding(14.dp)) {
-            Text(emoji, fontSize = 20.sp)
+            Text(emoji, fontSize = 18.sp)
             Spacer(Modifier.height(6.dp))
-            Text(value, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.ExtraBold)
-            Text(label, style = MaterialTheme.typography.labelMedium)
-        }
-    }
-}
-
-@Composable
-private fun DonutChart(
-    data: List<Float>,
-    colors: List<Color>,
-    centerLabel: String,
-    centerSub: String,
-) {
-    val total = data.sum().coerceAtLeast(0.001f)
-    val sweep = animateFloatAsState(
-        targetValue = 1f,
-        animationSpec = tween(800, easing = MotionEasing.EmphasizedDecelerate),
-        label = "donut",
-    )
-    Box(contentAlignment = Alignment.Center, modifier = Modifier.size(140.dp)) {
-        Canvas(modifier = Modifier.size(140.dp)) {
-            val stroke = Stroke(width = 30f)
-            var startAngle = -90f
-            val sweepValue = sweep.value
-            data.forEachIndexed { i, value ->
-                val angle = value / total * 360f * sweepValue
-                drawArc(
-                    color = colors[i],
-                    startAngle = startAngle,
-                    sweepAngle = (angle - 3f).coerceAtLeast(1f),
-                    useCenter = false,
-                    style = stroke,
-                    topLeft = Offset(15f, 15f),
-                    size = Size(size.width - 30f, size.height - 30f),
-                )
-                startAngle += angle
-            }
-        }
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(centerLabel, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.ExtraBold)
             Text(
-                centerSub,
+                value,
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold,
+                color = content,
+            )
+            Text(
+                label,
                 style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = content.copy(alpha = 0.8f),
             )
         }
-    }
-}
-
-@Composable
-private fun LegendRow(color: Color, category: CategoryDef, qty: Int, percent: Int) {
-    // 整行布局：色点 + 分类名左对齐，数量/占比右对齐，单行不换行
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Box(
-            modifier = Modifier
-                .size(10.dp)
-                .clip(CircleShape)
-                .background(color),
-        )
-        Spacer(Modifier.width(10.dp))
-        Text(
-            "${category.emoji} ${category.label}",
-            style = MaterialTheme.typography.bodyMedium,
-            fontWeight = FontWeight.Medium,
-            maxLines = 1,
-            modifier = Modifier.weight(1f),
-        )
-        Text(
-            "$qty 件 · $percent%",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 1,
-        )
     }
 }

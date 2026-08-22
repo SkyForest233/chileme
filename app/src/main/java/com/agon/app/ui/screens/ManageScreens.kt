@@ -43,9 +43,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.agon.app.data.CategoryDef
-import com.agon.app.data.DEFAULT_EXPIRING_THRESHOLD
 import com.agon.app.viewmodel.AppViewModel
 
 /** 通用二级管理页脚手架 */
@@ -81,8 +78,7 @@ private fun ManageScaffold(
 
 @Composable
 fun ThresholdManageScreen(viewModel: AppViewModel, onBack: () -> Unit) {
-    val categories by viewModel.categories.collectAsStateWithLifecycle()
-    val thresholds by viewModel.thresholds.collectAsStateWithLifecycle()
+    val state = rememberThresholdManageUiState(viewModel)
 
     ManageScaffold(title = "临期提醒阈值", onBack = onBack) { padding ->
         LazyColumn(
@@ -102,9 +98,9 @@ fun ThresholdManageScreen(viewModel: AppViewModel, onBack: () -> Unit) {
                     modifier = Modifier.padding(bottom = 6.dp),
                 )
             }
-            items(categories.size, key = { categories[it].id }) { index ->
-                val cat = categories[index]
-                val value = thresholds[cat.id] ?: DEFAULT_EXPIRING_THRESHOLD
+            items(state.categories.size, key = { state.categories[it].id }) { index ->
+                val cat = state.categories[index]
+                val value = state.getThreshold(cat.id)
                 Surface(
                     shape = MaterialTheme.shapes.large,
                     color = MaterialTheme.colorScheme.surfaceContainer,
@@ -131,7 +127,7 @@ fun ThresholdManageScreen(viewModel: AppViewModel, onBack: () -> Unit) {
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
                                 IconButton(
-                                    onClick = { viewModel.setCategoryThreshold(cat.id, value - 1) },
+                                    onClick = { state.onSetThreshold(cat.id, value - 1) },
                                     enabled = value > 1,
                                 ) {
                                     Icon(Icons.Rounded.Remove, contentDescription = "减少 ${cat.label} 阈值", modifier = Modifier.size(18.dp))
@@ -143,7 +139,7 @@ fun ThresholdManageScreen(viewModel: AppViewModel, onBack: () -> Unit) {
                                     modifier = Modifier.padding(horizontal = 6.dp),
                                 )
                                 IconButton(
-                                    onClick = { viewModel.setCategoryThreshold(cat.id, value + 1) },
+                                    onClick = { state.onSetThreshold(cat.id, value + 1) },
                                     enabled = value < 365,
                                 ) {
                                     Icon(Icons.Rounded.Add, contentDescription = "增加 ${cat.label} 阈值", modifier = Modifier.size(18.dp))
@@ -163,11 +159,7 @@ fun ThresholdManageScreen(viewModel: AppViewModel, onBack: () -> Unit) {
 
 @Composable
 fun CategoryManageScreen(viewModel: AppViewModel, onBack: () -> Unit) {
-    val categories by viewModel.categories.collectAsStateWithLifecycle()
-    val items by viewModel.items.collectAsStateWithLifecycle()
-    var showAdd by remember { mutableStateOf(false) }
-    var editing by remember { mutableStateOf<CategoryDef?>(null) }
-    var deleting by remember { mutableStateOf<CategoryDef?>(null) }
+    val state = rememberCategoryManageUiState(viewModel)
 
     ManageScaffold(title = "分类管理", onBack = onBack) { padding ->
         LazyColumn(
@@ -179,9 +171,9 @@ fun CategoryManageScreen(viewModel: AppViewModel, onBack: () -> Unit) {
             ),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            items(categories.size, key = { categories[it].id }) { index ->
-                val cat = categories[index]
-                val inUse = items.count { it.category == cat.id }
+            items(state.categories.size, key = { state.categories[it].id }) { index ->
+                val cat = state.categories[index]
+                val inUse = state.getInUseCount(cat.id)
                 Surface(
                     shape = MaterialTheme.shapes.large,
                     color = MaterialTheme.colorScheme.surfaceContainer,
@@ -207,7 +199,7 @@ fun CategoryManageScreen(viewModel: AppViewModel, onBack: () -> Unit) {
                                 )
                             }
                         }
-                        IconButton(onClick = { editing = cat }) {
+                        IconButton(onClick = { state.onEditingChange(cat) }) {
                             Icon(
                                 Icons.Rounded.Edit,
                                 contentDescription = "编辑 ${cat.label}",
@@ -216,14 +208,14 @@ fun CategoryManageScreen(viewModel: AppViewModel, onBack: () -> Unit) {
                             )
                         }
                         IconButton(
-                            onClick = { deleting = cat },
-                            enabled = categories.size > 1,
+                            onClick = { state.onDeletingChange(cat) },
+                            enabled = state.categories.size > 1,
                         ) {
                             Icon(
                                 Icons.Rounded.Delete,
                                 contentDescription = "删除 ${cat.label}",
                                 modifier = Modifier.size(18.dp),
-                                tint = if (categories.size > 1) MaterialTheme.colorScheme.error
+                                tint = if (state.categories.size > 1) MaterialTheme.colorScheme.error
                                 else MaterialTheme.colorScheme.outlineVariant,
                             )
                         }
@@ -232,7 +224,7 @@ fun CategoryManageScreen(viewModel: AppViewModel, onBack: () -> Unit) {
             }
             item {
                 OutlinedButton(
-                    onClick = { showAdd = true },
+                    onClick = { state.onShowAddChange(true) },
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(top = 6.dp),
@@ -246,34 +238,34 @@ fun CategoryManageScreen(viewModel: AppViewModel, onBack: () -> Unit) {
         }
     }
 
-    if (showAdd) {
+    if (state.showAdd) {
         CategoryEditDialog(
             title = "添加分类",
             initialLabel = "",
             initialEmoji = "",
             onConfirm = { label, emoji ->
-                viewModel.addCategory(label, emoji)
-                showAdd = false
+                state.onAddCategory(label, emoji)
+                state.onShowAddChange(false)
             },
-            onDismiss = { showAdd = false },
+            onDismiss = { state.onShowAddChange(false) },
         )
     }
-    editing?.let { cat ->
+    state.editing?.let { cat ->
         CategoryEditDialog(
             title = "编辑分类",
             initialLabel = cat.label,
             initialEmoji = cat.emoji,
             onConfirm = { label, emoji ->
-                viewModel.updateCategory(cat.copy(label = label.trim(), emoji = emoji.trim().ifBlank { cat.emoji }))
-                editing = null
+                state.onUpdateCategory(cat, label, emoji)
+                state.onEditingChange(null)
             },
-            onDismiss = { editing = null },
+            onDismiss = { state.onEditingChange(null) },
         )
     }
-    deleting?.let { cat ->
-        val inUse = items.count { it.category == cat.id }
+    state.deleting?.let { cat ->
+        val inUse = state.getInUseCount(cat.id)
         AlertDialog(
-            onDismissRequest = { deleting = null },
+            onDismissRequest = { state.onDeletingChange(null) },
             title = { Text("删除分类") },
             text = {
                 Text(
@@ -285,14 +277,14 @@ fun CategoryManageScreen(viewModel: AppViewModel, onBack: () -> Unit) {
             },
             confirmButton = {
                 TextButton(onClick = {
-                    viewModel.deleteCategory(cat.id)
-                    deleting = null
+                    state.onDeleteCategory(cat.id)
+                    state.onDeletingChange(null)
                 }) {
                     Text("删除", color = MaterialTheme.colorScheme.error)
                 }
             },
             dismissButton = {
-                TextButton(onClick = { deleting = null }) { Text("取消") }
+                TextButton(onClick = { state.onDeletingChange(null) }) { Text("取消") }
             },
         )
     }
@@ -349,9 +341,7 @@ internal fun CategoryEditDialog(
 
 @Composable
 fun LocationManageScreen(viewModel: AppViewModel, onBack: () -> Unit) {
-    val locations by viewModel.locations.collectAsStateWithLifecycle()
-    val items by viewModel.items.collectAsStateWithLifecycle()
-    var showAdd by remember { mutableStateOf(false) }
+    val state = rememberLocationManageUiState(viewModel)
 
     ManageScaffold(title = "存放位置管理", onBack = onBack) { padding ->
         LazyColumn(
@@ -363,9 +353,9 @@ fun LocationManageScreen(viewModel: AppViewModel, onBack: () -> Unit) {
             ),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            items(locations.size, key = { locations[it] }) { index ->
-                val loc = locations[index]
-                val inUse = items.count { it.location == loc }
+            items(state.locations.size, key = { state.locations[it] }) { index ->
+                val loc = state.locations[index]
+                val inUse = state.getInUseCount(loc)
                 Surface(
                     shape = MaterialTheme.shapes.large,
                     color = MaterialTheme.colorScheme.surfaceContainer,
@@ -396,7 +386,7 @@ fun LocationManageScreen(viewModel: AppViewModel, onBack: () -> Unit) {
                                 )
                             }
                         }
-                        IconButton(onClick = { viewModel.deleteLocation(loc) }) {
+                        IconButton(onClick = { state.onDeleteLocation(loc) }) {
                             Icon(
                                 Icons.Rounded.Delete,
                                 contentDescription = "删除位置 $loc",
@@ -409,7 +399,7 @@ fun LocationManageScreen(viewModel: AppViewModel, onBack: () -> Unit) {
             }
             item {
                 OutlinedButton(
-                    onClick = { showAdd = true },
+                    onClick = { state.onShowAddChange(true) },
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(top = 6.dp),
@@ -423,10 +413,10 @@ fun LocationManageScreen(viewModel: AppViewModel, onBack: () -> Unit) {
         }
     }
 
-    if (showAdd) {
+    if (state.showAdd) {
         var locName by remember { mutableStateOf("") }
         AlertDialog(
-            onDismissRequest = { showAdd = false },
+            onDismissRequest = { state.onShowAddChange(false) },
             title = { Text("添加存放位置") },
             text = {
                 OutlinedTextField(
@@ -441,14 +431,14 @@ fun LocationManageScreen(viewModel: AppViewModel, onBack: () -> Unit) {
             confirmButton = {
                 TextButton(
                     onClick = {
-                        viewModel.addLocation(locName)
-                        showAdd = false
+                        state.onAddLocation(locName)
+                        state.onShowAddChange(false)
                     },
                     enabled = locName.isNotBlank(),
                 ) { Text("添加") }
             },
             dismissButton = {
-                TextButton(onClick = { showAdd = false }) { Text("取消") }
+                TextButton(onClick = { state.onShowAddChange(false) }) { Text("取消") }
             },
         )
     }

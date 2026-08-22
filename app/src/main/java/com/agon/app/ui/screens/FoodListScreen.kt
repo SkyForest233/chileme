@@ -47,34 +47,22 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.agon.app.data.FoodStatus
 import com.agon.app.data.byId
-import com.agon.app.data.daysLeftAt
 import com.agon.app.data.statusForAt
 import com.agon.app.ui.components.EmptyState
-import com.agon.app.ui.theme.LocalToday
-import com.agon.app.ui.theme.MotionSpring
-import com.agon.app.ui.theme.MotionEasing
-import com.agon.app.ui.theme.filterPanelEnter
-import com.agon.app.ui.theme.filterPanelExit
 import com.agon.app.ui.components.FoodAvatar
 import com.agon.app.ui.components.FoodCard
+import com.agon.app.ui.theme.MotionEasing
+import com.agon.app.ui.theme.MotionSpring
+import com.agon.app.ui.theme.filterPanelEnter
+import com.agon.app.ui.theme.filterPanelExit
 import com.agon.app.viewmodel.AppViewModel
-
-private enum class StatusFilter(val label: String) {
-    ALL("全部"), SAFE("安全"), EXPIRING("临期"), EXPIRED("已过期")
-}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -84,116 +72,60 @@ fun FoodListScreen(
     onOpenItem: (String) -> Unit,
     onOpenArchive: () -> Unit,
 ) {
-    val items by viewModel.items.collectAsStateWithLifecycle()
-    val archived by viewModel.archived.collectAsStateWithLifecycle()
-    val thresholds by viewModel.thresholds.collectAsStateWithLifecycle()
-    val categories by viewModel.categories.collectAsStateWithLifecycle()
-    var query by rememberSaveable { mutableStateOf("") }
-    var statusFilter by rememberSaveable(initialFilter) {
-        mutableStateOf(
-            when (initialFilter) {
-                "expiring" -> StatusFilter.EXPIRING
-                "expired" -> StatusFilter.EXPIRED
-                else -> StatusFilter.ALL
-            }
-        )
-    }
-    var categoryFilter by rememberSaveable { mutableStateOf<String?>(null) }
-    var locationFilter by rememberSaveable { mutableStateOf<String?>(null) }
-    var filtersExpanded by rememberSaveable(initialFilter) {
-        mutableStateOf(initialFilter != null)
-    }
-    // ---- 长按多选（批量归档，选中状态提升到 ViewModel，供 MainActivity 批量操作栏共用）----
-    val selectedIds by viewModel.selectedIds.collectAsStateWithLifecycle()
-    val selectionMode = selectedIds.isNotEmpty()
+    val state = rememberFoodListUiState(viewModel, initialFilter)
 
     // 系统返回键：多选时只退出多选，不切页（在 NavHost 内部，优先级高于导航返回）
-    BackHandler(enabled = selectionMode) {
-        viewModel.clearSelection()
-    }
-
-    val usedLocations = remember(items) {
-        items.map { it.location }.filter { it.isNotBlank() }.distinct().sorted()
-    }
-
-    val activeFilterCount =
-        (if (statusFilter != StatusFilter.ALL) 1 else 0) +
-            (if (categoryFilter != null) 1 else 0) +
-            (if (locationFilter != null) 1 else 0)
-
-    val today = LocalToday.current
-    val filtered = remember(items, thresholds, query, statusFilter, categoryFilter, locationFilter, today) {
-        items
-            .filter { query.isBlank() || it.name.contains(query.trim(), ignoreCase = true) }
-            .filter {
-                when (statusFilter) {
-                    StatusFilter.ALL -> true
-                    StatusFilter.SAFE -> it.statusForAt(today, thresholds) == FoodStatus.SAFE
-                    StatusFilter.EXPIRING -> it.statusForAt(today, thresholds) == FoodStatus.EXPIRING
-                    StatusFilter.EXPIRED -> it.statusForAt(today, thresholds) == FoodStatus.EXPIRED
-                }
-            }
-            .filter { categoryFilter == null || it.category == categoryFilter }
-            .filter { locationFilter == null || it.location == locationFilter }
-            // 吃完（数量 0）的自动沉底，其余按剩余天数升序
-            .sortedWith(compareBy({ it.quantity == 0 }, { it.daysLeftAt(today) }))
-    }
-
-    // 搜索时同时命中归档记录
-    val archivedMatches = remember(archived, query) {
-        if (query.isBlank()) emptyList()
-        else archived.filter { it.item.name.contains(query.trim(), ignoreCase = true) }
+    BackHandler(enabled = state.selectionMode) {
+        state.onClearSelection()
     }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
-            if (selectionMode) {
-                TopAppBar(
-                    title = {
-                        Text("已选 ${selectedIds.size} 项", fontWeight = FontWeight.Bold)
-                    },
-                    navigationIcon = {
-                        IconButton(onClick = { viewModel.clearSelection() }) {
-                            Icon(Icons.Rounded.Close, contentDescription = "退出多选")
+            TopAppBar(
+                title = {
+                    if (state.selectionMode) {
+                        Text(
+                            "已选择 ${state.selectedIds.size} 项",
+                            fontWeight = FontWeight.Bold,
+                            style = MaterialTheme.typography.titleLarge,
+                        )
+                    } else {
+                        Text("全部食品", fontWeight = FontWeight.Bold)
+                    }
+                },
+                navigationIcon = {
+                    if (state.selectionMode) {
+                        IconButton(onClick = { state.onClearSelection() }) {
+                            Icon(Icons.Rounded.Close, contentDescription = "取消选择")
                         }
-                    },
-                    actions = {
+                    }
+                },
+                actions = {
+                    if (state.selectionMode) {
                         // 全选 / 取消全选
+                        val allSelected = state.filtered.isNotEmpty() && state.selectedIds.size == state.filtered.size
                         IconButton(onClick = {
-                            viewModel.setSelection(
-                                if (selectedIds.size == filtered.size) emptySet()
-                                else filtered.map { it.id }.toSet()
-                            )
+                            if (allSelected) state.onClearSelection() else state.onSelectAll()
                         }) {
                             Icon(
-                                Icons.Rounded.SelectAll,
-                                contentDescription = if (selectedIds.size == filtered.size) "取消全选" else "全选",
-                                tint = MaterialTheme.colorScheme.primary,
+                                if (allSelected) Icons.Rounded.Close else Icons.Rounded.SelectAll,
+                                contentDescription = if (allSelected) "取消全选" else "全选",
                             )
                         }
-                    },
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceContainer,
-                    ),
-                )
-            } else {
-                TopAppBar(
-                    title = { Text("食品列表", fontWeight = FontWeight.Bold) },
-                    actions = {
-                        IconButton(onClick = onOpenArchive) {
-                            Icon(
-                                Icons.Rounded.History,
-                                contentDescription = "归档历史",
-                                tint = MaterialTheme.colorScheme.primary,
-                            )
-                        }
-                    },
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.background,
-                    ),
-                )
-            }
+                    } else {
+                        // 筛选折叠切换按钮
+                        FilterToggle(
+                            activeCount = state.activeFilterCount,
+                            expanded = state.filtersExpanded,
+                            onToggle = { state.onFiltersExpandedChange(!state.filtersExpanded) },
+                        )
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background,
+                ),
+            )
         },
     ) { padding ->
         Column(
@@ -201,44 +133,47 @@ fun FoodListScreen(
                 .fillMaxSize()
                 .padding(top = padding.calculateTopPadding()),
         ) {
-            Row(
+            // ---- Search box ----
+            OutlinedTextField(
+                value = state.query,
+                onValueChange = state.onQueryChange,
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 20.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                OutlinedTextField(
-                    value = query,
-                    onValueChange = { query = it },
-                    modifier = Modifier.weight(1f),
-                    placeholder = { Text("搜索食品（含归档）…") },
-                    leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null) },
-                    singleLine = true,
-                    shape = RoundedCornerShape(50),
-                )
-                Spacer(Modifier.width(10.dp))
-                FilterToggle(
-                    expanded = filtersExpanded,
-                    activeCount = activeFilterCount,
-                    onClick = { filtersExpanded = !filtersExpanded },
-                )
-            }
+                placeholder = { Text("搜索食品名称…") },
+                leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null) },
+                trailingIcon = {
+                    if (state.query.isNotEmpty()) {
+                        IconButton(onClick = { state.onQueryChange("") }) {
+                            Icon(Icons.Rounded.Close, contentDescription = "清空搜索")
+                        }
+                    }
+                },
+                singleLine = true,
+                shape = RoundedCornerShape(50),
+            )
 
+            // ---- Expandable Filter Panel ----
             AnimatedVisibility(
-                visible = filtersExpanded,
+                visible = state.filtersExpanded,
                 enter = filterPanelEnter(),
                 exit = filterPanelExit(),
             ) {
-                Column(Modifier.padding(top = 10.dp)) {
-                    FilterSectionLabel("状态")
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 10.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    // Status filter chips
                     LazyRow(
                         contentPadding = PaddingValues(horizontal = 20.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                        items(StatusFilter.entries.toList()) { f ->
+                        items(FoodStatusFilter.entries) { f ->
                             FilterChip(
-                                selected = statusFilter == f,
-                                onClick = { statusFilter = f },
+                                selected = state.statusFilter == f,
+                                onClick = { state.onStatusFilterChange(f) },
                                 label = { Text(f.label) },
                                 shape = RoundedCornerShape(50),
                                 colors = FilterChipDefaults.filterChipColors(
@@ -248,16 +183,24 @@ fun FoodListScreen(
                             )
                         }
                     }
-                    Spacer(Modifier.height(4.dp))
-                    FilterSectionLabel("分类")
+
+                    // Category filter chips
                     LazyRow(
                         contentPadding = PaddingValues(horizontal = 20.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                        items(categories, key = { it.id }) { c ->
+                        item {
                             FilterChip(
-                                selected = categoryFilter == c.id,
-                                onClick = { categoryFilter = if (categoryFilter == c.id) null else c.id },
+                                selected = state.categoryFilter == null,
+                                onClick = { state.onCategoryFilterChange(null) },
+                                label = { Text("全部分类") },
+                                shape = RoundedCornerShape(50),
+                            )
+                        }
+                        items(state.categories, key = { it.id }) { c ->
+                            FilterChip(
+                                selected = state.categoryFilter == c.id,
+                                onClick = { state.onCategoryFilterChange(if (state.categoryFilter == c.id) null else c.id) },
                                 label = { Text("${c.emoji} ${c.label}") },
                                 shape = RoundedCornerShape(50),
                                 colors = FilterChipDefaults.filterChipColors(
@@ -266,18 +209,26 @@ fun FoodListScreen(
                             )
                         }
                     }
-                    if (usedLocations.isNotEmpty()) {
-                        Spacer(Modifier.height(4.dp))
-                        FilterSectionLabel("位置")
+
+                    // Location filter chips
+                    if (state.usedLocations.isNotEmpty()) {
                         LazyRow(
                             contentPadding = PaddingValues(horizontal = 20.dp),
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                         ) {
-                            items(usedLocations, key = { it }) { loc ->
+                            item {
                                 FilterChip(
-                                    selected = locationFilter == loc,
-                                    onClick = { locationFilter = if (locationFilter == loc) null else loc },
-                                    label = { Text(loc) },
+                                    selected = state.locationFilter == null,
+                                    onClick = { state.onLocationFilterChange(null) },
+                                    label = { Text("全部位置") },
+                                    shape = RoundedCornerShape(50),
+                                )
+                            }
+                            items(state.usedLocations, key = { it }) { loc ->
+                                FilterChip(
+                                    selected = state.locationFilter == loc,
+                                    onClick = { state.onLocationFilterChange(if (state.locationFilter == loc) null else loc) },
+                                    label = { Text("📍 $loc") },
                                     shape = RoundedCornerShape(50),
                                     colors = FilterChipDefaults.filterChipColors(
                                         selectedContainerColor = MaterialTheme.colorScheme.tertiaryContainer,
@@ -288,13 +239,23 @@ fun FoodListScreen(
                     }
                 }
             }
+
             Spacer(Modifier.height(8.dp))
 
-            if (filtered.isEmpty() && archivedMatches.isEmpty()) {
+            // ---- Content list ----
+            if (state.items.isEmpty()) {
                 EmptyState(
-                    emoji = if (items.isEmpty()) "🧺" else "🔍",
-                    title = if (items.isEmpty()) "零食柜还是空的" else "没有符合条件的食品",
-                    subtitle = if (items.isEmpty()) "点击下方“添加”开始记录吧" else "换个关键词或筛选条件试试",
+                    emoji = "🥫",
+                    title = "零食柜还是空的",
+                    subtitle = "点击右下角的“+”添加第一件食品吧",
+                )
+            } else if (state.filtered.isEmpty()) {
+                EmptyState(
+                    emoji = "🔍",
+                    title = "没有找到匹配的食品",
+                    subtitle = "试试清除筛选条件或换个关键词",
+                    actionLabel = "清除筛选",
+                    onAction = state.onResetFilters,
                 )
             } else {
                 LazyColumn(
@@ -305,102 +266,41 @@ fun FoodListScreen(
                         top = 4.dp,
                         bottom = padding.calculateBottomPadding() + 96.dp,
                     ),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
-                    items(filtered, key = { it.id }) { item ->
+                    items(state.filtered, key = { it.id }) { item ->
+                        val selected = item.id in state.selectedIds
                         FoodCard(
                             item = item,
-                            category = categories.byId(item.category),
-                            status = item.statusForAt(LocalToday.current, thresholds),
-                            selectionMode = selectionMode,
-                            selected = item.id in selectedIds,
+                            categoryEmoji = state.categories.byId(item.category).emoji,
+                            status = item.statusForAt(state.today, state.thresholds),
                             onClick = {
-                                if (selectionMode) {
-                                    viewModel.toggleSelection(item.id)
-                                } else {
-                                    onOpenItem(item.id)
-                                }
+                                if (state.selectionMode) state.onToggleSelection(item.id)
+                                else onOpenItem(item.id)
                             },
                             onLongClick = {
-                                viewModel.toggleSelection(item.id)
+                                state.onToggleSelection(item.id)
                             },
-                            onQuantityChange = { delta -> viewModel.changeQuantity(item.id, delta, withUndo = delta < 0) },
-                            modifier = Modifier.animateItem(
-                                fadeInSpec = tween(280, easing = MotionEasing.EmphasizedDecelerate),
-                                fadeOutSpec = tween(200, easing = MotionEasing.EmphasizedAccelerate),
-                            ),
+                            selected = selected,
+                            selectionMode = state.selectionMode,
+                            onQuantityChange = { delta ->
+                                state.onChangeQuantity(item.id, delta)
+                            },
+                            modifier = Modifier.animateItem(),
                         )
                     }
 
-                    // 归档中的搜索结果
-                    if (archivedMatches.isNotEmpty()) {
-                        item(key = "archive_header") {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(top = 8.dp)
-                                    .animateItem(),
-                            ) {
-                                Icon(
-                                    Icons.Rounded.History,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(16.dp),
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                                Spacer(Modifier.width(6.dp))
-                                Text(
-                                    "归档中找到 ${archivedMatches.size} 条",
-                                    style = MaterialTheme.typography.labelMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            }
-                        }
-                        items(archivedMatches, key = { "arch_${it.item.id}" }) { entry ->
-                            Surface(
-                                shape = MaterialTheme.shapes.large,
-                                color = MaterialTheme.colorScheme.surfaceContainerLow,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .animateItem(),
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(12.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                ) {
-                                    FoodAvatar(entry.item, categories.byId(entry.item.category).emoji, size = 40.dp)
-                                    Spacer(Modifier.width(12.dp))
-                                    Column(Modifier.weight(1f)) {
-                                        Text(
-                                            entry.item.name,
-                                            style = MaterialTheme.typography.titleSmall,
-                                            fontWeight = FontWeight.SemiBold,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis,
-                                        )
-                                        Text(
-                                            "${entry.reason.emoji} ${entry.reason.label}",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        )
-                                    }
-                                    IconButton(onClick = { viewModel.restoreArchived(entry.item.id) }) {
-                                        Icon(
-                                            Icons.Rounded.RestartAlt,
-                                            contentDescription = "恢复 ${entry.item.name}",
-                                            tint = MaterialTheme.colorScheme.primary,
-                                        )
-                                    }
-                                    IconButton(onClick = { viewModel.deleteArchived(entry.item.id) }) {
-                                        Icon(
-                                            Icons.Rounded.DeleteForever,
-                                            contentDescription = "彻底删除 ${entry.item.name}",
-                                            modifier = Modifier.size(20.dp),
-                                            tint = MaterialTheme.colorScheme.error,
-                                        )
-                                    }
-                                }
-                            }
+                    // 列表底部入口：归档历史快速直达
+                    if (state.archived.isNotEmpty()) {
+                        item {
+                            RecentArchivedEntry(
+                                count = state.archived.size,
+                                latestName = state.archived.firstOrNull()?.item?.name,
+                                latestEmoji = state.archived.firstOrNull()?.let {
+                                    state.categories.byId(it.item.category).emoji
+                                } ?: "🧺",
+                                onClick = onOpenArchive,
+                            )
                         }
                     }
                 }
@@ -410,65 +310,118 @@ fun FoodListScreen(
 }
 
 @Composable
-private fun FilterSectionLabel(text: String) {
-    Text(
-        text,
-        style = MaterialTheme.typography.labelSmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.padding(start = 24.dp, bottom = 4.dp),
-    )
-}
-
-@Composable
 private fun FilterToggle(
-    expanded: Boolean,
     activeCount: Int,
-    onClick: () -> Unit,
+    expanded: Boolean,
+    onToggle: () -> Unit,
 ) {
-    val arrowRotation by animateFloatAsState(
+    val rotation by animateFloatAsState(
         targetValue = if (expanded) 180f else 0f,
-        animationSpec = if (expanded) MotionSpring.expand<Float>() else MotionSpring.collapse<Float>(),
-        label = "filterArrowRotation",
+        animationSpec = MotionSpring.expand<Float>(),
+        label = "filterArrow",
     )
     Surface(
-        onClick = onClick,
+        onClick = onToggle,
         shape = RoundedCornerShape(50),
         color = if (activeCount > 0) MaterialTheme.colorScheme.primaryContainer
-        else MaterialTheme.colorScheme.surfaceContainerHigh,
-        contentColor = if (activeCount > 0) MaterialTheme.colorScheme.onPrimaryContainer
-        else MaterialTheme.colorScheme.onSurfaceVariant,
+        else MaterialTheme.colorScheme.surfaceContainerHighest,
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 12.dp),
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
         ) {
-            Icon(Icons.Rounded.FilterList, contentDescription = "筛选", modifier = Modifier.size(18.dp))
-            if (activeCount > 0) {
-                Spacer(Modifier.width(4.dp))
-                AnimatedContent(
-                    targetState = activeCount,
-                    transitionSpec = {
-                        fadeIn(tween(160, easing = MotionEasing.Standard)) togetherWith
-                            fadeOut(tween(120, easing = MotionEasing.Standard))
-                    },
-                    label = "filterCount",
-                ) { count ->
+            Icon(
+                Icons.Rounded.FilterList,
+                contentDescription = null,
+                modifier = Modifier.size(16.dp),
+                tint = if (activeCount > 0) MaterialTheme.colorScheme.onPrimaryContainer
+                else MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            AnimatedContent(
+                targetState = activeCount,
+                transitionSpec = {
+                    (fadeIn(tween(150)) + androidx.compose.animation.scaleIn(tween(150)))
+                        .togetherWith(fadeOut(tween(150)) + androidx.compose.animation.scaleOut(tween(150)))
+                },
+                label = "filterCount",
+            ) { count ->
+                if (count > 0) {
                     Text(
                         "$count",
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                    )
+                } else {
+                    Text(
+                        "筛选",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
             }
-            Spacer(Modifier.width(2.dp))
             Icon(
                 Icons.Rounded.ExpandMore,
                 contentDescription = null,
                 modifier = Modifier
                     .size(16.dp)
-                    .graphicsLayer { rotationZ = arrowRotation },
+                    .graphicsLayer { rotationZ = rotation },
+                tint = if (activeCount > 0) MaterialTheme.colorScheme.onPrimaryContainer
+                else MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
     }
 }
 
+@Composable
+private fun RecentArchivedEntry(
+    count: Int,
+    latestName: String?,
+    latestEmoji: String,
+    onClick: () -> Unit,
+) {
+    Surface(
+        onClick = onClick,
+        shape = MaterialTheme.shapes.large,
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 6.dp),
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                Icons.Rounded.History,
+                contentDescription = null,
+                modifier = Modifier.size(20.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(Modifier.width(10.dp))
+            Column(Modifier.weight(1f)) {
+                Text(
+                    "归档历史（$count 条记录）",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Medium,
+                )
+                if (latestName != null) {
+                    Text(
+                        "最近归档：$latestEmoji $latestName · 点击查看/恢复",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+            Text(
+                "查看",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.SemiBold,
+            )
+        }
+    }
+}
