@@ -72,7 +72,6 @@ import top.yukonga.miuix.kmp.basic.FloatingActionButton as MiuixFloatingActionBu
 import top.yukonga.miuix.kmp.basic.FloatingNavigationBar as MiuixFloatingNavigationBar
 import top.yukonga.miuix.kmp.basic.FloatingNavigationBarItem as MiuixFloatingNavigationBarItem
 import top.yukonga.miuix.kmp.basic.Icon as MiuixIcon
-import top.yukonga.miuix.kmp.basic.InputField as MiuixInputField
 import top.yukonga.miuix.kmp.basic.NavigationBar as MiuixNavigationBar
 import top.yukonga.miuix.kmp.basic.NavigationBarItem as MiuixNavigationBarItem
 import top.yukonga.miuix.kmp.basic.SnackbarHost as MiuixSnackbarHost
@@ -588,13 +587,12 @@ fun MainApp(viewModel: AppViewModel) {
                             )
                         }
                     }
-                    MiuixInputField(
-                        query = customLocation,
-                        onQueryChange = { customLocation = it },
-                        onSearch = {},
-                        expanded = false,
-                        onExpandedChange = {},
-                        label = "或输入新位置（如：书房）",
+                    OutlinedTextField(
+                        value = customLocation,
+                        onValueChange = { customLocation = it },
+                        label = { Text("或输入新位置（如：书房）") },
+                        singleLine = true,
+                        shape = RoundedCornerShape(16.dp),
                         modifier = Modifier.fillMaxWidth(),
                     )
                     Row(
