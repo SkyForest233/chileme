@@ -142,7 +142,7 @@ fun FoodListScreen(
                     value = state.query,
                     onValueChange = { state.setQuery(it) },
                     modifier = Modifier.weight(1f),
-                    placeholder = { Text("搜索食品（含归档）…") },
+                    placeholder = { Text("搜索食品…", maxLines = 1, overflow = TextOverflow.Ellipsis) },
                     leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null) },
                     singleLine = true,
                     shape = RoundedCornerShape(50),

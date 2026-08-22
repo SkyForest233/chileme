@@ -145,7 +145,7 @@ fun MiuixFoodListScreen(
                     onSearch = {},
                     expanded = false,
                     onExpandedChange = {},
-                    label = "搜索食品（含归档）…",
+                    label = "搜索食品…",
                     modifier = Modifier.weight(1f),
                 )
                 Spacer(Modifier.width(10.dp))

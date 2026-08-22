@@ -533,24 +533,22 @@ fun FoodCard(
                     FoodAvatar(item, category.emoji, background = ui.container)
                     Spacer(Modifier.width(12.dp))
                     Column(Modifier.weight(1f)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            MiuixText(
-                                item.name,
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = MaterialTheme.colorScheme.onSurface,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.weight(1f, fill = false),
-                            )
-                            Spacer(Modifier.width(6.dp))
-                            LocationTag(item.location)
-                        }
+                        MiuixText(
+                            item.name,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
                         Spacer(Modifier.height(2.dp))
                         MiuixText(
-                            "${category.label} · 生产 ${item.productionDate.cn()}",
+                            if (item.location.isNotBlank()) "${category.label} · 📍 ${item.location} · 生产 ${item.productionDate.cn()}"
+                            else "${category.label} · 生产 ${item.productionDate.cn()}",
                             fontSize = 12.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
                         )
                         MiuixText(
                             "到期 ${item.expiryDate.cn()}",
@@ -621,23 +619,21 @@ fun FoodCard(
                     FoodAvatar(item, category.emoji, background = ui.container)
                     Spacer(Modifier.width(12.dp))
                     Column(Modifier.weight(1f)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                item.name,
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.SemiBold,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.weight(1f, fill = false),
-                            )
-                            Spacer(Modifier.width(6.dp))
-                            LocationTag(item.location)
-                        }
+                        Text(
+                            item.name,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
                         Spacer(Modifier.height(2.dp))
                         Text(
-                            "${category.label} · 生产 ${item.productionDate.cn()}",
+                            if (item.location.isNotBlank()) "${category.label} · 📍 ${item.location} · 生产 ${item.productionDate.cn()}"
+                            else "${category.label} · 生产 ${item.productionDate.cn()}",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
                         )
                         Text(
                             "到期 ${item.expiryDate.cn()}",
