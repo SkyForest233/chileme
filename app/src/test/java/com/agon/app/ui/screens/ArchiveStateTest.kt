@@ -30,13 +30,13 @@ class ArchiveStateTest {
     @Test
     fun `filterArchiveItems 支持按归档原因筛选`() {
         val list = listOf(
-            archived("1", "已吃完牛奶", ArchiveReason.FINISHED),
+            archived("1", "已吃完牛奶", ArchiveReason.CONSUMED),
             archived("2", "过期清理面包", ArchiveReason.EXPIRED),
             archived("3", "手动删除饼干", ArchiveReason.DELETED),
         )
 
-        val finished = filterArchiveItems(list, reasonFilter = ArchiveReason.FINISHED)
-        assertEquals(listOf("1"), finished.map { it.item.id })
+        val consumed = filterArchiveItems(list, reasonFilter = ArchiveReason.CONSUMED)
+        assertEquals(listOf("1"), consumed.map { it.item.id })
 
         val expired = filterArchiveItems(list, reasonFilter = ArchiveReason.EXPIRED)
         assertEquals(listOf("2"), expired.map { it.item.id })
@@ -51,9 +51,9 @@ class ArchiveStateTest {
     @Test
     fun `filterArchiveItems 支持按名称关键词模糊搜索`() {
         val list = listOf(
-            archived("1", "乐事原味薯片", ArchiveReason.FINISHED),
+            archived("1", "乐事原味薯片", ArchiveReason.CONSUMED),
             archived("2", "乐事黄瓜味薯片", ArchiveReason.EXPIRED),
-            archived("3", "可口可乐", ArchiveReason.FINISHED),
+            archived("3", "可口可乐", ArchiveReason.CONSUMED),
         )
 
         val result = filterArchiveItems(list, query = "  薯片  ")
@@ -64,18 +64,18 @@ class ArchiveStateTest {
     @Test
     fun `filterArchiveItems 组合筛选交集正确`() {
         val list = listOf(
-            archived("1", "乐事原味薯片", ArchiveReason.FINISHED),
+            archived("1", "乐事原味薯片", ArchiveReason.CONSUMED),
             archived("2", "乐事黄瓜味薯片", ArchiveReason.EXPIRED),
-            archived("3", "可口可乐", ArchiveReason.FINISHED),
+            archived("3", "可口可乐", ArchiveReason.CONSUMED),
         )
 
-        val result = filterArchiveItems(list, reasonFilter = ArchiveReason.FINISHED, query = "薯片")
+        val result = filterArchiveItems(list, reasonFilter = ArchiveReason.CONSUMED, query = "薯片")
         assertEquals(1, result.size)
         assertEquals("1", result[0].item.id)
     }
 
     @Test
     fun `filterArchiveItems 空列表安全不崩溃`() {
-        assertTrue(filterArchiveItems(emptyList(), reasonFilter = ArchiveReason.FINISHED, query = "test").isEmpty())
+        assertTrue(filterArchiveItems(emptyList(), reasonFilter = ArchiveReason.CONSUMED, query = "test").isEmpty())
     }
 }

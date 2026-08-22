@@ -35,7 +35,7 @@ class FoodListStateTest {
         )
     }
 
-    private fun archived(id: String, name: String, reason: ArchiveReason = ArchiveReason.FINISHED) =
+    private fun archived(id: String, name: String, reason: ArchiveReason = ArchiveReason.CONSUMED) =
         ArchivedItem(
             item = food(id, name),
             archivedEpochDay = today.toEpochDay(),
