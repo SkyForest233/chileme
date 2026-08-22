@@ -52,11 +52,12 @@ import com.agon.app.data.CategoryDef
 import com.agon.app.data.byId
 import com.agon.app.ui.components.EmptyState
 import com.agon.app.ui.components.ExpiryCalendarCard
+import com.agon.app.ui.theme.LocalToday
 import com.agon.app.ui.theme.MotionEasing
 import com.agon.app.viewmodel.AppViewModel
 import java.time.LocalDate
 
-// \u53c2\u8003\u8bbe\u8ba1\uff1a\u5355\u8272\u7cfb\u6df1\u6d45\u7eff\u9636\u68af + \u5c11\u91cf\u84dd\u8272\u70b9\u7f00\uff0c\u4fdd\u6301\u6574\u4f53\u8584\u8377\u7eff\u6c1b\u56f4
+// 参考设计：单色系深浅绿阶梯 + 少量蓝色点缀，保持整体薄荷绿氛围
 /**
  * 图表调色板：全部取自 MaterialTheme.colorScheme 语义角色，
  * 随主题种子色 / 动态取色 / 深浅色自动适配，不硬编码 hex。
@@ -91,9 +92,10 @@ fun StatsScreen(
     val categories by viewModel.categories.collectAsStateWithLifecycle()
     val thresholds by viewModel.thresholds.collectAsStateWithLifecycle()
 
-    val today = LocalDate.now().toEpochDay()
+    val todayDate = LocalToday.current
+    val today = todayDate.toEpochDay()
     val weekAgo = today - 6
-    val monthStart = LocalDate.now().withDayOfMonth(1).toEpochDay()
+    val monthStart = todayDate.withDayOfMonth(1).toEpochDay()
 
     val consumedThisWeek = remember(consumption, weekAgo) {
         consumption.filter { it.epochDay >= weekAgo }.sumOf { it.amount }
@@ -104,7 +106,7 @@ fun StatsScreen(
     val wastedTotal = archived.count { it.reason == ArchiveReason.EXPIRED }
 
     // Last 7 days consumption trend
-    val dailyTrend = remember(consumption) {
+    val dailyTrend = remember(consumption, today) {
         (0..6).map { offset ->
             val day = today - (6 - offset)
             val amount = consumption.filter { it.epochDay == day }.sumOf { it.amount }

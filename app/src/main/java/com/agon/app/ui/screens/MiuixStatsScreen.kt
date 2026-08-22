@@ -43,6 +43,7 @@ import com.agon.app.data.CategoryDef
 import com.agon.app.data.byId
 import com.agon.app.ui.components.EmptyState
 import com.agon.app.ui.components.ExpiryCalendarCard
+import com.agon.app.ui.theme.LocalToday
 import com.agon.app.ui.theme.MotionEasing
 import com.agon.app.viewmodel.AppViewModel
 import java.time.LocalDate
@@ -78,9 +79,10 @@ fun MiuixStatsScreen(
     val categories by viewModel.categories.collectAsStateWithLifecycle()
     val thresholds by viewModel.thresholds.collectAsStateWithLifecycle()
 
-    val today = LocalDate.now().toEpochDay()
+    val todayDate = LocalToday.current
+    val today = todayDate.toEpochDay()
     val weekAgo = today - 6
-    val monthStart = LocalDate.now().withDayOfMonth(1).toEpochDay()
+    val monthStart = todayDate.withDayOfMonth(1).toEpochDay()
 
     val consumedThisWeek = remember(consumption, weekAgo) {
         consumption.filter { it.epochDay >= weekAgo }.sumOf { it.amount }
@@ -90,7 +92,7 @@ fun MiuixStatsScreen(
     }
     val wastedTotal = archived.count { it.reason == ArchiveReason.EXPIRED }
 
-    val dailyTrend = remember(consumption) {
+    val dailyTrend = remember(consumption, today) {
         (0..6).map { offset ->
             val day = today - (6 - offset)
             val amount = consumption.filter { it.epochDay == day }.sumOf { it.amount }

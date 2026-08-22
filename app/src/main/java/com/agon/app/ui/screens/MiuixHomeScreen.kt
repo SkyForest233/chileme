@@ -101,7 +101,7 @@ fun MiuixHomeScreen(
     }
 
     Scaffold(
-        topBar = { TopAppBar(title = "吃了么", subtitle = LocalDate.now().cnDay()) },
+        topBar = { TopAppBar(title = "吃了么", subtitle = today.cnDay()) },
         snackbarHost = {
             // 上移避免被悬浮导航栏遮挡
             SnackbarHost(snackbarHostState, modifier = Modifier.padding(bottom = 84.dp))

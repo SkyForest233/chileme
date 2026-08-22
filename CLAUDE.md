@@ -8,7 +8,7 @@
 
 - **应用名**：吃了么（app_name）；applicationId `com.chileme.pantry`；代码包名仍为 `com.agon.app`（namespace 不变，两者分离是有意为之）
 - **定位**：本地优先的家庭食品库存管理 App，自动计算过期日期、临期提醒、减少食物浪费
-- **技术栈**：Kotlin 2.4.10 / Compose BOM 2026.01.01 + Material 3 与 Miuix（HyperOS），单 Activity + miuix-nav `NavDisplay`（底栏 Tab 仍是 HorizontalPager），DataStore 持久化。OCR 已移除
+- **技术栈**：Kotlin 2.4.10 / Compose BOM 2026.08.00 + Material 3 与 Miuix（HyperOS），单 Activity + miuix-nav `NavDisplay`（底栏 Tab 仍是 HorizontalPager），DataStore 持久化。OCR 已移除
 - **设计风格**：薄荷绿单色系（参考 Focus 类 App 截图），详见 `docs/DESIGN_SPEC.md`
 - **当前版本**：功能演进见 `docs/REQUIREMENTS.md`；设置页展示版本固定 **v1.0**
 

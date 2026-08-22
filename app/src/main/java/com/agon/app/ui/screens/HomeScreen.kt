@@ -113,7 +113,7 @@ fun HomeScreen(
                     Column {
                         Text("吃了么", fontWeight = FontWeight.Bold)
                         Text(
-                            LocalDate.now().cnDay(),
+                            today.cnDay(),
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )

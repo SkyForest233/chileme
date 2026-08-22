@@ -2,7 +2,8 @@
 
 ## 1. 技术栈与版本（不得随意升级）
 
-- Kotlin 2.4.10 / AGP 9.3.1 / Gradle 9.6.1 / **JDK 21**（miuix-nav inline 函数为 JVM 21 bytecode，本模块必须同目标；Gradle `jvmToolchain(21)` 可在 CI Java 17 镜像上自拉 21）
+- Kotlin 2.4.10 / AGP 9.3.1 / Gradle 9.7.1 / **JDK 21**（miuix-nav inline 函数为 JVM 21 bytecode，本模块必须同目标；Gradle `jvmToolchain(21)` 可在 CI Java 17 镜像上自拉 21）
+- **依赖管理（v2.8.1 起）**：全项目依赖与插件统一收拢至 `gradle/libs.versions.toml`（Version Catalog）
 - compileSdk 37（v2.8 起，Miuix 0.9.4-rc01 要求 ≥37）、**minSdk 26**、targetSdk 36
   - **minSdk 24 → 26（2026-08-21）**：全项目 28 处 `java.time`（API 26 引入）此前未开启 core library desugaring，API 24/25 设备进首页即 `NoClassDefFoundError`（`daysLeft` 走 `ChronoUnit`）。选择提升 minSdk 而非加脱糖，省去包体与构建开销
   - **签名凭据**：优先读环境变量（`RELEASE_KEYSTORE_PATH` / `RELEASE_KEYSTORE_PASSWORD` / `RELEASE_KEY_ALIAS` / `RELEASE_KEY_PASSWORD`），回退根目录 `keystore.properties`（均不入库）。**四项缺一则 release 构建直接失败**，不再静默回退 debug 签名；本地仅做构建验证可加 `-PallowUnsignedRelease=true`
@@ -11,8 +12,8 @@
 - **applicationId `com.chileme.pantry`**（v2.1 起）；namespace / 代码包名保持 `com.agon.app` 不变。FileProvider authority 使用 `${applicationId}.fileprovider` 占位符，代码中用 `${context.packageName}.fileprovider`
 - **Release 构建（v2.5 起）**：`isMinifyEnabled = true` + `isShrinkResources = true`（R8 代码/资源压缩），但 `proguard-rules.pro` 中 `-dontobfuscate` **禁用混淆**——类名/方法名/字段名全保留，堆栈可读无需 mapping。规则文件另含 kotlinx-serialization keep 规则（data 包 serializer 反射）与 OkHttp/Coil dontwarn。release APK ≈ 2.6 MB（debug ≈ 63 MB）
 - **到期日历（v2.5 起）**：不再是独立路由，作为 `ExpiryCalendarCard`（ui/components/ExpiryCalendar.kt）嵌入统计页；支持手势左右滑动切换月份，圆点颜色 = 紧急度（去重后最多 3 点）
-- Compose BOM 2026.01.01（material3、icons-extended）
-- miuix-nav 0.9.4-rc01（`NavDisplay` 二级页路由与预测性返回；替代 Navigation Compose NavHost）、Lifecycle/ViewModel Compose 2.10.0
+- Compose BOM 2026.08.00（material3、icons-extended）
+- miuix-nav 0.9.4-rc01（`NavDisplay` 二级页路由与预测性返回；替代 Navigation Compose NavHost）、Lifecycle/ViewModel Compose 2.11.0、Activity Compose 1.13.0
 - DataStore Preferences 1.2.0 + kotlinx-serialization-json 1.11.0
 - Coil 3.3.0（照片封面加载）
 - ~~ML Kit OCR~~ 已于 v2.5 移除（识别率低），`DateOcr.kt` 已删除
