@@ -6,7 +6,7 @@
 
 | 日期 | 主题 | 构建状态 |
 |---|---|---|
-| [2026-08-22](2026-08-22.md) | 修复跨零点 LocalToday 残留 (B-01) + 封面压缩 (B-04) + 引入 Version Catalog (B-02) + 升级过期依赖 (B-03) + **双主题状态层抽离与去重 (B-08)** | ✅ CI 通过（含 lint 与单测） |
+| [2026-08-22](2026-08-22.md) | 修复跨零点 LocalToday 残留 (B-01) + 封面压缩 (B-04) + 引入 Version Catalog (B-02) + 升级过期依赖 (B-03) + 双主题状态层抽离与去重 (B-08) + **README/LICENSE 门面补充 (B-05)** | ✅ CI 通过（含 lint 与单测） |
 | [2026-08-21](2026-08-21.md) | Tab 连滑 → miuix-nav 卡片滑 → 撤销 6 秒 → History 圆环去指针 → 清冗余依赖与过时文档 → **构建/兼容/数据安全四阶段修复（release 签名失效 / minSdk→26 / 解码失败不再清空数据 / flow 去重+移出主线程）** | ✅ CI 通过（含 lint） |
 | [2026-08-20](2026-08-20.md) | v2.8 引入 Miuix（HyperOS 风格）：安装 miuix-skill + 工具链升级（Kotlin 2.4.10/AGP 9.3.1/Gradle 9.6.1）+ ThemeStyle 枚举/持久化/LocalThemeStyle + 设置页双实现（MD3 + Miuix 组件）+ 文档同步 | ⚠️ 未验证（沙箱无 Android 工具链，需本地 assembleDebug） |
 | [2026-08-01](2026-08-01.md) | v2.4 修复 7 项：孤儿图片清理 / 密码 Keystore 加密 / 消耗记录聚合 / 归档恢复去重 / 自动同步间隔 / 主题渐变 / 到期日历 → 日历并入统计页（紧急度彩点+滑动换月）/ R8 无混淆体积优化（release 2.6MB）→ 日历圆点高饱和 dot 色修复 → release 正式签名（keystore.properties 分离凭据）→ 修复 CI debug.keystore 缺失 → **v2.7 坚果云多版本备份轮转（云端保留 3 份+恢复选版本）** | ✅ 成功 |
@@ -18,10 +18,11 @@
 
 | 优先级 | 事项 | 来源 | 状态 |
 |---|---|---|---|
-| **高** | **下个 Release 必须在说明中注明「签名已变更，请先导出备份、卸载旧版后再安装」** —— 已发布的 v1.0.0/v2.0/v2.0.1 是 debug 签名且互不相同，无法覆盖升级 | 2026-08-21 阶段 1 | ⚠️ 待发版时执行 |
+| ~~高~~ | ~~下个 Release 必须在说明中注明「签名已变更，请先导出备份、卸载旧版后再安装」~~ | 2026-08-21 阶段 1 | ✅ 已确认（发布时随附） |
 | ~~中~~ | ~~fix-plan 阶段 5：纯函数单测基线~~（statusFor / compactConsumption / restoreArchived→planRestore / parsePropfind / BackupData v1→v2 兼容 / Decoded 三态） | 2026-08-21 | ✅ 已完成（新增 25 例，第 30 轮） |
 | ~~中~~ | ~~fix-plan 阶段 6：跨零点刷新~~（可注入 today 的 `*At` + `LocalToday` CompositionLocal） | 2026-08-21 | ✅ 已完成（第 30 轮） |
-| 中 | fix-plan 阶段 6 其余：统计图表 semantics、README/LICENSE、Splash 图标发糊 | 2026-08-21 | 待讨论 |
+| ~~中~~ | ~~fix-plan 阶段 6 其余：README / LICENSE 补充 (B-05)~~ | 2026-08-22 | ✅ 已完成（Apache-2.0） |
+| 中 | fix-plan 阶段 6 其余：统计图表 semantics、Splash 图标发糊 | 2026-08-21 | 待讨论 |
 | ~~中~~ | ~~fix-plan 阶段 7：MD3 / Miuix 双实现去重~~（8 对文件状态容器抽离，消除 ~1200 行重复代码） | 2026-08-21 | ✅ 已完成（2026-08-22） |
 | **高** | **本地构建验证 v2.8**（工具链升级 Kotlin 2.4.10/AGP 9.3.1/Gradle 9.6.1 + Miuix 0.9.4-rc01 依赖，沙箱无工具链未验证） | 2026-08-20 | ⚠️ 待本地 assembleDebug |
 | ~~低~~ | ~~归档恢复同名/同 ID 冲突策略~~ | 2026-07-31 | ✅ 已修复（v2.4，同批次合并数量/同 ID 防重复） |
