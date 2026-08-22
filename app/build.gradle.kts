@@ -1,10 +1,19 @@
 import java.util.Properties
+import org.gradle.api.logging.StandardOutputListener
 
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
 }
+
+// 捕获编译错误并在 CI 环境打出 GitHub Actions ::error:: 注解，以便通过 API 读取具体报错
+gradle.addListener(StandardOutputListener { output ->
+    val text = output.toString()
+    if (text.startsWith("e: ") || text.contains("Unresolved reference") || text.contains("Type mismatch") || text.contains("None of the following functions can be called with the arguments supplied") || text.contains("error:")) {
+        println("::error::$text")
+    }
+})
 
 // ---- Release 签名凭据 ----
 // 优先级：环境变量（CI / GitHub Secrets）> 根目录 keystore.properties（本地，不入库）。
