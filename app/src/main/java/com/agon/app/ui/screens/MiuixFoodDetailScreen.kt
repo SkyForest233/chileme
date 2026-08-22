@@ -174,11 +174,11 @@ fun MiuixFoodDetailScreen(
                     Spacer(Modifier.height(16.dp))
                     LinearProgressIndicator(
                         progress = item.elapsedRatioAt(state.today),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(8.dp),
-                        color = ui.content,
-                        trackColor = MiuixTheme.colorScheme.surface,
+                        height = 8.dp,
+                        colors = ProgressIndicatorDefaults.progressIndicatorColors(
+                            foregroundColor = ui.content,
+                            backgroundColor = MiuixTheme.colorScheme.surface,
+                        ),
                     )
                     Spacer(Modifier.height(8.dp))
                     Text(
