@@ -62,8 +62,8 @@
 
 | # | 事项 | 严重 | 难度 | 来源 | 状态 |
 |---|---|---|---|---|---|
-| B2 | ~~补全单测基线~~：新增 `planRestore` 三分支、`CloudBackup.displayTime/parsePropfind`、`BackupData` v1→v2 兼容、`Decoded.orElse`/三态（新增 25 例）；把 `restoreArchived` 纯逻辑抽成无 Context 的 `planRestore` | 🟠 | 中 | 阶段5 | ✅ 已实现（2026-08-21，待 CI 验证） |
-| B3 | ~~跨零点剩余天数不刷新~~：新增 `*At(today)` 可注入日期纯函数 + `LocalToday` CompositionLocal，MainActivity 在 `ON_RESUME` 刷新，UI 全部改读 `LocalToday.current`；新增跨零点/`urgencyForAt` 用例 | 🟠 | 低–中 | 阶段6 | ✅ 已实现（2026-08-21，待 CI 验证） |
+| B2 | ~~补全单测基线~~：新增 `planRestore` 三分支、`CloudBackup.displayTime/parsePropfind`、`BackupData` v1→v2 兼容、`Decoded.orElse`/三态（新增 25 例）；把 `restoreArchived` 纯逻辑抽成无 Context 的 `planRestore` | 🟠 | 中 | 阶段5 | ✅ 已完成（CI 全绿） |
+| B3 | ~~跨零点剩余天数不刷新~~：新增 `*At(today)` 可注入日期纯函数 + `LocalToday` CompositionLocal，MainActivity 周期性轮询日期刷新（覆盖自然跨午夜/拨时钟/时区变化），UI 全部改读 `LocalToday.current` | 🟠 | 低–中 | 阶段6 | ✅ 已完成（CI 全绿） |
 
 ### 🟡 P2 · 中价值
 
