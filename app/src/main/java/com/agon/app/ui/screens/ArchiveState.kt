@@ -35,6 +35,10 @@ class ArchiveUiState(
         viewModel.restoreArchivedSmart(id, onDone)
     }
 
+    fun archiveBatch(ids: Set<String>, reason: ArchiveReason) {
+        viewModel.archiveBatch(ids, reason)
+    }
+
     fun deleteEntry(id: String) {
         viewModel.deleteArchived(id)
     }
@@ -42,6 +46,19 @@ class ArchiveUiState(
     fun clearArchive() {
         viewModel.clearArchive()
     }
+}
+
+/**
+ * 归档过滤纯函数（无 Compose 依赖，便于 JVM 单元测试）。
+ */
+fun filterArchiveItems(
+    archived: List<ArchivedItem>,
+    reasonFilter: ArchiveReason? = null,
+    query: String = "",
+): List<ArchivedItem> {
+    return archived
+        .filter { reasonFilter == null || it.reason == reasonFilter }
+        .filter { query.isBlank() || it.item.name.contains(query.trim(), ignoreCase = true) }
 }
 
 @Composable
@@ -53,9 +70,11 @@ fun rememberArchiveUiState(viewModel: AppViewModel): ArchiveUiState {
     var showClearDialog by remember { mutableStateOf(false) }
 
     val filtered = remember(archived, reasonFilter, query) {
-        archived
-            .filter { reasonFilter == null || it.reason == reasonFilter }
-            .filter { query.isBlank() || it.item.name.contains(query.trim(), ignoreCase = true) }
+        filterArchiveItems(
+            archived = archived,
+            reasonFilter = reasonFilter,
+            query = query,
+        )
     }
 
     return remember(

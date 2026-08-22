@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -29,8 +30,8 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -50,6 +51,8 @@ import com.agon.app.data.byId
 import com.agon.app.data.cn
 import com.agon.app.ui.components.EmptyState
 import com.agon.app.ui.components.FoodAvatar
+import com.agon.app.ui.components.SwipeDismissSnackbarHost
+import com.agon.app.ui.components.showUndoSnackbar
 import com.agon.app.viewmodel.AppViewModel
 import kotlinx.coroutines.launch
 import java.time.LocalDate
@@ -66,7 +69,14 @@ fun ArchiveScreen(
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
-        snackbarHost = { SnackbarHost(snackbarHostState) },
+        snackbarHost = {
+            SwipeDismissSnackbarHost(
+                snackbarHostState,
+                modifier = Modifier
+                    .navigationBarsPadding()
+                    .padding(bottom = 24.dp),
+            )
+        },
         topBar = {
             TopAppBar(
                 title = { Text("归档历史", fontWeight = FontWeight.Bold) },
@@ -152,10 +162,12 @@ fun ArchiveScreen(
                             onRestore = {
                                 state.restoreEntry(entry.item.id) { merged ->
                                     scope.launch {
-                                        snackbarHostState.showSnackbar(
-                                            if (merged) "库存中已有同批次“${entry.item.name}”，已合并数量"
-                                            else "已恢复“${entry.item.name}”到零食柜"
-                                        )
+                                        val msg = if (merged) "库存中已有同批次「${entry.item.name}」，已合并数量"
+                                                  else "已恢复「${entry.item.name}」到零食柜"
+                                        val result = snackbarHostState.showUndoSnackbar(msg)
+                                        if (result == SnackbarResult.ActionPerformed) {
+                                            state.archiveBatch(setOf(entry.item.id), entry.reason)
+                                        }
                                     }
                                 }
                             },

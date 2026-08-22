@@ -313,7 +313,7 @@ fun MiuixFoodListScreen(
                                             color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                                         )
                                     }
-                                    IconButton(onClick = { state.restoreArchived(entry.item.id) }) {
+                                    IconButton(onClick = { state.restoreArchivedWithUndo(entry) }) {
                                         Icon(
                                             MiuixIcons.Refresh,
                                             contentDescription = "恢复 ${entry.item.name}",

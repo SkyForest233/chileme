@@ -31,6 +31,7 @@ import com.agon.app.data.byId
 import com.agon.app.data.cn
 import com.agon.app.ui.components.EmptyState
 import com.agon.app.ui.components.FoodAvatar
+import com.agon.app.ui.components.showUndoSnackbar
 import com.agon.app.viewmodel.AppViewModel
 import kotlinx.coroutines.launch
 import java.time.LocalDate
@@ -42,6 +43,7 @@ import top.yukonga.miuix.kmp.basic.InputField
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SnackbarHost
 import top.yukonga.miuix.kmp.basic.SnackbarHostState
+import top.yukonga.miuix.kmp.basic.SnackbarResult as MiuixSnackbarResult
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.TopAppBar
@@ -151,10 +153,12 @@ fun MiuixArchiveScreen(
                             onRestore = {
                                 state.restoreEntry(entry.item.id) { merged ->
                                     scope.launch {
-                                        snackbarHostState.showSnackbar(
-                                            if (merged) "库存中已有同批次“${entry.item.name}”，已合并数量"
-                                            else "已恢复“${entry.item.name}”到零食柜"
-                                        )
+                                        val msg = if (merged) "库存中已有同批次「${entry.item.name}」，已合并数量"
+                                                  else "已恢复「${entry.item.name}」到零食柜"
+                                        val result = snackbarHostState.showUndoSnackbar(msg)
+                                        if (result == MiuixSnackbarResult.ActionPerformed) {
+                                            state.archiveBatch(setOf(entry.item.id), entry.reason)
+                                        }
                                     }
                                 }
                             },

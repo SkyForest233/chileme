@@ -38,6 +38,19 @@ class HomeUiState(
     }
 }
 
+/**
+ * 首页紧迫待处理项计算纯函数（无 Compose 依赖，便于 JVM 单元测试）。
+ */
+fun calculateUrgentItems(
+    items: List<FoodItem>,
+    thresholds: Map<String, Int>,
+    today: LocalDate,
+): List<FoodItem> {
+    return items
+        .filter { it.statusForAt(today, thresholds) != FoodStatus.SAFE }
+        .sortedBy { it.daysLeftAt(today) }
+}
+
 @Composable
 fun rememberHomeUiState(viewModel: AppViewModel): HomeUiState {
     val items by viewModel.items.collectAsStateWithLifecycle()
@@ -51,7 +64,7 @@ fun rememberHomeUiState(viewModel: AppViewModel): HomeUiState {
     val expiring = items.count { it.statusForAt(today, thresholds) == FoodStatus.EXPIRING }
     val expired = items.count { it.statusForAt(today, thresholds) == FoodStatus.EXPIRED }
     val urgent = remember(items, thresholds, today) {
-        items.filter { it.statusForAt(today, thresholds) != FoodStatus.SAFE }.sortedBy { it.daysLeftAt(today) }
+        calculateUrgentItems(items, thresholds, today)
     }
 
     return remember(

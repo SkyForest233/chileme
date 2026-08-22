@@ -165,6 +165,21 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         _deletedConsumption.value = null
     }
 
+    /** 恢复归档后的「撤销」状态（用于列表页搜索归档恢复等场景弹撤销条） */
+    data class RestoredArchivedEvent(val item: FoodItem, val reason: ArchiveReason, val merged: Boolean)
+
+    private val _restoredArchivedEvent = MutableStateFlow<RestoredArchivedEvent?>(null)
+    val restoredArchivedEvent: StateFlow<RestoredArchivedEvent?> = _restoredArchivedEvent.asStateFlow()
+
+    fun consumeRestoredArchivedEvent() {
+        _restoredArchivedEvent.value = null
+    }
+
+    fun restoreArchivedWithUndo(entry: ArchivedItem) = viewModelScope.launch {
+        val merged = repo.restoreArchived(entry.item.id)
+        _restoredArchivedEvent.value = RestoredArchivedEvent(entry.item, entry.reason, merged)
+    }
+
     /** 删除单条消耗记录（修正统计），并记下原位置供撤销插回。 */
     fun deleteConsumption(record: ConsumptionRecord) = viewModelScope.launch {
         val sorted = consumption.value.sortedByDescending { it.epochDay }

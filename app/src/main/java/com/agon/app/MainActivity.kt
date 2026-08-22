@@ -290,6 +290,25 @@ fun MainApp(viewModel: AppViewModel) {
         }
     }
 
+    // 列表页搜索结果中恢复归档：弹撤销 Snackbar
+    LaunchedEffect(Unit) {
+        viewModel.restoredArchivedEvent.filterNotNull().collect { event ->
+            viewModel.consumeRestoredArchivedEvent()
+            val msg = if (event.merged) "库存中已有同批次「${event.item.name}」，已合并数量"
+                      else "已恢复「${event.item.name}」到零食柜"
+            val undone = if (currentIsMiuix) {
+                miuixSnackbarHostState.showUndoSnackbar(msg) ==
+                    MiuixSnackbarResult.ActionPerformed
+            } else {
+                snackbarHostState.showUndoSnackbar(msg) ==
+                    SnackbarResult.ActionPerformed
+            }
+            if (undone) {
+                viewModel.archiveBatch(setOf(event.item.id), event.reason)
+            }
+        }
+    }
+
     fun selectTab(index: Int) {
         if (index == pagerState.currentPage) return
         scope.launch {

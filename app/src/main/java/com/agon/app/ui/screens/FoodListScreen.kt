@@ -315,7 +315,7 @@ fun FoodListScreen(
                                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         )
                                     }
-                                    IconButton(onClick = { state.restoreArchived(entry.item.id) }) {
+                                    IconButton(onClick = { state.restoreArchivedWithUndo(entry) }) {
                                         Icon(
                                             Icons.Rounded.RestartAlt,
                                             contentDescription = "恢复 ${entry.item.name}",

@@ -64,7 +64,43 @@ class FoodListUiState(
         viewModel.changeQuantity(id, delta, withUndo = true)
 
     fun restoreArchived(id: String) = viewModel.restoreArchived(id)
+    fun restoreArchivedWithUndo(entry: ArchivedItem) = viewModel.restoreArchivedWithUndo(entry)
     fun deleteArchived(id: String) = viewModel.deleteArchived(id)
+}
+
+/**
+ * 食品列表多条件组合筛选纯函数（无 Compose 依赖，便于 JVM 单元测试）。
+ */
+fun filterFoodItems(
+    items: List<FoodItem>,
+    thresholds: Map<String, Int> = emptyMap(),
+    query: String = "",
+    statusFilter: FoodStatusFilter = FoodStatusFilter.ALL,
+    categoryFilter: String? = null,
+    locationFilter: String? = null,
+    today: LocalDate = LocalDate.now(),
+): List<FoodItem> {
+    return items
+        .filter { query.isBlank() || it.name.contains(query.trim(), ignoreCase = true) }
+        .filter {
+            when (statusFilter) {
+                FoodStatusFilter.ALL -> true
+                FoodStatusFilter.SAFE -> it.statusForAt(today, thresholds) == FoodStatus.SAFE
+                FoodStatusFilter.EXPIRING -> it.statusForAt(today, thresholds) == FoodStatus.EXPIRING
+                FoodStatusFilter.EXPIRED -> it.statusForAt(today, thresholds) == FoodStatus.EXPIRED
+            }
+        }
+        .filter { categoryFilter == null || it.category == categoryFilter }
+        .filter { locationFilter == null || it.location == locationFilter }
+        .sortedWith(compareBy({ it.quantity == 0 }, { it.daysLeftAt(today) }))
+}
+
+fun filterArchivedMatches(
+    archived: List<ArchivedItem>,
+    query: String,
+): List<ArchivedItem> {
+    return if (query.isBlank()) emptyList()
+    else archived.filter { it.item.name.contains(query.trim(), ignoreCase = true) }
 }
 
 @Composable
@@ -108,24 +144,19 @@ fun rememberFoodListUiState(
 
     val today = LocalToday.current
     val filtered = remember(items, thresholds, query, statusFilter, categoryFilter, locationFilter, today) {
-        items
-            .filter { query.isBlank() || it.name.contains(query.trim(), ignoreCase = true) }
-            .filter {
-                when (statusFilter) {
-                    FoodStatusFilter.ALL -> true
-                    FoodStatusFilter.SAFE -> it.statusForAt(today, thresholds) == FoodStatus.SAFE
-                    FoodStatusFilter.EXPIRING -> it.statusForAt(today, thresholds) == FoodStatus.EXPIRING
-                    FoodStatusFilter.EXPIRED -> it.statusForAt(today, thresholds) == FoodStatus.EXPIRED
-                }
-            }
-            .filter { categoryFilter == null || it.category == categoryFilter }
-            .filter { locationFilter == null || it.location == locationFilter }
-            .sortedWith(compareBy({ it.quantity == 0 }, { it.daysLeftAt(today) }))
+        filterFoodItems(
+            items = items,
+            thresholds = thresholds,
+            query = query,
+            statusFilter = statusFilter,
+            categoryFilter = categoryFilter,
+            locationFilter = locationFilter,
+            today = today,
+        )
     }
 
     val archivedMatches = remember(archived, query) {
-        if (query.isBlank()) emptyList()
-        else archived.filter { it.item.name.contains(query.trim(), ignoreCase = true) }
+        filterArchivedMatches(archived, query)
     }
 
     fun performReset() {
