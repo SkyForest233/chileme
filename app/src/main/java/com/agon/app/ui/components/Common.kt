@@ -110,6 +110,7 @@ import top.yukonga.miuix.kmp.icon.extended.Timer
 import top.yukonga.miuix.kmp.squircle.squircleBorder
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.PressFeedbackType
+import top.yukonga.miuix.kmp.window.WindowDialog
 import com.agon.app.ui.theme.DangerContainerDark
 import com.agon.app.ui.theme.DangerContainerLight
 import com.agon.app.ui.theme.DangerContentDark
@@ -937,8 +938,6 @@ fun DataCorruptBanner(
         }
     }
 }
-
-import top.yukonga.miuix.kmp.window.WindowDialog
 
 /**
  * Miuix（HyperOS）标准弹窗。
