@@ -45,16 +45,16 @@ class FoodDetailUiState(
 
     fun playEatAnimation() = onPlayEatAnimation()
 
-    fun consumeOne(onAutoArchived: () -> Unit) {
-        item?.let { viewModel.consumeOne(it.id, onAutoArchived) }
+    fun consumeOne(id: String) {
+        viewModel.consumeOne(id)
     }
 
-    fun changeQuantity(delta: Int, onAutoArchived: () -> Unit) {
-        item?.let { viewModel.changeQuantity(it.id, delta, onAutoArchived) }
+    fun changeQuantity(id: String, delta: Int) {
+        viewModel.changeQuantity(id, delta)
     }
 
-    fun deleteItem() {
-        item?.let { viewModel.archive(it.id, ArchiveReason.DELETED) }
+    fun deleteItem(id: String) {
+        viewModel.archive(id, ArchiveReason.DELETED)
     }
 }
 
