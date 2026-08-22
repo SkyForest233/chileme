@@ -272,7 +272,7 @@ fun FoodListScreen(
                         val selected = item.id in state.selectedIds
                         FoodCard(
                             item = item,
-                            categoryEmoji = state.categories.byId(item.category).emoji,
+                            category = state.categories.byId(item.category),
                             status = item.statusForAt(state.today, state.thresholds),
                             onClick = {
                                 if (state.selectionMode) state.onToggleSelection(item.id)

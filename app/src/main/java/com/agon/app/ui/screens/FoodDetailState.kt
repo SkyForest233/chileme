@@ -20,7 +20,6 @@ import com.agon.app.data.statusForAt
 import com.agon.app.ui.theme.LocalToday
 import com.agon.app.ui.theme.MotionEasing
 import com.agon.app.viewmodel.AppViewModel
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 
@@ -32,6 +31,7 @@ class FoodDetailUiState(
     val today: LocalDate,
     val status: FoodStatus,
     val categoryDef: CategoryDef,
+    val thresholds: Map<String, Int>,
     val showDeleteDialog: Boolean,
     val onShowDeleteDialogChange: (Boolean) -> Unit,
     val bounceScale: Animatable<Float, AnimationVector1D>,
@@ -85,6 +85,7 @@ fun rememberFoodDetailUiState(
         today,
         status,
         categoryDef,
+        thresholds,
         showDeleteDialog,
         burstCount,
     ) {
@@ -93,6 +94,7 @@ fun rememberFoodDetailUiState(
             today = today,
             status = status,
             categoryDef = categoryDef,
+            thresholds = thresholds,
             showDeleteDialog = showDeleteDialog,
             onShowDeleteDialogChange = { showDeleteDialog = it },
             bounceScale = bounceScale,

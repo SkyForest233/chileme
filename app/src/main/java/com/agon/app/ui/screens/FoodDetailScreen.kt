@@ -244,11 +244,8 @@ fun FoodDetailScreen(
                     QuantityStepper(
                         quantity = item.quantity,
                         unit = item.unit,
-                        onDecrease = {
-                            state.onChangeQuantity(-1) { onBack() }
-                        },
-                        onIncrease = {
-                            state.onChangeQuantity(1) {}
+                        onChange = { delta ->
+                            state.onChangeQuantity(delta) { if (delta < 0) onBack() }
                         },
                     )
                 }
@@ -272,9 +269,9 @@ fun FoodDetailScreen(
                     DetailRow("过期日期", item.expiryDate.cn())
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
                     DetailRow(
-                        "临期提醒阈值",
-                        if (item.expiringThresholdDays != null) "${item.expiringThresholdDays} 天（单品覆盖）"
-                        else "${item.effectiveThreshold(emptyMap())} 天（使用分类默认）",
+                        "临期提醒",
+                        "提前 ${item.effectiveThreshold(state.thresholds)} 天" +
+                            if (item.expiringThresholdDays != null) "（单独设置）" else "（分类默认）",
                     )
                     if (item.note.isNotBlank()) {
                         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
