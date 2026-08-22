@@ -38,26 +38,34 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.PieChart
+import androidx.compose.material.icons.rounded.Place
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.automirrored.rounded.ListAlt
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import top.yukonga.miuix.kmp.basic.Button as MiuixButton
 import top.yukonga.miuix.kmp.basic.ButtonDefaults as MiuixButtonDefaults
 import top.yukonga.miuix.kmp.basic.FloatingActionButton as MiuixFloatingActionButton
@@ -70,10 +78,12 @@ import top.yukonga.miuix.kmp.basic.SnackbarHost as MiuixSnackbarHost
 import top.yukonga.miuix.kmp.basic.SnackbarHostState as MiuixSnackbarHostState
 import top.yukonga.miuix.kmp.basic.SnackbarResult as MiuixSnackbarResult
 import top.yukonga.miuix.kmp.basic.TextButton as MiuixTextButton
+import com.agon.app.ui.components.MiuixDialog
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.GridView
 import top.yukonga.miuix.kmp.icon.extended.Home
 import top.yukonga.miuix.kmp.icon.extended.ListView
+import top.yukonga.miuix.kmp.icon.extended.Location
 import top.yukonga.miuix.kmp.icon.extended.Settings
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import androidx.compose.runtime.Composable
@@ -98,7 +108,6 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.times
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -266,6 +275,7 @@ fun MainApp(viewModel: AppViewModel) {
     // 多选模式：选中状态提升到 VM，多选时用批量操作栏替换底部导航
     val selectedIds by viewModel.selectedIds.collectAsStateWithLifecycle()
     val selectionMode = selectedIds.isNotEmpty()
+    var showMoveLocationDialog by rememberSaveable { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
     val miuixSnackbarHostState = remember { MiuixSnackbarHostState() }
@@ -286,6 +296,25 @@ fun MainApp(viewModel: AppViewModel) {
             }
             if (undone) {
                 viewModel.undoConsumption(request)
+            }
+        }
+    }
+
+    // 列表页搜索结果中恢复归档：弹撤销 Snackbar
+    LaunchedEffect(Unit) {
+        viewModel.restoredArchivedEvent.filterNotNull().collect { event ->
+            viewModel.consumeRestoredArchivedEvent()
+            val msg = if (event.merged) "库存中已有同批次「${event.item.name}」，已合并数量"
+                      else "已恢复「${event.item.name}」到零食柜"
+            val undone = if (currentIsMiuix) {
+                miuixSnackbarHostState.showUndoSnackbar(msg) ==
+                    MiuixSnackbarResult.ActionPerformed
+            } else {
+                snackbarHostState.showUndoSnackbar(msg) ==
+                    SnackbarResult.ActionPerformed
+            }
+            if (undone) {
+                viewModel.archiveBatch(setOf(event.item.id), event.reason)
             }
         }
     }
@@ -353,6 +382,7 @@ fun MainApp(viewModel: AppViewModel) {
                         isMiuix = isMiuix,
                         floating = floatingNav,
                         onCancel = { viewModel.clearSelection() },
+                        onMoveLocation = { showMoveLocationDialog = true },
                         onArchive = { archiveSelected() },
                     )
                 }
@@ -522,20 +552,158 @@ fun MainApp(viewModel: AppViewModel) {
             SwipeDismissSnackbarHost(snackbarHostState)
         }
     }
+
+    // ---- 批量修改存放位置弹窗 ----
+    if (showMoveLocationDialog) {
+        val locations by viewModel.locations.collectAsStateWithLifecycle()
+        var selectedLocation by remember { mutableStateOf(locations.firstOrNull() ?: "零食柜") }
+        var customLocation by remember { mutableStateOf("") }
+
+        if (isMiuix) {
+            MiuixDialog(
+                title = "批量修改存放位置",
+                summary = "已选 ${selectedIds.size} 件食品，请选择目标位置：",
+                show = showMoveLocationDialog,
+                onDismissRequest = { showMoveLocationDialog = false },
+            ) {
+                Column(
+                    modifier = Modifier.padding(top = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        items(locations) { loc ->
+                            FilterChip(
+                                selected = selectedLocation == loc && customLocation.isBlank(),
+                                onClick = {
+                                    selectedLocation = loc
+                                    customLocation = ""
+                                },
+                                label = { Text(loc, style = MiuixTheme.textStyles.body2) },
+                                shape = RoundedCornerShape(50),
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = MiuixTheme.colorScheme.primaryContainer,
+                                    selectedLabelColor = MiuixTheme.colorScheme.onPrimaryContainer,
+                                ),
+                            )
+                        }
+                    }
+                    OutlinedTextField(
+                        value = customLocation,
+                        onValueChange = { customLocation = it },
+                        label = { Text("或输入新位置（如：书房）") },
+                        singleLine = true,
+                        shape = RoundedCornerShape(16.dp),
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    Row(
+                        modifier = Modifier.padding(top = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        MiuixTextButton(
+                            text = "取消",
+                            onClick = { showMoveLocationDialog = false },
+                            modifier = Modifier.weight(1f),
+                        )
+                        MiuixButton(
+                            onClick = {
+                                val target = customLocation.trim().ifBlank { selectedLocation.trim() }
+                                val count = selectedIds.size
+                                if (target.isNotBlank()) {
+                                    viewModel.updateLocationBatch(selectedIds, target)
+                                    viewModel.clearSelection()
+                                    showMoveLocationDialog = false
+                                    scope.launch {
+                                        miuixSnackbarHostState.showSnackbar("已将 $count 件食品移动到「$target」")
+                                    }
+                                }
+                            },
+                            modifier = Modifier.weight(1f),
+                            colors = MiuixButtonDefaults.buttonColorsPrimary(),
+                        ) {
+                            Text("确定移动", fontWeight = FontWeight.SemiBold, color = MiuixTheme.colorScheme.onPrimary)
+                        }
+                    }
+                }
+            }
+        } else {
+            AlertDialog(
+                onDismissRequest = { showMoveLocationDialog = false },
+                title = { Text("批量修改存放位置") },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Text(
+                            "已选 ${selectedIds.size} 件食品，请选择目标位置：",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            items(locations) { loc ->
+                                FilterChip(
+                                    selected = selectedLocation == loc && customLocation.isBlank(),
+                                    onClick = {
+                                        selectedLocation = loc
+                                        customLocation = ""
+                                    },
+                                    label = { Text(loc) },
+                                    shape = RoundedCornerShape(50),
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                                        selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    ),
+                                )
+                            }
+                        }
+                        OutlinedTextField(
+                            value = customLocation,
+                            onValueChange = { customLocation = it },
+                            label = { Text("或输入新位置（如：书房）") },
+                            singleLine = true,
+                            shape = MaterialTheme.shapes.medium,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
+                },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            val target = customLocation.trim().ifBlank { selectedLocation.trim() }
+                            val count = selectedIds.size
+                            if (target.isNotBlank()) {
+                                viewModel.updateLocationBatch(selectedIds, target)
+                                viewModel.clearSelection()
+                                showMoveLocationDialog = false
+                                scope.launch {
+                                    snackbarHostState.showSnackbar("已将 $count 件食品移动到「$target」")
+                                }
+                            }
+                        },
+                    ) {
+                        Text("确定移动", fontWeight = FontWeight.SemiBold)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showMoveLocationDialog = false }) {
+                        Text("取消")
+                    }
+                },
+            )
+        }
+    }
     }
 }
 
-/** 多选批量操作栏：取消 + 归档 N 项（多选时替换底部导航，MD3 / MIUIX 两套按钮，跟随悬浮/非悬浮）。 */
+/** 多选批量操作栏：取消 + 移动位置 + 归档 N 项（多选时替换底部导航，MD3 / MIUIX 两套按钮，跟随悬浮/非悬浮）。 */
 @Composable
 private fun BatchActionBar(
     count: Int,
     isMiuix: Boolean,
     floating: Boolean,
     onCancel: () -> Unit,
+    onMoveLocation: () -> Unit,
     onArchive: () -> Unit,
 ) {
     if (floating) {
-        // 悬浮：仅按钮本身悬浮（无外层胶囊背景），「取消」文字 + 「归档」实心胶囊独立悬浮。
+        // 悬浮：仅按钮本身悬浮（无外层胶囊背景），「取消」文字 + 「移动位置」胶囊 + 「归档」实心胶囊独立悬浮。
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -545,9 +713,10 @@ private fun BatchActionBar(
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 BatchCancelButton(isMiuix = isMiuix, onClick = onCancel)
+                BatchMoveLocationButton(isMiuix = isMiuix, onClick = onMoveLocation)
                 BatchArchiveButton(isMiuix = isMiuix, count = count, onClick = onArchive)
             }
         }
@@ -561,12 +730,13 @@ private fun BatchActionBar(
                 modifier = Modifier
                     .fillMaxWidth()
                     .navigationBarsPadding()
-                    .padding(horizontal = 20.dp, vertical = 12.dp),
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 BatchCancelButton(isMiuix = isMiuix, onClick = onCancel, modifier = Modifier.weight(1f))
-                BatchArchiveButton(isMiuix = isMiuix, count = count, onClick = onArchive, modifier = Modifier.weight(2f))
+                BatchMoveLocationButton(isMiuix = isMiuix, onClick = onMoveLocation, modifier = Modifier.weight(1.3f))
+                BatchArchiveButton(isMiuix = isMiuix, count = count, onClick = onArchive, modifier = Modifier.weight(1.4f))
             }
         }
     }
@@ -584,7 +754,6 @@ private fun BatchCancelButton(
             text = "取消",
             onClick = onClick,
             modifier = modifier,
-            minHeight = 48.dp,
         )
     } else {
         // MD3 实心胶囊（中性色），与归档实心胶囊视觉统一
@@ -603,13 +772,57 @@ private fun BatchCancelButton(
 }
 
 @Composable
+private fun BatchMoveLocationButton(
+    isMiuix: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    if (isMiuix) {
+        MiuixButton(
+            onClick = onClick,
+            modifier = modifier,
+            colors = MiuixButtonDefaults.buttonColors(
+                color = MiuixTheme.colorScheme.secondaryContainer,
+                contentColor = MiuixTheme.colorScheme.onSecondaryContainer,
+            ),
+        ) {
+            MiuixIcon(
+                MiuixIcons.Location,
+                contentDescription = null,
+                modifier = Modifier.size(18.dp),
+                tint = MiuixTheme.colorScheme.onSecondaryContainer,
+            )
+            Spacer(Modifier.width(6.dp))
+            Text(
+                "移动位置",
+                fontWeight = FontWeight.SemiBold,
+                color = MiuixTheme.colorScheme.onSecondaryContainer,
+            )
+        }
+    } else {
+        Button(
+            onClick = onClick,
+            modifier = modifier.defaultMinSize(minHeight = 48.dp),
+            shape = RoundedCornerShape(50),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+            ),
+        ) {
+            Icon(Icons.Rounded.Place, contentDescription = null, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(6.dp))
+            Text("移动位置", fontWeight = FontWeight.SemiBold)
+        }
+    }
+}
+
+@Composable
 private fun BatchArchiveButton(isMiuix: Boolean, count: Int, onClick: () -> Unit, modifier: Modifier = Modifier) {
     if (isMiuix) {
         // Miuix 标准实心按钮（默认 16dp 圆角）
         MiuixButton(
             onClick = onClick,
             modifier = modifier,
-            minHeight = 48.dp,
             colors = MiuixButtonDefaults.buttonColors(
                 color = MiuixTheme.colorScheme.error,
                 contentColor = MiuixTheme.colorScheme.onError,

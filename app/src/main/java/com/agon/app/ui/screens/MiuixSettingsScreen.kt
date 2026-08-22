@@ -1,9 +1,11 @@
 package com.agon.app.ui.screens
 
-import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -11,33 +13,27 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Cloud
-import androidx.compose.material.icons.rounded.CloudDownload
-import androidx.compose.material.icons.rounded.CloudUpload
-import androidx.compose.material.icons.rounded.FileDownload
-import androidx.compose.material.icons.rounded.FileUpload
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.agon.app.data.CLOUD_BACKUP_KEEP
 import com.agon.app.data.CloudBackup
+import com.agon.app.data.LocalSnapshot
 import com.agon.app.ui.theme.ThemeStyle
 import com.agon.app.viewmodel.AppViewModel
 import kotlinx.coroutines.launch
@@ -54,15 +50,16 @@ import top.yukonga.miuix.kmp.basic.Surface
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.TopAppBar
-import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
 import top.yukonga.miuix.kmp.preference.RadioButtonPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
+import com.agon.app.ui.components.MiuixDialog
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.CloudFill
 import top.yukonga.miuix.kmp.icon.extended.Download
 import top.yukonga.miuix.kmp.icon.extended.FileDownloads
+import top.yukonga.miuix.kmp.icon.extended.Forward
 import top.yukonga.miuix.kmp.icon.extended.UploadCloud
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
@@ -85,39 +82,7 @@ fun MiuixSettingsScreen(
     onOpenCategories: () -> Unit,
     onOpenLocations: () -> Unit,
 ) {
-    val dynamicColor by viewModel.dynamicColor.collectAsStateWithLifecycle()
-    val darkMode by viewModel.darkMode.collectAsStateWithLifecycle()
-    val themeStyleName by viewModel.themeStyle.collectAsStateWithLifecycle()
-    val floatingNav by viewModel.floatingNav.collectAsStateWithLifecycle()
-    val categories by viewModel.categories.collectAsStateWithLifecycle()
-    val locations by viewModel.locations.collectAsStateWithLifecycle()
-    val archived by viewModel.archived.collectAsStateWithLifecycle()
-    val items by viewModel.items.collectAsStateWithLifecycle()
-    val nutstoreAccount by viewModel.nutstoreAccount.collectAsStateWithLifecycle()
-    val nutstorePassword by viewModel.nutstorePassword.collectAsStateWithLifecycle()
-    val lastSync by viewModel.lastSync.collectAsStateWithLifecycle()
-    // 有密文但解不开（换设备后恢复了云备份等）——提示重新填写
-    val credentialBroken by viewModel.nutstoreCredentialBroken.collectAsStateWithLifecycle()
-    val syncing by viewModel.syncing.collectAsStateWithLifecycle()
-    val autoSyncDays by viewModel.autoSyncDays.collectAsStateWithLifecycle()
-    val cloudBackups by viewModel.cloudBackups.collectAsStateWithLifecycle()
-    val loadingBackups by viewModel.loadingBackups.collectAsStateWithLifecycle()
-
-    var showClearDialog by remember { mutableStateOf(false) }
-    var showNutstoreDialog by remember { mutableStateOf(false) }
-    var showBackupPicker by remember { mutableStateOf(false) }
-    var restoreCandidate by remember { mutableStateOf<CloudBackup?>(null) }
-
-    // 坚果云账号输入（提升到顶层，打开对话框时同步当前值）
-    var accountInput by remember { mutableStateOf("") }
-    var passwordInput by remember { mutableStateOf("") }
-    LaunchedEffect(showNutstoreDialog, nutstoreAccount, nutstorePassword) {
-        if (showNutstoreDialog) {
-            accountInput = nutstoreAccount
-            passwordInput = nutstorePassword
-        }
-    }
-
+    val state = rememberSettingsUiState(viewModel)
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -128,10 +93,8 @@ fun MiuixSettingsScreen(
     ) { uri ->
         if (uri != null) {
             scope.launch {
-                // 数据损坏时 buildBackupJson 会抛异常（避免生成残缺备份），
-                // 此处透出具体原因而非笼统的“导出失败”。
                 val result = runCatching {
-                    val jsonText = viewModel.buildBackupJson()
+                    val jsonText = state.buildBackupJson()
                     context.contentResolver.openOutputStream(uri)?.use { out ->
                         out.write(jsonText.toByteArray(Charsets.UTF_8))
                     } ?: error("stream null")
@@ -157,9 +120,31 @@ fun MiuixSettingsScreen(
                         input.readBytes().toString(Charsets.UTF_8)
                     }
                 }.getOrNull()
-                val ok = raw != null && viewModel.importBackupJson(raw)
+                val ok = raw != null && state.importBackupJson(raw)
                 snackbarHostState.showSnackbar(
                     if (ok) "导入成功，数据已恢复 ✅" else "导入失败：文件格式不正确"
+                )
+            }
+        }
+    }
+
+    // ---- CSV Export (SAF create document) ----
+    val csvExportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("text/csv")
+    ) { uri ->
+        if (uri != null) {
+            scope.launch {
+                val result = runCatching {
+                    val csvText = state.buildCsvExport()
+                    context.contentResolver.openOutputStream(uri)?.use { out ->
+                        out.write(csvText.toByteArray(Charsets.UTF_8))
+                    } ?: error("stream null")
+                }
+                snackbarHostState.showSnackbar(
+                    result.fold(
+                        onSuccess = { "CSV 表格导出成功 📊" },
+                        onFailure = { "导出 CSV 失败，请重试" },
+                    )
                 )
             }
         }
@@ -182,32 +167,32 @@ fun MiuixSettingsScreen(
                     RadioButtonPreference(
                         title = ThemeStyle.MATERIAL3.label,
                         summary = "当前 MD3 风格（默认）",
-                        selected = themeStyleName == ThemeStyle.MATERIAL3.name,
-                        onClick = { viewModel.setThemeStyle(ThemeStyle.MATERIAL3.name) },
+                        selected = state.themeStyleName == ThemeStyle.MATERIAL3.name,
+                        onClick = { state.setThemeStyle(ThemeStyle.MATERIAL3.name) },
                     )
                     RadioButtonPreference(
                         title = ThemeStyle.MIUIX.label,
                         summary = "小米 HyperOS 风格",
-                        selected = themeStyleName == ThemeStyle.MIUIX.name,
-                        onClick = { viewModel.setThemeStyle(ThemeStyle.MIUIX.name) },
+                        selected = state.themeStyleName == ThemeStyle.MIUIX.name,
+                        onClick = { state.setThemeStyle(ThemeStyle.MIUIX.name) },
                     )
                     OverlayDropdownPreference(
                         title = "深色模式",
                         items = listOf("跟随系统", "浅色", "深色"),
-                        selectedIndex = darkMode.coerceIn(0, 2),
-                        onSelectedIndexChange = { viewModel.setDarkMode(it) },
+                        selectedIndex = state.darkMode.coerceIn(0, 2),
+                        onSelectedIndexChange = { state.setDarkMode(it) },
                     )
                     SwitchPreference(
                         title = "动态取色 (Material You)",
                         summary = "需要 Android 12 及以上，优先于配色方案",
-                        checked = dynamicColor,
-                        onCheckedChange = { viewModel.setDynamicColor(it) },
+                        checked = state.dynamicColor,
+                        onCheckedChange = { state.setDynamicColor(it) },
                     )
                     SwitchPreference(
                         title = "悬浮导航",
                         summary = "关闭后底部导航改为全宽常驻底栏",
-                        checked = floatingNav,
-                        onCheckedChange = { viewModel.setFloatingNav(it) },
+                        checked = state.floatingNav,
+                        onCheckedChange = { state.setFloatingNav(it) },
                     )
                 }
             }
@@ -222,17 +207,17 @@ fun MiuixSettingsScreen(
                     )
                     ArrowPreference(
                         title = "分类管理",
-                        summary = "共 ${categories.size} 个分类",
+                        summary = "共 ${state.categories.size} 个分类",
                         onClick = onOpenCategories,
                     )
                     ArrowPreference(
                         title = "存放位置管理",
-                        summary = "共 ${locations.size} 个位置预设",
+                        summary = "共 ${state.locations.size} 个位置预设",
                         onClick = onOpenLocations,
                     )
                     ArrowPreference(
                         title = "归档历史",
-                        summary = "已归档 ${archived.size} 条，可恢复或彻底删除",
+                        summary = "已归档 ${state.archived.size} 条，可恢复或彻底删除",
                         onClick = onOpenArchive,
                     )
                 }
@@ -242,8 +227,8 @@ fun MiuixSettingsScreen(
                 SmallTitle(text = "备份与数据")
                 Card(modifier = Modifier.padding(12.dp)) {
                     ArrowPreference(
-                        title = "导出备份",
-                        summary = "导出为 JSON 文件，含库存、归档、消耗记录与设置",
+                        title = "导出数据",
+                        summary = "支持导出为 JSON 完整备份或 Excel CSV 表格",
                         startAction = {
                             MiuixIcon(
                                 MiuixIcons.UploadCloud,
@@ -251,11 +236,11 @@ fun MiuixSettingsScreen(
                                 tint = MiuixTheme.colorScheme.primary,
                             )
                         },
-                        onClick = { exportLauncher.launch("吃了么备份_${LocalDate.now()}.json") },
+                        onClick = { state.setShowExportFormatDialog(true) },
                     )
                     ArrowPreference(
-                        title = "导入备份",
-                        summary = "从 JSON 文件整体恢复数据",
+                        title = "恢复数据",
+                        summary = "支持从 JSON 备份文件或本地历史快照恢复",
                         startAction = {
                             MiuixIcon(
                                 MiuixIcons.FileDownloads,
@@ -263,14 +248,14 @@ fun MiuixSettingsScreen(
                                 tint = MiuixTheme.colorScheme.primary,
                             )
                         },
-                        onClick = { importLauncher.launch(arrayOf("application/json", "text/plain", "*/*")) },
+                        onClick = { state.setShowRestoreSourceDialog(true) },
                     )
                     ArrowPreference(
                         title = "坚果云同步",
                         summary = when {
-                            nutstoreAccount.isBlank() -> "未配置，点击设置 WebDAV 账号"
-                            credentialBroken -> "应用密码已失效，请重新填写"
-                            lastSync.isNotBlank() -> lastSync
+                            state.nutstoreAccount.isBlank() -> "未配置，点击设置 WebDAV 账号"
+                            state.credentialBroken -> "应用密码已失效，请重新填写"
+                            state.lastSync.isNotBlank() -> state.lastSync
                             else -> "已配置，尚未同步"
                         },
                         startAction = {
@@ -280,12 +265,12 @@ fun MiuixSettingsScreen(
                                 tint = MiuixTheme.colorScheme.primary,
                             )
                         },
-                        onClick = { showNutstoreDialog = true },
+                        onClick = { state.setShowNutstoreDialog(true) },
                     )
-                    if (nutstoreAccount.isNotBlank()) {
+                    if (state.nutstoreAccount.isNotBlank()) {
                         ArrowPreference(
                             title = "上传到云端",
-                            summary = if (syncing) "正在上传…" else "立即手动上传当前数据",
+                            summary = if (state.syncing) "正在上传…" else "立即手动上传当前数据",
                             startAction = {
                                 MiuixIcon(
                                     MiuixIcons.UploadCloud,
@@ -293,9 +278,9 @@ fun MiuixSettingsScreen(
                                     tint = MiuixTheme.colorScheme.primary,
                                 )
                             },
-                            enabled = !syncing,
+                            enabled = !state.syncing,
                             onClick = {
-                                viewModel.syncUpload { _, msg ->
+                                state.syncUpload { _, msg ->
                                     scope.launch { snackbarHostState.showSnackbar(msg) }
                                 }
                             },
@@ -310,12 +295,12 @@ fun MiuixSettingsScreen(
                                     tint = MiuixTheme.colorScheme.primary,
                                 )
                             },
-                            enabled = !syncing && !loadingBackups,
+                            enabled = !state.syncing && !state.loadingBackups,
                             onClick = {
-                                showBackupPicker = true
-                                viewModel.loadCloudBackups { ok, msg ->
+                                state.setShowBackupPicker(true)
+                                state.loadCloudBackups { ok, msg ->
                                     if (!ok) {
-                                        showBackupPicker = false
+                                        state.setShowBackupPicker(false)
                                         scope.launch { snackbarHostState.showSnackbar(msg) }
                                     }
                                 }
@@ -325,21 +310,21 @@ fun MiuixSettingsScreen(
                     OverlayDropdownPreference(
                         title = "自动同步",
                         items = listOf("关闭", "每天", "3 天", "每周"),
-                        selectedIndex = when (autoSyncDays) {
+                        selectedIndex = when (state.autoSyncDays) {
                             1 -> 1
                             3 -> 2
                             7 -> 3
                             else -> 0
                         },
                         onSelectedIndexChange = { idx ->
-                            viewModel.setAutoSyncDays(listOf(0, 1, 3, 7)[idx])
+                            state.setAutoSyncDays(listOf(0, 1, 3, 7)[idx])
                         },
                     )
                     ArrowPreference(
                         title = "清空库存记录",
-                        summary = "当前共 ${items.size} 条食品记录（不影响归档）",
+                        summary = "当前共 ${state.items.size} 条食品记录（不影响归档）",
                         titleColor = BasicComponentDefaults.titleColor(color = MiuixTheme.colorScheme.error),
-                        onClick = { showClearDialog = true },
+                        onClick = { state.setShowClearDialog(true) },
                     )
                 }
             }
@@ -356,23 +341,26 @@ fun MiuixSettingsScreen(
         }
 
         // ---- 清空库存确认 ----
-        OverlayDialog(
+        MiuixDialog(
             title = "清空库存记录",
-            summary = "确定要删除全部 ${items.size} 条食品记录吗？建议先导出备份。",
-            show = showClearDialog,
-            onDismissRequest = { showClearDialog = false },
+            summary = "确定要删除全部 ${state.items.size} 条食品记录吗？建议先导出备份。",
+            show = state.showClearDialog,
+            onDismissRequest = { state.setShowClearDialog(false) },
         ) {
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(
+                modifier = Modifier.padding(top = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
                 TextButton(
                     text = "取消",
-                    onClick = { showClearDialog = false },
+                    onClick = { state.setShowClearDialog(false) },
                     modifier = Modifier.weight(1f),
                 )
                 TextButton(
                     text = "清空",
                     onClick = {
-                        showClearDialog = false
-                        viewModel.clearAll()
+                        state.setShowClearDialog(false)
+                        state.clearAll()
                     },
                     modifier = Modifier.weight(1f),
                     colors = ButtonDefaults.textButtonColors(textColor = MiuixTheme.colorScheme.error),
@@ -380,11 +368,196 @@ fun MiuixSettingsScreen(
             }
         }
 
+        // ---- 导出格式选择弹窗 ----
+        MiuixDialog(
+            title = "选择导出格式",
+            show = state.showExportFormatDialog,
+            onDismissRequest = { state.setShowExportFormatDialog(false) },
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(16.dp),
+                    color = MiuixTheme.colorScheme.surfaceContainerHigh,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(16.dp))
+                        .clickable {
+                            state.setShowExportFormatDialog(false)
+                            exportLauncher.launch("吃了么备份_${LocalDate.now()}.json")
+                        },
+                ) {
+                    Row(
+                        modifier = Modifier.padding(14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(CircleShape)
+                                .background(MiuixTheme.colorScheme.primaryContainer),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            MiuixIcon(
+                                MiuixIcons.UploadCloud,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp),
+                                tint = MiuixTheme.colorScheme.onPrimaryContainer,
+                            )
+                        }
+                        Spacer(Modifier.width(12.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text("JSON 完整备份", style = MiuixTheme.textStyles.body1, fontWeight = FontWeight.SemiBold)
+                            Text("包含库存、归档、消耗记录与全部设置，适合换机与数据迁移", style = MiuixTheme.textStyles.footnote2, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
+                        }
+                    }
+                }
+                Surface(
+                    shape = RoundedCornerShape(16.dp),
+                    color = MiuixTheme.colorScheme.surfaceContainerHigh,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(16.dp))
+                        .clickable {
+                            state.setShowExportFormatDialog(false)
+                            csvExportLauncher.launch("吃了么库存_${LocalDate.now()}.csv")
+                        },
+                ) {
+                    Row(
+                        modifier = Modifier.padding(14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(CircleShape)
+                                .background(MiuixTheme.colorScheme.primaryContainer),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            MiuixIcon(
+                                MiuixIcons.FileDownloads,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp),
+                                tint = MiuixTheme.colorScheme.onPrimaryContainer,
+                            )
+                        }
+                        Spacer(Modifier.width(12.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text("CSV 数据表格", style = MiuixTheme.textStyles.body1, fontWeight = FontWeight.SemiBold)
+                            Text("表格文件，自带 UTF-8 BOM，支持 Excel、WPS 直接打开查看", style = MiuixTheme.textStyles.footnote2, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
+                        }
+                    }
+                }
+                TextButton(
+                    text = "取消",
+                    onClick = { state.setShowExportFormatDialog(false) },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        }
+
+        // ---- 恢复来源选择弹窗 ----
+        MiuixDialog(
+            title = "选择恢复来源",
+            show = state.showRestoreSourceDialog,
+            onDismissRequest = { state.setShowRestoreSourceDialog(false) },
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(16.dp),
+                    color = MiuixTheme.colorScheme.surfaceContainerHigh,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(16.dp))
+                        .clickable {
+                            state.setShowRestoreSourceDialog(false)
+                            importLauncher.launch(arrayOf("application/json", "text/plain", "*/*"))
+                        },
+                ) {
+                    Row(
+                        modifier = Modifier.padding(14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(CircleShape)
+                                .background(MiuixTheme.colorScheme.primaryContainer),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            MiuixIcon(
+                                MiuixIcons.FileDownloads,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp),
+                                tint = MiuixTheme.colorScheme.onPrimaryContainer,
+                            )
+                        }
+                        Spacer(Modifier.width(12.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text("从 JSON 文件导入", style = MiuixTheme.textStyles.body1, fontWeight = FontWeight.SemiBold)
+                            Text("从手机存储选取 .json 备份文件进行整体恢复", style = MiuixTheme.textStyles.footnote2, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
+                        }
+                    }
+                }
+                Surface(
+                    shape = RoundedCornerShape(16.dp),
+                    color = MiuixTheme.colorScheme.surfaceContainerHigh,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(16.dp))
+                        .clickable {
+                            state.setShowRestoreSourceDialog(false)
+                            state.loadLocalSnapshots()
+                            state.setShowSnapshotPicker(true)
+                        },
+                ) {
+                    Row(
+                        modifier = Modifier.padding(14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(CircleShape)
+                                .background(MiuixTheme.colorScheme.primaryContainer),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            MiuixIcon(
+                                MiuixIcons.Download,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp),
+                                tint = MiuixTheme.colorScheme.onPrimaryContainer,
+                            )
+                        }
+                        Spacer(Modifier.width(12.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text("从本地历史快照恢复", style = MiuixTheme.textStyles.body1, fontWeight = FontWeight.SemiBold)
+                            Text("系统自动滚动保留的最近 3 份本地冷备快照", style = MiuixTheme.textStyles.footnote2, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
+                        }
+                    }
+                }
+                TextButton(
+                    text = "取消",
+                    onClick = { state.setShowRestoreSourceDialog(false) },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        }
+
         // ---- 坚果云账号配置 ----
-        OverlayDialog(
+        MiuixDialog(
             title = "坚果云账号",
-            show = showNutstoreDialog,
-            onDismissRequest = { showNutstoreDialog = false },
+            show = state.showNutstoreDialog,
+            onDismissRequest = { state.setShowNutstoreDialog(false) },
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(
@@ -393,16 +566,16 @@ fun MiuixSettingsScreen(
                     color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                 )
                 OutlinedTextField(
-                    value = accountInput,
-                    onValueChange = { accountInput = it },
+                    value = state.accountInput,
+                    onValueChange = { state.setAccountInput(it) },
                     label = { Text("账号（邮箱）") },
                     singleLine = true,
                     shape = RoundedCornerShape(16.dp),
                     modifier = Modifier.fillMaxWidth(),
                 )
                 OutlinedTextField(
-                    value = passwordInput,
-                    onValueChange = { passwordInput = it },
+                    value = state.passwordInput,
+                    onValueChange = { state.setPasswordInput(it) },
                     label = { Text("应用密码") },
                     singleLine = true,
                     visualTransformation = PasswordVisualTransformation(),
@@ -415,14 +588,14 @@ fun MiuixSettingsScreen(
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     TextButton(
                         text = "取消",
-                        onClick = { showNutstoreDialog = false },
+                        onClick = { state.setShowNutstoreDialog(false) },
                         modifier = Modifier.weight(1f),
                     )
                     TextButton(
                         text = "保存",
                         onClick = {
-                            viewModel.saveNutstoreCredentials(accountInput, passwordInput)
-                            showNutstoreDialog = false
+                            state.saveNutstoreCredentials(state.accountInput, state.passwordInput)
+                            state.setShowNutstoreDialog(false)
                             scope.launch { snackbarHostState.showSnackbar("坚果云账号已保存") }
                         },
                         modifier = Modifier.weight(1f),
@@ -432,89 +605,274 @@ fun MiuixSettingsScreen(
         }
 
         // ---- 云端备份选择（恢复哪一份） ----
-        OverlayDialog(
+        MiuixDialog(
             title = "选择要恢复的备份",
-            show = showBackupPicker,
-            onDismissRequest = { if (!loadingBackups) showBackupPicker = false },
+            show = state.showBackupPicker,
+            onDismissRequest = { if (!state.loadingBackups) state.setShowBackupPicker(false) },
         ) {
-            if (loadingBackups) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 16.dp),
-                    horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text("正在获取云端备份列表…", style = MiuixTheme.textStyles.body2)
-                }
-            } else {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(
-                        "云端共 ${cloudBackups.size} 份备份，新的在前：",
-                        style = MiuixTheme.textStyles.footnote2,
-                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                    )
-                    cloudBackups.forEachIndexed { index, backup ->
-                        Surface(
-                            onClick = {
-                                showBackupPicker = false
-                                restoreCandidate = backup
-                            },
-                            shape = RoundedCornerShape(16.dp),
-                            color = if (index == 0) MiuixTheme.colorScheme.primaryContainer
-                            else MiuixTheme.colorScheme.surfaceContainerHigh,
-                            modifier = Modifier.fillMaxWidth(),
-                        ) {
-                            Column(
-                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                if (state.loadingBackups) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 24.dp),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            "正在获取云端备份列表…",
+                            style = MiuixTheme.textStyles.body2,
+                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                        )
+                    }
+                } else {
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Text(
+                            "云端共 ${state.cloudBackups.size} 份备份，点击选择恢复：",
+                            style = MiuixTheme.textStyles.footnote2,
+                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                        )
+                        state.cloudBackups.forEachIndexed { index, backup ->
+                            val isLatest = index == 0 && !backup.isLegacy
+                            Surface(
+                                shape = RoundedCornerShape(16.dp),
+                                color = if (isLatest) MiuixTheme.colorScheme.surfaceContainerHighest
+                                else MiuixTheme.colorScheme.surfaceContainerHigh,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(16.dp))
+                                    .clickable {
+                                        state.setShowBackupPicker(false)
+                                        state.setRestoreCandidate(backup)
+                                    },
                             ) {
-                                Text(
-                                    backup.displayTime,
-                                    style = MiuixTheme.textStyles.body2,
-                                    fontWeight = FontWeight.Medium,
-                                )
-                                Text(
-                                    (if (index == 0 && !backup.isLegacy) "最新 · " else "") + backup.displaySize,
-                                    style = MiuixTheme.textStyles.footnote2,
-                                    color = if (index == 0) MiuixTheme.colorScheme.onPrimaryContainer
-                                    else MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                                )
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(36.dp)
+                                            .clip(CircleShape)
+                                            .background(
+                                                if (isLatest) MiuixTheme.colorScheme.primaryContainer
+                                                else MiuixTheme.colorScheme.secondaryContainer
+                                            ),
+                                        contentAlignment = Alignment.Center,
+                                    ) {
+                                        MiuixIcon(
+                                            if (isLatest) MiuixIcons.CloudFill else MiuixIcons.Download,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(18.dp),
+                                            tint = if (isLatest) MiuixTheme.colorScheme.onPrimaryContainer
+                                            else MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                                        )
+                                    }
+                                    Spacer(Modifier.width(12.dp))
+                                    Column(Modifier.weight(1f)) {
+                                        Text(
+                                            backup.displayTime,
+                                            style = MiuixTheme.textStyles.body1,
+                                            fontWeight = FontWeight.Medium,
+                                            color = MiuixTheme.colorScheme.onSurface,
+                                        )
+                                        Spacer(Modifier.height(2.dp))
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                        ) {
+                                            if (isLatest) {
+                                                Surface(
+                                                    shape = RoundedCornerShape(50),
+                                                    color = MiuixTheme.colorScheme.primary.copy(alpha = 0.12f),
+                                                ) {
+                                                    Text(
+                                                        "最新",
+                                                        style = MiuixTheme.textStyles.footnote2,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = MiuixTheme.colorScheme.primary,
+                                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp),
+                                                    )
+                                                }
+                                            }
+                                            Text(
+                                                backup.displaySize,
+                                                style = MiuixTheme.textStyles.footnote2,
+                                                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                                            )
+                                        }
+                                    }
+                                    Spacer(Modifier.width(8.dp))
+                                    MiuixIcon(
+                                        MiuixIcons.Forward,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(16.dp),
+                                        tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                                    )
+                                }
                             }
                         }
                     }
                 }
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+
+                // 底部取消按钮，与上方列表保持 16dp 间距，不重叠
                 TextButton(
                     text = "取消",
-                    onClick = { showBackupPicker = false },
+                    onClick = { state.setShowBackupPicker(false) },
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
         }
 
         // ---- 恢复二次确认 ----
-        OverlayDialog(
+        MiuixDialog(
             title = "确认恢复",
-            summary = restoreCandidate?.let {
+            summary = state.restoreCandidate?.let {
                 "将恢复备份：\n${it.displayTime}\n\n此操作会整体替换本机全部数据（库存、归档、消耗记录和设置）。确定继续吗？"
-            },
-            show = restoreCandidate != null,
-            onDismissRequest = { restoreCandidate = null },
+            }.orEmpty(),
+            show = state.restoreCandidate != null,
+            onDismissRequest = { state.setRestoreCandidate(null) },
         ) {
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(
+                modifier = Modifier.padding(top = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
                 TextButton(
                     text = "取消",
-                    onClick = { restoreCandidate = null },
+                    onClick = { state.setRestoreCandidate(null) },
                     modifier = Modifier.weight(1f),
                 )
                 TextButton(
                     text = "恢复这一份",
                     onClick = {
-                        val fileName = restoreCandidate?.fileName
-                        restoreCandidate = null
+                        val fileName = state.restoreCandidate?.fileName
+                        state.setRestoreCandidate(null)
                         if (fileName != null) {
-                            viewModel.syncDownload(fileName) { _, msg ->
+                            state.syncDownload(fileName) { _, msg ->
+                                scope.launch { snackbarHostState.showSnackbar(msg) }
+                            }
+                        }
+                    },
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.textButtonColors(textColor = MiuixTheme.colorScheme.error),
+                )
+            }
+        }
+
+        // ---- 本地快照列表弹窗 ----
+        MiuixDialog(
+            title = "本地历史快照",
+            summary = "系统自动滚动保留最近 3 份冷备快照，点击可还原：",
+            show = state.showSnapshotPicker,
+            onDismissRequest = { state.setShowSnapshotPicker(false) },
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                if (state.localSnapshots.isEmpty()) {
+                    Text(
+                        "暂无本地快照，系统会在每天首次启动时自动备份。",
+                        style = MiuixTheme.textStyles.body2,
+                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                        modifier = Modifier.padding(vertical = 12.dp),
+                    )
+                } else {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        state.localSnapshots.forEach { snapshot ->
+                            Surface(
+                                shape = RoundedCornerShape(16.dp),
+                                color = MiuixTheme.colorScheme.surfaceContainerHigh,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(16.dp))
+                                    .clickable {
+                                        state.setRestoreSnapshotCandidate(snapshot)
+                                    },
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(36.dp)
+                                            .clip(CircleShape)
+                                            .background(MiuixTheme.colorScheme.primaryContainer),
+                                        contentAlignment = Alignment.Center,
+                                    ) {
+                                        MiuixIcon(
+                                            MiuixIcons.Download,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(18.dp),
+                                            tint = MiuixTheme.colorScheme.onPrimaryContainer,
+                                        )
+                                    }
+                                    Spacer(Modifier.width(12.dp))
+                                    Column(Modifier.weight(1f)) {
+                                        Text(
+                                            snapshot.displayTime,
+                                            style = MiuixTheme.textStyles.body1,
+                                            fontWeight = FontWeight.SemiBold,
+                                        )
+                                        Text(
+                                            "包含 ${snapshot.itemCount} 项资产 · ${snapshot.displaySize}",
+                                            style = MiuixTheme.textStyles.footnote2,
+                                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                                        )
+                                    }
+                                    Spacer(Modifier.width(8.dp))
+                                    MiuixIcon(
+                                        MiuixIcons.Forward,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(16.dp),
+                                        tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                TextButton(
+                    text = "关闭",
+                    onClick = { state.setShowSnapshotPicker(false) },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        }
+
+        // ---- 本地快照还原二次确认 ----
+        MiuixDialog(
+            title = "确认从快照还原",
+            summary = state.restoreSnapshotCandidate?.let {
+                "将从本地快照还原数据：\n${it.displayTime}\n\n此操作会整体替换当前全部数据（库存、归档、消耗记录与设置）。确定继续吗？"
+            }.orEmpty(),
+            show = state.restoreSnapshotCandidate != null,
+            onDismissRequest = { state.setRestoreSnapshotCandidate(null) },
+        ) {
+            Row(
+                modifier = Modifier.padding(top = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                TextButton(
+                    text = "取消",
+                    onClick = { state.setRestoreSnapshotCandidate(null) },
+                    modifier = Modifier.weight(1f),
+                )
+                TextButton(
+                    text = "确定还原",
+                    onClick = {
+                        val fileName = state.restoreSnapshotCandidate?.fileName
+                        state.setRestoreSnapshotCandidate(null)
+                        state.setShowSnapshotPicker(false)
+                        if (fileName != null) {
+                            state.restoreLocalSnapshot(fileName) { _, msg ->
                                 scope.launch { snackbarHostState.showSnackbar(msg) }
                             }
                         }

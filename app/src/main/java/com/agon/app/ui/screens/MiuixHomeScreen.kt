@@ -1,5 +1,11 @@
 package com.agon.app.ui.screens
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -17,13 +23,13 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.CleaningServices
 import androidx.compose.material.icons.rounded.Inventory2
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
@@ -33,12 +39,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.agon.app.data.FoodItem
 import com.agon.app.data.FoodStatus
 import com.agon.app.data.byId
 import com.agon.app.data.cnDay
-import com.agon.app.data.daysLeftAt
 import com.agon.app.data.remainingTextAt
 import com.agon.app.data.statusForAt
 import com.agon.app.ui.components.DataCorruptBanner
@@ -46,7 +50,7 @@ import com.agon.app.ui.components.EmptyState
 import com.agon.app.ui.components.FoodAvatar
 import com.agon.app.ui.components.StatusBadge
 import com.agon.app.ui.components.rememberStatusUi
-import com.agon.app.ui.theme.LocalToday
+import com.agon.app.ui.components.showUndoSnackbar
 import com.agon.app.viewmodel.AppViewModel
 import kotlinx.coroutines.launch
 import java.time.LocalDate
@@ -57,6 +61,7 @@ import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SnackbarHost
 import top.yukonga.miuix.kmp.basic.SnackbarHostState
+import top.yukonga.miuix.kmp.basic.SnackbarResult as MiuixSnackbarResult
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.icon.MiuixIcons
@@ -76,32 +81,20 @@ fun MiuixHomeScreen(
     onOpenList: (String?) -> Unit,
     onOpenItem: (String) -> Unit,
 ) {
-    val items by viewModel.items.collectAsStateWithLifecycle()
-    val corruptedKeys by viewModel.corruptedKeys.collectAsStateWithLifecycle()
-    val thresholds by viewModel.thresholds.collectAsStateWithLifecycle()
-    val categories by viewModel.categories.collectAsStateWithLifecycle()
+    val state = rememberHomeUiState(viewModel)
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
 
     // 启动自动同步完成后提示一次
-    val autoSyncMessage by viewModel.autoSyncMessage.collectAsStateWithLifecycle()
-    LaunchedEffect(autoSyncMessage) {
-        autoSyncMessage?.let {
+    LaunchedEffect(state.autoSyncMessage) {
+        state.autoSyncMessage?.let {
             snackbarHostState.showSnackbar(it)
-            viewModel.consumeAutoSyncMessage()
+            state.consumeAutoSyncMessage()
         }
     }
 
-    val total = items.size
-    val today = LocalToday.current
-    val expiring = items.count { it.statusForAt(today, thresholds) == FoodStatus.EXPIRING }
-    val expired = items.count { it.statusForAt(today, thresholds) == FoodStatus.EXPIRED }
-    val urgent = remember(items, thresholds, today) {
-        items.filter { it.statusForAt(today, thresholds) != FoodStatus.SAFE }.sortedBy { it.daysLeftAt(today) }
-    }
-
     Scaffold(
-        topBar = { TopAppBar(title = "吃了么", subtitle = LocalDate.now().cnDay()) },
+        topBar = { TopAppBar(title = "吃了么", subtitle = state.today.cnDay()) },
         snackbarHost = {
             // 上移避免被悬浮导航栏遮挡
             SnackbarHost(snackbarHostState, modifier = Modifier.padding(bottom = 84.dp))
@@ -118,15 +111,15 @@ fun MiuixHomeScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             // 数据损坏告警：置顶且不可忽略，此时写入已被仓库层拒绝
-            if (corruptedKeys.isNotEmpty()) {
-                item(key = "corrupt-banner") { DataCorruptBanner(corruptedKeys) }
+            if (state.corruptedKeys.isNotEmpty()) {
+                item(key = "corrupt-banner") { DataCorruptBanner(state.corruptedKeys) }
             }
             item {
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     StatCard(
                         modifier = Modifier.weight(1f),
                         emoji = "🧺",
-                        value = total,
+                        value = state.total,
                         label = "食品总数",
                         container = MiuixTheme.colorScheme.primaryContainer,
                         content = MiuixTheme.colorScheme.onPrimaryContainer,
@@ -135,7 +128,7 @@ fun MiuixHomeScreen(
                     StatCard(
                         modifier = Modifier.weight(1f),
                         emoji = "⏳",
-                        value = expiring,
+                        value = state.expiring,
                         label = "即将过期",
                         container = MiuixTheme.colorScheme.secondaryContainer,
                         content = MiuixTheme.colorScheme.onSecondaryContainer,
@@ -144,7 +137,7 @@ fun MiuixHomeScreen(
                     StatCard(
                         modifier = Modifier.weight(1f),
                         emoji = "⚠️",
-                        value = expired,
+                        value = state.expired,
                         label = "已过期",
                         container = MiuixTheme.colorScheme.errorContainer,
                         content = MiuixTheme.colorScheme.onErrorContainer,
@@ -154,17 +147,25 @@ fun MiuixHomeScreen(
             }
 
             item {
-                FreshnessBanner(total = total, expiring = expiring, expired = expired)
+                FreshnessBanner(total = state.total, expiring = state.expiring, expired = state.expired)
             }
 
-            if (expired > 0) {
-                item {
+            item(key = "clean_expired_btn") {
+                AnimatedVisibility(
+                    visible = state.expired > 0,
+                    enter = expandVertically(tween(300)) + fadeIn(tween(200)),
+                    exit = shrinkVertically(tween(300)) + fadeOut(tween(200)),
+                ) {
                     Button(
                         onClick = {
-                            val count = expired
-                            viewModel.cleanExpired()
-                            scope.launch {
-                                snackbarHostState.showSnackbar("已将 $count 件过期食品移入归档")
+                            val count = state.expired
+                            state.cleanExpired { cleanedIds ->
+                                scope.launch {
+                                    val result = snackbarHostState.showUndoSnackbar("已将 $count 件过期食品移入归档")
+                                    if (result == MiuixSnackbarResult.ActionPerformed) {
+                                        state.restoreArchivedBatch(cleanedIds)
+                                    }
+                                }
                             }
                         },
                         modifier = Modifier.fillMaxWidth(),
@@ -177,7 +178,7 @@ fun MiuixHomeScreen(
                             tint = MiuixTheme.colorScheme.onPrimary,
                         )
                         Spacer(Modifier.width(8.dp))
-                        Text("一键清理 $expired 件过期食品", fontWeight = FontWeight.SemiBold)
+                        Text("一键清理 ${state.expired} 件过期食品", fontWeight = FontWeight.SemiBold)
                     }
                 }
             }
@@ -197,7 +198,7 @@ fun MiuixHomeScreen(
                     )
                     Row(
                         modifier = Modifier
-                            .clip(androidx.compose.foundation.shape.RoundedCornerShape(50))
+                            .clip(RoundedCornerShape(50))
                             .clickable { onOpenList(null) }
                             .padding(horizontal = 10.dp, vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically,
@@ -218,7 +219,7 @@ fun MiuixHomeScreen(
                 }
             }
 
-            if (urgent.isEmpty()) {
+            if (state.urgent.isEmpty()) {
                 item {
                     EmptyState(
                         emoji = "🎉",
@@ -227,12 +228,14 @@ fun MiuixHomeScreen(
                     )
                 }
             } else {
-                items(urgent, key = { it.id }) { item ->
+                items(state.urgent, key = { it.id }) { item ->
                     UrgentRow(
                         item = item,
-                        emoji = categories.byId(item.category).emoji,
-                        status = item.statusForAt(LocalToday.current, thresholds),
+                        emoji = state.categories.byId(item.category).emoji,
+                        status = item.statusForAt(state.today, state.thresholds),
+                        today = state.today,
                         onClick = { onOpenItem(item.id) },
+                        modifier = Modifier.animateItem(),
                     )
                 }
             }
@@ -281,13 +284,13 @@ private fun FreshnessBanner(total: Int, expiring: Int, expired: Int) {
                 modifier = Modifier
                     .size(44.dp)
                     .clip(CircleShape)
-                    .background(MiuixTheme.colorScheme.tertiaryContainer),
+                    .background(MiuixTheme.colorScheme.primaryContainer),
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
                     Icons.Rounded.Inventory2,
                     contentDescription = null,
-                    tint = MiuixTheme.colorScheme.onTertiaryContainer,
+                    tint = MiuixTheme.colorScheme.onPrimaryContainer,
                 )
             }
             Spacer(Modifier.width(12.dp))
@@ -308,9 +311,19 @@ private fun FreshnessBanner(total: Int, expiring: Int, expired: Int) {
 }
 
 @Composable
-private fun UrgentRow(item: FoodItem, emoji: String, status: FoodStatus, onClick: () -> Unit) {
+private fun UrgentRow(
+    item: FoodItem,
+    emoji: String,
+    status: FoodStatus,
+    today: LocalDate,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val ui = rememberStatusUi(status)
-    Card(onClick = onClick) {
+    Card(
+        onClick = onClick,
+        modifier = modifier.fillMaxWidth(),
+    ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -326,7 +339,7 @@ private fun UrgentRow(item: FoodItem, emoji: String, status: FoodStatus, onClick
                     fontWeight = FontWeight.SemiBold,
                 )
                 Text(
-                    "${item.remainingTextAt(LocalToday.current)} · ${item.quantity} ${item.unit}",
+                    "${item.remainingTextAt(today)} · ${item.quantity} ${item.unit}",
                     style = MiuixTheme.textStyles.footnote2,
                     color = ui.content,
                 )

@@ -1,9 +1,9 @@
 import java.util.Properties
 
 plugins {
-    id("com.android.application")
-    id("org.jetbrains.kotlin.plugin.compose")
-    id("org.jetbrains.kotlin.plugin.serialization")
+    alias(libs.plugins.android.application)
+    alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.kotlin.serialization)
 }
 
 // ---- Release 签名凭据 ----
@@ -169,42 +169,42 @@ kotlin {
 
 dependencies {
     // 纯 JVM 单测：不需要模拟器，./gradlew testDebugUnitTest 秒级跑完。
-    testImplementation("junit:junit:4.13.2")
+    testImplementation(libs.junit)
 
-    implementation(platform("androidx.compose:compose-bom:2026.01.01"))
-    implementation("androidx.compose.ui:ui")
-    implementation("androidx.compose.ui:ui-graphics")
-    implementation("androidx.compose.material3:material3")
-    implementation("androidx.compose.material:material-icons-extended")
-    implementation("androidx.compose.ui:ui-tooling-preview")
+    implementation(platform(libs.androidx.compose.bom))
+    implementation(libs.androidx.compose.ui)
+    implementation(libs.androidx.compose.ui.graphics)
+    implementation(libs.androidx.compose.material3)
+    implementation(libs.androidx.compose.material.icons.extended)
+    implementation(libs.androidx.compose.ui.tooling.preview)
 
-    implementation("androidx.activity:activity-compose:1.12.2")
-    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.10.0")
-    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.10.0")
+    implementation(libs.androidx.activity.compose)
+    implementation(libs.androidx.lifecycle.viewmodel.compose)
+    implementation(libs.androidx.lifecycle.runtime.compose)
 
     // 二级页路由与预测性返回：纯 Android 模块用 -android 坐标（含 rememberNavSystemCornerRadius actual）。
-    implementation("top.yukonga.miuix.kmp:miuix-nav-android:0.9.4-rc01")
+    implementation(libs.miuix.nav.android)
 
-    implementation("androidx.core:core-ktx:1.15.0")
-    implementation("androidx.core:core-splashscreen:1.0.1")
+    implementation(libs.androidx.core.ktx)
+    implementation(libs.androidx.core.splashscreen)
 
-    implementation("io.coil-kt.coil3:coil-compose:3.3.0")
-    implementation("io.coil-kt.coil3:coil-network-okhttp:3.3.0")
+    implementation(libs.coil.compose)
+    implementation(libs.coil.network.okhttp)
 
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.11.0")
+    implementation(libs.kotlinx.serialization.json)
 
-    implementation("androidx.datastore:datastore-preferences:1.2.0")
+    implementation(libs.androidx.datastore.preferences)
 
     // Miuix（HyperOS 风格 Compose 组件库），版本对齐 skill 基线 v0.9.4-rc01。
     // 使用 common 坐标，Gradle Module Metadata 会自动解析到 android 变体。
-    implementation("top.yukonga.miuix.kmp:miuix-ui:0.9.4-rc01")
-    implementation("top.yukonga.miuix.kmp:miuix-preference:0.9.4-rc01")
+    implementation(libs.miuix.ui)
+    implementation(libs.miuix.preference)
     // 图标库：仅 MIUIX 主题使用（MD3 主题继续用 material-icons-extended）。
-    implementation("top.yukonga.miuix.kmp:miuix-icons:0.9.4-rc01")
+    implementation(libs.miuix.icons)
 
-    implementation("com.materialkolor:material-kolor:4.0.1")
+    implementation(libs.material.kolor)
 
-    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation(libs.okhttp)
 
-    debugImplementation("androidx.compose.ui:ui-tooling")
+    debugImplementation(libs.androidx.compose.ui.tooling)
 }

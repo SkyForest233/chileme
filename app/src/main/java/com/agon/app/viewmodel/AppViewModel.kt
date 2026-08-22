@@ -13,13 +13,17 @@ import com.agon.app.data.FoodItem
 import com.agon.app.data.FoodRepository
 import com.agon.app.data.HistoryEntry
 import com.agon.app.data.CloudBackup
+import com.agon.app.data.LocalSnapshot
+import com.agon.app.data.LocalSnapshotStore
 import com.agon.app.data.NutstoreSync
 import com.agon.app.data.QuantityChangeResult
 import com.agon.app.data.cleanupOrphanCovers
 import com.agon.app.data.daysLeft
 import com.agon.app.data.toHistoryEntry
 import kotlinx.coroutines.flow.first
+import java.time.Instant
 import java.time.LocalDate
+import java.time.ZoneId
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -165,6 +169,21 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         _deletedConsumption.value = null
     }
 
+    /** 恢复归档后的「撤销」状态（用于列表页搜索归档恢复等场景弹撤销条） */
+    data class RestoredArchivedEvent(val item: FoodItem, val reason: ArchiveReason, val merged: Boolean)
+
+    private val _restoredArchivedEvent = MutableStateFlow<RestoredArchivedEvent?>(null)
+    val restoredArchivedEvent: StateFlow<RestoredArchivedEvent?> = _restoredArchivedEvent.asStateFlow()
+
+    fun consumeRestoredArchivedEvent() {
+        _restoredArchivedEvent.value = null
+    }
+
+    fun restoreArchivedWithUndo(entry: ArchivedItem) = viewModelScope.launch {
+        val merged = repo.restoreArchived(entry.item.id)
+        _restoredArchivedEvent.value = RestoredArchivedEvent(entry.item, entry.reason, merged)
+    }
+
     /** 删除单条消耗记录（修正统计），并记下原位置供撤销插回。 */
     fun deleteConsumption(record: ConsumptionRecord) = viewModelScope.launch {
         val sorted = consumption.value.sortedByDescending { it.epochDay }
@@ -200,6 +219,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             cleanupOrphanCovers(getApplication(), referenced)
             // 自动同步：到期且凭据完整时静默上传
             maybeAutoSync()
+            // 本地滚动冷备：若今日尚无快照则静默保存一份
+            maybeAutoSnapshot()
         }
     }
 
@@ -234,6 +255,21 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         // 失败静默忽略，下次启动重试；不打扰用户
     }
 
+    private suspend fun maybeAutoSnapshot() {
+        val snapshots = LocalSnapshotStore.listSnapshots(getApplication())
+        val today = LocalDate.now()
+        val hasSnapshotToday = snapshots.any {
+            Instant.ofEpochMilli(it.modifiedEpochMillis)
+                .atZone(ZoneId.systemDefault())
+                .toLocalDate() == today
+        }
+        if (!hasSnapshotToday) {
+            val json = runCatching { repo.buildBackupJson() }.getOrNull() ?: return
+            LocalSnapshotStore.saveSnapshot(getApplication(), json)
+            loadLocalSnapshots()
+        }
+    }
+
     fun setAutoSyncDays(days: Int) = viewModelScope.launch { repo.setAutoSyncDays(days) }
 
     fun upsert(item: FoodItem) = viewModelScope.launch { repo.upsert(item) }
@@ -253,9 +289,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         onDone(repo.restoreArchived(id))
     }
 
-    fun cleanExpired() = viewModelScope.launch {
+    fun cleanExpired(onDone: ((Set<String>) -> Unit)? = null) = viewModelScope.launch {
         val ids = items.value.filter { it.daysLeft < 0 }.map { it.id }.toSet()
-        repo.archiveItems(ids, ArchiveReason.EXPIRED)
+        if (ids.isNotEmpty()) {
+            repo.archiveItems(ids, ArchiveReason.EXPIRED)
+            onDone?.invoke(ids)
+        }
     }
 
     fun restoreArchived(id: String) = viewModelScope.launch { repo.restoreArchived(id) }
@@ -330,9 +369,45 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setFloatingNav(enabled: Boolean) = viewModelScope.launch { repo.setFloatingNav(enabled) }
 
+    fun updateLocationBatch(ids: Set<String>, newLocation: String) = viewModelScope.launch {
+        repo.updateLocationBatch(ids, newLocation)
+    }
+
     suspend fun buildBackupJson(): String = repo.buildBackupJson()
 
+    suspend fun buildCsvExport(): String = repo.buildCsvExport()
+
     suspend fun importBackupJson(raw: String): Boolean = repo.importBackupJson(raw)
+
+    // ---- 本地快照管理 ----
+
+    private val _localSnapshots = MutableStateFlow<List<LocalSnapshot>>(emptyList())
+    val localSnapshots: StateFlow<List<LocalSnapshot>> = _localSnapshots.asStateFlow()
+
+    fun loadLocalSnapshots() {
+        _localSnapshots.value = LocalSnapshotStore.listSnapshots(getApplication())
+    }
+
+    fun saveLocalSnapshot(onDone: ((Boolean) -> Unit)? = null) = viewModelScope.launch {
+        val json = runCatching { repo.buildBackupJson() }.getOrNull()
+        if (json != null) {
+            LocalSnapshotStore.saveSnapshot(getApplication(), json)
+            loadLocalSnapshots()
+            onDone?.invoke(true)
+        } else {
+            onDone?.invoke(false)
+        }
+    }
+
+    fun restoreLocalSnapshot(fileName: String, onResult: (Boolean, String) -> Unit) = viewModelScope.launch {
+        val raw = LocalSnapshotStore.readSnapshot(getApplication(), fileName)
+        if (raw != null && repo.importBackupJson(raw)) {
+            loadLocalSnapshots()
+            onResult(true, "已成功从本地快照还原数据 ✅")
+        } else {
+            onResult(false, "快照文件损坏或无法还原")
+        }
+    }
 
     // ---- 坚果云同步 ----
 

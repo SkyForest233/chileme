@@ -46,17 +46,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.agon.app.data.ArchiveReason
 import com.agon.app.data.CategoryDef
 import com.agon.app.data.byId
 import com.agon.app.ui.components.EmptyState
 import com.agon.app.ui.components.ExpiryCalendarCard
 import com.agon.app.ui.theme.MotionEasing
 import com.agon.app.viewmodel.AppViewModel
-import java.time.LocalDate
 
-// \u53c2\u8003\u8bbe\u8ba1\uff1a\u5355\u8272\u7cfb\u6df1\u6d45\u7eff\u9636\u68af + \u5c11\u91cf\u84dd\u8272\u70b9\u7f00\uff0c\u4fdd\u6301\u6574\u4f53\u8584\u8377\u7eff\u6c1b\u56f4
 /**
  * 图表调色板：全部取自 MaterialTheme.colorScheme 语义角色，
  * 随主题种子色 / 动态取色 / 深浅色自动适配，不硬编码 hex。
@@ -85,53 +81,7 @@ fun StatsScreen(
     onOpenItem: (String) -> Unit = {},
     onOpenConsumption: () -> Unit = {},
 ) {
-    val items by viewModel.items.collectAsStateWithLifecycle()
-    val consumption by viewModel.consumption.collectAsStateWithLifecycle()
-    val archived by viewModel.archived.collectAsStateWithLifecycle()
-    val categories by viewModel.categories.collectAsStateWithLifecycle()
-    val thresholds by viewModel.thresholds.collectAsStateWithLifecycle()
-
-    val today = LocalDate.now().toEpochDay()
-    val weekAgo = today - 6
-    val monthStart = LocalDate.now().withDayOfMonth(1).toEpochDay()
-
-    val consumedThisWeek = remember(consumption, weekAgo) {
-        consumption.filter { it.epochDay >= weekAgo }.sumOf { it.amount }
-    }
-    val consumedThisMonth = remember(consumption, monthStart) {
-        consumption.filter { it.epochDay >= monthStart }.sumOf { it.amount }
-    }
-    val wastedTotal = archived.count { it.reason == ArchiveReason.EXPIRED }
-
-    // Last 7 days consumption trend
-    val dailyTrend = remember(consumption) {
-        (0..6).map { offset ->
-            val day = today - (6 - offset)
-            val amount = consumption.filter { it.epochDay == day }.sumOf { it.amount }
-            LocalDate.ofEpochDay(day) to amount
-        }
-    }
-    val maxDaily = (dailyTrend.maxOfOrNull { it.second } ?: 0).coerceAtLeast(1)
-
-    // Category share of current inventory (by quantity)
-    val categoryShare = remember(items) {
-        items.groupBy { it.category }
-            .mapValues { (_, list) -> list.sumOf { it.quantity } }
-            .filterValues { it > 0 }
-            .toList()
-            .sortedByDescending { it.second }
-    }
-    val totalQty = categoryShare.sumOf { it.second }
-
-    // Top consumed foods
-    val topConsumed = remember(consumption) {
-        consumption.groupBy { it.name }
-            .map { (name, records) ->
-                Triple(name, records.first().category, records.sumOf { it.amount })
-            }
-            .sortedByDescending { it.third }
-            .take(5)
-    }
+    val state = rememberStatsUiState(viewModel)
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -168,7 +118,7 @@ fun StatsScreen(
                     MiniStat(
                         modifier = Modifier.weight(1f),
                         emoji = "😋",
-                        value = "$consumedThisWeek",
+                        value = "${state.consumedThisWeek}",
                         label = "本周消耗",
                         container = MaterialTheme.colorScheme.primaryContainer,
                         content = MaterialTheme.colorScheme.onPrimaryContainer,
@@ -176,7 +126,7 @@ fun StatsScreen(
                     MiniStat(
                         modifier = Modifier.weight(1f),
                         emoji = "📅",
-                        value = "$consumedThisMonth",
+                        value = "${state.consumedThisMonth}",
                         label = "本月消耗",
                         container = MaterialTheme.colorScheme.secondaryContainer,
                         content = MaterialTheme.colorScheme.onSecondaryContainer,
@@ -184,7 +134,7 @@ fun StatsScreen(
                     MiniStat(
                         modifier = Modifier.weight(1f),
                         emoji = "🗑️",
-                        value = "$wastedTotal",
+                        value = "${state.wastedTotal}",
                         label = "过期浪费",
                         container = MaterialTheme.colorScheme.errorContainer,
                         content = MaterialTheme.colorScheme.onErrorContainer,
@@ -195,9 +145,9 @@ fun StatsScreen(
             // ---- 到期日历（带紧急度彩色圆点 + 左右滑动切换月份）----
             item {
                 ExpiryCalendarCard(
-                    items = items,
-                    thresholds = thresholds,
-                    categories = categories,
+                    items = state.items,
+                    thresholds = state.thresholds,
+                    categories = state.categories,
                     onOpenItem = onOpenItem,
                 )
             }
@@ -223,7 +173,7 @@ fun StatsScreen(
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                             verticalAlignment = Alignment.Bottom,
                         ) {
-                            dailyTrend.forEach { (date, amount) ->
+                            state.dailyTrend.forEach { (date, amount) ->
                                 Column(
                                     modifier = Modifier.weight(1f),
                                     horizontalAlignment = Alignment.CenterHorizontally,
@@ -237,13 +187,12 @@ fun StatsScreen(
                                         )
                                         Spacer(Modifier.height(2.dp))
                                     }
-                                    val ratio = amount.toFloat() / maxDaily
+                                    val ratio = if (state.maxDaily > 0) amount.toFloat() / state.maxDaily else 0f
                                     val animRatio = animateFloatAsState(
                                         targetValue = ratio,
                                         animationSpec = tween(600, easing = MotionEasing.EmphasizedDecelerate),
                                         label = "bar",
                                     )
-                                    // \u80f6\u56ca\u5f62\u67f1\u5b50\uff08\u4e24\u7aef\u5168\u5706\u89d2\uff09\uff0c\u5bf9\u9f50\u53c2\u8003\u8bbe\u8ba1\u7684 rounded bar \u98ce\u683c
                                     Box(
                                         modifier = Modifier
                                             .fillMaxWidth(0.62f)
@@ -288,7 +237,7 @@ fun StatsScreen(
                             fontWeight = FontWeight.Bold,
                         )
                         Spacer(Modifier.height(16.dp))
-                        if (categoryShare.isEmpty()) {
+                        if (state.categoryShare.isEmpty()) {
                             Text(
                                 "暂无库存数据",
                                 style = MaterialTheme.typography.bodyMedium,
@@ -296,12 +245,11 @@ fun StatsScreen(
                             )
                         } else {
                             val chartColors = rememberChartColors()
-                            // 环形图居中 + 图例整行排列，避免右侧文字被挤成两行
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                 DonutChart(
-                                    data = categoryShare.map { it.second.toFloat() },
-                                    colors = categoryShare.mapIndexed { i, _ -> chartColors[i % chartColors.size] },
-                                    centerLabel = "$totalQty",
+                                    data = state.categoryShare.map { it.second.toFloat() },
+                                    colors = state.categoryShare.mapIndexed { i, _ -> chartColors[i % chartColors.size] },
+                                    centerLabel = "${state.totalQty}",
                                     centerSub = "总件数",
                                 )
                                 Spacer(Modifier.height(16.dp))
@@ -309,12 +257,12 @@ fun StatsScreen(
                                     verticalArrangement = Arrangement.spacedBy(8.dp),
                                     modifier = Modifier.fillMaxWidth(),
                                 ) {
-                                    categoryShare.forEachIndexed { i, (catId, qty) ->
+                                    state.categoryShare.forEachIndexed { i, (catId, qty) ->
                                         LegendRow(
                                             color = chartColors[i % chartColors.size],
-                                            category = categories.byId(catId),
+                                            category = state.categories.byId(catId),
                                             qty = qty,
-                                            percent = if (totalQty > 0) qty * 100 / totalQty else 0,
+                                            percent = if (state.totalQty > 0) qty * 100 / state.totalQty else 0,
                                         )
                                     }
                                 }
@@ -338,18 +286,17 @@ fun StatsScreen(
                             fontWeight = FontWeight.Bold,
                         )
                         Spacer(Modifier.height(12.dp))
-                        if (topConsumed.isEmpty()) {
+                        if (state.topConsumed.isEmpty()) {
                             EmptyState(
                                 emoji = "🍽️",
                                 title = "还没有消耗记录",
                                 subtitle = "在详情页点“吃掉一份”或减少库存后这里会有数据",
                             )
                         } else {
-                            val maxAmount = topConsumed.first().third.coerceAtLeast(1)
+                            val maxAmount = state.topConsumed.first().third.coerceAtLeast(1)
                             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                                topConsumed.forEachIndexed { index, (name, cat, amount) ->
-                                    // 点击进入对应食品详情（可编辑）
-                                    val targetId = items.firstOrNull { it.name == name }?.id
+                                state.topConsumed.forEachIndexed { index, (name, cat, amount) ->
+                                    val targetId = state.findItemIdByName(name)
                                     Row(
                                         verticalAlignment = Alignment.CenterVertically,
                                         modifier = if (targetId != null) {
@@ -369,7 +316,7 @@ fun StatsScreen(
                                             color = MaterialTheme.colorScheme.primary,
                                             modifier = Modifier.width(20.dp),
                                         )
-                                        Text(categories.byId(cat).emoji, fontSize = 18.sp)
+                                        Text(state.categories.byId(cat).emoji, fontSize = 18.sp)
                                         Spacer(Modifier.width(8.dp))
                                         Column(Modifier.weight(1f)) {
                                             Text(
@@ -380,9 +327,14 @@ fun StatsScreen(
                                                 overflow = TextOverflow.Ellipsis,
                                             )
                                             Spacer(Modifier.height(4.dp))
+                                            val animFraction by animateFloatAsState(
+                                                targetValue = (amount.toFloat() / maxAmount).coerceIn(0.04f, 1f),
+                                                animationSpec = tween(600, easing = MotionEasing.EmphasizedDecelerate),
+                                                label = "topRankBar",
+                                            )
                                             Box(
                                                 modifier = Modifier
-                                                    .fillMaxWidth(amount.toFloat() / maxAmount)
+                                                    .fillMaxWidth(animFraction)
                                                     .height(10.dp)
                                                     .clip(RoundedCornerShape(50))
                                                     .background(MaterialTheme.colorScheme.primaryContainer),
@@ -475,7 +427,6 @@ private fun DonutChart(
 
 @Composable
 private fun LegendRow(color: Color, category: CategoryDef, qty: Int, percent: Int) {
-    // 整行布局：色点 + 分类名左对齐，数量/占比右对齐，单行不换行
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier.fillMaxWidth(),

@@ -1,5 +1,6 @@
 package com.agon.app.ui.screens
 
+import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -15,31 +16,23 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material.icons.rounded.DeleteForever
-import androidx.compose.material.icons.rounded.RestartAlt
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.agon.app.data.ArchiveReason
 import com.agon.app.data.ArchivedItem
 import com.agon.app.data.byId
 import com.agon.app.data.cn
 import com.agon.app.ui.components.EmptyState
 import com.agon.app.ui.components.FoodAvatar
+import com.agon.app.ui.components.showUndoSnackbar
 import com.agon.app.viewmodel.AppViewModel
 import kotlinx.coroutines.launch
 import java.time.LocalDate
@@ -51,10 +44,11 @@ import top.yukonga.miuix.kmp.basic.InputField
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SnackbarHost
 import top.yukonga.miuix.kmp.basic.SnackbarHostState
+import top.yukonga.miuix.kmp.basic.SnackbarResult as MiuixSnackbarResult
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.TopAppBar
-import top.yukonga.miuix.kmp.overlay.OverlayDialog
+import com.agon.app.ui.components.MiuixDialog
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.icon.extended.Delete
@@ -72,19 +66,9 @@ fun MiuixArchiveScreen(
     viewModel: AppViewModel,
     onBack: () -> Unit,
 ) {
-    val archived by viewModel.archived.collectAsStateWithLifecycle()
-    val categories by viewModel.categories.collectAsStateWithLifecycle()
-    var reasonFilter by rememberSaveable { mutableStateOf<ArchiveReason?>(null) }
-    var query by rememberSaveable { mutableStateOf("") }
-    var showClearDialog by remember { mutableStateOf(false) }
+    val state = rememberArchiveUiState(viewModel)
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
-
-    val filtered = remember(archived, reasonFilter, query) {
-        archived
-            .filter { reasonFilter == null || it.reason == reasonFilter }
-            .filter { query.isBlank() || it.item.name.contains(query.trim(), ignoreCase = true) }
-    }
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -97,8 +81,8 @@ fun MiuixArchiveScreen(
                     }
                 },
                 actions = {
-                    if (archived.isNotEmpty()) {
-                        IconButton(onClick = { showClearDialog = true }) {
+                    if (state.archived.isNotEmpty()) {
+                        IconButton(onClick = { state.setShowClearDialog(true) }) {
                             Icon(
                                 MiuixIcons.Delete,
                                 contentDescription = "清空归档",
@@ -116,8 +100,8 @@ fun MiuixArchiveScreen(
                 .padding(top = padding.calculateTopPadding()),
         ) {
             InputField(
-                query = query,
-                onQueryChange = { query = it },
+                query = state.query,
+                onQueryChange = { state.setQuery(it) },
                 onSearch = {},
                 expanded = false,
                 onExpandedChange = {},
@@ -133,8 +117,8 @@ fun MiuixArchiveScreen(
             ) {
                 items(listOf<ArchiveReason?>(null) + ArchiveReason.entries.toList()) { r ->
                     FilterChip(
-                        selected = reasonFilter == r,
-                        onClick = { reasonFilter = r },
+                        selected = state.reasonFilter == r,
+                        onClick = { state.setReasonFilter(r) },
                         label = { Text(r?.let { "${it.emoji} ${it.label}" } ?: "全部", style = MiuixTheme.textStyles.body2) },
                         shape = RoundedCornerShape(50),
                         colors = FilterChipDefaults.filterChipColors(
@@ -146,61 +130,70 @@ fun MiuixArchiveScreen(
             }
             Spacer(Modifier.height(8.dp))
 
-            if (filtered.isEmpty()) {
-                EmptyState(
-                    emoji = if (query.isNotBlank()) "🔍" else "📚",
-                    title = if (archived.isEmpty()) "归档是空的" else "没有符合条件的记录",
-                    subtitle = if (query.isNotBlank()) "换个关键词试试" else "删除、清理过期的食品会保存在这里，可随时恢复",
-                )
-            } else {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(
-                        start = 20.dp,
-                        end = 20.dp,
-                        top = 4.dp,
-                        bottom = padding.calculateBottomPadding() + 32.dp,
-                    ),
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
-                ) {
-                    items(filtered, key = { it.item.id }) { entry ->
-                        MiuixArchiveRow(
-                            entry = entry,
-                            emoji = categories.byId(entry.item.category).emoji,
-                            onRestore = {
-                                viewModel.restoreArchivedSmart(entry.item.id) { merged ->
-                                    scope.launch {
-                                        snackbarHostState.showSnackbar(
-                                            if (merged) "库存中已有同批次“${entry.item.name}”，已合并数量"
-                                            else "已恢复“${entry.item.name}”到零食柜"
-                                        )
+            Crossfade(
+                targetState = state.filtered.isEmpty(),
+                label = "miuixArchiveCrossfade",
+                modifier = Modifier.fillMaxSize(),
+            ) { isEmpty ->
+                if (isEmpty) {
+                    EmptyState(
+                        emoji = if (state.query.isNotBlank()) "🔍" else "📚",
+                        title = if (state.archived.isEmpty()) "归档是空的" else "没有符合条件的记录",
+                        subtitle = if (state.query.isNotBlank()) "换个关键词试试" else "删除、清理过期的食品会保存在这里，可随时恢复",
+                    )
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(
+                            start = 20.dp,
+                            end = 20.dp,
+                            top = 4.dp,
+                            bottom = padding.calculateBottomPadding() + 32.dp,
+                        ),
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        items(state.filtered, key = { it.item.id }) { entry ->
+                            MiuixArchiveRow(
+                                entry = entry,
+                                emoji = state.categories.byId(entry.item.category).emoji,
+                                onRestore = {
+                                    state.restoreEntry(entry.item.id) { merged ->
+                                        scope.launch {
+                                            val msg = if (merged) "库存中已有同批次「${entry.item.name}」，已合并数量"
+                                                      else "已恢复「${entry.item.name}」到零食柜"
+                                            val result = snackbarHostState.showUndoSnackbar(msg)
+                                            if (result == MiuixSnackbarResult.ActionPerformed) {
+                                                state.archiveBatch(setOf(entry.item.id), entry.reason)
+                                            }
+                                        }
                                     }
-                                }
-                            },
-                            onDelete = { viewModel.deleteArchived(entry.item.id) },
-                        )
+                                },
+                                onDelete = { state.deleteEntry(entry.item.id) },
+                                modifier = Modifier.animateItem(),
+                            )
+                        }
                     }
                 }
             }
         }
 
-        OverlayDialog(
+        MiuixDialog(
             title = "清空归档",
-            summary = "确定要彻底删除全部 ${archived.size} 条归档记录吗？此操作无法撤销。",
-            show = showClearDialog,
-            onDismissRequest = { showClearDialog = false },
+            summary = "确定要彻底删除全部 ${state.archived.size} 条归档记录吗？此操作无法撤销。",
+            show = state.showClearDialog,
+            onDismissRequest = { state.setShowClearDialog(false) },
         ) {
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 TextButton(
                     text = "取消",
-                    onClick = { showClearDialog = false },
+                    onClick = { state.setShowClearDialog(false) },
                     modifier = Modifier.weight(1f),
                 )
                 TextButton(
                     text = "清空",
                     onClick = {
-                        showClearDialog = false
-                        viewModel.clearArchive()
+                        state.setShowClearDialog(false)
+                        state.clearArchive()
                     },
                     modifier = Modifier.weight(1f),
                     colors = ButtonDefaults.textButtonColors(
@@ -218,8 +211,9 @@ private fun MiuixArchiveRow(
     emoji: String,
     onRestore: () -> Unit,
     onDelete: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
-    Card(modifier = Modifier.fillMaxWidth()) {
+    Card(modifier = modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier.padding(12.dp),
             verticalAlignment = Alignment.CenterVertically,

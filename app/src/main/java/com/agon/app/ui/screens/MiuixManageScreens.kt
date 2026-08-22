@@ -14,25 +14,14 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material.icons.rounded.Add
-import androidx.compose.material.icons.rounded.Delete
-import androidx.compose.material.icons.rounded.Edit
-import androidx.compose.material.icons.rounded.Place
 import androidx.compose.material.icons.rounded.Remove
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.agon.app.data.CategoryDef
-import com.agon.app.data.DEFAULT_EXPIRING_THRESHOLD
 import com.agon.app.viewmodel.AppViewModel
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Icon
@@ -43,7 +32,7 @@ import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.basic.TopAppBar
-import top.yukonga.miuix.kmp.overlay.OverlayDialog
+import com.agon.app.ui.components.MiuixDialog
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Add
 import top.yukonga.miuix.kmp.icon.extended.Back
@@ -80,8 +69,7 @@ private fun MiuixManageScaffold(
 
 @Composable
 fun MiuixThresholdManageScreen(viewModel: AppViewModel, onBack: () -> Unit) {
-    val categories by viewModel.categories.collectAsStateWithLifecycle()
-    val thresholds by viewModel.thresholds.collectAsStateWithLifecycle()
+    val state = rememberThresholdManageUiState(viewModel)
 
     MiuixManageScaffold(title = "临期提醒阈值", onBack = onBack) { padding ->
         LazyColumn(
@@ -101,13 +89,15 @@ fun MiuixThresholdManageScreen(viewModel: AppViewModel, onBack: () -> Unit) {
                     modifier = Modifier.padding(bottom = 6.dp),
                 )
             }
-            items(categories.size, key = { categories[it].id }) { index ->
-                val cat = categories[index]
-                val value = thresholds[cat.id] ?: DEFAULT_EXPIRING_THRESHOLD
+            items(state.categories.size, key = { state.categories[it].id }) { index ->
+                val cat = state.categories[index]
+                val value = state.getThreshold(cat.id)
                 Surface(
                     shape = RoundedCornerShape(24.dp),
                     color = MiuixTheme.colorScheme.surfaceContainer,
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .animateItem(),
                 ) {
                     Row(
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
@@ -130,7 +120,7 @@ fun MiuixThresholdManageScreen(viewModel: AppViewModel, onBack: () -> Unit) {
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
                                 IconButton(
-                                    onClick = { viewModel.setCategoryThreshold(cat.id, value - 1) },
+                                    onClick = { state.setThreshold(cat.id, value - 1) },
                                     enabled = value > 1,
                                 ) {
                                     // Miuix Remove 是「移除/退出」形状，减号与列表步进器一样回退 material
@@ -143,7 +133,7 @@ fun MiuixThresholdManageScreen(viewModel: AppViewModel, onBack: () -> Unit) {
                                     modifier = Modifier.padding(horizontal = 6.dp),
                                 )
                                 IconButton(
-                                    onClick = { viewModel.setCategoryThreshold(cat.id, value + 1) },
+                                    onClick = { state.setThreshold(cat.id, value + 1) },
                                     enabled = value < 365,
                                 ) {
                                     Icon(MiuixIcons.Add, contentDescription = "增加 ${cat.label} 阈值", modifier = Modifier.size(18.dp))
@@ -163,11 +153,7 @@ fun MiuixThresholdManageScreen(viewModel: AppViewModel, onBack: () -> Unit) {
 
 @Composable
 fun MiuixCategoryManageScreen(viewModel: AppViewModel, onBack: () -> Unit) {
-    val categories by viewModel.categories.collectAsStateWithLifecycle()
-    val items by viewModel.items.collectAsStateWithLifecycle()
-    var showAdd by remember { mutableStateOf(false) }
-    var editing by remember { mutableStateOf<CategoryDef?>(null) }
-    var deleting by remember { mutableStateOf<CategoryDef?>(null) }
+    val state = rememberCategoryManageUiState(viewModel)
 
     MiuixManageScaffold(title = "分类管理", onBack = onBack) { padding ->
         LazyColumn(
@@ -179,13 +165,15 @@ fun MiuixCategoryManageScreen(viewModel: AppViewModel, onBack: () -> Unit) {
             ),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            items(categories.size, key = { categories[it].id }) { index ->
-                val cat = categories[index]
-                val inUse = items.count { it.category == cat.id }
+            items(state.categories.size, key = { state.categories[it].id }) { index ->
+                val cat = state.categories[index]
+                val inUse = state.getInUseCount(cat.id)
                 Surface(
                     shape = RoundedCornerShape(24.dp),
                     color = MiuixTheme.colorScheme.surfaceContainer,
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .animateItem(),
                 ) {
                     Row(
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
@@ -203,7 +191,7 @@ fun MiuixCategoryManageScreen(viewModel: AppViewModel, onBack: () -> Unit) {
                                 )
                             }
                         }
-                        IconButton(onClick = { editing = cat }) {
+                        IconButton(onClick = { state.setEditing(cat) }) {
                             Icon(
                                 MiuixIcons.Edit,
                                 contentDescription = "编辑 ${cat.label}",
@@ -212,14 +200,14 @@ fun MiuixCategoryManageScreen(viewModel: AppViewModel, onBack: () -> Unit) {
                             )
                         }
                         IconButton(
-                            onClick = { deleting = cat },
-                            enabled = categories.size > 1,
+                            onClick = { state.setDeleting(cat) },
+                            enabled = state.categories.size > 1,
                         ) {
                             Icon(
                                 MiuixIcons.Delete,
                                 contentDescription = "删除 ${cat.label}",
                                 modifier = Modifier.size(18.dp),
-                                tint = if (categories.size > 1) MiuixTheme.colorScheme.error
+                                tint = if (state.categories.size > 1) MiuixTheme.colorScheme.error
                                 else MiuixTheme.colorScheme.dividerLine,
                             )
                         }
@@ -229,7 +217,7 @@ fun MiuixCategoryManageScreen(viewModel: AppViewModel, onBack: () -> Unit) {
             item {
                 TextButton(
                     text = "添加分类",
-                    onClick = { showAdd = true },
+                    onClick = { state.setShowAdd(true) },
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(top = 6.dp),
@@ -238,53 +226,52 @@ fun MiuixCategoryManageScreen(viewModel: AppViewModel, onBack: () -> Unit) {
         }
 
         MiuixCategoryEditDialog(
-            show = showAdd,
+            show = state.showAdd,
             title = "添加分类",
             initialLabel = "",
             initialEmoji = "",
             onConfirm = { label, emoji ->
-                viewModel.addCategory(label, emoji)
-                showAdd = false
+                state.addCategory(label, emoji)
+                state.setShowAdd(false)
             },
-            onDismiss = { showAdd = false },
+            onDismiss = { state.setShowAdd(false) },
         )
-        MiuixCategoryEditDialog(
-            show = editing != null,
-            title = "编辑分类",
-            initialLabel = editing?.label ?: "",
-            initialEmoji = editing?.emoji ?: "",
-            onConfirm = { label, emoji ->
-                val cat = editing
-                if (cat != null) {
-                    viewModel.updateCategory(cat.copy(label = label.trim(), emoji = emoji.trim().ifBlank { cat.emoji }))
-                }
-                editing = null
-            },
-            onDismiss = { editing = null },
-        )
-        OverlayDialog(
+        state.editing?.let { cat ->
+            MiuixCategoryEditDialog(
+                show = true,
+                title = "编辑分类",
+                initialLabel = cat.label,
+                initialEmoji = cat.emoji,
+                onConfirm = { label, emoji ->
+                    state.updateCategory(cat, label, emoji)
+                    state.setEditing(null)
+                },
+                onDismiss = { state.setEditing(null) },
+            )
+        }
+        MiuixDialog(
             title = "删除分类",
-            summary = deleting?.let { cat ->
-                val inUse = items.count { it.category == cat.id }
+            summary = state.deleting?.let { cat ->
+                val inUse = state.getInUseCount(cat.id)
                 if (inUse > 0)
                     "有 $inUse 条食品记录正在使用「${cat.emoji} ${cat.label}」，删除后这些记录将显示为“其他”。确定删除吗？"
                 else
                     "确定要删除分类「${cat.emoji} ${cat.label}」吗？"
-            },
-            show = deleting != null,
-            onDismissRequest = { deleting = null },
+            }.orEmpty(),
+            show = state.deleting != null,
+            onDismissRequest = { state.setDeleting(null) },
         ) {
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 TextButton(
                     text = "取消",
-                    onClick = { deleting = null },
+                    onClick = { state.setDeleting(null) },
                     modifier = Modifier.weight(1f),
                 )
                 TextButton(
                     text = "删除",
                     onClick = {
-                        deleting?.let { viewModel.deleteCategory(it.id) }
-                        deleting = null
+                        state.deleting?.let { state.deleteCategory(it.id) }
+                        state.setDeleting(null)
                     },
                     modifier = Modifier.weight(1f),
                     colors = ButtonDefaults.textButtonColors(textColor = MiuixTheme.colorScheme.error),
@@ -306,7 +293,7 @@ private fun MiuixCategoryEditDialog(
     // show/initial 变化时重建输入状态（打开时清空/同步，编辑不同分类时更新）
     val labelState = remember(show, initialLabel) { TextFieldState(initialLabel) }
     val emojiState = remember(show, initialEmoji) { TextFieldState(initialEmoji) }
-    OverlayDialog(
+    MiuixDialog(
         title = title,
         show = show,
         onDismissRequest = onDismiss,
@@ -350,9 +337,7 @@ private fun MiuixCategoryEditDialog(
 
 @Composable
 fun MiuixLocationManageScreen(viewModel: AppViewModel, onBack: () -> Unit) {
-    val locations by viewModel.locations.collectAsStateWithLifecycle()
-    val items by viewModel.items.collectAsStateWithLifecycle()
-    var showAdd by remember { mutableStateOf(false) }
+    val state = rememberLocationManageUiState(viewModel)
 
     MiuixManageScaffold(title = "存放位置管理", onBack = onBack) { padding ->
         LazyColumn(
@@ -364,13 +349,15 @@ fun MiuixLocationManageScreen(viewModel: AppViewModel, onBack: () -> Unit) {
             ),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            items(locations.size, key = { locations[it] }) { index ->
-                val loc = locations[index]
-                val inUse = items.count { it.location == loc }
+            items(state.locations.size, key = { state.locations[it] }) { index ->
+                val loc = state.locations[index]
+                val inUse = state.getInUseCount(loc)
                 Surface(
                     shape = RoundedCornerShape(24.dp),
                     color = MiuixTheme.colorScheme.surfaceContainer,
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .animateItem(),
                 ) {
                     Row(
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
@@ -393,7 +380,7 @@ fun MiuixLocationManageScreen(viewModel: AppViewModel, onBack: () -> Unit) {
                                 )
                             }
                         }
-                        IconButton(onClick = { viewModel.deleteLocation(loc) }) {
+                        IconButton(onClick = { state.deleteLocation(loc) }) {
                             Icon(
                                 MiuixIcons.Delete,
                                 contentDescription = "删除位置 $loc",
@@ -407,7 +394,7 @@ fun MiuixLocationManageScreen(viewModel: AppViewModel, onBack: () -> Unit) {
             item {
                 TextButton(
                     text = "添加位置",
-                    onClick = { showAdd = true },
+                    onClick = { state.setShowAdd(true) },
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(top = 6.dp),
@@ -415,11 +402,11 @@ fun MiuixLocationManageScreen(viewModel: AppViewModel, onBack: () -> Unit) {
             }
         }
 
-        val locState = remember(showAdd) { TextFieldState("") }
-        OverlayDialog(
+        val locState = remember(state.showAdd) { TextFieldState("") }
+        MiuixDialog(
             title = "添加存放位置",
-            show = showAdd,
-            onDismissRequest = { showAdd = false },
+            show = state.showAdd,
+            onDismissRequest = { state.setShowAdd(false) },
         ) {
             TextField(
                 state = locState,
@@ -429,14 +416,14 @@ fun MiuixLocationManageScreen(viewModel: AppViewModel, onBack: () -> Unit) {
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 TextButton(
                     text = "取消",
-                    onClick = { showAdd = false },
+                    onClick = { state.setShowAdd(false) },
                     modifier = Modifier.weight(1f),
                 )
                 TextButton(
                     text = "添加",
                     onClick = {
-                        viewModel.addLocation(locState.text.toString().take(12))
-                        showAdd = false
+                        state.addLocation(locState.text.toString().take(12))
+                        state.setShowAdd(false)
                     },
                     modifier = Modifier.weight(1f),
                     enabled = locState.text.toString().isNotBlank(),

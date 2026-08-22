@@ -1,5 +1,6 @@
 package com.agon.app.ui.screens
 
+import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -8,6 +9,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -20,7 +22,6 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.DeleteForever
 import androidx.compose.material.icons.rounded.RestartAlt
 import androidx.compose.material.icons.rounded.Search
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -28,33 +29,31 @@ import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.agon.app.data.ArchiveReason
 import com.agon.app.data.ArchivedItem
 import com.agon.app.data.byId
 import com.agon.app.data.cn
 import com.agon.app.ui.components.EmptyState
 import com.agon.app.ui.components.FoodAvatar
+import com.agon.app.ui.components.SwipeDismissSnackbarHost
+import com.agon.app.ui.components.showUndoSnackbar
 import com.agon.app.viewmodel.AppViewModel
 import kotlinx.coroutines.launch
 import java.time.LocalDate
@@ -65,23 +64,20 @@ fun ArchiveScreen(
     viewModel: AppViewModel,
     onBack: () -> Unit,
 ) {
-    val archived by viewModel.archived.collectAsStateWithLifecycle()
-    val categories by viewModel.categories.collectAsStateWithLifecycle()
-    var reasonFilter by rememberSaveable { mutableStateOf<ArchiveReason?>(null) }
-    var query by rememberSaveable { mutableStateOf("") }
-    var showClearDialog by remember { mutableStateOf(false) }
+    val state = rememberArchiveUiState(viewModel)
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
 
-    val filtered = remember(archived, reasonFilter, query) {
-        archived
-            .filter { reasonFilter == null || it.reason == reasonFilter }
-            .filter { query.isBlank() || it.item.name.contains(query.trim(), ignoreCase = true) }
-    }
-
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
-        snackbarHost = { SnackbarHost(snackbarHostState) },
+        snackbarHost = {
+            SwipeDismissSnackbarHost(
+                snackbarHostState,
+                modifier = Modifier
+                    .navigationBarsPadding()
+                    .padding(bottom = 24.dp),
+            )
+        },
         topBar = {
             TopAppBar(
                 title = { Text("归档历史", fontWeight = FontWeight.Bold) },
@@ -91,8 +87,8 @@ fun ArchiveScreen(
                     }
                 },
                 actions = {
-                    if (archived.isNotEmpty()) {
-                        IconButton(onClick = { showClearDialog = true }) {
+                    if (state.archived.isNotEmpty()) {
+                        IconButton(onClick = { state.setShowClearDialog(true) }) {
                             Icon(
                                 Icons.Rounded.DeleteForever,
                                 contentDescription = "清空归档",
@@ -113,12 +109,12 @@ fun ArchiveScreen(
                 .padding(top = padding.calculateTopPadding()),
         ) {
             OutlinedTextField(
-                value = query,
-                onValueChange = { query = it },
+                value = state.query,
+                onValueChange = { state.setQuery(it) },
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 20.dp),
-                placeholder = { Text("搜索归档食品…") },
+                placeholder = { Text("搜索归档食品…", maxLines = 1, overflow = TextOverflow.Ellipsis) },
                 leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null) },
                 singleLine = true,
                 shape = RoundedCornerShape(50),
@@ -130,8 +126,8 @@ fun ArchiveScreen(
             ) {
                 items(listOf<ArchiveReason?>(null) + ArchiveReason.entries.toList()) { r ->
                     FilterChip(
-                        selected = reasonFilter == r,
-                        onClick = { reasonFilter = r },
+                        selected = state.reasonFilter == r,
+                        onClick = { state.setReasonFilter(r) },
                         label = { Text(r?.let { "${it.emoji} ${it.label}" } ?: "全部") },
                         shape = RoundedCornerShape(50),
                         colors = FilterChipDefaults.filterChipColors(
@@ -143,60 +139,69 @@ fun ArchiveScreen(
             }
             Spacer(Modifier.height(8.dp))
 
-            if (filtered.isEmpty()) {
-                EmptyState(
-                    emoji = if (query.isNotBlank()) "🔍" else "📚",
-                    title = if (archived.isEmpty()) "归档是空的" else "没有符合条件的记录",
-                    subtitle = if (query.isNotBlank()) "换个关键词试试" else "删除、清理过期的食品会保存在这里，可随时恢复",
-                )
-            } else {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(
-                        start = 20.dp,
-                        end = 20.dp,
-                        top = 4.dp,
-                        bottom = padding.calculateBottomPadding() + 32.dp,
-                    ),
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
-                ) {
-                    items(filtered, key = { it.item.id }) { entry ->
-                        ArchiveRow(
-                            entry = entry,
-                            emoji = categories.byId(entry.item.category).emoji,
-                            onRestore = {
-                                viewModel.restoreArchivedSmart(entry.item.id) { merged ->
-                                    scope.launch {
-                                        snackbarHostState.showSnackbar(
-                                            if (merged) "库存中已有同批次“${entry.item.name}”，已合并数量"
-                                            else "已恢复“${entry.item.name}”到零食柜"
-                                        )
+            Crossfade(
+                targetState = state.filtered.isEmpty(),
+                label = "archiveCrossfade",
+                modifier = Modifier.fillMaxSize(),
+            ) { isEmpty ->
+                if (isEmpty) {
+                    EmptyState(
+                        emoji = if (state.query.isNotBlank()) "🔍" else "📚",
+                        title = if (state.archived.isEmpty()) "归档是空的" else "没有符合条件的记录",
+                        subtitle = if (state.query.isNotBlank()) "换个关键词试试" else "删除、清理过期的食品会保存在这里，可随时恢复",
+                    )
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(
+                            start = 20.dp,
+                            end = 20.dp,
+                            top = 4.dp,
+                            bottom = padding.calculateBottomPadding() + 32.dp,
+                        ),
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        items(state.filtered, key = { it.item.id }) { entry ->
+                            ArchiveRow(
+                                entry = entry,
+                                emoji = state.categories.byId(entry.item.category).emoji,
+                                onRestore = {
+                                    state.restoreEntry(entry.item.id) { merged ->
+                                        scope.launch {
+                                            val msg = if (merged) "库存中已有同批次「${entry.item.name}」，已合并数量"
+                                                      else "已恢复「${entry.item.name}」到零食柜"
+                                            val result = snackbarHostState.showUndoSnackbar(msg)
+                                            if (result == SnackbarResult.ActionPerformed) {
+                                                state.archiveBatch(setOf(entry.item.id), entry.reason)
+                                            }
+                                        }
                                     }
-                                }
-                            },
-                            onDelete = { viewModel.deleteArchived(entry.item.id) },
-                        )
+                                },
+                                onDelete = { state.deleteEntry(entry.item.id) },
+                                modifier = Modifier.animateItem(),
+                            )
+                        }
                     }
                 }
             }
         }
     }
 
-    if (showClearDialog) {
+    if (state.showClearDialog) {
         AlertDialog(
-            onDismissRequest = { showClearDialog = false },
+            onDismissRequest = { state.setShowClearDialog(false) },
             title = { Text("清空归档") },
-            text = { Text("确定要彻底删除全部 ${archived.size} 条归档记录吗？此操作无法撤销。") },
+            text = { Text("确定要彻底删除全部 ${state.archived.size} 条归档记录吗？此操作无法撤销。") },
             confirmButton = {
                 TextButton(onClick = {
-                    showClearDialog = false
-                    viewModel.clearArchive()
+                    state.setShowClearDialog(false)
+                    state.clearArchive()
                 }) {
                     Text("清空", color = MaterialTheme.colorScheme.error)
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showClearDialog = false }) { Text("取消") }
+                TextButton(onClick = { state.setShowClearDialog(false) }) { Text("取消") }
             },
         )
     }
@@ -208,11 +213,12 @@ private fun ArchiveRow(
     emoji: String,
     onRestore: () -> Unit,
     onDelete: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     Surface(
         shape = MaterialTheme.shapes.large,
         color = MaterialTheme.colorScheme.surfaceContainer,
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
     ) {
         Row(
             modifier = Modifier.padding(12.dp),

@@ -214,9 +214,11 @@ val FoodItem.remainingText: String
 
 private val cnDateFormatter = DateTimeFormatter.ofPattern("yyyy年M月d日")
 private val cnDayFormatter = DateTimeFormatter.ofPattern("M月d日 EEEE", Locale.CHINESE)
+private val dotDateFormatter = DateTimeFormatter.ofPattern("yyyy.MM.dd")
 
 fun LocalDate.cn(): String = format(cnDateFormatter)
 fun LocalDate.cnDay(): String = format(cnDayFormatter)
+fun LocalDate.dot(): String = format(dotDateFormatter)
 
 /**
  * 消耗记录压缩（纯函数版，`today` 显式传入以便测试）。

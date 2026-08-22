@@ -23,8 +23,10 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -63,7 +65,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -72,12 +76,14 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import coil3.compose.AsyncImage
 import com.agon.app.data.CategoryDef
 import com.agon.app.data.FoodItem
 import com.agon.app.data.FoodStatus
-import com.agon.app.data.cn
 import com.agon.app.data.daysLeftAt
+import com.agon.app.data.dot
 import com.agon.app.data.elapsedRatioAt
 import com.agon.app.data.expiryDate
 import com.agon.app.data.effectiveThreshold
@@ -102,7 +108,9 @@ import top.yukonga.miuix.kmp.icon.extended.Ok
 import top.yukonga.miuix.kmp.icon.extended.Report
 import top.yukonga.miuix.kmp.icon.extended.Timer
 import top.yukonga.miuix.kmp.squircle.squircleBorder
+import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.PressFeedbackType
+import top.yukonga.miuix.kmp.window.WindowDialog
 import com.agon.app.ui.theme.DangerContainerDark
 import com.agon.app.ui.theme.DangerContainerLight
 import com.agon.app.ui.theme.DangerContentDark
@@ -369,6 +377,7 @@ fun QuantityStepper(
     onChange: (Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val haptic = LocalHapticFeedback.current
     val bg = MaterialTheme.colorScheme.surfaceContainerHighest
     val fg = MaterialTheme.colorScheme.onSurface
     if (LocalThemeStyle.current == ThemeStyle.MIUIX) {
@@ -383,7 +392,10 @@ fun QuantityStepper(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 MiuixIconButton(
-                    onClick = { onChange(-1) },
+                    onClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        onChange(-1)
+                    },
                     enabled = quantity > 0,
                 ) {
                     // Miuix 无「减号」图标（Remove 是「移除/退出」形状），减号回退 material
@@ -414,7 +426,10 @@ fun QuantityStepper(
                     )
                 }
                 MiuixIconButton(
-                    onClick = { onChange(1) },
+                    onClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        onChange(1)
+                    },
                 ) {
                     MiuixIcon(MiuixIcons.Add, contentDescription = "增加", modifier = Modifier.size(18.dp), tint = fg)
                 }
@@ -431,7 +446,10 @@ fun QuantityStepper(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 IconButton(
-                    onClick = { onChange(-1) },
+                    onClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        onChange(-1)
+                    },
                     enabled = quantity > 0,
                 ) {
                     Icon(Icons.Rounded.Remove, contentDescription = "减少", modifier = Modifier.size(18.dp))
@@ -459,7 +477,10 @@ fun QuantityStepper(
                     )
                 }
                 IconButton(
-                    onClick = { onChange(1) },
+                    onClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        onChange(1)
+                    },
                 ) {
                     Icon(Icons.Rounded.Add, contentDescription = "增加", modifier = Modifier.size(18.dp))
                 }
@@ -533,33 +554,36 @@ fun FoodCard(
                     FoodAvatar(item, category.emoji, background = ui.container)
                     Spacer(Modifier.width(12.dp))
                     Column(Modifier.weight(1f)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            MiuixText(
-                                item.name,
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = MaterialTheme.colorScheme.onSurface,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.weight(1f, fill = false),
-                            )
-                            Spacer(Modifier.width(6.dp))
-                            LocationTag(item.location)
-                        }
+                        MiuixText(
+                            item.name,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
                         Spacer(Modifier.height(2.dp))
                         MiuixText(
-                            "${category.label} · 生产 ${item.productionDate.cn()}",
+                            "${category.label} · 生产 ${item.productionDate.dot()}",
                             fontSize = 12.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
                         )
                         MiuixText(
-                            "到期 ${item.expiryDate.cn()}",
+                            "到期 ${item.expiryDate.dot()}",
                             fontSize = 12.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                     Spacer(Modifier.width(8.dp))
-                    StatusBadge(status)
+                    Column(horizontalAlignment = Alignment.End) {
+                        StatusBadge(status)
+                        if (item.location.isNotBlank()) {
+                            Spacer(Modifier.height(4.dp))
+                            LocationTag(item.location)
+                        }
+                    }
                 }
                 Spacer(Modifier.height(14.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -621,32 +645,35 @@ fun FoodCard(
                     FoodAvatar(item, category.emoji, background = ui.container)
                     Spacer(Modifier.width(12.dp))
                     Column(Modifier.weight(1f)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                item.name,
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.SemiBold,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.weight(1f, fill = false),
-                            )
-                            Spacer(Modifier.width(6.dp))
-                            LocationTag(item.location)
-                        }
+                        Text(
+                            item.name,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
                         Spacer(Modifier.height(2.dp))
                         Text(
-                            "${category.label} · 生产 ${item.productionDate.cn()}",
+                            "${category.label} · 生产 ${item.productionDate.dot()}",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
                         )
                         Text(
-                            "到期 ${item.expiryDate.cn()}",
+                            "到期 ${item.expiryDate.dot()}",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                     Spacer(Modifier.width(8.dp))
-                    StatusBadge(status)
+                    Column(horizontalAlignment = Alignment.End) {
+                        StatusBadge(status)
+                        if (item.location.isNotBlank()) {
+                            Spacer(Modifier.height(4.dp))
+                            LocationTag(item.location)
+                        }
+                    }
                 }
                 Spacer(Modifier.height(14.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -910,4 +937,29 @@ fun DataCorruptBanner(
             }
         }
     }
+}
+
+/**
+ * Miuix（HyperOS）标准弹窗。
+ *
+ * 基于 MIUIX 官方 WindowDialog 实现，遵循 HyperOS 规范：
+ * - 手机竖屏（常规设备）：标准底部贴合弹出（Bottom-attached），顶部自适应屏幕 Squircle 大圆角；
+ * - 大屏/平板/横屏：自动响应式转为屏幕居中卡片（Centered）；
+ * - 独立 Window 层：拥有专属系统 Window 图层，不受外部悬浮底栏遮挡，且自适应软键盘。
+ */
+@Composable
+fun MiuixDialog(
+    show: Boolean,
+    onDismissRequest: () -> Unit,
+    title: String,
+    summary: String = "",
+    content: @Composable () -> Unit,
+) {
+    WindowDialog(
+        show = show,
+        onDismissRequest = onDismissRequest,
+        title = title,
+        summary = summary,
+        content = content,
+    )
 }

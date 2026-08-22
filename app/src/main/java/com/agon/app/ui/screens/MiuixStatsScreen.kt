@@ -20,8 +20,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.History
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -43,6 +41,7 @@ import com.agon.app.data.CategoryDef
 import com.agon.app.data.byId
 import com.agon.app.ui.components.EmptyState
 import com.agon.app.ui.components.ExpiryCalendarCard
+import com.agon.app.ui.theme.LocalToday
 import com.agon.app.ui.theme.MotionEasing
 import com.agon.app.viewmodel.AppViewModel
 import java.time.LocalDate
@@ -78,9 +77,10 @@ fun MiuixStatsScreen(
     val categories by viewModel.categories.collectAsStateWithLifecycle()
     val thresholds by viewModel.thresholds.collectAsStateWithLifecycle()
 
-    val today = LocalDate.now().toEpochDay()
+    val todayDate = LocalToday.current
+    val today = todayDate.toEpochDay()
     val weekAgo = today - 6
-    val monthStart = LocalDate.now().withDayOfMonth(1).toEpochDay()
+    val monthStart = todayDate.withDayOfMonth(1).toEpochDay()
 
     val consumedThisWeek = remember(consumption, weekAgo) {
         consumption.filter { it.epochDay >= weekAgo }.sumOf { it.amount }
@@ -90,7 +90,7 @@ fun MiuixStatsScreen(
     }
     val wastedTotal = archived.count { it.reason == ArchiveReason.EXPIRED }
 
-    val dailyTrend = remember(consumption) {
+    val dailyTrend = remember(consumption, today) {
         (0..6).map { offset ->
             val day = today - (6 - offset)
             val amount = consumption.filter { it.epochDay == day }.sumOf { it.amount }
@@ -330,9 +330,14 @@ fun MiuixStatsScreen(
                                                 overflow = TextOverflow.Ellipsis,
                                             )
                                             Spacer(Modifier.height(4.dp))
+                                            val animFraction by animateFloatAsState(
+                                                targetValue = (amount.toFloat() / maxAmount).coerceIn(0.04f, 1f),
+                                                animationSpec = tween(600, easing = MotionEasing.EmphasizedDecelerate),
+                                                label = "miuixTopRankBar",
+                                            )
                                             Box(
                                                 modifier = Modifier
-                                                    .fillMaxWidth(amount.toFloat() / maxAmount)
+                                                    .fillMaxWidth(animFraction)
                                                     .height(10.dp)
                                                     .clip(RoundedCornerShape(50))
                                                     .background(MiuixTheme.colorScheme.primaryContainer),

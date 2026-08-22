@@ -411,6 +411,30 @@ class FoodRepository(private val context: Context) {
     }
 
     /**
+     * 批量修改食品的存放位置。
+     */
+    suspend fun updateLocationBatch(ids: Set<String>, newLocation: String) {
+        if (ids.isEmpty()) return
+        val trimmed = newLocation.trim()
+        context.dataStore.edit { prefs ->
+            val itemsDecoded = decodeItems(prefs[itemsKey])
+            if (isCorrupt(itemsDecoded)) return@edit
+            val items = itemsDecoded.orElse(emptyList())
+            val updated = items.map {
+                if (it.id in ids) it.copy(location = trimmed) else it
+            }
+            prefs[itemsKey] = json.encodeToString(updated)
+
+            if (trimmed.isNotBlank()) {
+                val locs = decodeLocations(prefs[locationsKey])
+                if (trimmed !in locs) {
+                    prefs[locationsKey] = json.encodeToString(locs + trimmed)
+                }
+            }
+        }
+    }
+
+    /**
      * 调整数量；减少时自动记录消耗。
      * 吃完（数量减到 0）时自动移入归档（原因：已吃完）。
      * @return 本次操作的结果（是否触发自动归档 + 新写的消耗记录 id，供撤销）。
@@ -638,6 +662,18 @@ class FoodRepository(private val context: Context) {
             locations = decodeLocations(prefs[locationsKey]),
         )
         return prettyJson.encodeToString(backup)
+    }
+
+    /**
+     * 导出为 CSV 表格内容（带 UTF-8 BOM）。
+     */
+    suspend fun buildCsvExport(): String {
+        val prefs = context.dataStore.data.first()
+        val itemsDecoded = decodeItems(prefs[itemsKey])
+        val items = itemsDecoded.orElse(emptyList())
+        val categories = decodeCategories(prefs[categoriesKey])
+        val thresholds = decodeThresholds(prefs[thresholdsKey])
+        return buildCsvExport(items, categories, thresholds, LocalDate.now())
     }
 
     /**
