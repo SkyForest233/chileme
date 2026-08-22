@@ -284,13 +284,13 @@ private fun FreshnessBanner(total: Int, expiring: Int, expired: Int) {
                 modifier = Modifier
                     .size(44.dp)
                     .clip(CircleShape)
-                    .background(MiuixTheme.colorScheme.tertiaryContainer),
+                    .background(MiuixTheme.colorScheme.primaryContainer),
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
                     Icons.Rounded.Inventory2,
                     contentDescription = null,
-                    tint = MiuixTheme.colorScheme.onTertiaryContainer,
+                    tint = MiuixTheme.colorScheme.onPrimaryContainer,
                 )
             }
             Spacer(Modifier.width(12.dp))

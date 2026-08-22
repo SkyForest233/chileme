@@ -308,13 +308,13 @@ private fun FreshnessBanner(total: Int, expiring: Int, expired: Int) {
                 modifier = Modifier
                     .size(44.dp)
                     .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.tertiaryContainer),
+                    .background(MaterialTheme.colorScheme.primaryContainer),
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
                     Icons.Rounded.Inventory2,
                     contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onTertiaryContainer,
+                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
                 )
             }
             Spacer(Modifier.width(12.dp))
