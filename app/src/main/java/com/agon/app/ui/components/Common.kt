@@ -78,7 +78,6 @@ import coil3.compose.AsyncImage
 import com.agon.app.data.CategoryDef
 import com.agon.app.data.FoodItem
 import com.agon.app.data.FoodStatus
-import com.agon.app.data.cn
 import com.agon.app.data.daysLeftAt
 import com.agon.app.data.dot
 import com.agon.app.data.elapsedRatioAt
