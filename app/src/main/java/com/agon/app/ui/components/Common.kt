@@ -543,8 +543,7 @@ fun FoodCard(
                         )
                         Spacer(Modifier.height(2.dp))
                         MiuixText(
-                            if (item.location.isNotBlank()) "${category.label} · 📍 ${item.location} · 生产 ${item.productionDate.cn()}"
-                            else "${category.label} · 生产 ${item.productionDate.cn()}",
+                            "${category.label} · 生产 ${item.productionDate.cn()}",
                             fontSize = 12.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1,
@@ -557,7 +556,13 @@ fun FoodCard(
                         )
                     }
                     Spacer(Modifier.width(8.dp))
-                    StatusBadge(status)
+                    Column(horizontalAlignment = Alignment.End) {
+                        StatusBadge(status)
+                        if (item.location.isNotBlank()) {
+                            Spacer(Modifier.height(4.dp))
+                            LocationTag(item.location)
+                        }
+                    }
                 }
                 Spacer(Modifier.height(14.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -628,8 +633,7 @@ fun FoodCard(
                         )
                         Spacer(Modifier.height(2.dp))
                         Text(
-                            if (item.location.isNotBlank()) "${category.label} · 📍 ${item.location} · 生产 ${item.productionDate.cn()}"
-                            else "${category.label} · 生产 ${item.productionDate.cn()}",
+                            "${category.label} · 生产 ${item.productionDate.cn()}",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1,
@@ -642,7 +646,13 @@ fun FoodCard(
                         )
                     }
                     Spacer(Modifier.width(8.dp))
-                    StatusBadge(status)
+                    Column(horizontalAlignment = Alignment.End) {
+                        StatusBadge(status)
+                        if (item.location.isNotBlank()) {
+                            Spacer(Modifier.height(4.dp))
+                            LocationTag(item.location)
+                        }
+                    }
                 }
                 Spacer(Modifier.height(14.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
