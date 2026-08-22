@@ -178,7 +178,7 @@ fun SettingsScreen(
                         listOf("跟随系统", "浅色", "深色").forEachIndexed { index, label ->
                             SegmentedButton(
                                 selected = state.darkMode == index,
-                                onClick = { state.onSetDarkMode(index) },
+                                onClick = { state.setDarkMode(index) },
                                 shape = SegmentedButtonDefaults.itemShape(index = index, count = 3),
                             ) { Text(label) }
                         }
@@ -197,7 +197,7 @@ fun SettingsScreen(
                         ThemeStyle.entries.forEachIndexed { index, style ->
                             SegmentedButton(
                                 selected = state.themeStyleName == style.name,
-                                onClick = { state.onSetThemeStyle(style.name) },
+                                onClick = { state.setThemeStyle(style.name) },
                                 shape = SegmentedButtonDefaults.itemShape(
                                     index = index,
                                     count = ThemeStyle.entries.size,
@@ -223,7 +223,7 @@ fun SettingsScreen(
                                 palette = p,
                                 selected = state.paletteName == p.name && !state.dynamicColor,
                                 enabled = !state.dynamicColor,
-                                onClick = { state.onSetPalette(p.name) },
+                                onClick = { state.setPalette(p.name) },
                             )
                         }
                     }
@@ -246,7 +246,7 @@ fun SettingsScreen(
                         }
                         CheckSwitch(
                             checked = state.dynamicColor,
-                            onCheckedChange = { state.onSetDynamicColor(it) },
+                            onCheckedChange = { state.setDynamicColor(it) },
                             enabled = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S,
                         )
                     }
@@ -266,7 +266,7 @@ fun SettingsScreen(
                         }
                         CheckSwitch(
                             checked = state.floatingNav,
-                            onCheckedChange = { state.onSetFloatingNav(it) },
+                            onCheckedChange = { state.setFloatingNav(it) },
                         )
                     }
                 }
@@ -391,7 +391,7 @@ fun SettingsScreen(
                                 },
                             )
                         }
-                        TextButton(onClick = { state.onShowNutstoreDialogChange(true) }) {
+                        TextButton(onClick = { state.setShowNutstoreDialog(true) }) {
                             Text(if (state.nutstoreAccount.isBlank()) "配置" else "修改账号")
                         }
                     }
@@ -399,7 +399,7 @@ fun SettingsScreen(
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         OutlinedButton(
                             onClick = {
-                                state.onSyncUpload { _, msg ->
+                                state.syncUpload { _, msg ->
                                     scope.launch { snackbarHostState.showSnackbar(msg) }
                                 }
                             },
@@ -417,10 +417,10 @@ fun SettingsScreen(
                         }
                         OutlinedButton(
                             onClick = {
-                                state.onShowBackupPickerChange(true)
-                                state.onLoadCloudBackups { ok, msg ->
+                                state.setShowBackupPicker(true)
+                                state.loadCloudBackups { ok, msg ->
                                     if (!ok) {
-                                        state.onShowBackupPickerChange(false)
+                                        state.setShowBackupPicker(false)
                                         scope.launch { snackbarHostState.showSnackbar(msg) }
                                     }
                                 }
@@ -463,7 +463,7 @@ fun SettingsScreen(
                         listOf(0 to "关闭", 1 to "每天", 3 to "3 天", 7 to "每周").forEach { (days, label) ->
                             FilterChip(
                                 selected = state.autoSyncDays == days,
-                                onClick = { state.onSetAutoSyncDays(days) },
+                                onClick = { state.setAutoSyncDays(days) },
                                 enabled = state.nutstoreAccount.isNotBlank() || days == 0,
                                 label = { Text(label) },
                                 shape = RoundedCornerShape(50),
@@ -492,7 +492,7 @@ fun SettingsScreen(
                             )
                         }
                         TextButton(
-                            onClick = { state.onShowClearDialogChange(true) },
+                            onClick = { state.setShowClearDialog(true) },
                             enabled = state.items.isNotEmpty(),
                         ) {
                             Text("清空", color = MaterialTheme.colorScheme.error)
@@ -534,19 +534,19 @@ fun SettingsScreen(
 
     if (state.showClearDialog) {
         AlertDialog(
-            onDismissRequest = { state.onShowClearDialogChange(false) },
+            onDismissRequest = { state.setShowClearDialog(false) },
             title = { Text("清空库存记录") },
             text = { Text("确定要删除全部 ${state.items.size} 条食品记录吗？建议先导出备份。") },
             confirmButton = {
                 TextButton(onClick = {
-                    state.onShowClearDialogChange(false)
-                    state.onClearAll()
+                    state.setShowClearDialog(false)
+                    state.clearAll()
                 }) {
                     Text("清空", color = MaterialTheme.colorScheme.error)
                 }
             },
             dismissButton = {
-                TextButton(onClick = { state.onShowClearDialogChange(false) }) { Text("取消") }
+                TextButton(onClick = { state.setShowClearDialog(false) }) { Text("取消") }
             },
         )
     }
@@ -554,7 +554,7 @@ fun SettingsScreen(
     // ---- 坚果云账号配置对话框 ----
     if (state.showNutstoreDialog) {
         AlertDialog(
-            onDismissRequest = { state.onShowNutstoreDialogChange(false) },
+            onDismissRequest = { state.setShowNutstoreDialog(false) },
             title = { Text("坚果云账号") },
             text = {
                 Column {
@@ -566,7 +566,7 @@ fun SettingsScreen(
                     Spacer(Modifier.height(12.dp))
                     OutlinedTextField(
                         value = state.accountInput,
-                        onValueChange = state.onAccountInputChange,
+                        onValueChange = { state.setAccountInput(it) },
                         label = { Text("账号（邮箱）") },
                         singleLine = true,
                         shape = MaterialTheme.shapes.medium,
@@ -575,7 +575,7 @@ fun SettingsScreen(
                     Spacer(Modifier.height(8.dp))
                     OutlinedTextField(
                         value = state.passwordInput,
-                        onValueChange = state.onPasswordInputChange,
+                        onValueChange = { state.setPasswordInput(it) },
                         label = { Text("应用密码") },
                         singleLine = true,
                         visualTransformation = PasswordVisualTransformation(),
@@ -587,13 +587,13 @@ fun SettingsScreen(
             },
             confirmButton = {
                 TextButton(onClick = {
-                    state.onSaveNutstoreCredentials(state.accountInput, state.passwordInput)
-                    state.onShowNutstoreDialogChange(false)
+                    state.saveNutstoreCredentials(state.accountInput, state.passwordInput)
+                    state.setShowNutstoreDialog(false)
                     scope.launch { snackbarHostState.showSnackbar("坚果云账号已保存") }
                 }) { Text("保存") }
             },
             dismissButton = {
-                TextButton(onClick = { state.onShowNutstoreDialogChange(false) }) { Text("取消") }
+                TextButton(onClick = { state.setShowNutstoreDialog(false) }) { Text("取消") }
             },
         )
     }
@@ -601,7 +601,7 @@ fun SettingsScreen(
     // ---- 云端备份选择（恢复哪一份） ----
     if (state.showBackupPicker) {
         AlertDialog(
-            onDismissRequest = { if (!state.loadingBackups) state.onShowBackupPickerChange(false) },
+            onDismissRequest = { if (!state.loadingBackups) state.setShowBackupPicker(false) },
             title = { Text("选择要恢复的备份") },
             text = {
                 if (state.loadingBackups) {
@@ -626,8 +626,8 @@ fun SettingsScreen(
                         state.cloudBackups.forEachIndexed { index, backup ->
                             Surface(
                                 onClick = {
-                                    state.onShowBackupPickerChange(false)
-                                    state.onRestoreCandidateChange(backup)
+                                    state.setShowBackupPicker(false)
+                                    state.setRestoreCandidate(backup)
                                 },
                                 shape = RoundedCornerShape(16.dp),
                                 color = if (index == 0) MaterialTheme.colorScheme.primaryContainer
@@ -666,7 +666,7 @@ fun SettingsScreen(
             },
             confirmButton = {},
             dismissButton = {
-                TextButton(onClick = { state.onShowBackupPickerChange(false) }) { Text("取消") }
+                TextButton(onClick = { state.setShowBackupPicker(false) }) { Text("取消") }
             },
         )
     }
@@ -674,7 +674,7 @@ fun SettingsScreen(
     // ---- 恢复二次确认（针对选中的备份） ----
     state.restoreCandidate?.let { candidate ->
         AlertDialog(
-            onDismissRequest = { state.onRestoreCandidateChange(null) },
+            onDismissRequest = { state.setRestoreCandidate(null) },
             title = { Text("确认恢复") },
             text = {
                 Text(
@@ -685,8 +685,8 @@ fun SettingsScreen(
             confirmButton = {
                 TextButton(onClick = {
                     val fileName = candidate.fileName
-                    state.onRestoreCandidateChange(null)
-                    state.onSyncDownload(fileName) { _, msg ->
+                    state.setRestoreCandidate(null)
+                    state.syncDownload(fileName) { _, msg ->
                         scope.launch { snackbarHostState.showSnackbar(msg) }
                     }
                 }) {
@@ -694,7 +694,7 @@ fun SettingsScreen(
                 }
             },
             dismissButton = {
-                TextButton(onClick = { state.onRestoreCandidateChange(null) }) { Text("取消") }
+                TextButton(onClick = { state.setRestoreCandidate(null) }) { Text("取消") }
             },
         )
     }

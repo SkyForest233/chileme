@@ -44,6 +44,7 @@ import top.yukonga.miuix.kmp.basic.Surface
 import top.yukonga.miuix.kmp.basic.HorizontalDivider
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.LinearProgressIndicator
+import top.yukonga.miuix.kmp.basic.ProgressIndicatorDefaults
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SnackbarHost
@@ -112,7 +113,7 @@ fun MiuixFoodDetailScreen(
                     IconButton(onClick = { onEdit(item.id) }) {
                         Icon(MiuixIcons.Edit, contentDescription = "编辑")
                     }
-                    IconButton(onClick = { state.onShowDeleteDialogChange(true) }) {
+                    IconButton(onClick = { state.setShowDeleteDialog(true) }) {
                         Icon(
                             MiuixIcons.Delete,
                             contentDescription = "删除",
@@ -194,7 +195,7 @@ fun MiuixFoodDetailScreen(
             Button(
                 onClick = {
                     state.playEatAnimation()
-                    state.onConsumeOne(
+                    state.consumeOne(
                         onAutoArchived = {
                             scope.launch {
                                 delay(600)
@@ -237,7 +238,7 @@ fun MiuixFoodDetailScreen(
                         quantity = item.quantity,
                         unit = item.unit,
                         onChange = { delta ->
-                            state.onChangeQuantity(delta) { if (delta < 0) onBack() }
+                            state.changeQuantity(delta) { if (delta < 0) onBack() }
                         },
                     )
                 }
@@ -277,7 +278,7 @@ fun MiuixFoodDetailScreen(
                 )
                 TextButton(
                     text = "删除",
-                    onClick = { state.onShowDeleteDialogChange(true) },
+                    onClick = { state.setShowDeleteDialog(true) },
                     modifier = Modifier.weight(1f),
                     minHeight = 48.dp,
                     colors = ButtonDefaults.textButtonColors(
@@ -293,19 +294,19 @@ fun MiuixFoodDetailScreen(
             title = "移入归档",
             summary = "确定要将“${item.name}”移入归档吗？（可在设置页的归档历史中查看或恢复）",
             show = state.showDeleteDialog,
-            onDismissRequest = { state.onShowDeleteDialogChange(false) },
+            onDismissRequest = { state.setShowDeleteDialog(false) },
         ) {
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 TextButton(
                     text = "取消",
-                    onClick = { state.onShowDeleteDialogChange(false) },
+                    onClick = { state.setShowDeleteDialog(false) },
                     modifier = Modifier.weight(1f),
                 )
                 TextButton(
                     text = "归档",
                     onClick = {
-                        state.onShowDeleteDialogChange(false)
-                        state.onDeleteItem()
+                        state.setShowDeleteDialog(false)
+                        state.deleteItem()
                         onBack()
                     },
                     modifier = Modifier.weight(1f),

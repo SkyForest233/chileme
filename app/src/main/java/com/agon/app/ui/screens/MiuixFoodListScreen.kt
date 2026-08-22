@@ -23,14 +23,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material.icons.rounded.DeleteForever
-import androidx.compose.material.icons.rounded.ExpandMore
-import androidx.compose.material.icons.rounded.FilterList
-import androidx.compose.material.icons.rounded.History
-import androidx.compose.material.icons.rounded.RestartAlt
-import androidx.compose.material.icons.rounded.SelectAll
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.runtime.Composable
@@ -86,7 +78,7 @@ fun MiuixFoodListScreen(
 
     // 系统返回键：多选时只退出多选，不切页（在 NavHost 内部，优先级高于导航返回）
     BackHandler(enabled = state.selectionMode) {
-        state.onClearSelection()
+        state.clearSelection()
     }
 
     Scaffold(
@@ -95,7 +87,7 @@ fun MiuixFoodListScreen(
                 title = if (state.selectionMode) "已选择 ${state.selectedIds.size} 项" else "全部食品",
                 navigationIcon = {
                     if (state.selectionMode) {
-                        IconButton(onClick = { state.onClearSelection() }) {
+                        IconButton(onClick = { state.clearSelection() }) {
                             Icon(MiuixIcons.Close, contentDescription = "取消选择")
                         }
                     }
@@ -104,7 +96,7 @@ fun MiuixFoodListScreen(
                     if (state.selectionMode) {
                         val allSelected = state.filtered.isNotEmpty() && state.selectedIds.size == state.filtered.size
                         IconButton(onClick = {
-                            if (allSelected) state.onClearSelection() else state.onSelectAll()
+                            if (allSelected) state.clearSelection() else state.selectAll()
                         }) {
                             Icon(
                                 if (allSelected) MiuixIcons.Close else MiuixIcons.SelectAll,
@@ -115,7 +107,7 @@ fun MiuixFoodListScreen(
                         MiuixFilterToggle(
                             activeCount = state.activeFilterCount,
                             expanded = state.filtersExpanded,
-                            onToggle = { state.onFiltersExpandedChange(!state.filtersExpanded) },
+                            onToggle = { state.setFiltersExpanded(!state.filtersExpanded) },
                         )
                     }
                 },
@@ -130,7 +122,7 @@ fun MiuixFoodListScreen(
             // ---- Miuix InputField ----
             InputField(
                 query = state.query,
-                onQueryChange = state.onQueryChange,
+                onQueryChange = { state.setQuery(it) },
                 onSearch = {},
                 expanded = false,
                 onExpandedChange = {},
@@ -160,7 +152,7 @@ fun MiuixFoodListScreen(
                         items(FoodStatusFilter.entries) { f ->
                             FilterChip(
                                 selected = state.statusFilter == f,
-                                onClick = { state.onStatusFilterChange(f) },
+                                onClick = { state.setStatusFilter(f) },
                                 label = { Text(f.label, style = MiuixTheme.textStyles.body2) },
                                 shape = RoundedCornerShape(50),
                                 colors = FilterChipDefaults.filterChipColors(
@@ -179,7 +171,7 @@ fun MiuixFoodListScreen(
                         item {
                             FilterChip(
                                 selected = state.categoryFilter == null,
-                                onClick = { state.onCategoryFilterChange(null) },
+                                onClick = { state.setCategoryFilter(null) },
                                 label = { Text("全部分类", style = MiuixTheme.textStyles.body2) },
                                 shape = RoundedCornerShape(50),
                             )
@@ -187,7 +179,7 @@ fun MiuixFoodListScreen(
                         items(state.categories, key = { it.id }) { c ->
                             FilterChip(
                                 selected = state.categoryFilter == c.id,
-                                onClick = { state.onCategoryFilterChange(if (state.categoryFilter == c.id) null else c.id) },
+                                onClick = { state.setCategoryFilter(if (state.categoryFilter == c.id) null else c.id) },
                                 label = { Text("${c.emoji} ${c.label}", style = MiuixTheme.textStyles.body2) },
                                 shape = RoundedCornerShape(50),
                                 colors = FilterChipDefaults.filterChipColors(
@@ -206,7 +198,7 @@ fun MiuixFoodListScreen(
                             item {
                                 FilterChip(
                                     selected = state.locationFilter == null,
-                                    onClick = { state.onLocationFilterChange(null) },
+                                    onClick = { state.setLocationFilter(null) },
                                     label = { Text("全部位置", style = MiuixTheme.textStyles.body2) },
                                     shape = RoundedCornerShape(50),
                                 )
@@ -214,7 +206,7 @@ fun MiuixFoodListScreen(
                             items(state.usedLocations, key = { it }) { loc ->
                                 FilterChip(
                                     selected = state.locationFilter == loc,
-                                    onClick = { state.onLocationFilterChange(if (state.locationFilter == loc) null else loc) },
+                                    onClick = { state.setLocationFilter(if (state.locationFilter == loc) null else loc) },
                                     label = { Text("📍 $loc", style = MiuixTheme.textStyles.body2) },
                                     shape = RoundedCornerShape(50),
                                     colors = FilterChipDefaults.filterChipColors(
@@ -242,7 +234,7 @@ fun MiuixFoodListScreen(
                     title = "没有找到匹配的食品",
                     subtitle = "试试清除筛选条件或换个关键词",
                     actionLabel = "清除筛选",
-                    onAction = state.onResetFilters,
+                    onAction = { state.resetFilters() },
                 )
             } else {
                 LazyColumn(
@@ -262,16 +254,16 @@ fun MiuixFoodListScreen(
                             category = state.categories.byId(item.category),
                             status = item.statusForAt(state.today, state.thresholds),
                             onClick = {
-                                if (state.selectionMode) state.onToggleSelection(item.id)
+                                if (state.selectionMode) state.toggleSelection(item.id)
                                 else onOpenItem(item.id)
                             },
                             onLongClick = {
-                                state.onToggleSelection(item.id)
+                                state.toggleSelection(item.id)
                             },
                             selected = selected,
                             selectionMode = state.selectionMode,
                             onQuantityChange = { delta ->
-                                state.onChangeQuantity(item.id, delta)
+                                state.changeQuantity(item.id, delta)
                             },
                             modifier = Modifier.animateItem(),
                         )

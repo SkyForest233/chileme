@@ -31,26 +31,37 @@ class FoodListUiState(
     val thresholds: Map<String, Int>,
     val today: LocalDate,
     val query: String,
-    val onQueryChange: (String) -> Unit,
     val statusFilter: FoodStatusFilter,
-    val onStatusFilterChange: (FoodStatusFilter) -> Unit,
     val categoryFilter: String?,
-    val onCategoryFilterChange: (String?) -> Unit,
     val locationFilter: String?,
-    val onLocationFilterChange: (String?) -> Unit,
     val filtersExpanded: Boolean,
-    val onFiltersExpandedChange: (Boolean) -> Unit,
     val usedLocations: List<String>,
     val activeFilterCount: Int,
     val filtered: List<FoodItem>,
     val selectedIds: Set<String>,
     val selectionMode: Boolean,
-    val onToggleSelection: (String) -> Unit,
-    val onSelectAll: () -> Unit,
-    val onClearSelection: () -> Unit,
-    val onResetFilters: () -> Unit,
-    val onChangeQuantity: (id: String, delta: Int) -> Unit,
-)
+    private val viewModel: AppViewModel,
+    private val onQueryChanged: (String) -> Unit,
+    private val onStatusFilterChanged: (FoodStatusFilter) -> Unit,
+    private val onCategoryFilterChanged: (String?) -> Unit,
+    private val onLocationFilterChanged: (String?) -> Unit,
+    private val onFiltersExpandedChanged: (Boolean) -> Unit,
+    private val onResetFiltersAction: () -> Unit,
+) {
+    fun setQuery(q: String) = onQueryChanged(q)
+    fun setStatusFilter(f: FoodStatusFilter) = onStatusFilterChanged(f)
+    fun setCategoryFilter(c: String?) = onCategoryFilterChanged(c)
+    fun setLocationFilter(l: String?) = onLocationFilterChanged(l)
+    fun setFiltersExpanded(e: Boolean) = onFiltersExpandedChanged(e)
+    fun resetFilters() = onResetFiltersAction()
+
+    fun toggleSelection(id: String) = viewModel.toggleSelection(id)
+    fun selectAll() = viewModel.setSelection(filtered.map { it.id }.toSet())
+    fun clearSelection() = viewModel.clearSelection()
+
+    fun changeQuantity(id: String, delta: Int) =
+        viewModel.changeQuantity(id, delta, withUndo = true)
+}
 
 @Composable
 fun rememberFoodListUiState(
@@ -108,7 +119,7 @@ fun rememberFoodListUiState(
             .sortedWith(compareBy({ it.quantity == 0 }, { it.daysLeftAt(today) }))
     }
 
-    fun onResetFilters() {
+    fun performReset() {
         query = ""
         statusFilter = FoodStatusFilter.ALL
         categoryFilter = null
@@ -139,25 +150,22 @@ fun rememberFoodListUiState(
             thresholds = thresholds,
             today = today,
             query = query,
-            onQueryChange = { query = it },
             statusFilter = statusFilter,
-            onStatusFilterChange = { statusFilter = it },
             categoryFilter = categoryFilter,
-            onCategoryFilterChange = { categoryFilter = it },
             locationFilter = locationFilter,
-            onLocationFilterChange = { locationFilter = it },
             filtersExpanded = filtersExpanded,
-            onFiltersExpandedChange = { filtersExpanded = it },
             usedLocations = usedLocations,
             activeFilterCount = activeFilterCount,
             filtered = filtered,
             selectedIds = selectedIds,
             selectionMode = selectionMode,
-            onToggleSelection = { viewModel.toggleSelection(it) },
-            onSelectAll = { viewModel.setSelection(filtered.map { it.id }.toSet()) },
-            onClearSelection = { viewModel.clearSelection() },
-            onResetFilters = { onResetFilters() },
-            onChangeQuantity = { id, delta -> viewModel.changeQuantity(id, delta, withUndo = true) },
+            viewModel = viewModel,
+            onQueryChanged = { query = it },
+            onStatusFilterChanged = { statusFilter = it },
+            onCategoryFilterChanged = { categoryFilter = it },
+            onLocationFilterChanged = { locationFilter = it },
+            onFiltersExpandedChanged = { filtersExpanded = it },
+            onResetFiltersAction = { performReset() },
         )
     }
 }

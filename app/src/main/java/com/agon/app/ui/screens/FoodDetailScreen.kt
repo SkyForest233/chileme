@@ -108,7 +108,7 @@ fun FoodDetailScreen(
                     IconButton(onClick = { onEdit(item.id) }) {
                         Icon(Icons.Rounded.Edit, contentDescription = "编辑")
                     }
-                    IconButton(onClick = { state.onShowDeleteDialogChange(true) }) {
+                    IconButton(onClick = { state.setShowDeleteDialog(true) }) {
                         Icon(
                             Icons.Rounded.Delete,
                             contentDescription = "删除",
@@ -195,7 +195,7 @@ fun FoodDetailScreen(
             Button(
                 onClick = {
                     state.playEatAnimation()
-                    state.onConsumeOne(
+                    state.consumeOne(
                         onAutoArchived = {
                             scope.launch {
                                 delay(600)
@@ -245,7 +245,7 @@ fun FoodDetailScreen(
                         quantity = item.quantity,
                         unit = item.unit,
                         onChange = { delta ->
-                            state.onChangeQuantity(delta) { if (delta < 0) onBack() }
+                            state.changeQuantity(delta) { if (delta < 0) onBack() }
                         },
                     )
                 }
@@ -291,7 +291,7 @@ fun FoodDetailScreen(
                     Text("编辑")
                 }
                 OutlinedButton(
-                    onClick = { state.onShowDeleteDialogChange(true) },
+                    onClick = { state.setShowDeleteDialog(true) },
                     modifier = Modifier.weight(1f),
                     shape = RoundedCornerShape(50),
                     colors = ButtonDefaults.outlinedButtonColors(
@@ -310,20 +310,20 @@ fun FoodDetailScreen(
 
     if (state.showDeleteDialog) {
         AlertDialog(
-            onDismissRequest = { state.onShowDeleteDialogChange(false) },
+            onDismissRequest = { state.setShowDeleteDialog(false) },
             title = { Text("移入归档") },
             text = { Text("确定要将“${item.name}”移入归档吗？（可在设置页的归档历史中查看或恢复）") },
             confirmButton = {
                 TextButton(onClick = {
-                    state.onShowDeleteDialogChange(false)
-                    state.onDeleteItem()
+                    state.setShowDeleteDialog(false)
+                    state.deleteItem()
                     onBack()
                 }) {
                     Text("归档", color = MaterialTheme.colorScheme.error)
                 }
             },
             dismissButton = {
-                TextButton(onClick = { state.onShowDeleteDialogChange(false) }) { Text("取消") }
+                TextButton(onClick = { state.setShowDeleteDialog(false) }) { Text("取消") }
             },
         )
     }

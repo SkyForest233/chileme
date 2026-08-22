@@ -27,9 +27,16 @@ class HomeUiState(
     val expired: Int,
     val urgent: List<FoodItem>,
     val autoSyncMessage: String?,
-    val onConsumeAutoSyncMessage: () -> Unit,
-    val onCleanExpired: () -> Unit,
-)
+    private val viewModel: AppViewModel,
+) {
+    fun consumeAutoSyncMessage() {
+        viewModel.consumeAutoSyncMessage()
+    }
+
+    fun cleanExpired() {
+        viewModel.cleanExpired()
+    }
+}
 
 @Composable
 fun rememberHomeUiState(viewModel: AppViewModel): HomeUiState {
@@ -70,8 +77,7 @@ fun rememberHomeUiState(viewModel: AppViewModel): HomeUiState {
             expired = expired,
             urgent = urgent,
             autoSyncMessage = autoSyncMessage,
-            onConsumeAutoSyncMessage = { viewModel.consumeAutoSyncMessage() },
-            onCleanExpired = { viewModel.cleanExpired() },
+            viewModel = viewModel,
         )
     }
 }

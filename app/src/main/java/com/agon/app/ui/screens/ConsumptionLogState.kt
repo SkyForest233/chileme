@@ -14,8 +14,12 @@ import com.agon.app.viewmodel.AppViewModel
 class ConsumptionLogUiState(
     val sortedRecords: List<ConsumptionRecord>,
     val categories: List<CategoryDef>,
-    val onDeleteRecord: (ConsumptionRecord) -> Unit,
-)
+    private val viewModel: AppViewModel,
+) {
+    fun deleteRecord(record: ConsumptionRecord) {
+        viewModel.deleteConsumption(record)
+    }
+}
 
 @Composable
 fun rememberConsumptionLogUiState(viewModel: AppViewModel): ConsumptionLogUiState {
@@ -30,7 +34,7 @@ fun rememberConsumptionLogUiState(viewModel: AppViewModel): ConsumptionLogUiStat
         ConsumptionLogUiState(
             sortedRecords = sorted,
             categories = categories,
-            onDeleteRecord = { viewModel.deleteConsumption(it) },
+            viewModel = viewModel,
         )
     }
 }

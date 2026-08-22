@@ -79,7 +79,7 @@ fun MiuixHomeScreen(
     LaunchedEffect(state.autoSyncMessage) {
         state.autoSyncMessage?.let {
             snackbarHostState.showSnackbar(it)
-            state.onConsumeAutoSyncMessage()
+            state.consumeAutoSyncMessage()
         }
     }
 
@@ -171,7 +171,7 @@ fun MiuixHomeScreen(
                             }
                             Button(
                                 onClick = {
-                                    state.onCleanExpired()
+                                    state.cleanExpired()
                                     scope.launch { snackbarHostState.showSnackbar("已将 ${state.expired} 件过期食品移入归档") }
                                 },
                                 colors = ButtonDefaults.buttonColors(

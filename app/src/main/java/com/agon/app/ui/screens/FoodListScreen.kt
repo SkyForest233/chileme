@@ -76,7 +76,7 @@ fun FoodListScreen(
 
     // 系统返回键：多选时只退出多选，不切页（在 NavHost 内部，优先级高于导航返回）
     BackHandler(enabled = state.selectionMode) {
-        state.onClearSelection()
+        state.clearSelection()
     }
 
     Scaffold(
@@ -96,7 +96,7 @@ fun FoodListScreen(
                 },
                 navigationIcon = {
                     if (state.selectionMode) {
-                        IconButton(onClick = { state.onClearSelection() }) {
+                        IconButton(onClick = { state.clearSelection() }) {
                             Icon(Icons.Rounded.Close, contentDescription = "取消选择")
                         }
                     }
@@ -106,7 +106,7 @@ fun FoodListScreen(
                         // 全选 / 取消全选
                         val allSelected = state.filtered.isNotEmpty() && state.selectedIds.size == state.filtered.size
                         IconButton(onClick = {
-                            if (allSelected) state.onClearSelection() else state.onSelectAll()
+                            if (allSelected) state.clearSelection() else state.selectAll()
                         }) {
                             Icon(
                                 if (allSelected) Icons.Rounded.Close else Icons.Rounded.SelectAll,
@@ -118,7 +118,7 @@ fun FoodListScreen(
                         FilterToggle(
                             activeCount = state.activeFilterCount,
                             expanded = state.filtersExpanded,
-                            onToggle = { state.onFiltersExpandedChange(!state.filtersExpanded) },
+                            onToggle = { state.setFiltersExpanded(!state.filtersExpanded) },
                         )
                     }
                 },
@@ -136,7 +136,7 @@ fun FoodListScreen(
             // ---- Search box ----
             OutlinedTextField(
                 value = state.query,
-                onValueChange = state.onQueryChange,
+                onValueChange = { state.setQuery(it) },
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 20.dp),
@@ -144,7 +144,7 @@ fun FoodListScreen(
                 leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null) },
                 trailingIcon = {
                     if (state.query.isNotEmpty()) {
-                        IconButton(onClick = { state.onQueryChange("") }) {
+                        IconButton(onClick = { state.setQuery("") }) {
                             Icon(Icons.Rounded.Close, contentDescription = "清空搜索")
                         }
                     }
@@ -173,7 +173,7 @@ fun FoodListScreen(
                         items(FoodStatusFilter.entries) { f ->
                             FilterChip(
                                 selected = state.statusFilter == f,
-                                onClick = { state.onStatusFilterChange(f) },
+                                onClick = { state.setStatusFilter(f) },
                                 label = { Text(f.label) },
                                 shape = RoundedCornerShape(50),
                                 colors = FilterChipDefaults.filterChipColors(
@@ -192,7 +192,7 @@ fun FoodListScreen(
                         item {
                             FilterChip(
                                 selected = state.categoryFilter == null,
-                                onClick = { state.onCategoryFilterChange(null) },
+                                onClick = { state.setCategoryFilter(null) },
                                 label = { Text("全部分类") },
                                 shape = RoundedCornerShape(50),
                             )
@@ -200,7 +200,7 @@ fun FoodListScreen(
                         items(state.categories, key = { it.id }) { c ->
                             FilterChip(
                                 selected = state.categoryFilter == c.id,
-                                onClick = { state.onCategoryFilterChange(if (state.categoryFilter == c.id) null else c.id) },
+                                onClick = { state.setCategoryFilter(if (state.categoryFilter == c.id) null else c.id) },
                                 label = { Text("${c.emoji} ${c.label}") },
                                 shape = RoundedCornerShape(50),
                                 colors = FilterChipDefaults.filterChipColors(
@@ -219,7 +219,7 @@ fun FoodListScreen(
                             item {
                                 FilterChip(
                                     selected = state.locationFilter == null,
-                                    onClick = { state.onLocationFilterChange(null) },
+                                    onClick = { state.setLocationFilter(null) },
                                     label = { Text("全部位置") },
                                     shape = RoundedCornerShape(50),
                                 )
@@ -227,7 +227,7 @@ fun FoodListScreen(
                             items(state.usedLocations, key = { it }) { loc ->
                                 FilterChip(
                                     selected = state.locationFilter == loc,
-                                    onClick = { state.onLocationFilterChange(if (state.locationFilter == loc) null else loc) },
+                                    onClick = { state.setLocationFilter(if (state.locationFilter == loc) null else loc) },
                                     label = { Text("📍 $loc") },
                                     shape = RoundedCornerShape(50),
                                     colors = FilterChipDefaults.filterChipColors(
@@ -255,7 +255,7 @@ fun FoodListScreen(
                     title = "没有找到匹配的食品",
                     subtitle = "试试清除筛选条件或换个关键词",
                     actionLabel = "清除筛选",
-                    onAction = state.onResetFilters,
+                    onAction = { state.resetFilters() },
                 )
             } else {
                 LazyColumn(
@@ -275,16 +275,16 @@ fun FoodListScreen(
                             category = state.categories.byId(item.category),
                             status = item.statusForAt(state.today, state.thresholds),
                             onClick = {
-                                if (state.selectionMode) state.onToggleSelection(item.id)
+                                if (state.selectionMode) state.toggleSelection(item.id)
                                 else onOpenItem(item.id)
                             },
                             onLongClick = {
-                                state.onToggleSelection(item.id)
+                                state.toggleSelection(item.id)
                             },
                             selected = selected,
                             selectionMode = state.selectionMode,
                             onQuantityChange = { delta ->
-                                state.onChangeQuantity(item.id, delta)
+                                state.changeQuantity(item.id, delta)
                             },
                             modifier = Modifier.animateItem(),
                         )

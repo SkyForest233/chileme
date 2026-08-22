@@ -20,15 +20,29 @@ class ArchiveUiState(
     val categories: List<CategoryDef>,
     val filtered: List<ArchivedItem>,
     val reasonFilter: ArchiveReason?,
-    val onReasonFilterChange: (ArchiveReason?) -> Unit,
     val query: String,
-    val onQueryChange: (String) -> Unit,
     val showClearDialog: Boolean,
-    val onShowClearDialogChange: (Boolean) -> Unit,
-    val onRestoreEntry: (id: String, onDone: (merged: Boolean) -> Unit) -> Unit,
-    val onDeleteEntry: (id: String) -> Unit,
-    val onClearArchive: () -> Unit,
-)
+    private val viewModel: AppViewModel,
+    private val onReasonFilterChanged: (ArchiveReason?) -> Unit,
+    private val onQueryChanged: (String) -> Unit,
+    private val onShowClearDialogChanged: (Boolean) -> Unit,
+) {
+    fun setReasonFilter(reason: ArchiveReason?) = onReasonFilterChanged(reason)
+    fun setQuery(newQuery: String) = onQueryChanged(newQuery)
+    fun setShowClearDialog(show: Boolean) = onShowClearDialogChanged(show)
+
+    fun restoreEntry(id: String, onDone: (merged: Boolean) -> Unit) {
+        viewModel.restoreArchivedSmart(id, onDone)
+    }
+
+    fun deleteEntry(id: String) {
+        viewModel.deleteArchived(id)
+    }
+
+    fun clearArchive() {
+        viewModel.clearArchive()
+    }
+}
 
 @Composable
 fun rememberArchiveUiState(viewModel: AppViewModel): ArchiveUiState {
@@ -57,14 +71,12 @@ fun rememberArchiveUiState(viewModel: AppViewModel): ArchiveUiState {
             categories = categories,
             filtered = filtered,
             reasonFilter = reasonFilter,
-            onReasonFilterChange = { reasonFilter = it },
             query = query,
-            onQueryChange = { query = it },
             showClearDialog = showClearDialog,
-            onShowClearDialogChange = { showClearDialog = it },
-            onRestoreEntry = { id, onDone -> viewModel.restoreArchivedSmart(id, onDone) },
-            onDeleteEntry = { id -> viewModel.deleteArchived(id) },
-            onClearArchive = { viewModel.clearArchive() },
+            viewModel = viewModel,
+            onReasonFilterChanged = { reasonFilter = it },
+            onQueryChanged = { query = it },
+            onShowClearDialogChanged = { showClearDialog = it },
         )
     }
 }

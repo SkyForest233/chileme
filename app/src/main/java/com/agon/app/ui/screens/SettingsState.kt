@@ -35,31 +35,44 @@ class SettingsUiState(
     val cloudBackups: List<CloudBackup>,
     val loadingBackups: Boolean,
     val showClearDialog: Boolean,
-    val onShowClearDialogChange: (Boolean) -> Unit,
     val showNutstoreDialog: Boolean,
-    val onShowNutstoreDialogChange: (Boolean) -> Unit,
     val showBackupPicker: Boolean,
-    val onShowBackupPickerChange: (Boolean) -> Unit,
     val restoreCandidate: CloudBackup?,
-    val onRestoreCandidateChange: (CloudBackup?) -> Unit,
     val accountInput: String,
-    val onAccountInputChange: (String) -> Unit,
     val passwordInput: String,
-    val onPasswordInputChange: (String) -> Unit,
-    val onSetDynamicColor: (Boolean) -> Unit,
-    val onSetDarkMode: (Int) -> Unit,
-    val onSetPalette: (String) -> Unit,
-    val onSetThemeStyle: (String) -> Unit,
-    val onSetFloatingNav: (Boolean) -> Unit,
-    val onSetAutoSyncDays: (Int) -> Unit,
-    val onSaveNutstoreCredentials: (String, String) -> Unit,
-    val onSyncUpload: (onResult: (Boolean, String) -> Unit) -> Unit,
-    val onLoadCloudBackups: (onResult: (Boolean, String) -> Unit) -> Unit,
-    val onSyncDownload: (fileName: String, onResult: (Boolean, String) -> Unit) -> Unit,
-    val onClearAll: () -> Unit,
-    val buildBackupJson: suspend () -> String,
-    val importBackupJson: suspend (String) -> Boolean,
-)
+    private val viewModel: AppViewModel,
+    private val onShowClearDialogChanged: (Boolean) -> Unit,
+    private val onShowNutstoreDialogChanged: (Boolean) -> Unit,
+    private val onShowBackupPickerChanged: (Boolean) -> Unit,
+    private val onRestoreCandidateChanged: (CloudBackup?) -> Unit,
+    private val onAccountInputChanged: (String) -> Unit,
+    private val onPasswordInputChanged: (String) -> Unit,
+) {
+    fun setShowClearDialog(show: Boolean) = onShowClearDialogChanged(show)
+    fun setShowNutstoreDialog(show: Boolean) = onShowNutstoreDialogChanged(show)
+    fun setShowBackupPicker(show: Boolean) = onShowBackupPickerChanged(show)
+    fun setRestoreCandidate(candidate: CloudBackup?) = onRestoreCandidateChanged(candidate)
+    fun setAccountInput(account: String) = onAccountInputChanged(account)
+    fun setPasswordInput(password: String) = onPasswordInputChanged(password)
+
+    fun setDynamicColor(enabled: Boolean) = viewModel.setDynamicColor(enabled)
+    fun setDarkMode(mode: Int) = viewModel.setDarkMode(mode)
+    fun setPalette(name: String) = viewModel.setPalette(name)
+    fun setThemeStyle(style: String) = viewModel.setThemeStyle(style)
+    fun setFloatingNav(enabled: Boolean) = viewModel.setFloatingNav(enabled)
+    fun setAutoSyncDays(days: Int) = viewModel.setAutoSyncDays(days)
+
+    fun saveNutstoreCredentials(account: String, pass: String) =
+        viewModel.saveNutstoreCredentials(account, pass)
+
+    fun syncUpload(onResult: (Boolean, String) -> Unit) = viewModel.syncUpload(onResult)
+    fun loadCloudBackups(onResult: (Boolean, String) -> Unit) = viewModel.loadCloudBackups(onResult)
+    fun syncDownload(fileName: String, onResult: (Boolean, String) -> Unit) = viewModel.syncDownload(fileName, onResult)
+    fun clearAll() = viewModel.clearAll()
+
+    suspend fun buildBackupJson(): String = viewModel.buildBackupJson()
+    suspend fun importBackupJson(raw: String): Boolean = viewModel.importBackupJson(raw)
+}
 
 @Composable
 fun rememberSettingsUiState(viewModel: AppViewModel): SettingsUiState {
@@ -139,30 +152,18 @@ fun rememberSettingsUiState(viewModel: AppViewModel): SettingsUiState {
             cloudBackups = cloudBackups,
             loadingBackups = loadingBackups,
             showClearDialog = showClearDialog,
-            onShowClearDialogChange = { showClearDialog = it },
             showNutstoreDialog = showNutstoreDialog,
-            onShowNutstoreDialogChange = { showNutstoreDialog = it },
             showBackupPicker = showBackupPicker,
-            onShowBackupPickerChange = { showBackupPicker = it },
             restoreCandidate = restoreCandidate,
-            onRestoreCandidateChange = { restoreCandidate = it },
             accountInput = accountInput,
-            onAccountInputChange = { accountInput = it },
             passwordInput = passwordInput,
-            onPasswordInputChange = { passwordInput = it },
-            onSetDynamicColor = { viewModel.setDynamicColor(it) },
-            onSetDarkMode = { viewModel.setDarkMode(it) },
-            onSetPalette = { viewModel.setPalette(it) },
-            onSetThemeStyle = { viewModel.setThemeStyle(it) },
-            onSetFloatingNav = { viewModel.setFloatingNav(it) },
-            onSetAutoSyncDays = { viewModel.setAutoSyncDays(it) },
-            onSaveNutstoreCredentials = { a, p -> viewModel.saveNutstoreCredentials(a, p) },
-            onSyncUpload = { onResult -> viewModel.syncUpload(onResult) },
-            onLoadCloudBackups = { onResult -> viewModel.loadCloudBackups(onResult) },
-            onSyncDownload = { fileName, onResult -> viewModel.syncDownload(fileName, onResult) },
-            onClearAll = { viewModel.clearAll() },
-            buildBackupJson = { viewModel.buildBackupJson() },
-            importBackupJson = { raw -> viewModel.importBackupJson(raw) },
+            viewModel = viewModel,
+            onShowClearDialogChanged = { showClearDialog = it },
+            onShowNutstoreDialogChanged = { showNutstoreDialog = it },
+            onShowBackupPickerChanged = { showBackupPicker = it },
+            onRestoreCandidateChanged = { restoreCandidate = it },
+            onAccountInputChanged = { accountInput = it },
+            onPasswordInputChanged = { passwordInput = it },
         )
     }
 }

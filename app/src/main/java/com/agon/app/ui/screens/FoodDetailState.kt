@@ -33,16 +33,30 @@ class FoodDetailUiState(
     val categoryDef: CategoryDef,
     val thresholds: Map<String, Int>,
     val showDeleteDialog: Boolean,
-    val onShowDeleteDialogChange: (Boolean) -> Unit,
     val bounceScale: Animatable<Float, AnimationVector1D>,
     val floatOffset: Animatable<Float, AnimationVector1D>,
     val floatAlpha: Animatable<Float, AnimationVector1D>,
     val burstCount: Int,
-    val playEatAnimation: () -> Unit,
-    val onConsumeOne: (onAutoArchived: () -> Unit) -> Unit,
-    val onChangeQuantity: (delta: Int, onAutoArchived: () -> Unit) -> Unit,
-    val onDeleteItem: () -> Unit,
-)
+    private val viewModel: AppViewModel,
+    private val onShowDeleteDialogChanged: (Boolean) -> Unit,
+    private val onPlayEatAnimation: () -> Unit,
+) {
+    fun setShowDeleteDialog(show: Boolean) = onShowDeleteDialogChanged(show)
+
+    fun playEatAnimation() = onPlayEatAnimation()
+
+    fun consumeOne(onAutoArchived: () -> Unit) {
+        item?.let { viewModel.consumeOne(it.id, onAutoArchived) }
+    }
+
+    fun changeQuantity(delta: Int, onAutoArchived: () -> Unit) {
+        item?.let { viewModel.changeQuantity(it.id, delta, onAutoArchived) }
+    }
+
+    fun deleteItem() {
+        item?.let { viewModel.archive(it.id, ArchiveReason.DELETED) }
+    }
+}
 
 @Composable
 fun rememberFoodDetailUiState(
@@ -96,21 +110,13 @@ fun rememberFoodDetailUiState(
             categoryDef = categoryDef,
             thresholds = thresholds,
             showDeleteDialog = showDeleteDialog,
-            onShowDeleteDialogChange = { showDeleteDialog = it },
             bounceScale = bounceScale,
             floatOffset = floatOffset,
             floatAlpha = floatAlpha,
             burstCount = burstCount,
-            playEatAnimation = { triggerEatAnimation() },
-            onConsumeOne = { onAutoArchived ->
-                item?.let { viewModel.consumeOne(it.id, onAutoArchived) }
-            },
-            onChangeQuantity = { delta, onAutoArchived ->
-                item?.let { viewModel.changeQuantity(it.id, delta, onAutoArchived) }
-            },
-            onDeleteItem = {
-                item?.let { viewModel.archive(it.id, ArchiveReason.DELETED) }
-            },
+            viewModel = viewModel,
+            onShowDeleteDialogChanged = { showDeleteDialog = it },
+            onPlayEatAnimation = { triggerEatAnimation() },
         )
     }
 }

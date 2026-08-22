@@ -79,7 +79,7 @@ fun MiuixArchiveScreen(
                 },
                 actions = {
                     if (state.archived.isNotEmpty()) {
-                        IconButton(onClick = { state.onShowClearDialogChange(true) }) {
+                        IconButton(onClick = { state.setShowClearDialog(true) }) {
                             Icon(
                                 MiuixIcons.Delete,
                                 contentDescription = "清空归档",
@@ -98,7 +98,7 @@ fun MiuixArchiveScreen(
         ) {
             InputField(
                 query = state.query,
-                onQueryChange = state.onQueryChange,
+                onQueryChange = { state.setQuery(it) },
                 onSearch = {},
                 expanded = false,
                 onExpandedChange = {},
@@ -115,7 +115,7 @@ fun MiuixArchiveScreen(
                 items(listOf<ArchiveReason?>(null) + ArchiveReason.entries.toList()) { r ->
                     FilterChip(
                         selected = state.reasonFilter == r,
-                        onClick = { state.onReasonFilterChange(r) },
+                        onClick = { state.setReasonFilter(r) },
                         label = { Text(r?.let { "${it.emoji} ${it.label}" } ?: "全部", style = MiuixTheme.textStyles.body2) },
                         shape = RoundedCornerShape(50),
                         colors = FilterChipDefaults.filterChipColors(
@@ -149,7 +149,7 @@ fun MiuixArchiveScreen(
                             entry = entry,
                             emoji = state.categories.byId(entry.item.category).emoji,
                             onRestore = {
-                                state.onRestoreEntry(entry.item.id) { merged ->
+                                state.restoreEntry(entry.item.id) { merged ->
                                     scope.launch {
                                         snackbarHostState.showSnackbar(
                                             if (merged) "库存中已有同批次“${entry.item.name}”，已合并数量"
@@ -158,7 +158,7 @@ fun MiuixArchiveScreen(
                                     }
                                 }
                             },
-                            onDelete = { state.onDeleteEntry(entry.item.id) },
+                            onDelete = { state.deleteEntry(entry.item.id) },
                         )
                     }
                 }
@@ -169,19 +169,19 @@ fun MiuixArchiveScreen(
             title = "清空归档",
             summary = "确定要彻底删除全部 ${state.archived.size} 条归档记录吗？此操作无法撤销。",
             show = state.showClearDialog,
-            onDismissRequest = { state.onShowClearDialogChange(false) },
+            onDismissRequest = { state.setShowClearDialog(false) },
         ) {
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 TextButton(
                     text = "取消",
-                    onClick = { state.onShowClearDialogChange(false) },
+                    onClick = { state.setShowClearDialog(false) },
                     modifier = Modifier.weight(1f),
                 )
                 TextButton(
                     text = "清空",
                     onClick = {
-                        state.onShowClearDialogChange(false)
-                        state.onClearArchive()
+                        state.setShowClearDialog(false)
+                        state.clearArchive()
                     },
                     modifier = Modifier.weight(1f),
                     colors = ButtonDefaults.textButtonColors(

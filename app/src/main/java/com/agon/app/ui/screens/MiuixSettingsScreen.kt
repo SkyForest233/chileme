@@ -137,31 +137,31 @@ fun MiuixSettingsScreen(
                         title = ThemeStyle.MATERIAL3.label,
                         summary = "当前 MD3 风格（默认）",
                         selected = state.themeStyleName == ThemeStyle.MATERIAL3.name,
-                        onClick = { state.onSetThemeStyle(ThemeStyle.MATERIAL3.name) },
+                        onClick = { state.setThemeStyle(ThemeStyle.MATERIAL3.name) },
                     )
                     RadioButtonPreference(
                         title = ThemeStyle.MIUIX.label,
                         summary = "小米 HyperOS 风格",
                         selected = state.themeStyleName == ThemeStyle.MIUIX.name,
-                        onClick = { state.onSetThemeStyle(ThemeStyle.MIUIX.name) },
+                        onClick = { state.setThemeStyle(ThemeStyle.MIUIX.name) },
                     )
                     OverlayDropdownPreference(
                         title = "深色模式",
                         items = listOf("跟随系统", "浅色", "深色"),
                         selectedIndex = state.darkMode.coerceIn(0, 2),
-                        onSelectedIndexChange = { state.onSetDarkMode(it) },
+                        onSelectedIndexChange = { state.setDarkMode(it) },
                     )
                     SwitchPreference(
                         title = "动态取色 (Material You)",
                         summary = "需要 Android 12 及以上，优先于配色方案",
                         checked = state.dynamicColor,
-                        onCheckedChange = { state.onSetDynamicColor(it) },
+                        onCheckedChange = { state.setDynamicColor(it) },
                     )
                     SwitchPreference(
                         title = "悬浮导航",
                         summary = "关闭后底部导航改为全宽常驻底栏",
                         checked = state.floatingNav,
-                        onCheckedChange = { state.onSetFloatingNav(it) },
+                        onCheckedChange = { state.setFloatingNav(it) },
                     )
                 }
             }
@@ -234,7 +234,7 @@ fun MiuixSettingsScreen(
                                 tint = MiuixTheme.colorScheme.primary,
                             )
                         },
-                        onClick = { state.onShowNutstoreDialogChange(true) },
+                        onClick = { state.setShowNutstoreDialog(true) },
                     )
                     if (state.nutstoreAccount.isNotBlank()) {
                         ArrowPreference(
@@ -249,7 +249,7 @@ fun MiuixSettingsScreen(
                             },
                             enabled = !state.syncing,
                             onClick = {
-                                state.onSyncUpload { _, msg ->
+                                state.syncUpload { _, msg ->
                                     scope.launch { snackbarHostState.showSnackbar(msg) }
                                 }
                             },
@@ -266,10 +266,10 @@ fun MiuixSettingsScreen(
                             },
                             enabled = !state.syncing && !state.loadingBackups,
                             onClick = {
-                                state.onShowBackupPickerChange(true)
-                                state.onLoadCloudBackups { ok, msg ->
+                                state.setShowBackupPicker(true)
+                                state.loadCloudBackups { ok, msg ->
                                     if (!ok) {
-                                        state.onShowBackupPickerChange(false)
+                                        state.setShowBackupPicker(false)
                                         scope.launch { snackbarHostState.showSnackbar(msg) }
                                     }
                                 }
@@ -286,14 +286,14 @@ fun MiuixSettingsScreen(
                             else -> 0
                         },
                         onSelectedIndexChange = { idx ->
-                            state.onSetAutoSyncDays(listOf(0, 1, 3, 7)[idx])
+                            state.setAutoSyncDays(listOf(0, 1, 3, 7)[idx])
                         },
                     )
                     ArrowPreference(
                         title = "清空库存记录",
                         summary = "当前共 ${state.items.size} 条食品记录（不影响归档）",
                         titleColor = BasicComponentDefaults.titleColor(color = MiuixTheme.colorScheme.error),
-                        onClick = { state.onShowClearDialogChange(true) },
+                        onClick = { state.setShowClearDialog(true) },
                     )
                 }
             }
@@ -314,19 +314,19 @@ fun MiuixSettingsScreen(
             title = "清空库存记录",
             summary = "确定要删除全部 ${state.items.size} 条食品记录吗？建议先导出备份。",
             show = state.showClearDialog,
-            onDismissRequest = { state.onShowClearDialogChange(false) },
+            onDismissRequest = { state.setShowClearDialog(false) },
         ) {
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 TextButton(
                     text = "取消",
-                    onClick = { state.onShowClearDialogChange(false) },
+                    onClick = { state.setShowClearDialog(false) },
                     modifier = Modifier.weight(1f),
                 )
                 TextButton(
                     text = "清空",
                     onClick = {
-                        state.onShowClearDialogChange(false)
-                        state.onClearAll()
+                        state.setShowClearDialog(false)
+                        state.clearAll()
                     },
                     modifier = Modifier.weight(1f),
                     colors = ButtonDefaults.textButtonColors(textColor = MiuixTheme.colorScheme.error),
@@ -338,7 +338,7 @@ fun MiuixSettingsScreen(
         OverlayDialog(
             title = "坚果云账号",
             show = state.showNutstoreDialog,
-            onDismissRequest = { state.onShowNutstoreDialogChange(false) },
+            onDismissRequest = { state.setShowNutstoreDialog(false) },
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(
@@ -348,7 +348,7 @@ fun MiuixSettingsScreen(
                 )
                 OutlinedTextField(
                     value = state.accountInput,
-                    onValueChange = state.onAccountInputChange,
+                    onValueChange = { state.setAccountInput(it) },
                     label = { Text("账号（邮箱）") },
                     singleLine = true,
                     shape = RoundedCornerShape(16.dp),
@@ -356,7 +356,7 @@ fun MiuixSettingsScreen(
                 )
                 OutlinedTextField(
                     value = state.passwordInput,
-                    onValueChange = state.onPasswordInputChange,
+                    onValueChange = { state.setPasswordInput(it) },
                     label = { Text("应用密码") },
                     singleLine = true,
                     visualTransformation = PasswordVisualTransformation(),
@@ -369,14 +369,14 @@ fun MiuixSettingsScreen(
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     TextButton(
                         text = "取消",
-                        onClick = { state.onShowNutstoreDialogChange(false) },
+                        onClick = { state.setShowNutstoreDialog(false) },
                         modifier = Modifier.weight(1f),
                     )
                     TextButton(
                         text = "保存",
                         onClick = {
-                            state.onSaveNutstoreCredentials(state.accountInput, state.passwordInput)
-                            state.onShowNutstoreDialogChange(false)
+                            state.saveNutstoreCredentials(state.accountInput, state.passwordInput)
+                            state.setShowNutstoreDialog(false)
                             scope.launch { snackbarHostState.showSnackbar("坚果云账号已保存") }
                         },
                         modifier = Modifier.weight(1f),
@@ -389,7 +389,7 @@ fun MiuixSettingsScreen(
         OverlayDialog(
             title = "选择要恢复的备份",
             show = state.showBackupPicker,
-            onDismissRequest = { if (!state.loadingBackups) state.onShowBackupPickerChange(false) },
+            onDismissRequest = { if (!state.loadingBackups) state.setShowBackupPicker(false) },
         ) {
             if (state.loadingBackups) {
                 Row(
@@ -411,8 +411,8 @@ fun MiuixSettingsScreen(
                     state.cloudBackups.forEachIndexed { index, backup ->
                         Surface(
                             onClick = {
-                                state.onShowBackupPickerChange(false)
-                                state.onRestoreCandidateChange(backup)
+                                state.setShowBackupPicker(false)
+                                state.setRestoreCandidate(backup)
                             },
                             shape = RoundedCornerShape(16.dp),
                             color = if (index == 0) MiuixTheme.colorScheme.primaryContainer
@@ -441,7 +441,7 @@ fun MiuixSettingsScreen(
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 TextButton(
                     text = "取消",
-                    onClick = { state.onShowBackupPickerChange(false) },
+                    onClick = { state.setShowBackupPicker(false) },
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
@@ -454,21 +454,21 @@ fun MiuixSettingsScreen(
                 "将恢复备份：\n${it.displayTime}\n\n此操作会整体替换本机全部数据（库存、归档、消耗记录和设置）。确定继续吗？"
             },
             show = state.restoreCandidate != null,
-            onDismissRequest = { state.onRestoreCandidateChange(null) },
+            onDismissRequest = { state.setRestoreCandidate(null) },
         ) {
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 TextButton(
                     text = "取消",
-                    onClick = { state.onRestoreCandidateChange(null) },
+                    onClick = { state.setRestoreCandidate(null) },
                     modifier = Modifier.weight(1f),
                 )
                 TextButton(
                     text = "恢复这一份",
                     onClick = {
                         val fileName = state.restoreCandidate?.fileName
-                        state.onRestoreCandidateChange(null)
+                        state.setRestoreCandidate(null)
                         if (fileName != null) {
-                            state.onSyncDownload(fileName) { _, msg ->
+                            state.syncDownload(fileName) { _, msg ->
                                 scope.launch { snackbarHostState.showSnackbar(msg) }
                             }
                         }

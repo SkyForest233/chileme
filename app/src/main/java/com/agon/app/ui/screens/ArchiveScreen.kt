@@ -77,7 +77,7 @@ fun ArchiveScreen(
                 },
                 actions = {
                     if (state.archived.isNotEmpty()) {
-                        IconButton(onClick = { state.onShowClearDialogChange(true) }) {
+                        IconButton(onClick = { state.setShowClearDialog(true) }) {
                             Icon(
                                 Icons.Rounded.DeleteForever,
                                 contentDescription = "清空归档",
@@ -99,7 +99,7 @@ fun ArchiveScreen(
         ) {
             OutlinedTextField(
                 value = state.query,
-                onValueChange = state.onQueryChange,
+                onValueChange = { state.setQuery(it) },
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 20.dp),
@@ -116,7 +116,7 @@ fun ArchiveScreen(
                 items(listOf<ArchiveReason?>(null) + ArchiveReason.entries.toList()) { r ->
                     FilterChip(
                         selected = state.reasonFilter == r,
-                        onClick = { state.onReasonFilterChange(r) },
+                        onClick = { state.setReasonFilter(r) },
                         label = { Text(r?.let { "${it.emoji} ${it.label}" } ?: "全部") },
                         shape = RoundedCornerShape(50),
                         colors = FilterChipDefaults.filterChipColors(
@@ -150,7 +150,7 @@ fun ArchiveScreen(
                             entry = entry,
                             emoji = state.categories.byId(entry.item.category).emoji,
                             onRestore = {
-                                state.onRestoreEntry(entry.item.id) { merged ->
+                                state.restoreEntry(entry.item.id) { merged ->
                                     scope.launch {
                                         snackbarHostState.showSnackbar(
                                             if (merged) "库存中已有同批次“${entry.item.name}”，已合并数量"
@@ -159,7 +159,7 @@ fun ArchiveScreen(
                                     }
                                 }
                             },
-                            onDelete = { state.onDeleteEntry(entry.item.id) },
+                            onDelete = { state.deleteEntry(entry.item.id) },
                         )
                     }
                 }
@@ -169,19 +169,19 @@ fun ArchiveScreen(
 
     if (state.showClearDialog) {
         AlertDialog(
-            onDismissRequest = { state.onShowClearDialogChange(false) },
+            onDismissRequest = { state.setShowClearDialog(false) },
             title = { Text("清空归档") },
             text = { Text("确定要彻底删除全部 ${state.archived.size} 条归档记录吗？此操作无法撤销。") },
             confirmButton = {
                 TextButton(onClick = {
-                    state.onShowClearDialogChange(false)
-                    state.onClearArchive()
+                    state.setShowClearDialog(false)
+                    state.clearArchive()
                 }) {
                     Text("清空", color = MaterialTheme.colorScheme.error)
                 }
             },
             dismissButton = {
-                TextButton(onClick = { state.onShowClearDialogChange(false) }) { Text("取消") }
+                TextButton(onClick = { state.setShowClearDialog(false) }) { Text("取消") }
             },
         )
     }

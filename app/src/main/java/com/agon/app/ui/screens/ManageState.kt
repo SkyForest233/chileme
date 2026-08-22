@@ -17,10 +17,14 @@ import com.agon.app.viewmodel.AppViewModel
 class ThresholdManageUiState(
     val categories: List<CategoryDef>,
     val thresholds: Map<String, Int>,
-    val onSetThreshold: (categoryId: String, days: Int) -> Unit,
+    private val viewModel: AppViewModel,
 ) {
     fun getThreshold(categoryId: String): Int =
         thresholds[categoryId] ?: DEFAULT_EXPIRING_THRESHOLD
+
+    fun setThreshold(categoryId: String, days: Int) {
+        viewModel.setCategoryThreshold(categoryId, days)
+    }
 }
 
 @Composable
@@ -32,7 +36,7 @@ fun rememberThresholdManageUiState(viewModel: AppViewModel): ThresholdManageUiSt
         ThresholdManageUiState(
             categories = categories,
             thresholds = thresholds,
-            onSetThreshold = { id, days -> viewModel.setCategoryThreshold(id, days) },
+            viewModel = viewModel,
         )
     }
 }
@@ -44,17 +48,36 @@ class CategoryManageUiState(
     val categories: List<CategoryDef>,
     val items: List<FoodItem>,
     val showAdd: Boolean,
-    val onShowAddChange: (Boolean) -> Unit,
     val editing: CategoryDef?,
-    val onEditingChange: (CategoryDef?) -> Unit,
     val deleting: CategoryDef?,
-    val onDeletingChange: (CategoryDef?) -> Unit,
-    val onAddCategory: (label: String, emoji: String) -> Unit,
-    val onUpdateCategory: (def: CategoryDef, label: String, emoji: String) -> Unit,
-    val onDeleteCategory: (id: String) -> Unit,
+    private val viewModel: AppViewModel,
+    private val onShowAddChanged: (Boolean) -> Unit,
+    private val onEditingChanged: (CategoryDef?) -> Unit,
+    private val onDeletingChanged: (CategoryDef?) -> Unit,
 ) {
     fun getInUseCount(categoryId: String): Int =
         items.count { it.category == categoryId }
+
+    fun setShowAdd(show: Boolean) = onShowAddChanged(show)
+    fun setEditing(cat: CategoryDef?) = onEditingChanged(cat)
+    fun setDeleting(cat: CategoryDef?) = onDeletingChanged(cat)
+
+    fun addCategory(label: String, emoji: String) {
+        viewModel.addCategory(label, emoji)
+    }
+
+    fun updateCategory(def: CategoryDef, label: String, emoji: String) {
+        viewModel.updateCategory(
+            def.copy(
+                label = label.trim(),
+                emoji = emoji.trim().ifBlank { def.emoji },
+            )
+        )
+    }
+
+    fun deleteCategory(id: String) {
+        viewModel.deleteCategory(id)
+    }
 }
 
 @Composable
@@ -70,21 +93,12 @@ fun rememberCategoryManageUiState(viewModel: AppViewModel): CategoryManageUiStat
             categories = categories,
             items = items,
             showAdd = showAdd,
-            onShowAddChange = { showAdd = it },
             editing = editing,
-            onEditingChange = { editing = it },
             deleting = deleting,
-            onDeletingChange = { deleting = it },
-            onAddCategory = { label, emoji -> viewModel.addCategory(label, emoji) },
-            onUpdateCategory = { def, label, emoji ->
-                viewModel.updateCategory(
-                    def.copy(
-                        label = label.trim(),
-                        emoji = emoji.trim().ifBlank { def.emoji },
-                    )
-                )
-            },
-            onDeleteCategory = { id -> viewModel.deleteCategory(id) },
+            viewModel = viewModel,
+            onShowAddChanged = { showAdd = it },
+            onEditingChanged = { editing = it },
+            onDeletingChanged = { deleting = it },
         )
     }
 }
@@ -96,12 +110,21 @@ class LocationManageUiState(
     val locations: List<String>,
     val items: List<FoodItem>,
     val showAdd: Boolean,
-    val onShowAddChange: (Boolean) -> Unit,
-    val onAddLocation: (name: String) -> Unit,
-    val onDeleteLocation: (name: String) -> Unit,
+    private val viewModel: AppViewModel,
+    private val onShowAddChanged: (Boolean) -> Unit,
 ) {
     fun getInUseCount(location: String): Int =
         items.count { it.location == location }
+
+    fun setShowAdd(show: Boolean) = onShowAddChanged(show)
+
+    fun addLocation(name: String) {
+        viewModel.addLocation(name)
+    }
+
+    fun deleteLocation(name: String) {
+        viewModel.deleteLocation(name)
+    }
 }
 
 @Composable
@@ -115,9 +138,8 @@ fun rememberLocationManageUiState(viewModel: AppViewModel): LocationManageUiStat
             locations = locations,
             items = items,
             showAdd = showAdd,
-            onShowAddChange = { showAdd = it },
-            onAddLocation = { name -> viewModel.addLocation(name) },
-            onDeleteLocation = { name -> viewModel.deleteLocation(name) },
+            viewModel = viewModel,
+            onShowAddChanged = { showAdd = it },
         )
     }
 }

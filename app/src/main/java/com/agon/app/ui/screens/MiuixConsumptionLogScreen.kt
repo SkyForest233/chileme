@@ -116,7 +116,7 @@ fun MiuixConsumptionLogScreen(
                         MiuixConsumptionRow(
                             record = record,
                             emoji = state.categories.byId(record.category).emoji,
-                            onDelete = { state.onDeleteRecord(record) },
+                            onDelete = { state.deleteRecord(record) },
                             modifier = Modifier.animateItem(
                                 fadeInSpec = tween(280, easing = MotionEasing.EmphasizedDecelerate),
                                 fadeOutSpec = tween(200, easing = MotionEasing.EmphasizedAccelerate),

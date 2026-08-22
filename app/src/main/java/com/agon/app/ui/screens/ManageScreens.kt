@@ -127,7 +127,7 @@ fun ThresholdManageScreen(viewModel: AppViewModel, onBack: () -> Unit) {
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
                                 IconButton(
-                                    onClick = { state.onSetThreshold(cat.id, value - 1) },
+                                    onClick = { state.setThreshold(cat.id, value - 1) },
                                     enabled = value > 1,
                                 ) {
                                     Icon(Icons.Rounded.Remove, contentDescription = "减少 ${cat.label} 阈值", modifier = Modifier.size(18.dp))
@@ -139,7 +139,7 @@ fun ThresholdManageScreen(viewModel: AppViewModel, onBack: () -> Unit) {
                                     modifier = Modifier.padding(horizontal = 6.dp),
                                 )
                                 IconButton(
-                                    onClick = { state.onSetThreshold(cat.id, value + 1) },
+                                    onClick = { state.setThreshold(cat.id, value + 1) },
                                     enabled = value < 365,
                                 ) {
                                     Icon(Icons.Rounded.Add, contentDescription = "增加 ${cat.label} 阈值", modifier = Modifier.size(18.dp))
@@ -199,7 +199,7 @@ fun CategoryManageScreen(viewModel: AppViewModel, onBack: () -> Unit) {
                                 )
                             }
                         }
-                        IconButton(onClick = { state.onEditingChange(cat) }) {
+                        IconButton(onClick = { state.setEditing(cat) }) {
                             Icon(
                                 Icons.Rounded.Edit,
                                 contentDescription = "编辑 ${cat.label}",
@@ -208,7 +208,7 @@ fun CategoryManageScreen(viewModel: AppViewModel, onBack: () -> Unit) {
                             )
                         }
                         IconButton(
-                            onClick = { state.onDeletingChange(cat) },
+                            onClick = { state.setDeleting(cat) },
                             enabled = state.categories.size > 1,
                         ) {
                             Icon(
@@ -224,7 +224,7 @@ fun CategoryManageScreen(viewModel: AppViewModel, onBack: () -> Unit) {
             }
             item {
                 OutlinedButton(
-                    onClick = { state.onShowAddChange(true) },
+                    onClick = { state.setShowAdd(true) },
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(top = 6.dp),
@@ -244,10 +244,10 @@ fun CategoryManageScreen(viewModel: AppViewModel, onBack: () -> Unit) {
             initialLabel = "",
             initialEmoji = "",
             onConfirm = { label, emoji ->
-                state.onAddCategory(label, emoji)
-                state.onShowAddChange(false)
+                state.addCategory(label, emoji)
+                state.setShowAdd(false)
             },
-            onDismiss = { state.onShowAddChange(false) },
+            onDismiss = { state.setShowAdd(false) },
         )
     }
     state.editing?.let { cat ->
@@ -256,16 +256,16 @@ fun CategoryManageScreen(viewModel: AppViewModel, onBack: () -> Unit) {
             initialLabel = cat.label,
             initialEmoji = cat.emoji,
             onConfirm = { label, emoji ->
-                state.onUpdateCategory(cat, label, emoji)
-                state.onEditingChange(null)
+                state.updateCategory(cat, label, emoji)
+                state.setEditing(null)
             },
-            onDismiss = { state.onEditingChange(null) },
+            onDismiss = { state.setEditing(null) },
         )
     }
     state.deleting?.let { cat ->
         val inUse = state.getInUseCount(cat.id)
         AlertDialog(
-            onDismissRequest = { state.onDeletingChange(null) },
+            onDismissRequest = { state.setDeleting(null) },
             title = { Text("删除分类") },
             text = {
                 Text(
@@ -277,14 +277,14 @@ fun CategoryManageScreen(viewModel: AppViewModel, onBack: () -> Unit) {
             },
             confirmButton = {
                 TextButton(onClick = {
-                    state.onDeleteCategory(cat.id)
-                    state.onDeletingChange(null)
+                    state.deleteCategory(cat.id)
+                    state.setDeleting(null)
                 }) {
                     Text("删除", color = MaterialTheme.colorScheme.error)
                 }
             },
             dismissButton = {
-                TextButton(onClick = { state.onDeletingChange(null) }) { Text("取消") }
+                TextButton(onClick = { state.setDeleting(null) }) { Text("取消") }
             },
         )
     }
@@ -386,7 +386,7 @@ fun LocationManageScreen(viewModel: AppViewModel, onBack: () -> Unit) {
                                 )
                             }
                         }
-                        IconButton(onClick = { state.onDeleteLocation(loc) }) {
+                        IconButton(onClick = { state.deleteLocation(loc) }) {
                             Icon(
                                 Icons.Rounded.Delete,
                                 contentDescription = "删除位置 $loc",
@@ -399,7 +399,7 @@ fun LocationManageScreen(viewModel: AppViewModel, onBack: () -> Unit) {
             }
             item {
                 OutlinedButton(
-                    onClick = { state.onShowAddChange(true) },
+                    onClick = { state.setShowAdd(true) },
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(top = 6.dp),
@@ -416,7 +416,7 @@ fun LocationManageScreen(viewModel: AppViewModel, onBack: () -> Unit) {
     if (state.showAdd) {
         var locName by remember { mutableStateOf("") }
         AlertDialog(
-            onDismissRequest = { state.onShowAddChange(false) },
+            onDismissRequest = { state.setShowAdd(false) },
             title = { Text("添加存放位置") },
             text = {
                 OutlinedTextField(
@@ -431,14 +431,14 @@ fun LocationManageScreen(viewModel: AppViewModel, onBack: () -> Unit) {
             confirmButton = {
                 TextButton(
                     onClick = {
-                        state.onAddLocation(locName)
-                        state.onShowAddChange(false)
+                        state.addLocation(locName)
+                        state.setShowAdd(false)
                     },
                     enabled = locName.isNotBlank(),
                 ) { Text("添加") }
             },
             dismissButton = {
-                TextButton(onClick = { state.onShowAddChange(false) }) { Text("取消") }
+                TextButton(onClick = { state.setShowAdd(false) }) { Text("取消") }
             },
         )
     }

@@ -118,7 +118,7 @@ fun MiuixThresholdManageScreen(viewModel: AppViewModel, onBack: () -> Unit) {
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
                                 IconButton(
-                                    onClick = { state.onSetThreshold(cat.id, value - 1) },
+                                    onClick = { state.setThreshold(cat.id, value - 1) },
                                     enabled = value > 1,
                                 ) {
                                     // Miuix Remove 是「移除/退出」形状，减号与列表步进器一样回退 material
@@ -131,7 +131,7 @@ fun MiuixThresholdManageScreen(viewModel: AppViewModel, onBack: () -> Unit) {
                                     modifier = Modifier.padding(horizontal = 6.dp),
                                 )
                                 IconButton(
-                                    onClick = { state.onSetThreshold(cat.id, value + 1) },
+                                    onClick = { state.setThreshold(cat.id, value + 1) },
                                     enabled = value < 365,
                                 ) {
                                     Icon(MiuixIcons.Add, contentDescription = "增加 ${cat.label} 阈值", modifier = Modifier.size(18.dp))
@@ -187,7 +187,7 @@ fun MiuixCategoryManageScreen(viewModel: AppViewModel, onBack: () -> Unit) {
                                 )
                             }
                         }
-                        IconButton(onClick = { state.onEditingChange(cat) }) {
+                        IconButton(onClick = { state.setEditing(cat) }) {
                             Icon(
                                 MiuixIcons.Edit,
                                 contentDescription = "编辑 ${cat.label}",
@@ -196,7 +196,7 @@ fun MiuixCategoryManageScreen(viewModel: AppViewModel, onBack: () -> Unit) {
                             )
                         }
                         IconButton(
-                            onClick = { state.onDeletingChange(cat) },
+                            onClick = { state.setDeleting(cat) },
                             enabled = state.categories.size > 1,
                         ) {
                             Icon(
@@ -213,7 +213,7 @@ fun MiuixCategoryManageScreen(viewModel: AppViewModel, onBack: () -> Unit) {
             item {
                 TextButton(
                     text = "添加分类",
-                    onClick = { state.onShowAddChange(true) },
+                    onClick = { state.setShowAdd(true) },
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(top = 6.dp),
@@ -227,10 +227,10 @@ fun MiuixCategoryManageScreen(viewModel: AppViewModel, onBack: () -> Unit) {
             initialLabel = "",
             initialEmoji = "",
             onConfirm = { label, emoji ->
-                state.onAddCategory(label, emoji)
-                state.onShowAddChange(false)
+                state.addCategory(label, emoji)
+                state.setShowAdd(false)
             },
-            onDismiss = { state.onShowAddChange(false) },
+            onDismiss = { state.setShowAdd(false) },
         )
         state.editing?.let { cat ->
             MiuixCategoryEditDialog(
@@ -239,10 +239,10 @@ fun MiuixCategoryManageScreen(viewModel: AppViewModel, onBack: () -> Unit) {
                 initialLabel = cat.label,
                 initialEmoji = cat.emoji,
                 onConfirm = { label, emoji ->
-                    state.onUpdateCategory(cat, label, emoji)
-                    state.onEditingChange(null)
+                    state.updateCategory(cat, label, emoji)
+                    state.setEditing(null)
                 },
-                onDismiss = { state.onEditingChange(null) },
+                onDismiss = { state.setEditing(null) },
             )
         }
         OverlayDialog(
@@ -255,19 +255,19 @@ fun MiuixCategoryManageScreen(viewModel: AppViewModel, onBack: () -> Unit) {
                     "确定要删除分类「${cat.emoji} ${cat.label}」吗？"
             },
             show = state.deleting != null,
-            onDismissRequest = { state.onDeletingChange(null) },
+            onDismissRequest = { state.setDeleting(null) },
         ) {
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 TextButton(
                     text = "取消",
-                    onClick = { state.onDeletingChange(null) },
+                    onClick = { state.setDeleting(null) },
                     modifier = Modifier.weight(1f),
                 )
                 TextButton(
                     text = "删除",
                     onClick = {
-                        state.deleting?.let { state.onDeleteCategory(it.id) }
-                        state.onDeletingChange(null)
+                        state.deleting?.let { state.deleteCategory(it.id) }
+                        state.setDeleting(null)
                     },
                     modifier = Modifier.weight(1f),
                     colors = ButtonDefaults.textButtonColors(textColor = MiuixTheme.colorScheme.error),
@@ -374,7 +374,7 @@ fun MiuixLocationManageScreen(viewModel: AppViewModel, onBack: () -> Unit) {
                                 )
                             }
                         }
-                        IconButton(onClick = { state.onDeleteLocation(loc) }) {
+                        IconButton(onClick = { state.deleteLocation(loc) }) {
                             Icon(
                                 MiuixIcons.Delete,
                                 contentDescription = "删除位置 $loc",
@@ -388,7 +388,7 @@ fun MiuixLocationManageScreen(viewModel: AppViewModel, onBack: () -> Unit) {
             item {
                 TextButton(
                     text = "添加位置",
-                    onClick = { state.onShowAddChange(true) },
+                    onClick = { state.setShowAdd(true) },
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(top = 6.dp),
@@ -400,7 +400,7 @@ fun MiuixLocationManageScreen(viewModel: AppViewModel, onBack: () -> Unit) {
         OverlayDialog(
             title = "添加存放位置",
             show = state.showAdd,
-            onDismissRequest = { state.onShowAddChange(false) },
+            onDismissRequest = { state.setShowAdd(false) },
         ) {
             TextField(
                 state = locState,
@@ -410,14 +410,14 @@ fun MiuixLocationManageScreen(viewModel: AppViewModel, onBack: () -> Unit) {
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 TextButton(
                     text = "取消",
-                    onClick = { state.onShowAddChange(false) },
+                    onClick = { state.setShowAdd(false) },
                     modifier = Modifier.weight(1f),
                 )
                 TextButton(
                     text = "添加",
                     onClick = {
-                        state.onAddLocation(locState.text.toString().take(12))
-                        state.onShowAddChange(false)
+                        state.addLocation(locState.text.toString().take(12))
+                        state.setShowAdd(false)
                     },
                     modifier = Modifier.weight(1f),
                     enabled = locState.text.toString().isNotBlank(),
