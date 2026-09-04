@@ -78,6 +78,7 @@ import com.agon.app.data.CloudBackup
 import com.agon.app.data.LocalSnapshot
 import com.agon.app.ui.components.CheckSwitch
 import com.agon.app.ui.theme.AppPalette
+import com.agon.app.ui.theme.ColorMode
 import com.agon.app.ui.theme.ThemeStyle
 import com.agon.app.viewmodel.AppViewModel
 import com.materialkolor.PaletteStyle
@@ -99,7 +100,6 @@ fun SettingsScreen(
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
 
-    // ---- Backup export (SAF create document) ----
     val exportLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/json")
     ) { uri ->
@@ -121,7 +121,6 @@ fun SettingsScreen(
         }
     }
 
-    // ---- Backup import (SAF open document) ----
     val importLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument()
     ) { uri ->
@@ -140,7 +139,6 @@ fun SettingsScreen(
         }
     }
 
-    // ---- CSV Export (SAF create document) ----
     val csvExportLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("text/csv")
     ) { uri ->
@@ -198,15 +196,38 @@ fun SettingsScreen(
                         color = MaterialTheme.colorScheme.primary,
                     )
                     Spacer(Modifier.height(16.dp))
-                    Text("深色模式", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
+                    Text("颜色模式（对齐 KernelSU 7 档）", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        "支持跟随系统/强制浅深/动态取色(Monet)/AMOLED纯黑，自动迁移旧设置",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                     Spacer(Modifier.height(8.dp))
-                    SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
-                        listOf("跟随系统", "浅色", "深色").forEachIndexed { index, label ->
-                            SegmentedButton(
-                                selected = state.darkMode == index,
-                                onClick = { state.setDarkMode(index) },
-                                shape = SegmentedButtonDefaults.itemShape(index = index, count = 3),
-                            ) { Text(label) }
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        contentPadding = PaddingValues(horizontal = 2.dp),
+                    ) {
+                        items(ColorMode.entries.toList()) { mode ->
+                            val label = when (mode) {
+                                ColorMode.SYSTEM -> "跟随系统"
+                                ColorMode.LIGHT -> "浅色"
+                                ColorMode.DARK -> "深色"
+                                ColorMode.MONET_SYSTEM -> "动态·跟随"
+                                ColorMode.MONET_LIGHT -> "动态·浅色"
+                                ColorMode.MONET_DARK -> "动态·深色"
+                                ColorMode.DARK_AMOLED -> "AMOLED纯黑"
+                            }
+                            FilterChip(
+                                selected = state.colorMode == mode.value,
+                                onClick = { state.setColorMode(mode.value) },
+                                label = { Text(label) },
+                                shape = RoundedCornerShape(50),
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                                    selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                                ),
+                            )
                         }
                     }
                     Spacer(Modifier.height(20.dp))
@@ -235,7 +256,7 @@ fun SettingsScreen(
                     Text("主题配色", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
                     Spacer(Modifier.height(2.dp))
                     Text(
-                        if (state.dynamicColor) "已开启动态取色，主题跟随壁纸；关闭后生效" else "基于 MD3 种子色生成完整主题",
+                        if (state.colorMode >= 3) "已开启动态取色，主题跟随壁纸；关闭后生效" else "基于 MD3 种子色生成完整主题",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -247,36 +268,45 @@ fun SettingsScreen(
                         items(AppPalette.entries.toList()) { p ->
                             PaletteSwatch(
                                 palette = p,
-                                selected = state.paletteName == p.name && !state.dynamicColor,
-                                enabled = !state.dynamicColor,
+                                selected = state.paletteName == p.name && state.colorMode < 3,
+                                enabled = state.colorMode < 3,
                                 onClick = { state.setPalette(p.name) },
                             )
                         }
                     }
                     Spacer(Modifier.height(20.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Column(Modifier.weight(1f)) {
-                            Text(
-                                "动态取色 (Material You)",
-                                style = MaterialTheme.typography.bodyLarge,
-                                fontWeight = FontWeight.Medium,
-                            )
-                            Text(
-                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S)
-                                    "跟随壁纸颜色，优先于上方配色方案"
-                                else
-                                    "需要 Android 12 及以上",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    Text("调色风格（PaletteStyle）", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        "TonalSpot 默认，Vibrant/Expressive 更鲜艳，Neutral 更克制",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        items(listOf("TonalSpot", "Neutral", "Vibrant", "Expressive", "Rainbow", "FruitSalad")) { styleName ->
+                            FilterChip(
+                                selected = state.paletteStyleName == styleName,
+                                onClick = { state.setPaletteStyle(styleName) },
+                                label = { Text(styleName) },
+                                shape = RoundedCornerShape(50),
                             )
                         }
-                        CheckSwitch(
-                            checked = state.dynamicColor,
-                            onCheckedChange = { state.setDynamicColor(it) },
-                            enabled = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S,
-                        )
                     }
                     Spacer(Modifier.height(12.dp))
+                    Text("色彩规范（ColorSpec）", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
+                    Spacer(Modifier.height(8.dp))
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        items(listOf("SPEC_2025", "SPEC_2021")) { spec ->
+                            FilterChip(
+                                selected = state.colorSpecName == spec,
+                                onClick = { state.setColorSpec(spec) },
+                                label = { Text(if (spec == "SPEC_2025") "2025 最新" else "2021 兼容") },
+                                shape = RoundedCornerShape(50),
+                            )
+                        }
+                    }
+                    Spacer(Modifier.height(20.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
                             Text(
@@ -295,10 +325,34 @@ fun SettingsScreen(
                             onCheckedChange = { state.setFloatingNav(it) },
                         )
                     }
+                    Spacer(Modifier.height(12.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text("启用模糊（Blur）", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
+                            Text("Miuix 毛玻璃效果，低端机可关闭提升性能", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        CheckSwitch(checked = state.enableBlur, onCheckedChange = { state.setEnableBlur(it) })
+                    }
+                    Spacer(Modifier.height(12.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text("悬浮底栏模糊", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
+                            Text("液态玻璃底栏的模糊，关闭后半透明但不模糊", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        CheckSwitch(checked = state.enableFloatingBlur, onCheckedChange = { state.setEnableFloatingBlur(it) })
+                    }
+                    Spacer(Modifier.height(12.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text("导航角标", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
+                            Text("底栏显示临期/过期数量角标", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        CheckSwitch(checked = state.enableBadge, onCheckedChange = { state.setEnableBadge(it) })
+                    }
                 }
             }
 
-            // ==================== 物品管理（统一入口，全部二级页面） ====================
+            // ==================== 物品管理 ====================
             Surface(
                 shape = MaterialTheme.shapes.large,
                 color = MaterialTheme.colorScheme.surfaceContainer,
@@ -383,7 +437,6 @@ fun SettingsScreen(
                         }
                     }
 
-                    // ---- 坚果云云同步 ----
                     Spacer(Modifier.height(16.dp))
                     HorizontalDivider(color = MaterialTheme.colorScheme.surfaceContainerHighest)
                     Spacer(Modifier.height(12.dp))
@@ -469,7 +522,6 @@ fun SettingsScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
 
-                    // ---- 自动同步间隔 ----
                     Spacer(Modifier.height(12.dp))
                     Text(
                         "自动同步",
@@ -525,7 +577,6 @@ fun SettingsScreen(
                 }
             }
 
-            // ==================== 关于 ====================
             Surface(
                 shape = MaterialTheme.shapes.large,
                 color = MaterialTheme.colorScheme.surfaceContainer,
@@ -556,7 +607,6 @@ fun SettingsScreen(
         }
     }
 
-    // ---- 导出格式选择弹窗 ----
     if (state.showExportFormatDialog) {
         AlertDialog(
             onDismissRequest = { state.setShowExportFormatDialog(false) },
@@ -613,7 +663,6 @@ fun SettingsScreen(
         )
     }
 
-    // ---- 恢复来源选择弹窗 ----
     if (state.showRestoreSourceDialog) {
         AlertDialog(
             onDismissRequest = { state.setShowRestoreSourceDialog(false) },
@@ -690,7 +739,6 @@ fun SettingsScreen(
         )
     }
 
-    // ---- 坚果云账号配置对话框 ----
     if (state.showNutstoreDialog) {
         AlertDialog(
             onDismissRequest = { state.setShowNutstoreDialog(false) },
@@ -737,7 +785,6 @@ fun SettingsScreen(
         )
     }
 
-    // ---- 云端备份选择（恢复哪一份） ----
     if (state.showBackupPicker) {
         AlertDialog(
             onDismissRequest = { if (!state.loadingBackups) state.setShowBackupPicker(false) },
@@ -809,7 +856,6 @@ fun SettingsScreen(
         )
     }
 
-    // ---- 恢复二次确认（针对选中的备份） ----
     state.restoreCandidate?.let { candidate ->
         AlertDialog(
             onDismissRequest = { state.setRestoreCandidate(null) },
@@ -837,7 +883,6 @@ fun SettingsScreen(
         )
     }
 
-    // ---- 本地历史快照列表 ----
     if (state.showSnapshotPicker) {
         AlertDialog(
             onDismissRequest = { state.setShowSnapshotPicker(false) },
@@ -896,7 +941,6 @@ fun SettingsScreen(
         )
     }
 
-    // ---- 本地快照还原二次确认 ----
     state.restoreSnapshotCandidate?.let { snapshot ->
         AlertDialog(
             onDismissRequest = { state.setRestoreSnapshotCandidate(null) },
@@ -926,7 +970,6 @@ fun SettingsScreen(
     }
 }
 
-/** 设置页导航行：图标 + 标题/副标题 + 尾部箭头，点击进入二级页面 */
 @Composable
 private fun SettingsNavRow(
     icon: ImageVector,
@@ -968,11 +1011,6 @@ private fun SettingsNavRow(
     }
 }
 
-/**
- * 主题色预览按钮：用该方案种子色实时生成 MD3 色板，
- * 展示 primary / primaryContainer / tertiaryContainer 三色拼盘 + 名称，
- * 选中态外圈描边 + 打勾角标。
- */
 @Composable
 private fun PaletteSwatch(
     palette: AppPalette,

@@ -16,14 +16,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.materialkolor.PaletteStyle
+import com.materialkolor.dynamiccolor.ColorSpec
 import com.materialkolor.rememberDynamicColorScheme
 
-/**
- * 品牌 shape scale（对应 MD3 shape tokens）：比 MD3 默认更圆润，
- * 与全局胶囊/大圆角风格一致。组件应优先引用 MaterialTheme.shapes 而非魔法数字。
- *
- * extraSmall 8dp / small 12dp / medium 16dp / large 24dp / extraLarge 28dp
- */
 val AppShapes = Shapes(
     extraSmall = RoundedCornerShape(8.dp),
     small = RoundedCornerShape(12.dp),
@@ -44,10 +39,6 @@ private fun animatedColor(target: Color): Color {
     return color
 }
 
-/**
- * 对整套 ColorScheme 的每个角色做 tween 渐变，
- * 切换配色方案 / 深浅模式 / 动态取色时颜色平滑过渡而非瞬切。
- */
 @Composable
 private fun animateColorScheme(target: ColorScheme): ColorScheme = ColorScheme(
     primary = animatedColor(target.primary),
@@ -88,6 +79,82 @@ private fun animateColorScheme(target: ColorScheme): ColorScheme = ColorScheme(
     surfaceContainerLowest = animatedColor(target.surfaceContainerLowest),
 )
 
+fun ColorScheme.amoledBackground(amoled: Boolean): ColorScheme =
+    if (!amoled) this
+    else copy(
+        background = Color.Black,
+        surface = Color.Black,
+        surfaceDim = Color.Black,
+        surfaceContainerLowest = Color.Black,
+        surfaceContainerLow = Color.Black,
+        surfaceContainer = Color.Black,
+        surfaceContainerHigh = Color.Black,
+        surfaceContainerHighest = Color.Black,
+    )
+
+@Composable
+fun rememberChilemeColorScheme(
+    seedColor: Color,
+    isDark: Boolean,
+    isAmoled: Boolean,
+    style: PaletteStyle,
+    specVersion: ColorSpec.SpecVersion,
+): ColorScheme {
+    val context = LocalContext.current
+    val seed = if (seedColor == Color.Unspecified) {
+        (if (isDark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)).primary
+    } else {
+        seedColor
+    }
+    return rememberDynamicColorScheme(
+        seedColor = seed,
+        isDark = isDark,
+        isAmoled = isAmoled,
+        style = style,
+        specVersion = specVersion.effectiveFor(style),
+    ).amoledBackground(isAmoled)
+}
+
+@Composable
+fun AgonAppTheme(
+    darkTheme: Boolean = isSystemInDarkTheme(),
+    dynamicColor: Boolean = false,
+    palette: AppPalette = AppPalette.MINT,
+    paletteStyle: PaletteStyle = PaletteStyle.TonalSpot,
+    colorSpec: ColorSpec.SpecVersion = ColorSpec.SpecVersion.SPEC_2025,
+    isAmoled: Boolean = false,
+    content: @Composable () -> Unit,
+) {
+    val targetScheme = when {
+        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
+            val context = LocalContext.current
+            val base = if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+            // 动态取色也走 materialKolor 以支持 amoled 和 style 统一
+            rememberChilemeColorScheme(
+                seedColor = Color.Unspecified,
+                isDark = darkTheme,
+                isAmoled = isAmoled,
+                style = paletteStyle,
+                specVersion = colorSpec,
+            )
+        }
+        else -> rememberChilemeColorScheme(
+            seedColor = palette.seed,
+            isDark = darkTheme,
+            isAmoled = isAmoled,
+            style = paletteStyle,
+            specVersion = colorSpec,
+        )
+    }
+
+    MaterialTheme(
+        colorScheme = animateColorScheme(targetScheme),
+        shapes = AppShapes,
+        content = content,
+    )
+}
+
+// 兼容旧调用：保留旧签名
 @Composable
 fun AgonAppTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
@@ -95,21 +162,13 @@ fun AgonAppTheme(
     palette: AppPalette = AppPalette.MINT,
     content: @Composable () -> Unit,
 ) {
-    val targetScheme = when {
-        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
-            val context = LocalContext.current
-            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-        }
-        else -> rememberDynamicColorScheme(
-            seedColor = palette.seed,
-            isDark = darkTheme,
-            style = PaletteStyle.TonalSpot,
-        )
-    }
-
-    MaterialTheme(
-        colorScheme = animateColorScheme(targetScheme),
-        shapes = AppShapes,
+    AgonAppTheme(
+        darkTheme = darkTheme,
+        dynamicColor = dynamicColor,
+        palette = palette,
+        paletteStyle = PaletteStyle.TonalSpot,
+        colorSpec = ColorSpec.SpecVersion.SPEC_2025,
+        isAmoled = false,
         content = content,
     )
 }

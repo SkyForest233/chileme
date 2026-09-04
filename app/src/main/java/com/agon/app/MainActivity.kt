@@ -175,19 +175,21 @@ class MainActivity : ComponentActivity() {
         setContent {
             val viewModel: AppViewModel = viewModel()
             val ready by viewModel.ready.collectAsStateWithLifecycle()
-            val dynamicColor by viewModel.dynamicColor.collectAsStateWithLifecycle()
-            val darkMode by viewModel.darkMode.collectAsStateWithLifecycle()
+            val colorModeVal by viewModel.colorMode.collectAsStateWithLifecycle()
             val paletteName by viewModel.palette.collectAsStateWithLifecycle()
+            val paletteStyleName by viewModel.paletteStyle.collectAsStateWithLifecycle()
+            val colorSpecName by viewModel.colorSpec.collectAsStateWithLifecycle()
             val themeStyleName by viewModel.themeStyle.collectAsStateWithLifecycle()
-            // 跨零点刷新：每次回到前台用最新日期提供 LocalToday。
-            // 日期未变（同日多次 resume）时值相等，不会触发重组；跨过午夜则值变化，
-            // 所有读取 LocalToday 的屏幕（剩余天数/状态/新鲜度）随之刷新。
+            val enableBlur by viewModel.enableBlur.collectAsStateWithLifecycle()
+            val enableFloatingBlur by viewModel.enableFloatingBlur.collectAsStateWithLifecycle()
+            val enableBadge by viewModel.enableBadge.collectAsStateWithLifecycle()
+            val floatingNav by viewModel.floatingNav.collectAsStateWithLifecycle()
+            // 兼容旧 darkMode/dynamicColor 读取（已迁移到 colorMode，但保留以防万一）
+            val darkMode by viewModel.darkMode.collectAsStateWithLifecycle()
+            val dynamicColor by viewModel.dynamicColor.collectAsStateWithLifecycle()
+
             var today by remember { mutableStateOf(LocalDate.now()) }
             LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { today = LocalDate.now() }
-            // 周期性检查：每 30 秒比对一次当前日期，变了就更新 today。
-            // 覆盖所有「日期变化」场景（自然跨午夜、手动拨时钟前进/后退、时区变化），
-            // 比「一次性睡到下一个午夜」更稳健——后者在时钟被改动后会失效。
-            // 与 ON_RESUME 互补（后台跨午夜由后者即时兜底，这里兜前台）。
             LaunchedEffect(Unit) {
                 while (true) {
                     val now = LocalDate.now()
@@ -197,25 +199,49 @@ class MainActivity : ComponentActivity() {
             }
             LaunchedEffect(ready) { if (ready) contentReady = true }
             if (!ready) return@setContent
-            val darkTheme = when (darkMode) {
-                1 -> false
-                2 -> true
+
+            val colorMode = com.agon.app.ui.theme.ColorMode.fromValue(colorModeVal)
+            val darkTheme = when {
+                colorMode.value == 1 || colorMode.value == 4 -> false
+                colorMode.value == 2 || colorMode.value == 5 || colorMode.value == 6 -> true
                 else -> isSystemInDarkTheme()
+            }
+            val paletteStyle = try {
+                com.materialkolor.PaletteStyle.valueOf(paletteStyleName)
+            } catch (_: Exception) {
+                com.materialkolor.PaletteStyle.TonalSpot
+            }
+            val colorSpec = try {
+                com.materialkolor.dynamiccolor.ColorSpec.SpecVersion.valueOf(colorSpecName)
+            } catch (_: Exception) {
+                com.materialkolor.dynamiccolor.ColorSpec.SpecVersion.SPEC_2025
             }
             val themeStyle = ThemeStyle.fromName(themeStyleName)
             CompositionLocalProvider(
                 LocalThemeStyle provides themeStyle,
                 LocalToday provides today,
+                com.agon.app.ui.theme.LocalColorMode provides colorMode.value,
+                com.agon.app.ui.theme.LocalEnableBlur provides enableBlur,
+                com.agon.app.ui.theme.LocalEnableFloatingBottomBar provides floatingNav,
+                com.agon.app.ui.theme.LocalEnableFloatingBottomBarBlur provides enableFloatingBlur,
+                com.agon.app.ui.theme.LocalEnableNavigationBadge provides enableBadge,
             ) {
                 if (themeStyle == ThemeStyle.MIUIX) {
-                    MiuixRootTheme(darkMode = darkMode, dynamicColor = dynamicColor) {
+                    MiuixRootTheme(
+                        colorMode = colorMode,
+                        paletteStyle = paletteStyle,
+                        colorSpec = colorSpec,
+                    ) {
                         MainApp(viewModel)
                     }
                 } else {
                     AgonAppTheme(
                         darkTheme = darkTheme,
-                        dynamicColor = dynamicColor,
+                        dynamicColor = colorMode.isMonet,
                         palette = AppPalette.fromName(paletteName),
+                        paletteStyle = paletteStyle,
+                        colorSpec = colorSpec,
+                        isAmoled = colorMode.isAmoled,
                     ) {
                         MainApp(viewModel)
                     }

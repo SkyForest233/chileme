@@ -50,11 +50,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     val history: StateFlow<List<HistoryEntry>> =
         repo.historyFlow.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
-    /**
-     * 名称联想统一数据源：录入历史 + 当前库存 + 归档食品，按名称去重。
-     * 顺序即优先级——历史（最近录入在前）优先，其次库存，最后归档；
-     * 保证所有出现过的食品（含已归档）都能被联想匹配到。
-     */
     val suggestionSource: StateFlow<List<HistoryEntry>> =
         combine(repo.historyFlow, repo.itemsFlow, repo.archiveFlow) { history, items, archived ->
             (history + items.map { it.toHistoryEntry() } + archived.map { it.item.toHistoryEntry() })
@@ -85,6 +80,25 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     val floatingNav: StateFlow<Boolean> =
         repo.floatingNavFlow.stateIn(viewModelScope, SharingStarted.Eagerly, true)
 
+    // ---- Phase0 新增 ----
+    val colorMode: StateFlow<Int> =
+        repo.colorModeFlow.stateIn(viewModelScope, SharingStarted.Eagerly, 0)
+
+    val paletteStyle: StateFlow<String> =
+        repo.paletteStyleFlow.stateIn(viewModelScope, SharingStarted.Eagerly, "TonalSpot")
+
+    val colorSpec: StateFlow<String> =
+        repo.colorSpecFlow.stateIn(viewModelScope, SharingStarted.Eagerly, "SPEC_2025")
+
+    val enableBlur: StateFlow<Boolean> =
+        repo.enableBlurFlow.stateIn(viewModelScope, SharingStarted.Eagerly, true)
+
+    val enableFloatingBlur: StateFlow<Boolean> =
+        repo.enableFloatingBlurFlow.stateIn(viewModelScope, SharingStarted.Eagerly, true)
+
+    val enableBadge: StateFlow<Boolean> =
+        repo.enableBadgeFlow.stateIn(viewModelScope, SharingStarted.Eagerly, true)
+
     val nutstoreAccount: StateFlow<String> =
         repo.nutstoreAccountFlow.stateIn(viewModelScope, SharingStarted.Eagerly, "")
 
@@ -94,33 +108,21 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     val lastSync: StateFlow<String> =
         repo.lastSyncFlow.stateIn(viewModelScope, SharingStarted.Eagerly, "")
 
-    /**
-     * 数据损坏告警：存在解析失败的用户资产 key。非空时相关写操作已被仓库层拒绝，
-     * UI 应显著提示用户（原始串已留档到 filesDir/corrupt/）。
-     */
     val corruptedKeys: StateFlow<Set<String>> = repo.corruptedKeys
 
-    /** 云同步凭据已失效（有密文但解不开，典型为换设备后恢复了云备份）。 */
     val nutstoreCredentialBroken: StateFlow<Boolean> =
         repo.nutstoreCredentialBrokenFlow.stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
-    /** 自动同步间隔（天），0 = 关闭 */
     val autoSyncDays: StateFlow<Int> =
         repo.autoSyncDaysFlow.stateIn(viewModelScope, SharingStarted.Eagerly, 0)
 
-    /** 云同步进行中标志 */
     private val _syncing = MutableStateFlow(false)
     val syncing: StateFlow<Boolean> = _syncing.asStateFlow()
 
-    /**
-     * 首帧门控：DataStore 真正发出第一次数据前为 false。
-     * 避免启动时先用默认主题/空列表渲染一帧再“闪”成真实内容。
-     */
     val ready: StateFlow<Boolean> =
-        combine(repo.itemsFlow, repo.paletteFlow, repo.darkModeFlow, repo.themeStyleFlow, repo.floatingNavFlow) { _, _, _, _, _ -> true }
+        combine(repo.itemsFlow, repo.paletteFlow, repo.colorModeFlow, repo.themeStyleFlow, repo.floatingNavFlow) { _, _, _, _, _ -> true }
             .stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
-    /** 临时 UI 状态：Snackbar 展示“撤销”时隐藏 FAB，避免挡住撤销按钮 */
     private val _fabSuppressed = MutableStateFlow(false)
     val fabSuppressed: StateFlow<Boolean> = _fabSuppressed.asStateFlow()
 
@@ -128,7 +130,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         _fabSuppressed.value = suppressed
     }
 
-    /** 多选模式选中的食品 id 集合（v2.8 提升到 VM，供 MainActivity 批量操作栏与列表页共用） */
     private val _selectedIds = MutableStateFlow<Set<String>>(emptySet())
     val selectedIds: StateFlow<Set<String>> = _selectedIds.asStateFlow()
 
@@ -144,7 +145,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         _selectedIds.value = emptySet()
     }
 
-    /** 「撤销一次消耗」请求：列表页减少数量后，供 MainActivity 弹撤销 Snackbar。 */
     data class UndoRequest(val itemId: String, val consumptionId: String)
 
     private val _undoRequest = MutableStateFlow<UndoRequest?>(null)
@@ -154,12 +154,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         _undoRequest.value = null
     }
 
-    /** 撤销最近一次减少消耗：删消耗记录 + 数量回滚。 */
     fun undoConsumption(request: UndoRequest) = viewModelScope.launch {
         repo.undoConsumption(request.itemId, request.consumptionId)
     }
 
-    /** 删除消耗记录后的「撤销」状态：记录本身 + 删除前在日期倒序列表里的下标。 */
     data class DeletedConsumption(val record: ConsumptionRecord, val index: Int)
 
     private val _deletedConsumption = MutableStateFlow<DeletedConsumption?>(null)
@@ -169,7 +167,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         _deletedConsumption.value = null
     }
 
-    /** 恢复归档后的「撤销」状态（用于列表页搜索归档恢复等场景弹撤销条） */
     data class RestoredArchivedEvent(val item: FoodItem, val reason: ArchiveReason, val merged: Boolean)
 
     private val _restoredArchivedEvent = MutableStateFlow<RestoredArchivedEvent?>(null)
@@ -184,10 +181,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         _restoredArchivedEvent.value = RestoredArchivedEvent(entry.item, entry.reason, merged)
     }
 
-    /** 删除单条消耗记录（修正统计），并记下原位置供撤销插回。 */
     fun deleteConsumption(record: ConsumptionRecord) = viewModelScope.launch {
         val sorted = consumption.value.sortedByDescending { it.epochDay }
-        // 优先按 id 精确定位；id 为 null 的旧记录按内容匹配，避免删除静默失效
         val index = sorted.indexOfFirst {
             if (record.id != null) it.id == record.id else it == record
         }
@@ -196,7 +191,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         _deletedConsumption.value = DeletedConsumption(target, index.coerceAtLeast(0))
     }
 
-    /** 撤销删除：按原下标插回，避免被提到列表最前。 */
     fun undoDeleteConsumption(record: ConsumptionRecord, index: Int) = viewModelScope.launch {
         repo.addConsumption(record, index)
         if (_deletedConsumption.value?.record?.id == record.id) {
@@ -207,24 +201,18 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     init {
         viewModelScope.launch {
             repo.seedIfNeeded()
-            // 安全迁移：旧版明文密码 → Keystore 加密密文
             repo.migratePlaintextPassword()
-            // 迁移：旧消耗记录补 id（供删除/撤销定位）
             repo.migrateConsumptionIds()
-            // 启动时清理孤儿封面图片（未被库存/归档引用的文件）
             val referenced = buildSet {
                 repo.itemsFlow.first().forEach { if (it.photoPath.isNotBlank()) add(it.photoPath) }
                 repo.archiveFlow.first().forEach { if (it.item.photoPath.isNotBlank()) add(it.item.photoPath) }
             }
             cleanupOrphanCovers(getApplication(), referenced)
-            // 自动同步：到期且凭据完整时静默上传
             maybeAutoSync()
-            // 本地滚动冷备：若今日尚无快照则静默保存一份
             maybeAutoSnapshot()
         }
     }
 
-    /** 自动同步消息（供 UI Snackbar 展示，消费后置空） */
     private val _autoSyncMessage = MutableStateFlow<String?>(null)
     val autoSyncMessage: StateFlow<String?> = _autoSyncMessage.asStateFlow()
 
@@ -241,8 +229,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         val today = LocalDate.now().toEpochDay()
         val last = repo.lastAutoSyncEpochDayFlow.first()
         if (today - last < days) return
-        // 数据损坏时 buildBackupJson 抛异常：静默跳过本次自动同步，
-        // 绝不能把残缺备份推上云端覆盖掉云端的完好版本。
         val payload = runCatching { repo.buildBackupJson() }.getOrNull() ?: return
         val result = NutstoreSync.upload(account, password, payload)
         if (result.isSuccess) {
@@ -252,7 +238,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             repo.setLastSync("自动同步于 $time")
             _autoSyncMessage.value = "已自动同步到坚果云 ☁️"
         }
-        // 失败静默忽略，下次启动重试；不打扰用户
     }
 
     private suspend fun maybeAutoSnapshot() {
@@ -284,7 +269,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         repo.restoreArchivedBatch(ids)
     }
 
-    /** 恢复单条归档；回调参数 merged = 是否与现有库存合并（同名同生产日期去重）。 */
     fun restoreArchivedSmart(id: String, onDone: (Boolean) -> Unit) = viewModelScope.launch {
         onDone(repo.restoreArchived(id))
     }
@@ -299,16 +283,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun restoreArchived(id: String) = viewModelScope.launch { repo.restoreArchived(id) }
 
-
     fun deleteArchived(id: String) = viewModelScope.launch { repo.deleteArchived(id) }
 
     fun clearArchive() = viewModelScope.launch { repo.clearArchive() }
 
-    /**
-     * 调整数量；吃完（减到 0）时仓库层会自动归档。
-     * @param onAutoArchived 自动归档发生时回调（用于 UI 提示）
-     * @param withUndo 减少时是否暴露「撤销」请求（列表页步进器减号用，详情页吃掉一份走 consumeOne 不用）
-     */
     fun changeQuantity(
         id: String,
         delta: Int,
@@ -328,8 +306,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun setCategoryThreshold(categoryId: String, days: Int) =
         viewModelScope.launch { repo.setCategoryThreshold(categoryId, days) }
 
-    // ---- 分类管理 ----
-
     fun addCategory(label: String, emoji: String) = viewModelScope.launch {
         val def = CategoryDef(UUID.randomUUID().toString(), label.trim(), emoji.trim().ifBlank { "🍽️" })
         repo.setCategories(categories.value + def)
@@ -343,8 +319,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         val remaining = categories.value.filterNot { it.id == id }
         if (remaining.isNotEmpty()) repo.setCategories(remaining)
     }
-
-    // ---- 位置管理 ----
 
     fun addLocation(name: String) = viewModelScope.launch {
         val trimmed = name.trim()
@@ -369,6 +343,18 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setFloatingNav(enabled: Boolean) = viewModelScope.launch { repo.setFloatingNav(enabled) }
 
+    fun setColorMode(mode: Int) = viewModelScope.launch { repo.setColorMode(mode) }
+
+    fun setPaletteStyle(name: String) = viewModelScope.launch { repo.setPaletteStyle(name) }
+
+    fun setColorSpec(name: String) = viewModelScope.launch { repo.setColorSpec(name) }
+
+    fun setEnableBlur(enabled: Boolean) = viewModelScope.launch { repo.setEnableBlur(enabled) }
+
+    fun setEnableFloatingBlur(enabled: Boolean) = viewModelScope.launch { repo.setEnableFloatingBlur(enabled) }
+
+    fun setEnableBadge(enabled: Boolean) = viewModelScope.launch { repo.setEnableBadge(enabled) }
+
     fun updateLocationBatch(ids: Set<String>, newLocation: String) = viewModelScope.launch {
         repo.updateLocationBatch(ids, newLocation)
     }
@@ -378,8 +364,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     suspend fun buildCsvExport(): String = repo.buildCsvExport()
 
     suspend fun importBackupJson(raw: String): Boolean = repo.importBackupJson(raw)
-
-    // ---- 本地快照管理 ----
 
     private val _localSnapshots = MutableStateFlow<List<LocalSnapshot>>(emptyList())
     val localSnapshots: StateFlow<List<LocalSnapshot>> = _localSnapshots.asStateFlow()
@@ -409,12 +393,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    // ---- 坚果云同步 ----
-
     fun saveNutstoreCredentials(account: String, password: String) =
         viewModelScope.launch { repo.setNutstoreCredentials(account, password) }
 
-    /** 上传当前数据到坚果云。回调参数：成功与否、提示消息。 */
     fun syncUpload(onResult: (Boolean, String) -> Unit) = viewModelScope.launch {
         val account = nutstoreAccount.value
         val password = nutstorePassword.value
@@ -423,7 +404,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             return@launch
         }
         _syncing.value = true
-        // 同上：损坏态下拒绝上传，避免残缺备份覆盖云端完好版本。
         val json = runCatching { repo.buildBackupJson() }.getOrElse {
             _syncing.value = false
             onResult(false, it.message ?: "数据异常，已取消上传")
@@ -442,15 +422,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         )
     }
 
-    // ---- 云端备份列表（恢复时选择版本） ----
-
     private val _cloudBackups = MutableStateFlow<List<CloudBackup>>(emptyList())
     val cloudBackups: StateFlow<List<CloudBackup>> = _cloudBackups.asStateFlow()
 
     private val _loadingBackups = MutableStateFlow(false)
     val loadingBackups: StateFlow<Boolean> = _loadingBackups.asStateFlow()
 
-    /** 拉取云端备份列表，供用户选择恢复哪一份。 */
     fun loadCloudBackups(onResult: (Boolean, String) -> Unit) = viewModelScope.launch {
         val account = nutstoreAccount.value
         val password = nutstorePassword.value
@@ -471,7 +448,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         )
     }
 
-    /** 从坚果云下载指定备份并恢复（整体替换）。 */
     fun syncDownload(fileName: String, onResult: (Boolean, String) -> Unit) = viewModelScope.launch {
         val account = nutstoreAccount.value
         val password = nutstorePassword.value

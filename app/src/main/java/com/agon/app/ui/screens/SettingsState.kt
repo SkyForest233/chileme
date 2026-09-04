@@ -14,15 +14,19 @@ import com.agon.app.data.FoodItem
 import com.agon.app.data.LocalSnapshot
 import com.agon.app.viewmodel.AppViewModel
 
-/**
- * 设置页跨主题共享状态容器。
- */
 class SettingsUiState(
     val dynamicColor: Boolean,
     val darkMode: Int,
     val paletteName: String,
     val themeStyleName: String,
     val floatingNav: Boolean,
+    // Phase0 新增
+    val colorMode: Int,
+    val paletteStyleName: String,
+    val colorSpecName: String,
+    val enableBlur: Boolean,
+    val enableFloatingBlur: Boolean,
+    val enableBadge: Boolean,
     val items: List<FoodItem>,
     val archived: List<ArchivedItem>,
     val categories: List<CategoryDef>,
@@ -74,6 +78,12 @@ class SettingsUiState(
     fun setPalette(name: String) = viewModel.setPalette(name)
     fun setThemeStyle(style: String) = viewModel.setThemeStyle(style)
     fun setFloatingNav(enabled: Boolean) = viewModel.setFloatingNav(enabled)
+    fun setColorMode(mode: Int) = viewModel.setColorMode(mode)
+    fun setPaletteStyle(name: String) = viewModel.setPaletteStyle(name)
+    fun setColorSpec(name: String) = viewModel.setColorSpec(name)
+    fun setEnableBlur(enabled: Boolean) = viewModel.setEnableBlur(enabled)
+    fun setEnableFloatingBlur(enabled: Boolean) = viewModel.setEnableFloatingBlur(enabled)
+    fun setEnableBadge(enabled: Boolean) = viewModel.setEnableBadge(enabled)
     fun setAutoSyncDays(days: Int) = viewModel.setAutoSyncDays(days)
 
     fun saveNutstoreCredentials(account: String, pass: String) =
@@ -102,6 +112,12 @@ fun rememberSettingsUiState(viewModel: AppViewModel): SettingsUiState {
     val paletteName by viewModel.palette.collectAsStateWithLifecycle()
     val themeStyleName by viewModel.themeStyle.collectAsStateWithLifecycle()
     val floatingNav by viewModel.floatingNav.collectAsStateWithLifecycle()
+    val colorMode by viewModel.colorMode.collectAsStateWithLifecycle()
+    val paletteStyleName by viewModel.paletteStyle.collectAsStateWithLifecycle()
+    val colorSpecName by viewModel.colorSpec.collectAsStateWithLifecycle()
+    val enableBlur by viewModel.enableBlur.collectAsStateWithLifecycle()
+    val enableFloatingBlur by viewModel.enableFloatingBlur.collectAsStateWithLifecycle()
+    val enableBadge by viewModel.enableBadge.collectAsStateWithLifecycle()
     val items by viewModel.items.collectAsStateWithLifecycle()
     val archived by viewModel.archived.collectAsStateWithLifecycle()
     val categories by viewModel.categories.collectAsStateWithLifecycle()
@@ -140,6 +156,12 @@ fun rememberSettingsUiState(viewModel: AppViewModel): SettingsUiState {
         paletteName,
         themeStyleName,
         floatingNav,
+        colorMode,
+        paletteStyleName,
+        colorSpecName,
+        enableBlur,
+        enableFloatingBlur,
+        enableBadge,
         items,
         archived,
         categories,
@@ -170,6 +192,12 @@ fun rememberSettingsUiState(viewModel: AppViewModel): SettingsUiState {
             paletteName = paletteName,
             themeStyleName = themeStyleName,
             floatingNav = floatingNav,
+            colorMode = colorMode,
+            paletteStyleName = paletteStyleName,
+            colorSpecName = colorSpecName,
+            enableBlur = enableBlur,
+            enableFloatingBlur = enableFloatingBlur,
+            enableBadge = enableBadge,
             items = items,
             archived = archived,
             categories = categories,

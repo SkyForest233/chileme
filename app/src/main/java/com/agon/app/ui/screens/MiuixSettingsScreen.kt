@@ -177,22 +177,51 @@ fun MiuixSettingsScreen(
                         onClick = { state.setThemeStyle(ThemeStyle.MIUIX.name) },
                     )
                     OverlayDropdownPreference(
-                        title = "深色模式",
-                        items = listOf("跟随系统", "浅色", "深色"),
-                        selectedIndex = state.darkMode.coerceIn(0, 2),
-                        onSelectedIndexChange = { state.setDarkMode(it) },
+                        title = "颜色模式（7档，对齐 KernelSU）",
+                        items = listOf("跟随系统", "浅色", "深色", "动态·跟随", "动态·浅色", "动态·深色", "AMOLED纯黑"),
+                        selectedIndex = state.colorMode.coerceIn(0, 6),
+                        onSelectedIndexChange = { state.setColorMode(it) },
                     )
-                    SwitchPreference(
-                        title = "动态取色 (Material You)",
-                        summary = "需要 Android 12 及以上，优先于配色方案",
-                        checked = state.dynamicColor,
-                        onCheckedChange = { state.setDynamicColor(it) },
+                    OverlayDropdownPreference(
+                        title = "调色风格",
+                        items = listOf("TonalSpot", "Neutral", "Vibrant", "Expressive", "Rainbow", "FruitSalad"),
+                        selectedIndex = listOf("TonalSpot", "Neutral", "Vibrant", "Expressive", "Rainbow", "FruitSalad").indexOf(state.paletteStyleName).coerceAtLeast(0),
+                        onSelectedIndexChange = { idx ->
+                            val names = listOf("TonalSpot", "Neutral", "Vibrant", "Expressive", "Rainbow", "FruitSalad")
+                            state.setPaletteStyle(names[idx])
+                        },
+                    )
+                    OverlayDropdownPreference(
+                        title = "色彩规范",
+                        items = listOf("2025 最新", "2021 兼容"),
+                        selectedIndex = if (state.colorSpecName == "SPEC_2025") 0 else 1,
+                        onSelectedIndexChange = { idx ->
+                            state.setColorSpec(if (idx == 0) "SPEC_2025" else "SPEC_2021")
+                        },
                     )
                     SwitchPreference(
                         title = "悬浮导航",
                         summary = "关闭后底部导航改为全宽常驻底栏",
                         checked = state.floatingNav,
                         onCheckedChange = { state.setFloatingNav(it) },
+                    )
+                    SwitchPreference(
+                        title = "启用模糊（Blur）",
+                        summary = "Miuix 毛玻璃，低端机可关闭",
+                        checked = state.enableBlur,
+                        onCheckedChange = { state.setEnableBlur(it) },
+                    )
+                    SwitchPreference(
+                        title = "悬浮底栏模糊",
+                        summary = "液态玻璃模糊，关闭后半透明不模糊",
+                        checked = state.enableFloatingBlur,
+                        onCheckedChange = { state.setEnableFloatingBlur(it) },
+                    )
+                    SwitchPreference(
+                        title = "导航角标",
+                        summary = "底栏显示临期/过期数量",
+                        checked = state.enableBadge,
+                        onCheckedChange = { state.setEnableBadge(it) },
                     )
                 }
             }
