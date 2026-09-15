@@ -17,6 +17,7 @@ permissions:
 
 jobs:
   build-debug:
+    name: debug APK + 单测 + lintDebug
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -64,3 +65,96 @@ jobs:
         with:
           name: app-debug
           path: app/build/outputs/apk/debug/*.apk
+
+  # ---- 静态门禁（2026-09-15 新增）----
+  # ktlint（风格）+ detekt（静态分析），规则与理由见仓库根目录的 .editorconfig / detekt.yml，
+  # 工具版本与调用方式都固定在 tools/ci-gates.sh 里。
+  # 之所以做成「脚本 + 独立二进制」而不是 Gradle 插件：这些工具的 Gradle 插件对
+  # AGP 9 / Gradle 9.7 / Kotlin 2.4 这种新组合支持滞后，一旦插件在配置阶段报错，
+  # 整个构建（含 release 打包）都会被拖下水。脚本还让本地无 Android SDK 也能跑同一套门禁。
+  static-gates:
+    name: 静态门禁（ktlint / detekt）
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      # detekt 需要 JVM；ktlint 用的是 GraalVM 原生二进制（不需要 Java）。
+      - name: Setup Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+
+      # ktlint 68MB + detekt 67MB，缓存后每次运行省下约 30 秒下载。
+      # 注意：升级 tools/ci-gates.sh 里的工具版本时，必须同步改这个 key，否则会拿到旧二进制。
+      - name: Cache gate tools
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/chileme-gates
+          key: chileme-gates-ktlint1.8.0-detekt1.23.8
+
+      - name: Run static gates
+        run: bash tools/ci-gates.sh
+
+      - name: Upload gate reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gate-reports
+          path: build/reports/gates/
+
+  # ---- release 构建门禁（2026-09-15 新增）----
+  # 为什么要在 PR 阶段就跑 release：release 独有的 R8 代码裁剪 + 资源压缩 + lintRelease
+  # 此前只在打 tag 时（release.yml）才验证，而「R8 裁掉了运行时才用到的类 / 资源被压缩后
+  # 名字对不上」这类问题恰恰只在 release 构建里出现 —— 等到发版那一刻才发现就太晚了。
+  # 无签名凭据时用 -PallowUnsignedRelease=true（构建脚本里明确支持）：不静默回退签名策略，
+  # 只是跳过签名校验，产出用 debug 密钥签名的 release APK，可直接装机做 R8 冒烟测试。
+  release-r8:
+    name: release + R8 + lintRelease
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Make gradlew executable
+        run: chmod +x gradlew
+
+      - name: Assemble release / lintRelease
+        run: ./gradlew assembleRelease lintRelease -PallowUnsignedRelease=true --no-daemon
+
+      - name: Upload release APK（debug 密钥签名，用于 R8 冒烟测试）
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release
+          path: app/build/outputs/apk/release/*.apk
+
+      - name: Upload release lint report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lint-report-release
+          path: |
+            app/build/reports/lint-results-release.html
+            app/build/reports/lint-results-release.txt
+
+      # R8 的 usage/seeds 报告：体积回归或「某个类被裁掉」时可以据此定位
+      - name: Upload R8 reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: r8-reports
+          path: |
+            app/build/outputs/mapping/release/usage.txt
+            app/build/outputs/mapping/release/seeds.txt
+            app/build/outputs/mapping/release/configuration.txt
