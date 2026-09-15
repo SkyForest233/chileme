@@ -6,6 +6,15 @@ on:
   pull_request:
   workflow_dispatch:
 
+# 同一分支/PR 连续推送时取消旧的运行：此前会「旧提交还在跑、新提交排队」白烧额度（2026-09-15）。
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# 构建只需要读代码（2026-09-15）：显式声明，避免默认继承过宽权限。
+permissions:
+  contents: read
+
 jobs:
   build-debug:
     runs-on: ubuntu-latest
@@ -25,12 +34,14 @@ jobs:
       - name: Make gradlew executable
         run: chmod +x gradlew
 
-      - name: Build debug APK
-        run: ./gradlew assembleDebug --no-daemon
-
-      # 纯 JVM 单测，不需要模拟器，秒级完成。
-      - name: Unit tests
-        run: ./gradlew testDebugUnitTest --no-daemon
+      # 三个任务合并成一次 Gradle 调用（2026-09-15）：此前是三次独立 `--no-daemon`，
+      # 每次都要重启 JVM 并重新配置项目。合并后失败仍会在同一份日志里指出是哪个任务挂了；
+      # 下面的报告上传步骤都带 `if: always()`，失败时也能拿到产物。
+      #
+      # lint 的意义：`NewApi`/`InlinedApi` 已在 app/build.gradle.kts 的 lint{} 里提为 error，
+      # 用于拦住「用了高于 minSdk 的 API、只在老设备崩溃」这类问题 —— assembleDebug 对此完全沉默。
+      - name: Build / Unit tests / Lint
+        run: ./gradlew assembleDebug testDebugUnitTest lintDebug --no-daemon
 
       - name: Upload test report
         if: always()
@@ -38,12 +49,6 @@ jobs:
         with:
           name: test-report
           path: app/build/reports/tests/testDebugUnitTest/
-
-      # NewApi/InlinedApi 已在 app/build.gradle.kts 的 lint{} 中提为 error。
-      # 这是防止「用了高于 minSdk 的 API、只在老设备崩溃」类问题复发的关键一步：
-      # assembleDebug 对此完全沉默。
-      - name: Lint
-        run: ./gradlew lintDebug --no-daemon
 
       - name: Upload lint report
         if: always()
