@@ -125,6 +125,14 @@ android {
         compose = true
     }
 
+    testOptions {
+        unitTests {
+            // 仓储守卫路径会 Log.w/Log.e；不打这个开关，纯 JVM 单测一碰 Log 就
+            // 抛「Method w in android.util.Log not mocked」。见 FoodRepositoryGuardTest。
+            isReturnDefaultValues = true
+        }
+    }
+
     lint {
         // NewApi/InlinedApi 提为 error：minSdk 提升到 26 后仍可能误用更高版本 API，
         // 这类问题 assembleDebug 不报错、只在老设备上崩，必须由 CI 的 lint 拦住。

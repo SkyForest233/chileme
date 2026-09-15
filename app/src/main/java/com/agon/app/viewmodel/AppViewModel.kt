@@ -62,7 +62,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
      * 保证所有出现过的食品（含已归档）都能被联想匹配到。
      */
     val suggestionSource: StateFlow<List<HistoryEntry>> =
-        combine(repo.historyFlow, repo.itemsFlow, repo.archiveFlow) { history, items, archived ->
+        // 复用上面三个已经 stateIn 好的 StateFlow（2026-09-15）：此前这里又各收集了一遍
+        // 仓库的冷流，同一份 JSON 在启动期被多解一次。
+        combine(history, items, archived) { history, items, archived ->
             (history + items.map { it.toHistoryEntry() } + archived.map { it.item.toHistoryEntry() })
                 .distinctBy { it.name }
         }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
