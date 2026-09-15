@@ -30,6 +30,8 @@ data class PendingImport(val raw: String, val preview: BackupData)
  * 也不需要为了测一个 getter 去准备 Application/Robolectric。
  */
 internal interface SettingsActions {
+    // 全部声明为 Unit：AppViewModel 的这些方法返回 Job（viewModelScope.launch），
+    // 直接写表达式体 override 会因返回类型不匹配编译失败（2026-09-15 CI 实测）。
     fun setDynamicColor(enabled: Boolean)
     fun setDarkMode(mode: Int)
     fun setPalette(name: String)
@@ -220,28 +222,52 @@ class SettingsUiState internal constructor(
 
 /** `SettingsActions` 的 ViewModel 实现（保持 `AppViewModel` 不变）。 */
 private class ViewModelSettingsActions(private val viewModel: AppViewModel) : SettingsActions {
-    override fun setDynamicColor(enabled: Boolean) = viewModel.setDynamicColor(enabled)
-    override fun setDarkMode(mode: Int) = viewModel.setDarkMode(mode)
-    override fun setPalette(name: String) = viewModel.setPalette(name)
-    override fun setThemeStyle(style: String) = viewModel.setThemeStyle(style)
-    override fun setFloatingNav(enabled: Boolean) = viewModel.setFloatingNav(enabled)
-    override fun setAutoSyncDays(days: Int) = viewModel.setAutoSyncDays(days)
-    override fun saveNutstoreCredentials(account: String, pass: String) =
+    override fun setDynamicColor(enabled: Boolean) {
+        viewModel.setDynamicColor(enabled)
+    }
+    override fun setDarkMode(mode: Int) {
+        viewModel.setDarkMode(mode)
+    }
+    override fun setPalette(name: String) {
+        viewModel.setPalette(name)
+    }
+    override fun setThemeStyle(style: String) {
+        viewModel.setThemeStyle(style)
+    }
+    override fun setFloatingNav(enabled: Boolean) {
+        viewModel.setFloatingNav(enabled)
+    }
+    override fun setAutoSyncDays(days: Int) {
+        viewModel.setAutoSyncDays(days)
+    }
+    override fun saveNutstoreCredentials(account: String, pass: String) {
         viewModel.saveNutstoreCredentials(account, pass)
+    }
 
-    override fun syncUpload(onResult: (Boolean, String) -> Unit) = viewModel.syncUpload(onResult)
-    override fun loadCloudBackups(onResult: (Boolean, String) -> Unit) =
+    override fun syncUpload(onResult: (Boolean, String) -> Unit) {
+        viewModel.syncUpload(onResult)
+    }
+    override fun loadCloudBackups(onResult: (Boolean, String) -> Unit) {
         viewModel.loadCloudBackups(onResult)
+    }
 
-    override fun syncDownload(fileName: String, onResult: (Boolean, String) -> Unit) =
+    override fun syncDownload(fileName: String, onResult: (Boolean, String) -> Unit) {
         viewModel.syncDownload(fileName, onResult)
+    }
 
-    override fun loadLocalSnapshots() = viewModel.loadLocalSnapshots()
-    override fun saveLocalSnapshot(onDone: ((Boolean) -> Unit)?) = viewModel.saveLocalSnapshot(onDone)
-    override fun restoreLocalSnapshot(fileName: String, onResult: (Boolean, String) -> Unit) =
+    override fun loadLocalSnapshots() {
+        viewModel.loadLocalSnapshots()
+    }
+    override fun saveLocalSnapshot(onDone: ((Boolean) -> Unit)?) {
+        viewModel.saveLocalSnapshot(onDone)
+    }
+    override fun restoreLocalSnapshot(fileName: String, onResult: (Boolean, String) -> Unit) {
         viewModel.restoreLocalSnapshot(fileName, onResult)
+    }
 
-    override fun clearAll() = viewModel.clearAll()
+    override fun clearAll() {
+        viewModel.clearAll()
+    }
     override suspend fun buildBackupJson(): String = viewModel.buildBackupJson()
     override suspend fun buildCsvExport(): String = viewModel.buildCsvExport()
     override suspend fun importBackupJson(raw: String): Boolean = viewModel.importBackupJson(raw)
@@ -249,7 +275,9 @@ private class ViewModelSettingsActions(private val viewModel: AppViewModel) : Se
     override fun importBackupWithSnapshot(
         raw: String,
         onResult: (ok: Boolean, snapshotSaved: Boolean) -> Unit,
-    ) = viewModel.importBackupWithSnapshot(raw, onResult)
+    ) {
+        viewModel.importBackupWithSnapshot(raw, onResult)
+    }
 }
 
 @Composable
