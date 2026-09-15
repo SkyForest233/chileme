@@ -15,6 +15,14 @@
 #   performance     明显的性能陷阱
 #   style           只留 UnusedImports / UnusedPrivate* / 少量明显冗余；其余见下方 disabled 列表
 #
+#
+# ⚠️ 改这个文件时务必核对键名：detekt 的 config.validation=true 会让**拼错的规则名直接 fail**
+#    （CI 日志里是 "Property 'style>Xxx' is misspelled or does not exist" + exit=3）。
+#    核对方法（2026-09-15 实践）：拉官方默认配置比对键路径，
+#      gh api repos/detekt/detekt/contents/detekt-core/src/main/resources/default-detekt-config.yml?ref=v1.23.8 \
+#        --jq .content | base64 -d > /tmp/detekt-default.yml
+#    再逐个比对自己写的「规则集>规则名」。本文件已按该方法核对过（1.23.8 全部键名存在）。
+#
 # 迭代方式：门禁脚本支持 GATES_MODE=report（或 DETEKT_MODE=report）只报告不拦截，
 # 用来在不动 CI 状态的前提下收敛规则。详见 docs/WORKFLOW.md §3「CI 静态门禁」。
 
@@ -75,8 +83,6 @@ style:
     active: false        # 由 ktlint 负责
   NewLineAtEndOfFile:
     active: false        # 由 ktlint 的 final-newline 负责
-  FinalNewline:
-    active: false        # 同上（detekt 里另有同名规则）
   ForbiddenComment:
     active: false        # 不允许 TODO/FIXME 的硬性规定不适用
   ReturnCount:
@@ -87,8 +93,8 @@ style:
     active: false        # 状态容器类刻意不用 data class（见 SettingsState.kt 说明）
   ExplicitItLambdaParameter:
     active: false        # 主观风格
-  MandatoryBracesIfStatements:
-    active: false        # 主观风格（ktlint_official 风格也未开启）
+  BracesOnIfStatements:
+    active: false        # 主观风格（名字在 1.23.8 里曾是 MandatoryBracesIfStatements，已停用）
   MandatoryBracesLoops:
     active: false        # 同上
   UnnecessaryAbstractClass:

@@ -135,6 +135,12 @@ run_detekt() {
         echo "--- detekt 报告（txt）---"
         cat "$REPORT_DIR/detekt.txt"
     fi
+    # exit=3 = detekt **自己**的配置校验失败（规则名拼错/与版本不符），不是代码问题。
+    # 2026-09-15 真实踩过：style>FinalNewline 这个不存在的键让 job 直接红。
+    if [ "$status" -eq 3 ]; then
+        echo "::error::detekt 配置校验失败（key 拼错或与本版本规则名不符）——这是门禁自身的问题，不是代码问题。"
+        echo "          核对方法见 detekt.yml 文件头；修好后重跑即可。"
+    fi
     return "$status"
 }
 

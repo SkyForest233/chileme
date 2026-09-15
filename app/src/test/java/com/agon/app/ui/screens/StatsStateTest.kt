@@ -20,7 +20,7 @@ class StatsStateTest {
             unit = "包",
             epochDay = date.toEpochDay(),
             category = category,
-            id = "test-${name}-${date}",
+            id = "test-$name-$date",
         )
 
     private fun item(id: String, name: String, category: String, quantity: Int = 1) =
