@@ -1,0 +1,93 @@
+# detekt 配置（2026-09-15 引入 CI 静态门禁）
+#
+# 定位：**抓「真 bug」+ 少量高价值风格规则**；纯格式问题交给 ktlint（见 .editorconfig）。
+#
+# 为什么不做「默认配置全开」
+# ----------------------
+# detekt 默认配置面向「公共库 + 严格团队」，对本项目这类应用层业务代码会报出大量主观项
+# （MagicNumber / MaxLineLength / LongMethod / TooManyFunctions / 泛型异常捕获…）。
+# 逐条豁免会得到一份几百行的 detekt.yml，而且没人会读。
+#
+# 策略：开「疑似缺陷」类规则集 + style 里与真实缺陷最相关的几条，其余显式关闭。
+#   potential-bugs  空值 / 分支 / 相等性等真实缺陷
+#   coroutines      协程用法（项目里全是 viewModelScope）
+#   empty-blocks    空函数体 / 空 catch（吞异常）
+#   performance     明显的性能陷阱
+#   style           只留 UnusedImports / UnusedPrivate* / 少量明显冗余；其余见下方关闭列表
+#
+# 迭代方式：门禁脚本支持 GATES_MODE=report（或 DETEKT_MODE=report）只报告不拦截，
+# 用来在不动 CI 状态的前提下收敛规则。详见 docs/WORKFLOW.md §3「CI 静态门禁」。
+
+build:
+  # 有任何一条 issue 就让 CI 失败（0 = 零容忍，不用权重打分）
+  maxIssues: 0
+
+config:
+  validation: true
+  warningsAsErrors: false
+
+# ---- 关闭：主观/与 ktlint 重叠的类别 ----
+comments:
+  active: false
+complexity:
+  active: false
+naming:
+  active: false
+exceptions:
+  active: false
+
+# ---- 开启：疑似缺陷类 ----
+potential-bugs:
+  active: true
+
+coroutines:
+  active: true
+
+empty-blocks:
+  active: true
+
+performance:
+  active: true
+
+# ---- style：只留能指向真实问题的几条，其余显式关闭 ----
+style:
+  active: true
+  # 与 ktlint / 格式化轮次重叠，或对本仓库属于主观项
+  MagicNumber:
+    active: false
+  MaxLineLength:
+    active: false
+  WildcardImport:
+    active: false        # 由 ktlint 的 no-wildcard-imports 负责
+  TrailingWhitespace:
+    active: false        # 由 ktlint 负责
+  NewLineAtEndOfFile:
+    active: false        # 由 ktlint 的 final-newline 负责
+  FinalNewline:
+    active: false        # 同上（detekt 里另有同名规则）
+  ForbiddenComment:
+    active: false        # 不允许 TODO/FIXME 的硬性规定不适用
+  ReturnCount:
+    active: false        # 早返回在本项目是刻意的可读性选择
+  VarCouldBeVal:
+    active: false        # Compose / 状态容器里 var 常是刻意的
+  UseDataClass:
+    active: false        # 状态容器类刻意不用 data class（见 SettingsState.kt 说明）
+  ExplicitItLambdaParameter:
+    active: false        # 主观风格
+  MandatoryBracesIfStatements:
+    active: false        # 主观风格（ktlint_official 风格也未开启）
+  MandatoryBracesLoops:
+    active: false        # 同上
+  UnnecessaryAbstractClass:
+    active: false        # 主观
+  CanBeNonNullable:
+    active: false        # 需要类型推断上下文，易误报
+  UnderscoresInNumericLiterals:
+    active: false        # 主观
+  # 保留默认开启的高价值规则（此处不写 = 用默认）：
+  #   UnusedImports        未使用的 import（ktlint 的同类规则已弃用，这里兜底）
+  #   UnusedPrivateMember  私有函数/属性没人用 = 死代码
+  #   UnusedPrivateProperty 同上
+  #   UnusedPrivateClass   私有类没人用
+  #   EqualsNullCall / UnconditionalJumpStatementInLoop / etc.
