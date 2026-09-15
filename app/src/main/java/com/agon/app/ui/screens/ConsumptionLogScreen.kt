@@ -38,6 +38,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.agon.app.data.ConsumptionRecord
+import com.agon.app.data.isDeletable
 import com.agon.app.data.byId
 import com.agon.app.data.cn
 import com.agon.app.ui.components.EmptyState
@@ -182,12 +183,22 @@ private fun ConsumptionRow(
                 color = MaterialTheme.colorScheme.primary,
             )
             Spacer(Modifier.width(4.dp))
-            IconButton(onClick = onDelete) {
-                Icon(
-                    Icons.Rounded.DeleteForever,
-                    contentDescription = "删除 ${record.name} 的消耗记录",
-                    modifier = Modifier.size(20.dp),
-                    tint = MaterialTheme.colorScheme.error,
+            if (record.isDeletable()) {
+                IconButton(onClick = onDelete) {
+                    Icon(
+                        Icons.Rounded.DeleteForever,
+                        contentDescription = "删除 ${record.name} 的消耗记录",
+                        modifier = Modifier.size(20.dp),
+                        tint = MaterialTheme.colorScheme.error,
+                    )
+                }
+            } else {
+                // 月度聚合记录（一条 = 整月合计）：删掉它等于抹掉整月历史，所以不给删除按钮，
+                // 只标注数据来源让用户理解「为什么这一行是几十件」。
+                Text(
+                    "月度合计",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         }

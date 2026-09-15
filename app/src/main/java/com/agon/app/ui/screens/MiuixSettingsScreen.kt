@@ -39,12 +39,14 @@ import com.agon.app.data.CloudBackup
 import com.agon.app.data.BACKUP_VERSION
 import com.agon.app.data.LocalSnapshot
 import com.agon.app.data.cn
+import com.agon.app.data.fileStamp
 import com.agon.app.data.itemQuantity
 import com.agon.app.data.readBackupText
 import com.agon.app.ui.theme.ThemeStyle
 import com.agon.app.viewmodel.AppViewModel
 import kotlinx.coroutines.launch
 import java.time.LocalDate
+import java.time.LocalDateTime
 import top.yukonga.miuix.kmp.basic.BasicComponentDefaults
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
@@ -455,7 +457,7 @@ fun MiuixSettingsScreen(
                         .clip(RoundedCornerShape(16.dp))
                         .clickable {
                             state.setShowExportFormatDialog(false)
-                            exportLauncher.launch("吃了么备份_${LocalDate.now()}.json")
+                            exportLauncher.launch("吃了么备份_${LocalDateTime.now().fileStamp()}.json")
                         },
                 ) {
                     Row(
@@ -491,7 +493,7 @@ fun MiuixSettingsScreen(
                         .clip(RoundedCornerShape(16.dp))
                         .clickable {
                             state.setShowExportFormatDialog(false)
-                            csvExportLauncher.launch("吃了么库存_${LocalDate.now()}.csv")
+                            csvExportLauncher.launch("吃了么库存_${LocalDateTime.now().fileStamp()}.csv")
                         },
                 ) {
                     Row(

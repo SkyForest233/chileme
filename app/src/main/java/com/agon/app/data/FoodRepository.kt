@@ -156,6 +156,7 @@ class FoodRepository(private val context: Context) {
             val stamp = LocalDateTime.now()
                 .format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"))
             File(dir, "$keyName-$stamp.json").writeText(raw)
+            pruneCorruptDir(dir)
         }.onFailure { Log.w(TAG, "留档损坏数据失败：$keyName", it) }
     }
 
@@ -584,6 +585,12 @@ class FoodRepository(private val context: Context) {
      * 避免 `record.id?.let{...}` 把关导致的无 id 记录删除按钮静默无效。
      */
     suspend fun deleteConsumption(record: ConsumptionRecord) {
+        // 月度聚合记录不允许单条删除：一条 = 整月合计，删掉等于抹掉整月历史（2026-09-15）。
+        // UI 侧已不提供删除按钮，这里是最后一道防线——撤销删除等路径也绕不过它。
+        if (!record.isDeletable()) {
+            Log.w(TAG, "拒绝删除月度聚合记录：${record.name} ${record.amount}${record.unit}（epochDay=${record.epochDay}）")
+            return
+        }
         context.dataStore.edit { prefs ->
             val decoded = decodeConsumption(prefs[consumptionKey])
             if (isCorrupt(decoded)) return@edit
@@ -854,4 +861,28 @@ class FoodRepository(private val context: Context) {
         _corruptedKeys.value = emptySet()
         return true
     }
+}
+
+/**
+ * 损坏留档目录保留上限：同一 key 最多 [maxPerKey] 份、整个目录最多 [maxTotal] 份，
+ * 超出的按「最旧优先」删除（2026-09-15）。
+ *
+ * 为什么需要：`markCorrupt` 每次进程启动后只对同一个 key 留档一次，但 `corruptedKeys`
+ * 是内存态——解析一直失败时，**每次启动都会新增一份**留档，长期会把私有目录塞满。
+ * 留档只用于人工求助，保留最近几份足够。
+ */
+internal fun pruneCorruptDir(
+    dir: File,
+    maxPerKey: Int = 3,
+    maxTotal: Int = 12,
+) {
+    val files = dir.listFiles { f -> f.isFile && f.name.endsWith(".json") }
+        ?.sortedBy { it.lastModified() }
+        ?: return
+    val doomed = mutableListOf<File>()
+    if (files.size > maxTotal) doomed += files.take(files.size - maxTotal)
+    files.groupBy { it.name.substringBeforeLast('-') }.forEach { (_, group) ->
+        if (group.size > maxPerKey) doomed += group.take(group.size - maxPerKey)
+    }
+    doomed.distinct().forEach { runCatching { it.delete() } }
 }

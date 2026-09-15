@@ -24,7 +24,7 @@
   - **坚果云 WebDAV**：支持多版本轮转云端备份（保留最近 3 个历史版本），支持选择版本恢复。
   - **凭据安全**：WebDAV 应用密码基于 Android Keystore (AES-GCM) 硬件加密存储。
 - 🔒 **本地优先与隐私保护**
-  - 无需注册账号、无第三方广告、无后台追踪，数据 100% 存储于设备本地。
+  - 无需注册账号、无第三方广告、无后台追踪；数据默认只存本机，仅当你主动配置坚果云账号后才会上传加密备份。
 
 ---
 
@@ -34,7 +34,7 @@
 - **UI 框架**：Jetpack Compose (BOM 2026.08.00)
 - **设计系统**：Material 3 / Miuix KMP (`top.yukonga.miuix.kmp`) / MaterialKolor
 - **持久化**：AndroidX DataStore Preferences + Kotlinx Serialization
-- **网络与安全**：OkHttp 5 (WebDAV) + AndroidX Security Crypto (Keystore AES-GCM)
+- **网络与安全**：OkHttp 4.12.0（坚果云 WebDAV，可选功能）+ AndroidKeyStore AES-GCM（自实现 `SecureStore`，未引入 security-crypto 依赖）
 - **图片加载**：Coil 3
 
 ---

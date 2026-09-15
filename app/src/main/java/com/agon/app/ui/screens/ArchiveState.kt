@@ -22,10 +22,13 @@ class ArchiveUiState(
     val reasonFilter: ArchiveReason?,
     val query: String,
     val showClearDialog: Boolean,
+    /** 待确认「彻底删除」的那一条（null = 不显示确认弹窗）。 */
+    val pendingDelete: ArchivedItem?,
     private val viewModel: AppViewModel,
     private val onReasonFilterChanged: (ArchiveReason?) -> Unit,
     private val onQueryChanged: (String) -> Unit,
     private val onShowClearDialogChanged: (Boolean) -> Unit,
+    private val onPendingDeleteChanged: (ArchivedItem?) -> Unit,
 ) {
     fun setReasonFilter(reason: ArchiveReason?) = onReasonFilterChanged(reason)
     fun setQuery(newQuery: String) = onQueryChanged(newQuery)
@@ -39,8 +42,17 @@ class ArchiveUiState(
         viewModel.archiveBatch(ids, reason)
     }
 
-    fun deleteEntry(id: String) {
-        viewModel.deleteArchived(id)
+    /**
+     * 单条「彻底删除」**不能一键生效**（2026-09-15）：归档是误删食品的最后一道保险，
+     * 点错一下就没有了，所以先弹确认；确认后才会真的删。
+     */
+    fun requestDelete(entry: ArchivedItem) = onPendingDeleteChanged(entry)
+
+    fun cancelDelete() = onPendingDeleteChanged(null)
+
+    fun confirmDelete() {
+        pendingDelete?.let { viewModel.deleteArchived(it.item.id) }
+        onPendingDeleteChanged(null)
     }
 
     fun clearArchive() {
@@ -68,6 +80,7 @@ fun rememberArchiveUiState(viewModel: AppViewModel): ArchiveUiState {
     var reasonFilter by rememberSaveable { mutableStateOf<ArchiveReason?>(null) }
     var query by rememberSaveable { mutableStateOf("") }
     var showClearDialog by remember { mutableStateOf(false) }
+    var pendingDelete by remember { mutableStateOf<ArchivedItem?>(null) }
 
     val filtered = remember(archived, reasonFilter, query) {
         filterArchiveItems(
@@ -84,6 +97,7 @@ fun rememberArchiveUiState(viewModel: AppViewModel): ArchiveUiState {
         reasonFilter,
         query,
         showClearDialog,
+        pendingDelete,
     ) {
         ArchiveUiState(
             archived = archived,
@@ -92,6 +106,7 @@ fun rememberArchiveUiState(viewModel: AppViewModel): ArchiveUiState {
             reasonFilter = reasonFilter,
             query = query,
             showClearDialog = showClearDialog,
+            pendingDelete = pendingDelete,
             viewModel = viewModel,
             onReasonFilterChanged = { reasonFilter = it },
             onQueryChanged = { query = it },

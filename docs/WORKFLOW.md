@@ -32,7 +32,7 @@
 - 字符串目前直接写在代码中（中文单语言）；app_name 必须在 strings.xml 维护
 
 ### 新增依赖
-1. 先用 `search_maven` 确认坐标；2. 加入 `app/build.gradle.kts`；3. 立即构建验证；4. 在 `docs/ARCHITECTURE.md` 依赖清单登记
+1. 先用 `search_maven` 确认坐标；2. 加入 `app/build.gradle.kts`；3. 在 `gradle/libs.versions.toml` 登记版本与别名（依赖坐标不在 `app/build.gradle.kts` 里写死）；4. 立即构建验证；5. 在 `docs/ARCHITECTURE.md` 依赖清单登记
 
 ## 3. 构建与验证
 

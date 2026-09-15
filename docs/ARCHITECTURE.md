@@ -53,14 +53,14 @@ app/src/main/java/com/agon/app/
 | `CategoryDef` | `custom_categories` | 可编辑分类(id/label/emoji)；默认 8 个 id 沿用旧枚举名，新增用 UUID；孤儿 id 由 `byId()` 回退 FallbackCategory("其他") |
 | `List<String>` | `custom_locations` | 可编辑位置预设列表 |
 | `ArchivedItem` | `archived_items` | 归档：原 item + 归档日 + 原因(DELETED/CONSUMED/EXPIRED)；上限 200 |
-| `ConsumptionRecord` | `consumption_records` | 消耗流水（减库存时自动记录）；上限 1000 |
+| `ConsumptionRecord` | `consumption_records` | 消耗流水（减库存时自动记录）；90 天内逐笔，更早按「年×月×名称×单位」聚合成一条并标记 `aggregated=true`（见 `compactConsumptionAt`），无条数硬上限 |
 | `HistoryEntry` | `history_entries` | 录入历史（名称去重，上限 50） |
-| `Map<String,Int>` | `category_thresholds` | 分类临期阈值；key 为 FoodCategory.name |
+| `Map<String,Int>` | `category_thresholds` | 分类临期阈值；key 为 `CategoryDef.id`（不是枚举名/显示名） |
 | `BackupData` | （导出文件） | 以上全部数据的聚合，version=`BACKUP_VERSION`(=2)（含 categories/locations；v1 文件可兼容导入）。导入前必须经 `previewBackup()` 校验（含 `items` 键） |
 
 其他 key：`seeded`(Boolean)、`dynamic_color`(Boolean)、`dark_mode`(Int: 0跟随/1浅/2深)、`palette`(String: AppPalette 枚举名，默认 "MINT")、`theme_style`(String: ThemeStyle 枚举名，默认 "MATERIAL3")、`floating_nav`(Boolean: 悬浮导航开关，默认 true)（v2.8）。
 
-**状态判定逻辑**（FoodModels.kt）：`statusFor(thresholds)` — 过期: daysLeft<0；临期: daysLeft<=有效阈值；有效阈值 = 单条覆盖 ?: 分类设置 ?: 7。UI 一律用 `statusFor`，不要自行比较天数。
+**状态判定逻辑**（FoodModels.kt）：`statusForAt(thresholds, today)` — 过期: daysLeft<0；临期: daysLeft<=有效阈值；有效阈值 = 单条覆盖 ?: 分类设置 ?: 7。UI 一律用 `statusForAt`（`today` 取 `LocalToday`，跨零点才会刷新），不要自行比较天数，也不要再用内部取 `LocalDate.now()` 的旧属性。
 
 ## 4. 导航路由表
 
@@ -123,6 +123,6 @@ app/src/main/java/com/agon/app/
 - **应用图标**：自适应图标 `mipmap-anydpi-v26/ic_launcher.xml`（前景 `drawable-*/ic_launcher_foreground.png` + 纯色背景 `#FBF6E9`）；legacy 兰容图标在 `mipmap-*/ic_launcher.png`；源图由用户 SVG 处理而来（已去黑边，主体缩放至 66dp 安全区）
 - **Snackbar**：带悬浮导航栏的屏幕，SnackbarHost 必须加 `padding(bottom = 84.dp)` 避免遮挡
 - **撤销 Snackbar**：`ui/components/UndoSnackbar.kt` 的 `showUndoSnackbar`。MD3 自绘 Material History 圆环 path（去指针），变换到圆心后再叠粗数字。消耗记录撤销：`DeletedConsumption(record, index)`，`addConsumption(record, index)` 插回删除前在日期倒序列表中的位置，避免 `listOf(record)+records` 提到最前；LazyColumn `animateItem` 带 placementSpec。消耗记录页 MD3 宿主加 `navigationBarsPadding` + 24dp。覆盖层 Box 必须 `fillMaxWidth`。MIUIX 宿主保持库默认 `canSwipeToDismiss=true`
-- **滑动归档（两段式）**：SwipeToDismissBoxState 用 `remember(item.id)` 手动构造（禁止 rememberSaveable，防撤销后复用脏状态循环触发）；第一滑弹回进入 armed 待确认（3.5s 超时解除），第二滑才确认滑出；`deleted` 标志保证 onDelete 只触发一次；列表项配 `animateItem(fadeIn 280/fadeOut 200)`
+- **批量操作（v2.3 起，取代早期「两段式滑动归档」）**：列表项**长按进入多选**（`MainActivity` 的 `BatchActionBar`），选中集合通过 `AppViewModel.selectedIds` 暴露；底部操作栏提供 归档 / 改存放位置 / 取消，归档时按 `ArchiveReason.DELETED` 记因。**不要**再按滑动归档实现新功能（`SwipeToDismissBox` 现在只用于 `UndoSnackbar` 的提示条滑动）
 - **FAB 与撤销**：Snackbar 展示“撤销”期间调 `viewModel.setFabSuppressed(true)` 隐藏 FAB（finally 复位），避免遮挡撤销按钮
 - **底栏自动隐藏**：MainApp 的 NestedScrollConnection 监听列表滚动，下滑隐藏底栏+FAB（slideOutVertically），上滑/切页恢复

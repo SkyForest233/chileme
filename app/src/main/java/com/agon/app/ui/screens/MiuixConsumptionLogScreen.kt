@@ -23,6 +23,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.agon.app.data.ConsumptionRecord
+import com.agon.app.data.isDeletable
 import com.agon.app.data.byId
 import com.agon.app.data.cn
 import com.agon.app.ui.components.EmptyState
@@ -167,12 +168,21 @@ private fun MiuixConsumptionRow(
                 color = MiuixTheme.colorScheme.primary,
             )
             Spacer(Modifier.width(4.dp))
-            IconButton(onClick = onDelete) {
-                Icon(
-                    MiuixIcons.Delete,
-                    contentDescription = "删除 ${record.name} 的消耗记录",
-                    modifier = Modifier.size(20.dp),
-                    tint = MiuixTheme.colorScheme.error,
+            if (record.isDeletable()) {
+                IconButton(onClick = onDelete) {
+                    Icon(
+                        MiuixIcons.Delete,
+                        contentDescription = "删除 ${record.name} 的消耗记录",
+                        modifier = Modifier.size(20.dp),
+                        tint = MiuixTheme.colorScheme.error,
+                    )
+                }
+            } else {
+                // 月度聚合记录不给删除入口（见 ConsumptionLogScreen 同处注释）。
+                Text(
+                    "月度合计",
+                    style = MiuixTheme.textStyles.footnote2,
+                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                 )
             }
         }

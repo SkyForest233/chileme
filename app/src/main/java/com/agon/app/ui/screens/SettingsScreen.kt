@@ -83,6 +83,7 @@ import com.agon.app.data.CLOUD_BACKUP_KEEP
 import com.agon.app.data.CloudBackup
 import com.agon.app.data.LocalSnapshot
 import com.agon.app.data.cn
+import com.agon.app.data.fileStamp
 import com.agon.app.data.itemQuantity
 import com.agon.app.data.readBackupText
 import com.agon.app.ui.components.CheckSwitch
@@ -93,6 +94,7 @@ import com.materialkolor.PaletteStyle
 import com.materialkolor.rememberDynamicColorScheme
 import kotlinx.coroutines.launch
 import java.time.LocalDate
+import java.time.LocalDateTime
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -577,7 +579,7 @@ fun SettingsScreen(
                     Surface(
                         onClick = {
                             state.setShowExportFormatDialog(false)
-                            exportLauncher.launch("吃了么备份_${LocalDate.now()}.json")
+                            exportLauncher.launch("吃了么备份_${LocalDateTime.now().fileStamp()}.json")
                         },
                         shape = RoundedCornerShape(16.dp),
                         color = MaterialTheme.colorScheme.surfaceContainerHigh,
@@ -598,7 +600,7 @@ fun SettingsScreen(
                     Surface(
                         onClick = {
                             state.setShowExportFormatDialog(false)
-                            csvExportLauncher.launch("吃了么库存_${LocalDate.now()}.csv")
+                            csvExportLauncher.launch("吃了么库存_${LocalDateTime.now().fileStamp()}.csv")
                         },
                         shape = RoundedCornerShape(16.dp),
                         color = MaterialTheme.colorScheme.surfaceContainerHigh,

@@ -2,7 +2,9 @@ package com.agon.app.data
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import java.io.File
 import org.junit.Test
 import java.time.LocalDate
 
@@ -84,6 +86,51 @@ class CompactConsumptionTest {
         val result = compactConsumptionAt(records, today, fixedIds)
         assertNotNull("聚合记录的 id 不能为 null", result[0].id)
     }
+
+    @Test
+    fun `聚合记录必须标记 aggregated 且不可单条删除`() {
+        // 修复（2026-09-15）：聚合记录代表整月合计，删掉它等于抹掉整月历史，
+        // 而用户看到的只是一行「×42 瓶」。所以既要打标记，也要在模型层就能判定「不可删」。
+        val old = today.minusDays(200)
+        val records = listOf(
+            record("牛奶", 1, old),
+            record("牛奶", 2, old.plusDays(1)),
+            record("面包", 1, today.minusDays(1)), // 90 天内的逐笔明细
+        )
+        val result = compactConsumptionAt(records, today, fixedIds)
+
+        val merged = result.single { it.name == "牛奶" }
+        assertTrue("聚合记录必须标记 aggregated", merged.aggregated)
+        assertFalse("聚合记录不允许单条删除", merged.isDeletable())
+
+        val recent = result.single { it.name == "面包" }
+        assertFalse("逐笔明细不应被标记", recent.aggregated)
+        assertTrue("逐笔明细可以删除", recent.isDeletable())
+    }
+
+    @Test
+    fun `仓储层与两套消耗记录页都必须拦住聚合记录的删除`() {
+        // 无 Robolectric：靠读源码做静态守卫（与 CorruptGuardTest 同一套路）。
+        val repo = read("com/agon/app/data/FoodRepository.kt")
+        val md3 = read("com/agon/app/ui/screens/ConsumptionLogScreen.kt")
+        val miuix = read("com/agon/app/ui/screens/MiuixConsumptionLogScreen.kt")
+        assertTrue("找不到源码（非 Gradle 工作目录？）", repo != null && md3 != null && miuix != null)
+
+        assertTrue(
+            "仓储层 deleteConsumption 必须先判 isDeletable()，否则任何入口都能抹掉整月历史",
+            repo!!.contains("if (!record.isDeletable())"),
+        )
+        listOf("ConsumptionLogScreen.kt" to md3!!, "MiuixConsumptionLogScreen.kt" to miuix!!).forEach { (name, src) ->
+            assertTrue("$name 必须按 isDeletable() 决定是否给出删除按钮", src.contains("record.isDeletable()"))
+            assertTrue("$name 应对聚合记录标注「月度合计」", src.contains("月度合计"))
+        }
+    }
+
+    private fun read(relativePath: String): String? =
+        listOf("src/main/java/", "app/src/main/java/")
+            .map { File(it + relativePath) }
+            .firstOrNull { it.exists() }
+            ?.readText()
 
     @Test
     fun `同名但不同单位的记录不能被合并`() {

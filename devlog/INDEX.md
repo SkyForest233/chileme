@@ -25,10 +25,10 @@
 | ~~中~~ | ~~fix-plan 阶段 5：纯函数单测基线~~（statusFor / compactConsumption / restoreArchived→planRestore / parsePropfind / BackupData v1→v2 兼容 / Decoded 三态） | 2026-08-21 | ✅ 已完成（新增 25 例，第 30 轮） |
 | ~~中~~ | ~~fix-plan 阶段 6：跨零点刷新~~（可注入 today 的 `*At` + `LocalToday` CompositionLocal） | 2026-08-21 | ✅ 已完成（第 30 轮） |
 | ~~中~~ | ~~fix-plan 阶段 6 其余：README / LICENSE 补充 (B-05)~~ | 2026-08-22 | ✅ 已完成（Apache-2.0） |
-| ~~中~~ | ~~状态容器纯逻辑单测补全 (B-07)~~（Stats / FoodList / Archive / Home 纯函数单测） | 2026-08-22 | ✅ 已完成（新增 16 例，总 42 例） |
+| ~~中~~ | ~~状态容器纯逻辑单测补全 (B-07)~~（Stats / FoodList / Archive / Home 纯函数单测） | 2026-08-22 | ✅ 已完成（当时新增 16 例；仓库现有单测 91 例，`grep -c "@Test"`） |
 | 中 | fix-plan 阶段 6 其余：统计图表 semantics、Splash 图标发糊 | 2026-08-21 | 待讨论 |
 | ~~中~~ | ~~fix-plan 阶段 7：MD3 / Miuix 双实现去重~~（8 对文件状态容器抽离，消除 ~1200 行重复代码） | 2026-08-21 | ✅ 已完成（2026-08-22） |
-| **高** | **本地构建验证 v2.8**（工具链升级 Kotlin 2.4.10/AGP 9.3.1/Gradle 9.6.1 + Miuix 0.9.4-rc01 依赖，沙箱无工具链未验证） | 2026-08-20 | ⚠️ 待本地 assembleDebug |
+| ~~高~~ | ~~本地构建验证 v2.8~~（工具链升级 Kotlin 2.4.10/AGP 9.3.1/Gradle 9.6.1 + Miuix 0.9.4-rc01 依赖） | 2026-08-20 | ✅ 已由 CI 验证（此后每轮 PR 都跑 `assembleDebug` + 单测 + lint） |
 | ~~低~~ | ~~归档恢复同名/同 ID 冲突策略~~ | 2026-07-31 | ✅ 已修复（v2.4，同批次合并数量/同 ID 防重复） |
 | ~~低~~ | ~~移除封面时旧图片文件未清理~~ | 2026-07-31 | ✅ 已修复（v2.4，启动时 cleanupOrphanCovers） |
 | ~~低~~ | ~~消耗记录上限 1000 条裁剪失真~~ | 2026-07-31 | ✅ 已修复（v2.4，90 天明细 + 月度聚合） |

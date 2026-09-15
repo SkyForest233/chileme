@@ -180,7 +180,7 @@ fun ArchiveScreen(
                                         }
                                     }
                                 },
-                                onDelete = { state.deleteEntry(entry.item.id) },
+                                onDelete = { state.requestDelete(entry) },
                                 modifier = Modifier.animateItem(),
                             )
                         }
@@ -188,6 +188,27 @@ fun ArchiveScreen(
                 }
             }
         }
+    }
+
+    state.pendingDelete?.let { target ->
+        AlertDialog(
+            onDismissRequest = { state.cancelDelete() },
+            title = { Text("彻底删除这条归档？") },
+            text = {
+                Text(
+                    "「${target.item.name}」将被永久删除，无法恢复，也不会回到库存。" +
+                        "想留作记录的话，请改用「恢复到库存」。"
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { state.confirmDelete() }) {
+                    Text("彻底删除", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { state.cancelDelete() }) { Text("取消") }
+            },
+        )
     }
 
     if (state.showClearDialog) {
