@@ -40,6 +40,23 @@
 - 产物：`app/build/outputs/apk/debug/app-debug.apk`
 - 频率：每完成一个功能模块就构建，不要积攒大量改动后一次性构建
 
+### CI 静态门禁（ktlint + detekt，2026-09-15 起）
+
+- 入口脚本：`tools/ci-gates.sh`（工具版本与 sha256 固定在此文件里）；规则配置：`.editorconfig`（ktlint）、`detekt.yml`（detekt）
+- 本地跑法（首次会下载约 136 MB 工具到 `~/.cache/chileme-gates`，之后走缓存；不需要 Android SDK）：
+
+  ```bash
+  bash tools/ci-gates.sh                     # 默认：ktlint 拦截 + detekt 报告
+  DETEKT_MODE=block bash tools/ci-gates.sh   # detekt 也拦截
+  GATES_MODE=report bash tools/ci-gates.sh   # 两个都只报告（调规则时用）
+  ```
+
+- CI：`.github/workflows/build.yml` 的 `static-gates` job（PR 与 master 推送都会跑）。报告写 `build/reports/gates/`，CI 里同时上传为 `gate-reports` artifact 并打到日志。
+- 规则边界（为什么只开这几条）写在 `.editorconfig` 与 `detekt.yml` 的文件头，改规则前先读；**未开启 ≠ 遗漏**，多为「已有明确后续计划」或「对本项目属主观项」。
+- 升级工具版本：改 `tools/ci-gates.sh` 里的版本号 + sha256，并同步改 `build.yml` 里 `actions/cache` 的 key。
+- release 侧另有 `release-r8` job：每个 PR 都跑 `assembleRelease -PallowUnsignedRelease=true`（R8 + 资源压缩 + `lintRelease`），因为这类问题只在 release 构建出现。
+- 提交代码前建议先跑一次门禁，比等 CI 反馈快。
+
 ## 4. 常见错误处理
 
 | 错误 | 原因与处理 |
@@ -59,4 +76,5 @@
 | 数据模型/存储 key/路由/依赖变化 | ARCHITECTURE.md 对应表格 |
 | 新增复用组件/调整视觉规范 | DESIGN_SPEC.md |
 | 流程/规范本身调整 | WORKFLOW.md + CLAUDE.md |
+| CI 门禁规则调整（`.editorconfig` / `detekt.yml` / `tools/ci-gates.sh`） | WORKFLOW.md §3 + devlog |
 | 任何一轮开发完成 | devlog/YYYY-MM-DD.md + devlog/INDEX.md（强制） |
