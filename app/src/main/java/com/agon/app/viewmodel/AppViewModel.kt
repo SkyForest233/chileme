@@ -299,7 +299,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun restoreArchived(id: String) = viewModelScope.launch { repo.restoreArchived(id) }
 
-
     fun deleteArchived(id: String) = viewModelScope.launch { repo.deleteArchived(id) }
 
     fun clearArchive() = viewModelScope.launch { repo.clearArchive() }
