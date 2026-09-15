@@ -95,7 +95,7 @@ jobs:
           key: chileme-gates-ktlint1.8.0-detekt1.23.8
 
       - name: Run static gates
-        run: KTLINT_MODE=report DETEKT_MODE=report bash tools/ci-gates.sh
+        run: bash tools/ci-gates.sh
 
       - name: Upload gate reports
         if: always()
