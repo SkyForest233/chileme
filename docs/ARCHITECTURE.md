@@ -56,7 +56,7 @@ app/src/main/java/com/agon/app/
 | `ConsumptionRecord` | `consumption_records` | 消耗流水（减库存时自动记录）；上限 1000 |
 | `HistoryEntry` | `history_entries` | 录入历史（名称去重，上限 50） |
 | `Map<String,Int>` | `category_thresholds` | 分类临期阈值；key 为 FoodCategory.name |
-| `BackupData` | （导出文件） | 以上全部数据的聚合，version=2（含 categories/locations；v1 文件可兼容导入） |
+| `BackupData` | （导出文件） | 以上全部数据的聚合，version=`BACKUP_VERSION`(=2)（含 categories/locations；v1 文件可兼容导入）。导入前必须经 `previewBackup()` 校验（含 `items` 键） |
 
 其他 key：`seeded`(Boolean)、`dynamic_color`(Boolean)、`dark_mode`(Int: 0跟随/1浅/2深)、`palette`(String: AppPalette 枚举名，默认 "MINT")、`theme_style`(String: ThemeStyle 枚举名，默认 "MATERIAL3")、`floating_nav`(Boolean: 悬浮导航开关，默认 true)（v2.8）。
 
@@ -98,15 +98,21 @@ app/src/main/java/com/agon/app/
   - `buildBackupJson()` 在损坏态**抛异常**，避免生成残缺备份；调用方需捕获（两个设置页提示用户，自动同步/手动上传则放弃本次上传，防止残缺备份覆盖云端完好版本）
   - 损坏原始串留档 `filesDir/corrupt/<key>-<时间戳>.json`；`corruptedKeys: StateFlow<Set<String>>` 暴露给 UI，首页顶部显示 `DataCorruptBanner`（`ui/components/Common.kt`，MD3 / Miuix 共用）
   - 「配置型」key（thresholds / categories / locations）丢失可重设，维持回落默认值的旧行为，不阻断写入
+- **读流兜底（2026-09-15）**：所有 DataStore 读流统一经 `FoodRepository.resilientRead()` —— `IOException` 先退避重试 2 次（间隔 300ms），仍失败则记日志并回落默认值（`rawFlow` 解码 `null` = Empty、`lightFlow` 用传入的 fallback）。理由：19 个 `stateIn` 全是 `SharingStarted.Eagerly` 且 `viewModelScope` 未挂 `CoroutineExceptionHandler`，读异常会终止共享协程→交给默认处理器→**杀进程**。**新增读流一律走 `rawFlow()` / `lightFlow()`，禁止直接 `dataStore.data`**
+- **启动放行超时（2026-09-15）**：`MainActivity.READY_TIMEOUT_MS`（3s）。`ready`（DataStore 首发）在 3 秒内未达成也强制渲染首帧——否则「读阻塞/异常」会让启动画面永久停留，用户只能杀进程。`contentReady` 用 `mutableStateOf`，因为 composition 里读它
+- **封面清理守卫（2026-09-15）**：`cleanupOrphanCovers()` **仅在 `corruptedKeys` 为空时执行**。损坏态下 items/archive 解码回落空集，照常清理会把 `covers/` 下所有文件当孤儿删除，而图片无法从 `corrupt/` 的 JSON 留档恢复
+- **导入备份加固（2026-09-15）**：SAF 选文件 → `readBackupText()`（IO 线程，20 MB 上限）→ `previewBackup()`（必须含 `items` 键且可解析，否则拒收）→ 二次确认弹窗（导出日期 / 各表条数 / schema 版本）→ `importBackupWithSnapshot()`（**先写一份本地快照兜底**再整体替换）。禁止退回「选完即覆盖」
 - **Flow 读取规约（2026-08-21）**：DataStore 每次 `edit` 都会重发整份 Preferences。所有重型（需 JSON 解码）key 一律走 `rawFlow()` —— 先取原始串 → `distinctUntilChanged()` → 解码 → `flowOn(Dispatchers.Default)`；轻量 key 走 `lightFlow()`（仅去重）。**禁止**直接 `dataStore.data.map { decodeXxx(...) }`：那会让改一次主题色就重新解析全部 JSON 并产生新 List 实例（全屏重组），且解码发生在 `viewModelScope`（`Main.immediate`）即主线程
 - **备份排除规则（2026-08-21）**：`res/xml/backup_rules.xml`（API ≤30）与 `res/xml/data_extraction_rules.xml`（API 31+）排除 `datastore/`。坚果云密码是 Keystore AES-GCM 密文，**密钥不跨设备**，备份恢复后必然解不开；`nutstoreCredentialBrokenFlow` 检测该状态并在设置页提示重新填写
 - **归档恢复去重（v2.4）**：`restoreArchived()` —— 同 ID 只移除归档；同名+同生产日期合并数量（返回 merged 供 UI 提示）；否则新增，数量 0 恢复为 1
 - **主题渐变（v2.4）**：Theme.kt `animateColorScheme()` 对全部 35 个颜色角色 450ms tween；新增颜色角色时需同步加入该函数
 - **图片存储**：封面统一通过 `copyImageToCovers()` 落盘到 `filesDir/covers/`，FoodItem 只存绝对路径；展示用 `FoodAvatar`，优先级：照片 > coverText > 分类 emoji
 - **进度条语义**：一律用 `elapsedRatio`（正相关，时间过去多少走多少），禁止再用 freshness 直接作进度
+- **统计口径（2026-09-15）**：「过期浪费」= `calculateWastedTotal(archived)`，按**件数**（`sumOf { item.quantity }`）而非归档条数，与同屏按件求和的「本周消耗」保持一致。注意该指标仍受归档上限 `take(200)` 影响，长期不失真需独立计数器（见 `docs/audits/2026-09-15-code-review.md` §1.8）
+- **Miuix 屏幕只换外壳（2026-09-15）**：`Miuix*Screen.kt` 必须调用 `remember*UiState` 复用已测状态容器，**禁止在 UI 文件里重写聚合计算**；`MiuixParityTest` 会静态拦截（此前 `MiuixStatsScreen` 手抄了一份统计逻辑，导致 `StatsStateTest` 测的是 MIUIX 下不执行的代码）
 - **启动门控**：MainActivity 用 core-splashscreen `setKeepOnScreenCondition` 持住启动画面，直到 `viewModel.ready`（DataStore 首发）才渲染，避免主题/内容闪烁；新增首屏依赖的 Flow 时要加入 ready 的 combine
 - **拍照**：FileProvider authority 固定 `com.agon.app.fileprovider`，临时文件写 `cacheDir/camera/`，paths 配置见 `res/xml/file_paths.xml`。该文件已由 `path="."`（暴露整个私有目录）收窄为仅 `camera/` 与 `covers/` 两个子目录，新增共享目录需显式登记
-- **备份**：导出用 `CreateDocument("application/json")`，导入用 `OpenDocument`；导入是整体替换而非合并
+- **备份**：导出用 `CreateDocument("application/json")`，导入用 `OpenDocument`；导入是整体替换而非合并（流程加固见上方「导入备份加固」条）
 - **列表批量操作**：长按卡片进入多选模式（selectedIds 非空即多选）；顶栏切换为选择态（退出/全选），底部滑入批量归档栏；BackHandler 退出多选；批量操作走 `archiveBatch`/`restoreArchivedBatch`；多选期间 FAB 隐藏（fabSuppressed）
 - **应用图标**：自适应图标 `mipmap-anydpi-v26/ic_launcher.xml`（前景 `drawable-*/ic_launcher_foreground.png` + 纯色背景 `#FBF6E9`）；legacy 兰容图标在 `mipmap-*/ic_launcher.png`；源图由用户 SVG 处理而来（已去黑边，主体缩放至 66dp 安全区）
 - **Snackbar**：带悬浮导航栏的屏幕，SnackbarHost 必须加 `padding(bottom = 84.dp)` 避免遮挡

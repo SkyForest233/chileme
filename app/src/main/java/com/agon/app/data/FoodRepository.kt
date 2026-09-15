@@ -9,17 +9,23 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.retryWhen
 import kotlinx.coroutines.flow.update
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonObject
 import java.io.File
+import java.io.IOException
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
@@ -28,6 +34,12 @@ import java.util.UUID
 private val Context.dataStore by preferencesDataStore("pantry_store")
 
 private const val TAG = "FoodRepository"
+
+/** 读失败时的退避重试次数（超过则回落默认值，见 [FoodRepository.resilientRead]）。 */
+private const val MAX_READ_RETRIES = 2L
+
+/** 读重试间隔。 */
+private const val READ_RETRY_DELAY_MS = 300L
 
 /**
  * 解码结果三态。
@@ -163,17 +175,54 @@ class FoodRepository(private val context: Context) {
     // 现统一走 rawFlow：先取原始串 -> distinctUntilChanged（该 key 没变就不往下走）
     // -> 解码 -> flowOn(Default) 移出主线程。
 
+    /**
+     * DataStore 读流的统一兜底（2026-09-15 补）。
+     *
+     * 背景：`dataStore.data` 在磁盘 IO 抖动 / 文件被占用 / 读超时时会抛异常。而本项目的
+     * 19 个 `stateIn` 全部 `SharingStarted.Eagerly`，且 `viewModelScope` 没有挂
+     * `CoroutineExceptionHandler` —— 共享协程收到异常后会交给线程默认处理器，**直接杀进程**；
+     * 若异常表现为「永不发射」（读阻塞），首页 `ready` 门控又会让启动画面永久停留。
+     * 两种结果都不可接受，故在仓库层统一收口：
+     *
+     * 1. `IOException` 先做有限次退避重试（`MAX_READ_RETRIES` 次，间隔 `READ_RETRY_DELAY_MS`）；
+     * 2. 仍失败则由 `catch` 记录日志并回落 [fallback]，UI 退化为「本次读到空数据」而非崩溃。
+     *
+     * 只影响「读」。**写**仍由 `isCorrupt` 守卫保护，损坏态下不会覆盖用户数据。
+     */
+    private fun <R> resilientRead(
+        keyName: String,
+        fallback: R,
+        transform: (Preferences) -> R,
+    ): Flow<R> =
+        context.dataStore.data
+            .retryWhen { cause, attempt ->
+                val retry = cause is IOException && attempt < MAX_READ_RETRIES
+                if (retry) {
+                    Log.w(
+                        TAG,
+                        "读取 DataStore 失败，${READ_RETRY_DELAY_MS}ms 后重试（${attempt + 1}/$MAX_READ_RETRIES）：$keyName",
+                        cause,
+                    )
+                    delay(READ_RETRY_DELAY_MS)
+                }
+                retry
+            }
+            .map(transform)
+            .catch { cause ->
+                Log.e(TAG, "读取 $keyName 最终失败，本次回落默认值（用户数据未被修改）", cause)
+                emit(fallback)
+            }
+
     /** 重型 key（需 JSON 解码）：按原始串去重，解码在 Default 线程。 */
     private fun <T> rawFlow(key: Preferences.Key<String>, decode: (String?) -> T): Flow<T> =
-        context.dataStore.data
-            .map { it[key] }
+        resilientRead(key.name, fallback = null) { prefs -> prefs[key] }
             .distinctUntilChanged()
             .map(decode)
             .flowOn(Dispatchers.Default)
 
     /** 轻量 key（无需解码）：只做去重，不必切线程。 */
-    private fun <T> lightFlow(transform: (Preferences) -> T): Flow<T> =
-        context.dataStore.data.map(transform).distinctUntilChanged()
+    private fun <T> lightFlow(keyName: String, fallback: T, transform: (Preferences) -> T): Flow<T> =
+        resilientRead(keyName, fallback, transform).distinctUntilChanged()
 
     val itemsFlow: Flow<List<FoodItem>> =
         rawFlow(itemsKey) { decodeItems(it).orElse(emptyList()) }
@@ -196,17 +245,23 @@ class FoodRepository(private val context: Context) {
     val locationsFlow: Flow<List<String>> =
         rawFlow(locationsKey, ::decodeLocations)
 
-    val dynamicColorFlow: Flow<Boolean> = lightFlow { it[dynamicColorKey] ?: false }
+    val dynamicColorFlow: Flow<Boolean> =
+        lightFlow("dynamic_color", fallback = false) { it[dynamicColorKey] ?: false }
 
-    val darkModeFlow: Flow<Int> = lightFlow { it[darkModeKey] ?: 0 }
+    val darkModeFlow: Flow<Int> =
+        lightFlow("dark_mode", fallback = 0) { it[darkModeKey] ?: 0 }
 
-    val paletteFlow: Flow<String> = lightFlow { it[paletteKey] ?: "MINT" }
+    val paletteFlow: Flow<String> =
+        lightFlow("palette", fallback = "MINT") { it[paletteKey] ?: "MINT" }
 
-    val themeStyleFlow: Flow<String> = lightFlow { it[themeStyleKey] ?: "MATERIAL3" }
+    val themeStyleFlow: Flow<String> =
+        lightFlow("theme_style", fallback = "MATERIAL3") { it[themeStyleKey] ?: "MATERIAL3" }
 
-    val floatingNavFlow: Flow<Boolean> = lightFlow { it[floatingNavKey] ?: true }
+    val floatingNavFlow: Flow<Boolean> =
+        lightFlow("floating_nav", fallback = true) { it[floatingNavKey] ?: true }
 
-    val nutstoreAccountFlow: Flow<String> = lightFlow { it[nutstoreAccountKey] ?: "" }
+    val nutstoreAccountFlow: Flow<String> =
+        lightFlow("nutstore_account", fallback = "") { it[nutstoreAccountKey] ?: "" }
 
     /**
      * 密码仅以 Keystore 加密密文存储；读取时解密。
@@ -215,9 +270,7 @@ class FoodRepository(private val context: Context) {
      * 解密是 Keystore 操作（非平凡开销），先按密文去重再切到 Default 线程，
      * 避免每次 DataStore 重发都在主线程做一次 AES-GCM。
      */
-    val nutstorePasswordFlow: Flow<String> = context.dataStore.data
-        .map { prefs -> prefs[nutstorePasswordKey] to prefs[nutstorePasswordEncKey] }
-        .distinctUntilChanged()
+    val nutstorePasswordFlow: Flow<String> = nutstoreCredentialKeysFlow()
         .map { (plain, enc) ->
             plain?.takeIf { it.isNotBlank() }
                 ?: enc?.let { SecureStore.decrypt(it) }
@@ -230,21 +283,35 @@ class FoodRepository(private val context: Context) {
      * 而 Keystore 密钥不跨设备）。UI 据此提示用户重新填写应用密码，
      * 避免用户面对一个"看起来已配置、却永远同步失败"的账号。
      */
-    val nutstoreCredentialBrokenFlow: Flow<Boolean> = context.dataStore.data
-        .map { prefs -> prefs[nutstorePasswordKey] to prefs[nutstorePasswordEncKey] }
-        .distinctUntilChanged()
+    val nutstoreCredentialBrokenFlow: Flow<Boolean> = nutstoreCredentialKeysFlow()
         .map { (plain, enc) ->
             plain.isNullOrBlank() && !enc.isNullOrBlank() && SecureStore.decrypt(enc) == null
         }
         .flowOn(Dispatchers.Default)
 
-    val lastSyncFlow: Flow<String> = lightFlow { it[lastSyncKey] ?: "" }
+    /**
+     * 凭据两个 key 的原始值（明文待迁移 / 密文），已做读兜底与去重。
+     * 上面两个 flow 共用它，避免各自重复一遍 resilientRead 与解密去重逻辑。
+     */
+    private fun nutstoreCredentialKeysFlow(): Flow<Pair<String?, String?>> =
+        resilientRead(
+            keyName = "nutstore_password",
+            fallback = Pair<String?, String?>(null, null),
+        ) { prefs ->
+            prefs[nutstorePasswordKey] to prefs[nutstorePasswordEncKey]
+        }.distinctUntilChanged()
+
+    val lastSyncFlow: Flow<String> =
+        lightFlow("last_sync_time", fallback = "") { it[lastSyncKey] ?: "" }
 
     /** 自动同步间隔（天）；0 = 关闭自动同步 */
-    val autoSyncDaysFlow: Flow<Int> = lightFlow { it[autoSyncDaysKey] ?: 0 }
+    val autoSyncDaysFlow: Flow<Int> =
+        lightFlow("auto_sync_days", fallback = 0) { it[autoSyncDaysKey] ?: 0 }
 
     val lastAutoSyncEpochDayFlow: Flow<Long> =
-        lightFlow { it[lastAutoSyncEpochDayKey]?.toLongOrNull() ?: 0L }
+        lightFlow("last_auto_sync_epoch_day", fallback = 0L) {
+            it[lastAutoSyncEpochDayKey]?.toLongOrNull() ?: 0L
+        }
 
     /** 启动时迁移：若存在旧版明文密码，加密后写入新 key 并删除明文。 */
     suspend fun migratePlaintextPassword() {
@@ -674,6 +741,32 @@ class FoodRepository(private val context: Context) {
         val categories = decodeCategories(prefs[categoriesKey])
         val thresholds = decodeThresholds(prefs[thresholdsKey])
         return buildCsvExport(items, categories, thresholds, LocalDate.now())
+    }
+
+    /**
+     * 解析备份内容用于「导入前预览」，**不改动任何数据**（2026-09-15 新增）。
+     *
+     * 导入是「整体替换」的破坏性操作，原先点一下文件就直接覆盖，用户看不到将覆盖什么。
+     * 现在 UI 先调本方法拿到摘要（条数 / 导出日期 / schema 版本）弹二次确认，再执行
+     * [importBackupJson]。
+     *
+     * 只认真正像备份的文件：必须含 `items` 键（v1/v2 备份均导出该字段）。
+     * 否则 `{}`、`{"foo":1}` 这类合法 JSON 也会因字段默认值解码「成功」，
+     * 变成一个能清空用户数据的「合法空备份」。
+     *
+     * @return 合法备份返回 [BackupData]；非备份 / 畸形 JSON 返回 null。
+     */
+    suspend fun previewBackup(raw: String): BackupData? = withContext(Dispatchers.Default) {
+        runCatching {
+            val obj = json.parseToJsonElement(raw).jsonObject
+            if ("items" !in obj) {
+                Log.w(TAG, "importBackupJson 预览被拒：文件不含 items 字段，不是本应用的备份")
+                return@runCatching null
+            }
+            json.decodeFromString<BackupData>(raw)
+        }
+            .onFailure { Log.w(TAG, "importBackupJson 预览解析失败", it) }
+            .getOrNull()
     }
 
     /**

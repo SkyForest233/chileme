@@ -35,16 +35,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.agon.app.data.ArchiveReason
 import com.agon.app.data.CategoryDef
 import com.agon.app.data.byId
 import com.agon.app.ui.components.EmptyState
 import com.agon.app.ui.components.ExpiryCalendarCard
-import com.agon.app.ui.theme.LocalToday
 import com.agon.app.ui.theme.MotionEasing
 import com.agon.app.viewmodel.AppViewModel
-import java.time.LocalDate
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.Text
@@ -71,51 +67,26 @@ fun MiuixStatsScreen(
     onOpenItem: (String) -> Unit = {},
     onOpenConsumption: () -> Unit = {},
 ) {
-    val items by viewModel.items.collectAsStateWithLifecycle()
-    val consumption by viewModel.consumption.collectAsStateWithLifecycle()
-    val archived by viewModel.archived.collectAsStateWithLifecycle()
-    val categories by viewModel.categories.collectAsStateWithLifecycle()
-    val thresholds by viewModel.thresholds.collectAsStateWithLifecycle()
+    // 业务量一律走已测状态层（2026-09-15 修复）。
+    //
+    // 此前本页把 StatsState 的计算手抄了一遍，于是 StatsStateTest 测的是
+    // 「MIUIX 主题下根本不会执行」的那份代码 —— 两份实现、一份被测，
+    // 是静默分叉的典型温床（改统计口径只需改一处就会两套主题不一致）。
+    // 现在本页只负责**外壳**（Miuix Scaffold/Card/SmallTitle）与图表自绘，
+    // 数据一律来自 [rememberStatsUiState]；业务计算禁止在本文件内重写。
+    val state = rememberStatsUiState(viewModel)
+    val items = state.items
+    val categories = state.categories
+    val thresholds = state.thresholds
 
-    val todayDate = LocalToday.current
-    val today = todayDate.toEpochDay()
-    val weekAgo = today - 6
-    val monthStart = todayDate.withDayOfMonth(1).toEpochDay()
-
-    val consumedThisWeek = remember(consumption, weekAgo) {
-        consumption.filter { it.epochDay >= weekAgo }.sumOf { it.amount }
-    }
-    val consumedThisMonth = remember(consumption, monthStart) {
-        consumption.filter { it.epochDay >= monthStart }.sumOf { it.amount }
-    }
-    val wastedTotal = archived.count { it.reason == ArchiveReason.EXPIRED }
-
-    val dailyTrend = remember(consumption, today) {
-        (0..6).map { offset ->
-            val day = today - (6 - offset)
-            val amount = consumption.filter { it.epochDay == day }.sumOf { it.amount }
-            LocalDate.ofEpochDay(day) to amount
-        }
-    }
-    val maxDaily = (dailyTrend.maxOfOrNull { it.second } ?: 0).coerceAtLeast(1)
-
-    val categoryShare = remember(items) {
-        items.groupBy { it.category }
-            .mapValues { (_, list) -> list.sumOf { it.quantity } }
-            .filterValues { it > 0 }
-            .toList()
-            .sortedByDescending { it.second }
-    }
-    val totalQty = categoryShare.sumOf { it.second }
-
-    val topConsumed = remember(consumption) {
-        consumption.groupBy { it.name }
-            .map { (name, records) ->
-                Triple(name, records.first().category, records.sumOf { it.amount })
-            }
-            .sortedByDescending { it.third }
-            .take(5)
-    }
+    val consumedThisWeek = state.consumedThisWeek
+    val consumedThisMonth = state.consumedThisMonth
+    val wastedTotal = state.wastedTotal
+    val dailyTrend = state.dailyTrend
+    val maxDaily = state.maxDaily
+    val categoryShare = state.categoryShare
+    val totalQty = state.totalQty
+    val topConsumed = state.topConsumed
 
     val chartColors = rememberChartColorsMiuix()
 

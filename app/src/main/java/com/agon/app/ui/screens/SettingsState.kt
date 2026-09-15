@@ -8,11 +8,20 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.agon.app.data.ArchivedItem
+import com.agon.app.data.BackupData
 import com.agon.app.data.CategoryDef
 import com.agon.app.data.CloudBackup
 import com.agon.app.data.FoodItem
 import com.agon.app.data.LocalSnapshot
 import com.agon.app.viewmodel.AppViewModel
+
+/**
+ * 待用户确认的导入内容：原始 JSON + 预览摘要。
+ *
+ * 导入是「整体替换」的破坏性操作，两套设置页都先用它弹二次确认
+ * （展示将覆盖的条数与备份导出日期），确认后才写库（2026-09-15）。
+ */
+data class PendingImport(val raw: String, val preview: BackupData)
 
 /**
  * 设置页跨主题共享状态容器。
@@ -92,7 +101,15 @@ class SettingsUiState(
 
     suspend fun buildBackupJson(): String = viewModel.buildBackupJson()
     suspend fun buildCsvExport(): String = viewModel.buildCsvExport()
+    /** 裸导入（无预览/无自动快照）。屏幕层请用 [previewBackup] + [importBackupWithSnapshot]。 */
     suspend fun importBackupJson(raw: String): Boolean = viewModel.importBackupJson(raw)
+
+    /** 解析备份用于导入前预览（不改动数据）；非备份 / 畸形 JSON 返回 null。 */
+    suspend fun previewBackup(raw: String): BackupData? = viewModel.previewBackup(raw)
+
+    /** 导入前先存一份本地快照，再整体替换。参数二 = 快照是否保存成功。 */
+    fun importBackupWithSnapshot(raw: String, onResult: (ok: Boolean, snapshotSaved: Boolean) -> Unit) =
+        viewModel.importBackupWithSnapshot(raw, onResult)
 }
 
 @Composable

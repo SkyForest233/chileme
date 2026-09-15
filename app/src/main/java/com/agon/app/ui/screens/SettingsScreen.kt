@@ -62,8 +62,11 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -73,9 +76,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import com.agon.app.data.BACKUP_VERSION
 import com.agon.app.data.CLOUD_BACKUP_KEEP
 import com.agon.app.data.CloudBackup
 import com.agon.app.data.LocalSnapshot
+import com.agon.app.data.cn
+import com.agon.app.data.readBackupText
 import com.agon.app.ui.components.CheckSwitch
 import com.agon.app.ui.theme.AppPalette
 import com.agon.app.ui.theme.ThemeStyle
@@ -122,20 +128,21 @@ fun SettingsScreen(
     }
 
     // ---- Backup import (SAF open document) ----
+    // 2026-09-15：不再是「选完即覆盖」。先读（带 20 MB 上限）→ 解析出摘要 →
+    // 弹二次确认（展示将覆盖的条数与导出日期）→ 导入前自动存一份本地快照。
+    var pendingImport by remember { mutableStateOf<PendingImport?>(null) }
     val importLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument()
     ) { uri ->
         if (uri != null) {
             scope.launch {
-                val raw = runCatching {
-                    context.contentResolver.openInputStream(uri)?.use { input ->
-                        input.readBytes().toString(Charsets.UTF_8)
-                    }
-                }.getOrNull()
-                val ok = raw != null && state.importBackupJson(raw)
-                snackbarHostState.showSnackbar(
-                    if (ok) "导入成功，数据已恢复 ✅" else "导入失败：文件格式不正确"
-                )
+                val raw = readBackupText(context, uri)
+                val preview = raw?.let { state.previewBackup(it) }
+                when {
+                    raw == null -> snackbarHostState.showSnackbar("读取文件失败，或文件超过 20 MB")
+                    preview == null -> snackbarHostState.showSnackbar("导入失败：这不是本应用的备份文件")
+                    else -> pendingImport = PendingImport(raw, preview)
+                }
             }
         }
     }
@@ -667,6 +674,64 @@ fun SettingsScreen(
             },
             confirmButton = {
                 TextButton(onClick = { state.setShowRestoreSourceDialog(false) }) { Text("取消") }
+            },
+        )
+    }
+
+    // ---- 导入前预览与二次确认（2026-09-15）----
+    pendingImport?.let { pending ->
+        val preview = pending.preview
+        AlertDialog(
+            onDismissRequest = { pendingImport = null },
+            title = { Text("导入备份") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(
+                        "备份导出日期：${LocalDate.ofEpochDay(preview.exportedEpochDay).cn()}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Text(
+                        "库存 ${preview.items.size} 件 · 归档 ${preview.archived.size} 条 · " +
+                            "消耗 ${preview.consumption.size} 条 · 历史 ${preview.history.size} 条",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    if (preview.version > BACKUP_VERSION) {
+                        Text(
+                            "该备份来自更新的版本（v${preview.version}），部分字段可能无法识别。",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                    }
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        "导入会整体替换当前全部数据（库存、归档、消耗记录、历史与阈值设置），" +
+                            "不可撤销。导入前会自动保存一份本地快照，可在「从本地历史快照恢复」里回退。",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    pendingImport = null
+                    state.importBackupWithSnapshot(pending.raw) { ok, snapshotSaved ->
+                        scope.launch {
+                            val msg = when {
+                                !ok -> "导入失败：文件格式不正确"
+                                snapshotSaved -> "导入成功，数据已恢复 ✅（已自动留存导入前快照）"
+                                else -> "导入成功，数据已恢复 ✅（导入前快照未能保存）"
+                            }
+                            snackbarHostState.showSnackbar(msg)
+                        }
+                    }
+                }) {
+                    Text("覆盖导入", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingImport = null }) { Text("取消") }
             },
         )
     }

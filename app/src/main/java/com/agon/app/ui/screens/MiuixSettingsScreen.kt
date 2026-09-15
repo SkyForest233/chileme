@@ -21,8 +21,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -33,7 +36,10 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.agon.app.data.CLOUD_BACKUP_KEEP
 import com.agon.app.data.CloudBackup
+import com.agon.app.data.BACKUP_VERSION
 import com.agon.app.data.LocalSnapshot
+import com.agon.app.data.cn
+import com.agon.app.data.readBackupText
 import com.agon.app.ui.theme.ThemeStyle
 import com.agon.app.viewmodel.AppViewModel
 import kotlinx.coroutines.launch
@@ -110,20 +116,21 @@ fun MiuixSettingsScreen(
     }
 
     // ---- Backup import (SAF open document) ----
+    // 2026-09-15：不再是「选完即覆盖」。先读（带 20 MB 上限）→ 解析出摘要 →
+    // 弹二次确认（展示将覆盖的条数与导出日期）→ 导入前自动存一份本地快照。
+    var pendingImport by remember { mutableStateOf<PendingImport?>(null) }
     val importLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument()
     ) { uri ->
         if (uri != null) {
             scope.launch {
-                val raw = runCatching {
-                    context.contentResolver.openInputStream(uri)?.use { input ->
-                        input.readBytes().toString(Charsets.UTF_8)
-                    }
-                }.getOrNull()
-                val ok = raw != null && state.importBackupJson(raw)
-                snackbarHostState.showSnackbar(
-                    if (ok) "导入成功，数据已恢复 ✅" else "导入失败：文件格式不正确"
-                )
+                val raw = readBackupText(context, uri)
+                val preview = raw?.let { state.previewBackup(it) }
+                when {
+                    raw == null -> snackbarHostState.showSnackbar("读取文件失败，或文件超过 20 MB")
+                    preview == null -> snackbarHostState.showSnackbar("导入失败：这不是本应用的备份文件")
+                    else -> pendingImport = PendingImport(raw, preview)
+                }
             }
         }
     }
@@ -335,6 +342,64 @@ fun MiuixSettingsScreen(
                     ArrowPreference(
                         title = "吃了么 v1.0",
                         summary = "记录家中零食库存，提醒临期食品，减少食物浪费 🌱",
+                    )
+                }
+            }
+        }
+
+        // ---- 导入前预览与二次确认（2026-09-15）----
+        pendingImport?.let { pending ->
+            val preview = pending.preview
+            MiuixDialog(
+                title = "导入备份",
+                summary = buildString {
+                    append("备份导出日期：")
+                    append(LocalDate.ofEpochDay(preview.exportedEpochDay).cn())
+                    append("\n库存 ")
+                    append(preview.items.size)
+                    append(" 件 · 归档 ")
+                    append(preview.archived.size)
+                    append(" 条 · 消耗 ")
+                    append(preview.consumption.size)
+                    append(" 条 · 历史 ")
+                    append(preview.history.size)
+                    append(" 条")
+                    if (preview.version > BACKUP_VERSION) {
+                        append("\n该备份来自更新的版本（v${preview.version}），部分字段可能无法识别。")
+                    }
+                    append("\n\n导入会整体替换当前全部数据，不可撤销。")
+                    append("导入前会自动保存一份本地快照，可在「从本地历史快照恢复」里回退。")
+                },
+                show = true,
+                onDismissRequest = { pendingImport = null },
+            ) {
+                Row(
+                    modifier = Modifier.padding(top = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    TextButton(
+                        text = "取消",
+                        onClick = { pendingImport = null },
+                        modifier = Modifier.weight(1f),
+                    )
+                    TextButton(
+                        text = "覆盖导入",
+                        onClick = {
+                            val raw = pending.raw
+                            pendingImport = null
+                            state.importBackupWithSnapshot(raw) { ok, snapshotSaved ->
+                                scope.launch {
+                                    val msg = when {
+                                        !ok -> "导入失败：文件格式不正确"
+                                        snapshotSaved -> "导入成功，数据已恢复 ✅（已自动留存导入前快照）"
+                                        else -> "导入成功，数据已恢复 ✅（导入前快照未能保存）"
+                                    }
+                                    snackbarHostState.showSnackbar(msg)
+                                }
+                            }
+                        },
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.textButtonColors(textColor = MiuixTheme.colorScheme.error),
                     )
                 }
             }

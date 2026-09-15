@@ -1,10 +1,12 @@
 package com.agon.app.viewmodel
 
 import android.app.Application
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.agon.app.data.ArchiveReason
 import com.agon.app.data.ArchivedItem
+import com.agon.app.data.BackupData
 import com.agon.app.data.CategoryDef
 import com.agon.app.data.ConsumptionRecord
 import com.agon.app.data.DefaultCategories
@@ -20,6 +22,7 @@ import com.agon.app.data.QuantityChangeResult
 import com.agon.app.data.cleanupOrphanCovers
 import com.agon.app.data.daysLeft
 import com.agon.app.data.toHistoryEntry
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import java.time.Instant
 import java.time.LocalDate
@@ -32,7 +35,10 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.util.UUID
+
+private const val TAG = "AppViewModel"
 
 class AppViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -211,12 +217,21 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             repo.migratePlaintextPassword()
             // 迁移：旧消耗记录补 id（供删除/撤销定位）
             repo.migrateConsumptionIds()
-            // 启动时清理孤儿封面图片（未被库存/归档引用的文件）
-            val referenced = buildSet {
-                repo.itemsFlow.first().forEach { if (it.photoPath.isNotBlank()) add(it.photoPath) }
-                repo.archiveFlow.first().forEach { if (it.item.photoPath.isNotBlank()) add(it.item.photoPath) }
+            // 启动时清理孤儿封面图片（未被库存/归档引用的文件）。
+            //
+            // 关键：损坏态下**必须跳过**。items/archive 解码失败时 rawFlow 会回落空集
+            // （这是读路径的预期行为），若照此清理，covers/ 下的文件会被全部当成孤儿删除——
+            // 而图片无法从 corrupt/ 的 JSON 留档里恢复，等于把「保护数据」的机制变成
+            // 「销毁数据」。（2026-09-15 修复）
+            if (repo.corruptedKeys.value.isEmpty()) {
+                val referenced = buildSet {
+                    repo.itemsFlow.first().forEach { if (it.photoPath.isNotBlank()) add(it.photoPath) }
+                    repo.archiveFlow.first().forEach { if (it.item.photoPath.isNotBlank()) add(it.item.photoPath) }
+                }
+                cleanupOrphanCovers(getApplication(), referenced)
+            } else {
+                Log.w(TAG, "检测到数据损坏（${repo.corruptedKeys.value}），跳过孤儿封面清理以免误删图片")
             }
-            cleanupOrphanCovers(getApplication(), referenced)
             // 自动同步：到期且凭据完整时静默上传
             maybeAutoSync()
             // 本地滚动冷备：若今日尚无快照则静默保存一份
@@ -378,6 +393,34 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     suspend fun buildCsvExport(): String = repo.buildCsvExport()
 
     suspend fun importBackupJson(raw: String): Boolean = repo.importBackupJson(raw)
+
+    /** 解析备份用于导入前预览（不改动数据）。非备份 / 畸形 JSON 返回 null。 */
+    suspend fun previewBackup(raw: String): BackupData? = repo.previewBackup(raw)
+
+    /**
+     * 导入备份的推荐入口：**先写一份本地快照兜底，再整体替换**。
+     *
+     * 导入是不可撤销的破坏性操作，此前点一下文件就直接覆盖。现在：
+     * 1. 先 `buildBackupJson()` + `LocalSnapshotStore.saveSnapshot()` 留一份「导入前状态」，
+     *    用户可在设置页「本地快照」里一键回到导入前；
+     * 2. 再执行 [FoodRepository.importBackupJson]。
+     *
+     * 快照失败（例如当前数据本身已损坏、无法序列化）**不阻断导入**——那种情况正是导入的用途。
+     *
+     * @param onResult 参数一：导入是否成功；参数二：导入前快照是否已保存。
+     */
+    fun importBackupWithSnapshot(raw: String, onResult: (ok: Boolean, snapshotSaved: Boolean) -> Unit) =
+        viewModelScope.launch {
+            // 快照（含整份 JSON 序列化与落盘）与导入都放 IO 线程，避免主线程卡顿
+            val snapshotSaved = withContext(Dispatchers.IO) {
+                runCatching { repo.buildBackupJson() }.getOrNull()
+                    ?.let { json -> LocalSnapshotStore.saveSnapshot(getApplication(), json) != null }
+                    ?: false
+            }
+            if (snapshotSaved) loadLocalSnapshots()
+            val ok = withContext(Dispatchers.IO) { repo.importBackupJson(raw) }
+            onResult(ok, snapshotSaved)
+        }
 
     // ---- 本地快照管理 ----
 

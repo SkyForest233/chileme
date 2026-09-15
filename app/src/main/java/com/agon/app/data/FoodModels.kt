@@ -9,6 +9,11 @@ import java.util.Locale
 const val DEFAULT_EXPIRING_THRESHOLD = 7
 
 /**
+ * 当前备份 schema 版本。写入 [BackupData.version]；导入时据此判断「文件来自更新的版本」。
+ */
+const val BACKUP_VERSION = 2
+
+/**
  * 可自定义分类：id 稳定不变（默认分类沿用旧枚举名，新增用 UUID），
  * label/emoji 可编辑。FoodItem.category 存 id 字符串——与旧版枚举 JSON 直接兼容。
  */
@@ -142,7 +147,7 @@ fun FoodItem.toHistoryEntry() = HistoryEntry(
 
 @Serializable
 data class BackupData(
-    val version: Int = 2,
+    val version: Int = BACKUP_VERSION,
     val exportedEpochDay: Long = LocalDate.now().toEpochDay(),
     val items: List<FoodItem> = emptyList(),
     val archived: List<ArchivedItem> = emptyList(),
