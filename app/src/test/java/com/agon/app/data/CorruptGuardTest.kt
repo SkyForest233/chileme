@@ -37,8 +37,8 @@ class CorruptGuardTest {
         assertTrue("源码里找不到 $signature", start >= 0)
         val rest = src.substring(start)
         val end = listOf(
-            Regex("\n {4}\}").find(rest)?.range?.first ?: -1,
-            Regex("\n\n {4}[^ \n]").find(rest)?.range?.first ?: -1,
+            Regex("\\n {4}\\}").find(rest)?.range?.first ?: -1,
+            Regex("\\n\\n {4}[^ \\n]").find(rest)?.range?.first ?: -1,
         ).filter { it > 0 }.minOrNull() ?: rest.length
         return rest.substring(0, end)
     }
