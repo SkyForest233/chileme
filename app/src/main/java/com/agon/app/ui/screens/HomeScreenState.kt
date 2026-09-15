@@ -31,6 +31,11 @@ class HomeUiState(
      * 连同它的数量一起归档，所以显示件数才与「一键清理」的实际效果一致。
      */
     val expiredQuantity: Int,
+    /**
+     * 临期食品的**件数**（`quantity` 求和），同上：首页新鲜度横幅说的是「有 N 件食品即将到期」，
+     * 用 [expiring]（记录条数）会在「一条 6 瓶」时显示成 1 件。
+     */
+    val expiringQuantity: Int,
     val urgent: List<FoodItem>,
     val autoSyncMessage: String?,
     private val viewModel: AppViewModel,
@@ -66,6 +71,19 @@ fun calculateUrgentItems(
         .sortedBy { it.daysLeftAt(today) }
 }
 
+/**
+ * 指定状态食品的**件数**（一条记录可能是多件）。
+ *
+ * 2026-09-15：首页多处文案写「件」，此前却传记录条数（`items.count{...}`）——
+ * 一条「牛奶 ×6」会显示成 1 件，与本轮统一的按件口径矛盾。抽成纯函数顺带可测。
+ */
+fun quantityOfStatus(
+    items: List<FoodItem>,
+    thresholds: Map<String, Int>,
+    today: LocalDate,
+    status: FoodStatus,
+): Int = items.filter { it.statusForAt(today, thresholds) == status }.sumOf { it.quantity }
+
 @Composable
 fun rememberHomeUiState(viewModel: AppViewModel): HomeUiState {
     val items by viewModel.items.collectAsStateWithLifecycle()
@@ -78,9 +96,8 @@ fun rememberHomeUiState(viewModel: AppViewModel): HomeUiState {
     val total = items.size
     val expiring = items.count { it.statusForAt(today, thresholds) == FoodStatus.EXPIRING }
     val expired = items.count { it.statusForAt(today, thresholds) == FoodStatus.EXPIRED }
-    val expiredQuantity = items
-        .filter { it.statusForAt(today, thresholds) == FoodStatus.EXPIRED }
-        .sumOf { it.quantity }
+    val expiredQuantity = quantityOfStatus(items, thresholds, today, FoodStatus.EXPIRED)
+    val expiringQuantity = quantityOfStatus(items, thresholds, today, FoodStatus.EXPIRING)
     val urgent = remember(items, thresholds, today) {
         calculateUrgentItems(items, thresholds, today)
     }
@@ -95,6 +112,7 @@ fun rememberHomeUiState(viewModel: AppViewModel): HomeUiState {
         expiring,
         expired,
         expiredQuantity,
+        expiringQuantity,
         urgent,
         autoSyncMessage,
     ) {
@@ -108,6 +126,7 @@ fun rememberHomeUiState(viewModel: AppViewModel): HomeUiState {
             expiring = expiring,
             expired = expired,
             expiredQuantity = expiredQuantity,
+            expiringQuantity = expiringQuantity,
             urgent = urgent,
             autoSyncMessage = autoSyncMessage,
             viewModel = viewModel,

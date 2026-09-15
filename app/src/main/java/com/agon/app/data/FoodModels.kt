@@ -158,6 +158,12 @@ data class BackupData(
     val locations: List<String> = emptyList(),
 )
 
+/**
+ * 库存总**件数**：一条记录可能有多件（[FoodItem.quantity]）。
+ * 面向用户的「件」一律用它，`items.size` 是记录**条数**（导入预览此前把条数写成了「件」）。
+ */
+val BackupData.itemQuantity: Int get() = items.sumOf { it.quantity }
+
 val FoodItem.productionDate: LocalDate
     get() = LocalDate.ofEpochDay(productionEpochDay)
 

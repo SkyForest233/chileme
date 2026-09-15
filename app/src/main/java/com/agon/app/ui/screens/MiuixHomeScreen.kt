@@ -159,7 +159,11 @@ fun MiuixHomeScreen(
             }
 
             item {
-                FreshnessBanner(total = state.total, expiring = state.expiring, expired = state.expired)
+                FreshnessBanner(
+                    total = state.total,
+                    expiring = state.expiringQuantity,
+                    expired = state.expiredQuantity,
+                )
             }
 
             item(key = "clean_expired_btn") {
@@ -314,11 +318,12 @@ private fun StatCard(
 }
 
 @Composable
-private fun FreshnessBanner(total: Int, expiring: Int, expired: Int) {
+private fun FreshnessBanner(total: Int, expiringQuantity: Int, expiredQuantity: Int) {
+    // 件数口径（2026-09-15）：expired/expiring 传进来的是 `quantity` 求和，不是记录条数。
     val message = when {
         total == 0 -> "零食柜空空的，去添加第一件食品吧 ✨"
-        expired > 0 -> "有 $expired 件食品已过期，记得及时清理哦"
-        expiring > 0 -> "有 $expiring 件食品即将到期，优先享用它们吧"
+        expiredQuantity > 0 -> "有 $expiredQuantity 件食品已过期，记得及时清理哦"
+        expiringQuantity > 0 -> "有 $expiringQuantity 件食品即将到期，优先享用它们吧"
         else -> "所有食品都很新鲜，安心享用 😋"
     }
     Card(modifier = Modifier.fillMaxWidth()) {

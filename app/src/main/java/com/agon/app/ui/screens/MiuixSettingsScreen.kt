@@ -357,7 +357,7 @@ fun MiuixSettingsScreen(
                     append("备份导出日期：")
                     append(LocalDate.ofEpochDay(preview.exportedEpochDay).cn())
                     append("\n库存 ")
-                    append(preview.items.size)
+                    append(preview.itemQuantity)
                     append(" 件 · 归档 ")
                     append(preview.archived.size)
                     append(" 条 · 消耗 ")

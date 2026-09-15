@@ -695,7 +695,7 @@ fun SettingsScreen(
                         fontWeight = FontWeight.SemiBold,
                     )
                     Text(
-                        "库存 ${preview.items.size} 件 · 归档 ${preview.archived.size} 条 · " +
+                        "库存 ${preview.itemQuantity} 件 · 归档 ${preview.archived.size} 条 · " +
                             "消耗 ${preview.consumption.size} 条 · 历史 ${preview.history.size} 条",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,

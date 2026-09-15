@@ -289,4 +289,18 @@ class FoodModelsTest {
         val plan = planRestore(archivedItem("牛奶", quantity = 0), items = emptyList())
         assertEquals(1, plan.newItems[0].quantity)
     }
+    // ---- BackupData.itemQuantity（库存「件」口径）----
+
+    @Test
+    fun `itemQuantity 按件求和而不是数记录条数`() {
+        val data = BackupData(
+            items = listOf(
+                itemExpiringIn(daysLeft = 3).copy(id = "milk", quantity = 6),
+                itemExpiringIn(daysLeft = 3).copy(id = "yogurt", quantity = 2),
+            ),
+        )
+        assertEquals("库存 2 条记录", 2, data.items.size)
+        assertEquals("库存 8 件（6 + 2）", 8, data.itemQuantity)
+        assertEquals("空备份为 0 件", 0, BackupData().itemQuantity)
+    }
 }
