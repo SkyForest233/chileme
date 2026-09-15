@@ -1,0 +1,54 @@
+# 编辑器与 ktlint 的统一配置（2026-09-15 引入 CI 静态门禁）
+#
+# 为什么只开这几条规则
+# -------------------
+# ktlint 的 standard 规则集默认全开，但它对「已写了 1.7 万行、从未跑过格式化」的仓库
+# 会一次报出上千条纯格式差异（缩进、换行位置、括号换行……）。把这份 diff 混进任何一轮
+# 功能改动里，review 就没法看了。所以这里反过来做：**先关掉整个 standard 集，只挑
+# 「能拦住真实问题、且当前代码已经满足」的几条**作为防回归门禁（下表已在仓库里跑过预检，
+# 开启时零违规）：
+#
+#   no-wildcard-imports          通配导入会掩盖真实依赖，与 WORKFLOW.md「导入显式写全」冲突
+#   final-newline                文件末尾必须恰好一个换行
+#   no-trailing-spaces           行尾空白会让 diff 噪声化
+#   no-consecutive-blank-lines   连续空行（同上）
+#   no-blank-line-before-rbrace  右花括号前不留空行
+#   string-template              "${x}" 这类冗余模板（可直接写 $x）
+#
+# 未开启及原因（不是遗漏，是明确决定）：
+#   * no-unused-imports：ktlint 1.7 起**已弃用**（官方 issue #3038：误报率高，可能删掉
+#     实际在用的 import 导致编译失败），1.8 需显式开启、2.0 将移除。本仓库改用 detekt 的
+#     UnusedImports 规则（更保守），见 detekt.yml。存量 11 处未使用 import 已在 2026-09-15 手工清掉。
+#   * 全量格式规则（缩进/换行/括号/参数换行…）：留待专门一轮 `ktlint --format` 一次性刷，
+#     单独 review 那份 diff；之后把 `ktlint_standard = disabled` 改成 enabled 即可升级门禁。
+#   * max-line-length：中文注释多、单行偏长，开启需先全量重排注释。
+#
+# 详细流程见 docs/WORKFLOW.md §3「CI 静态门禁」。
+
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+[*.{kt,kts}]
+indent_style = space
+indent_size = 4
+
+# ---- ktlint：只开下面列出的规则（见文件头说明）----
+ktlint_code_style = ktlint_official
+ktlint_standard = disabled
+ktlint_standard_no-wildcard-imports = enabled
+ktlint_standard_final-newline = enabled
+ktlint_standard_no-trailing-spaces = enabled
+ktlint_standard_no-consecutive-blank-lines = enabled
+ktlint_standard_no-blank-line-before-rbrace = enabled
+ktlint_standard_string-template = enabled
+
+# no-wildcard-imports 默认放行 IDE 约定的通配导入（java.util.* 等），这里显式清空，
+# 让「一个 import 一行」在本仓库里没有例外。
+ij_kotlin_packages_to_use_import_on_demand =
+
+max_line_length = off
