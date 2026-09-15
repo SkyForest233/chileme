@@ -85,6 +85,13 @@ prepare_detekt() {
 
 # ---------------------------------------------------------------- ktlint
 run_ktlint() {
+    # 防呆（2026-09-15 实测教训）：.editorconfig 缺失时 ktlint 会用**默认全量规则集**跑，
+    # 于是报出上千条纯格式违规、门禁一路飘红，而日志里根本看不出「只是少了个配置文件」。
+    if [ ! -f .editorconfig ]; then
+        echo "::error::找不到 .editorconfig —— ktlint 会用默认全量规则集跑出上百条格式违规。"
+        echo "          门禁三件套必须同时在目标分支上：tools/ci-gates.sh / .editorconfig / detekt.yml（见 docs/WORKFLOW.md §3）。"
+        return 2
+    fi
     prepare_ktlint
     log "ktlint $KTLINT_VERSION（规则见 .editorconfig）"
     local files=()
@@ -100,13 +107,18 @@ run_ktlint() {
         "${files[@]}" 2>&1 | tee "$REPORT_DIR/ktlint.txt"
     local status="${PIPESTATUS[0]}"
     if [ "$status" -ge 2 ]; then
-        echo "::error::ktlint 内部错误（exit=$status）—— 多半是源码解析失败或 .editorconfig 写错，见上面的输出"
+        echo "::error::ktlint 异常退出（exit=$status）—— 见上面的输出（配置缺失 / 解析失败 / .editorconfig 写错）"
     fi
     return "$status"
 }
 
 # ---------------------------------------------------------------- detekt
 run_detekt() {
+    # 同上：detekt.yml 缺失时 detekt CLI 会直接抛 ExistingPathConverter 异常（栈里看不出原因）。
+    if [ ! -f detekt.yml ]; then
+        echo "::error::找不到 detekt.yml —— 门禁三件套必须同时在目标分支上（见 docs/WORKFLOW.md §3）。"
+        return 2
+    fi
     prepare_detekt
     log "detekt $DETEKT_VERSION（规则见 detekt.yml）"
     java -jar "$DETEKT_JAR" \

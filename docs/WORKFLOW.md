@@ -43,6 +43,7 @@
 ### CI 静态门禁（ktlint + detekt，2026-09-15 起）
 
 - 入口脚本：`tools/ci-gates.sh`（工具版本与 sha256 固定在此文件里）；规则配置：`.editorconfig`（ktlint）、`detekt.yml`（detekt）
+  **这三个文件必须同时在目标分支上**：缺 `.editorconfig` 时 ktlint 会退回默认全量规则集（一次报上百条格式违规），缺 `detekt.yml` 时 detekt CLI 直接抛异常——脚本已加防呆检查并给出明确报错，但根因是文件没凑齐，不要靠防呆兜着走
 - 本地跑法（首次会下载约 136 MB 工具到 `~/.cache/chileme-gates`，之后走缓存；不需要 Android SDK）：
 
   ```bash
