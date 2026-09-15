@@ -2,6 +2,7 @@ package com.agon.app.data
 
 import android.content.Context
 import android.util.Log
+import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
@@ -9,25 +10,38 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.retryWhen
 import kotlinx.coroutines.flow.update
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonObject
 import java.io.File
+import java.io.IOException
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
 
 private val Context.dataStore by preferencesDataStore("pantry_store")
 
 private const val TAG = "FoodRepository"
+
+/** 读失败时的退避重试次数（超过则回落默认值，见 [FoodRepository.resilientRead]）。 */
+private const val MAX_READ_RETRIES = 2L
+
+/** 读重试间隔。 */
+private const val READ_RETRY_DELAY_MS = 300L
 
 /**
  * 解码结果三态。
@@ -53,7 +67,58 @@ fun <T> Decoded<T>.orElse(fallback: T): T = when (this) {
     else -> fallback
 }
 
-class FoodRepository(private val context: Context) {
+/**
+ * 「原始串 → 解码结果」的最近一次结果缓存（2026-09-15）。
+ *
+ * 为什么需要：读路径按 key 拆成多条流，同一次数据变化会被多条流消费
+ * （`itemsFlow` 同时被 `items` / `suggestionSource` / `ready` 收集）。DataStore 内部只读一次盘，
+ * 但 `.map(decode)` 会在每条流里各跑一遍 —— 一份库存 JSON 被解 3 遍，启动期尤其浪费。
+ * 解码是 raw 的纯函数（同一 raw 必然同一结果），所以按 key 记住最近一次 (raw → decoded)；
+ * raw 一变（含被删成 null）就重解。
+ *
+ * 内存占用 = 重型 key 数 × 一份解码结果，与状态流本身持有的数据同量级；不缓存历史值。
+ */
+internal class DecodeCache {
+    private class Entry(val raw: String?, val decoded: Any?)
+
+    private val entries = ConcurrentHashMap<String, Entry>()
+
+    /** 命中次数（raw 未变，直接复用）。仅用于单测与诊断。 */
+    var hits = 0
+        private set
+
+    /** 未命中次数（首次见到该 raw，或 raw 已变）。 */
+    var misses = 0
+        private set
+
+    @Suppress("UNCHECKED_CAST")
+    fun <T> resolve(keyName: String, raw: String?, decode: (String?) -> T): T {
+        val cached = entries[keyName]
+        if (cached != null && cached.raw == raw) {
+            hits++
+            return cached.decoded as T
+        }
+        val decoded = decode(raw)
+        misses++
+        entries[keyName] = Entry(raw, decoded)
+        return decoded
+    }
+}
+
+/**
+ * 数据仓库。
+ *
+ * 两条构造路径：生产用 [FoodRepository] 的 `Context` 构造（App 私有 DataStore +
+ * `filesDir/corrupt` 留档目录）；主构造是 `internal` 的「依赖显式版」，单测可以传一个
+ * 临时文件上的 DataStore 与临时留档目录，从而在**纯 JVM** 下测仓储的写入守卫
+ * （不需要 Robolectric —— 少一个 SDK 模拟层，也少一份依赖）。
+ */
+class FoodRepository internal constructor(
+    private val dataStore: DataStore<Preferences>,
+    private val corruptDir: File,
+) {
+    /** 生产路径：`pantry_store` DataStore + `filesDir/corrupt`。 */
+    constructor(context: Context) : this(context.dataStore, File(context.filesDir, "corrupt"))
 
     private val json = Json { ignoreUnknownKeys = true }
     private val prettyJson = Json { ignoreUnknownKeys = true; prettyPrint = true }
@@ -64,6 +129,9 @@ class FoodRepository(private val context: Context) {
      */
     private val _corruptedKeys = MutableStateFlow<Set<String>>(emptySet())
     val corruptedKeys: StateFlow<Set<String>> = _corruptedKeys.asStateFlow()
+
+    /** 重型 key 的「原始串 → 解码结果」缓存，见 [rawFlow]。 */
+    private val decodeCache = DecodeCache()
 
     private val itemsKey = stringPreferencesKey("food_items")
     private val archiveKey = stringPreferencesKey("archived_items")
@@ -140,10 +208,11 @@ class FoodRepository(private val context: Context) {
         _corruptedKeys.update { it + keyName }
         if (!firstTime) return
         runCatching {
-            val dir = File(context.filesDir, "corrupt").apply { mkdirs() }
+            val dir = corruptDir.apply { mkdirs() }
             val stamp = LocalDateTime.now()
                 .format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"))
             File(dir, "$keyName-$stamp.json").writeText(raw)
+            pruneCorruptDir(dir)
         }.onFailure { Log.w(TAG, "留档损坏数据失败：$keyName", it) }
     }
 
@@ -163,17 +232,60 @@ class FoodRepository(private val context: Context) {
     // 现统一走 rawFlow：先取原始串 -> distinctUntilChanged（该 key 没变就不往下走）
     // -> 解码 -> flowOn(Default) 移出主线程。
 
-    /** 重型 key（需 JSON 解码）：按原始串去重，解码在 Default 线程。 */
+    /**
+     * DataStore 读流的统一兜底（2026-09-15 补）。
+     *
+     * 背景：`dataStore.data` 在磁盘 IO 抖动 / 文件被占用 / 读超时时会抛异常。而本项目的
+     * 19 个 `stateIn` 全部 `SharingStarted.Eagerly`，且 `viewModelScope` 没有挂
+     * `CoroutineExceptionHandler` —— 共享协程收到异常后会交给线程默认处理器，**直接杀进程**；
+     * 若异常表现为「永不发射」（读阻塞），首页 `ready` 门控又会让启动画面永久停留。
+     * 两种结果都不可接受，故在仓库层统一收口：
+     *
+     * 1. `IOException` 先做有限次退避重试（`MAX_READ_RETRIES` 次，间隔 `READ_RETRY_DELAY_MS`）；
+     * 2. 仍失败则由 `catch` 记录日志并回落 [fallback]，UI 退化为「本次读到空数据」而非崩溃。
+     *
+     * 只影响「读」。**写**仍由 `isCorrupt` 守卫保护，损坏态下不会覆盖用户数据。
+     */
+    private fun <R> resilientRead(
+        keyName: String,
+        fallback: R,
+        transform: (Preferences) -> R,
+    ): Flow<R> =
+        dataStore.data
+            .retryWhen { cause, attempt ->
+                val retry = cause is IOException && attempt < MAX_READ_RETRIES
+                if (retry) {
+                    Log.w(
+                        TAG,
+                        "读取 DataStore 失败，${READ_RETRY_DELAY_MS}ms 后重试（${attempt + 1}/$MAX_READ_RETRIES）：$keyName",
+                        cause,
+                    )
+                    delay(READ_RETRY_DELAY_MS)
+                }
+                retry
+            }
+            .map(transform)
+            .catch { cause ->
+                Log.e(TAG, "读取 $keyName 最终失败，本次回落默认值（用户数据未被修改）", cause)
+                emit(fallback)
+            }
+
+    /**
+     * 重型 key（需 JSON 解码）：按原始串去重，解码在 Default 线程。
+     *
+     * 解码结果按 key 过一遍 [DecodeCache]：同一次数据变化会被多条流消费
+     * （`itemsFlow` 就被 `items` / `suggestionSource` / `ready` 各收一份），
+     * 没有缓存时同一份库存 JSON 要解 3 遍（2026-09-15）。
+     */
     private fun <T> rawFlow(key: Preferences.Key<String>, decode: (String?) -> T): Flow<T> =
-        context.dataStore.data
-            .map { it[key] }
+        resilientRead(key.name, fallback = null) { prefs -> prefs[key] }
             .distinctUntilChanged()
-            .map(decode)
+            .map { raw -> decodeCache.resolve(key.name, raw, decode) }
             .flowOn(Dispatchers.Default)
 
     /** 轻量 key（无需解码）：只做去重，不必切线程。 */
-    private fun <T> lightFlow(transform: (Preferences) -> T): Flow<T> =
-        context.dataStore.data.map(transform).distinctUntilChanged()
+    private fun <T> lightFlow(keyName: String, fallback: T, transform: (Preferences) -> T): Flow<T> =
+        resilientRead(keyName, fallback, transform).distinctUntilChanged()
 
     val itemsFlow: Flow<List<FoodItem>> =
         rawFlow(itemsKey) { decodeItems(it).orElse(emptyList()) }
@@ -196,17 +308,23 @@ class FoodRepository(private val context: Context) {
     val locationsFlow: Flow<List<String>> =
         rawFlow(locationsKey, ::decodeLocations)
 
-    val dynamicColorFlow: Flow<Boolean> = lightFlow { it[dynamicColorKey] ?: false }
+    val dynamicColorFlow: Flow<Boolean> =
+        lightFlow("dynamic_color", fallback = false) { it[dynamicColorKey] ?: false }
 
-    val darkModeFlow: Flow<Int> = lightFlow { it[darkModeKey] ?: 0 }
+    val darkModeFlow: Flow<Int> =
+        lightFlow("dark_mode", fallback = 0) { it[darkModeKey] ?: 0 }
 
-    val paletteFlow: Flow<String> = lightFlow { it[paletteKey] ?: "MINT" }
+    val paletteFlow: Flow<String> =
+        lightFlow("palette", fallback = "MINT") { it[paletteKey] ?: "MINT" }
 
-    val themeStyleFlow: Flow<String> = lightFlow { it[themeStyleKey] ?: "MATERIAL3" }
+    val themeStyleFlow: Flow<String> =
+        lightFlow("theme_style", fallback = "MATERIAL3") { it[themeStyleKey] ?: "MATERIAL3" }
 
-    val floatingNavFlow: Flow<Boolean> = lightFlow { it[floatingNavKey] ?: true }
+    val floatingNavFlow: Flow<Boolean> =
+        lightFlow("floating_nav", fallback = true) { it[floatingNavKey] ?: true }
 
-    val nutstoreAccountFlow: Flow<String> = lightFlow { it[nutstoreAccountKey] ?: "" }
+    val nutstoreAccountFlow: Flow<String> =
+        lightFlow("nutstore_account", fallback = "") { it[nutstoreAccountKey] ?: "" }
 
     /**
      * 密码仅以 Keystore 加密密文存储；读取时解密。
@@ -215,9 +333,7 @@ class FoodRepository(private val context: Context) {
      * 解密是 Keystore 操作（非平凡开销），先按密文去重再切到 Default 线程，
      * 避免每次 DataStore 重发都在主线程做一次 AES-GCM。
      */
-    val nutstorePasswordFlow: Flow<String> = context.dataStore.data
-        .map { prefs -> prefs[nutstorePasswordKey] to prefs[nutstorePasswordEncKey] }
-        .distinctUntilChanged()
+    val nutstorePasswordFlow: Flow<String> = nutstoreCredentialKeysFlow()
         .map { (plain, enc) ->
             plain?.takeIf { it.isNotBlank() }
                 ?: enc?.let { SecureStore.decrypt(it) }
@@ -230,29 +346,50 @@ class FoodRepository(private val context: Context) {
      * 而 Keystore 密钥不跨设备）。UI 据此提示用户重新填写应用密码，
      * 避免用户面对一个"看起来已配置、却永远同步失败"的账号。
      */
-    val nutstoreCredentialBrokenFlow: Flow<Boolean> = context.dataStore.data
-        .map { prefs -> prefs[nutstorePasswordKey] to prefs[nutstorePasswordEncKey] }
-        .distinctUntilChanged()
+    val nutstoreCredentialBrokenFlow: Flow<Boolean> = nutstoreCredentialKeysFlow()
         .map { (plain, enc) ->
             plain.isNullOrBlank() && !enc.isNullOrBlank() && SecureStore.decrypt(enc) == null
         }
         .flowOn(Dispatchers.Default)
 
-    val lastSyncFlow: Flow<String> = lightFlow { it[lastSyncKey] ?: "" }
+    /**
+     * 密码是否以「未加密明文」形式落在 DataStore 里（Keystore 不可用时的极端回退）。
+     * 功能可用但安全性降级，UI 必须明确告知用户；下次启动 [migratePlaintextPassword] 会重试加密。
+     */
+    val nutstorePlaintextFallbackFlow: Flow<Boolean> = nutstoreCredentialKeysFlow()
+        .map { (plain, _) -> !plain.isNullOrBlank() }
+
+    /**
+     * 凭据两个 key 的原始值（明文待迁移 / 密文），已做读兜底与去重。
+     * 上面两个 flow 共用它，避免各自重复一遍 resilientRead 与解密去重逻辑。
+     */
+    private fun nutstoreCredentialKeysFlow(): Flow<Pair<String?, String?>> =
+        resilientRead(
+            keyName = "nutstore_password",
+            fallback = Pair<String?, String?>(null, null),
+        ) { prefs ->
+            prefs[nutstorePasswordKey] to prefs[nutstorePasswordEncKey]
+        }.distinctUntilChanged()
+
+    val lastSyncFlow: Flow<String> =
+        lightFlow("last_sync_time", fallback = "") { it[lastSyncKey] ?: "" }
 
     /** 自动同步间隔（天）；0 = 关闭自动同步 */
-    val autoSyncDaysFlow: Flow<Int> = lightFlow { it[autoSyncDaysKey] ?: 0 }
+    val autoSyncDaysFlow: Flow<Int> =
+        lightFlow("auto_sync_days", fallback = 0) { it[autoSyncDaysKey] ?: 0 }
 
     val lastAutoSyncEpochDayFlow: Flow<Long> =
-        lightFlow { it[lastAutoSyncEpochDayKey]?.toLongOrNull() ?: 0L }
+        lightFlow("last_auto_sync_epoch_day", fallback = 0L) {
+            it[lastAutoSyncEpochDayKey]?.toLongOrNull() ?: 0L
+        }
 
     /** 启动时迁移：若存在旧版明文密码，加密后写入新 key 并删除明文。 */
     suspend fun migratePlaintextPassword() {
-        context.dataStore.edit { prefs ->
+        dataStore.edit { prefs ->
             val plain = prefs[nutstorePasswordKey]
             if (!plain.isNullOrBlank()) {
                 val enc = SecureStore.encrypt(plain)
-                if (enc.isNotBlank()) {
+                if (enc != null) {
                     prefs[nutstorePasswordEncKey] = enc
                     prefs.remove(nutstorePasswordKey)
                 }
@@ -262,7 +399,7 @@ class FoodRepository(private val context: Context) {
 
     /** 启动时迁移：给无 id 的旧消耗记录补 UUID，供删除/撤销精确定位。 */
     suspend fun migrateConsumptionIds() {
-        context.dataStore.edit { prefs ->
+        dataStore.edit { prefs ->
             val decoded = decodeConsumption(prefs[consumptionKey])
             if (isCorrupt(decoded)) return@edit
             val records = decoded.orElse(emptyList())
@@ -275,7 +412,7 @@ class FoodRepository(private val context: Context) {
     }
 
     suspend fun seedIfNeeded() {
-        context.dataStore.edit { prefs ->
+        dataStore.edit { prefs ->
             if (prefs[seededKey] == true) return@edit
             // 库存 key 损坏时绝不种子化：否则会把损坏数据直接覆盖成 8 条示例。
             if (isCorrupt(decodeItems(prefs[itemsKey]))) return@edit
@@ -296,11 +433,17 @@ class FoodRepository(private val context: Context) {
         }
     }
 
+    /**
+     * 新增/编辑一条库存。
+     *
+     * **守卫按 key 粒度**（2026-09-15）：库存是本次写入的主数据，损坏时拒绝覆盖；
+     * 「录入历史」只是输入联想的辅助数据，它损坏时**不再连带锁死新增/编辑食品**，
+     * 而是跳过历史写入并记日志（原始串保持不动，留档仍在 filesDir/corrupt/）。
+     */
     suspend fun upsert(item: FoodItem) {
-        context.dataStore.edit { prefs ->
+        dataStore.edit { prefs ->
             val itemsDecoded = decodeItems(prefs[itemsKey])
-            val historyDecoded = decodeHistory(prefs[historyKey])
-            if (isCorrupt(itemsDecoded, historyDecoded)) return@edit
+            if (isCorrupt(itemsDecoded)) return@edit
             val current = itemsDecoded.orElse(emptyList())
             val updated = if (current.any { it.id == item.id }) {
                 current.map { if (it.id == item.id) item else it }
@@ -309,6 +452,11 @@ class FoodRepository(private val context: Context) {
             }
             prefs[itemsKey] = json.encodeToString(updated)
 
+            val historyDecoded = decodeHistory(prefs[historyKey])
+            if (isCorrupt(historyDecoded)) {
+                Log.w(TAG, "history_entries 损坏：本次跳过录入历史写入（库存已正常保存）")
+                return@edit
+            }
             val history = historyDecoded.orElse(emptyList())
             val entry = HistoryEntry(
                 name = item.name,
@@ -327,7 +475,7 @@ class FoodRepository(private val context: Context) {
 
     suspend fun archiveItems(ids: Set<String>, reason: ArchiveReason) {
         if (ids.isEmpty()) return
-        context.dataStore.edit { prefs ->
+        dataStore.edit { prefs ->
             val itemsDecoded = decodeItems(prefs[itemsKey])
             val archiveDecoded = decodeArchive(prefs[archiveKey])
             if (isCorrupt(itemsDecoded, archiveDecoded)) return@edit
@@ -351,7 +499,7 @@ class FoodRepository(private val context: Context) {
      */
     suspend fun restoreArchived(id: String): Boolean {
         var merged = false
-        context.dataStore.edit { prefs ->
+        dataStore.edit { prefs ->
             val archiveDecoded = decodeArchive(prefs[archiveKey])
             val itemsDecoded = decodeItems(prefs[itemsKey])
             if (isCorrupt(archiveDecoded, itemsDecoded)) return@edit
@@ -373,7 +521,7 @@ class FoodRepository(private val context: Context) {
      */
     suspend fun restoreArchivedBatch(ids: Set<String>) {
         if (ids.isEmpty()) return
-        context.dataStore.edit { prefs ->
+        dataStore.edit { prefs ->
             val archiveDecoded = decodeArchive(prefs[archiveKey])
             val itemsDecoded = decodeItems(prefs[itemsKey])
             if (isCorrupt(archiveDecoded, itemsDecoded)) return@edit
@@ -391,7 +539,7 @@ class FoodRepository(private val context: Context) {
     }
 
     suspend fun deleteArchived(id: String) {
-        context.dataStore.edit { prefs ->
+        dataStore.edit { prefs ->
             val decoded = decodeArchive(prefs[archiveKey])
             if (isCorrupt(decoded)) return@edit
             val archive = decoded.orElse(emptyList())
@@ -404,7 +552,7 @@ class FoodRepository(private val context: Context) {
      * （清空本身就是要丢弃这些数据），故不加损坏守卫。
      */
     suspend fun clearArchive() {
-        context.dataStore.edit { prefs ->
+        dataStore.edit { prefs ->
             prefs[archiveKey] = json.encodeToString(emptyList<ArchivedItem>())
             _corruptedKeys.update { it - "archived_items" }
         }
@@ -416,7 +564,7 @@ class FoodRepository(private val context: Context) {
     suspend fun updateLocationBatch(ids: Set<String>, newLocation: String) {
         if (ids.isEmpty()) return
         val trimmed = newLocation.trim()
-        context.dataStore.edit { prefs ->
+        dataStore.edit { prefs ->
             val itemsDecoded = decodeItems(prefs[itemsKey])
             if (isCorrupt(itemsDecoded)) return@edit
             val items = itemsDecoded.orElse(emptyList())
@@ -442,16 +590,24 @@ class FoodRepository(private val context: Context) {
     suspend fun changeQuantity(id: String, delta: Int): QuantityChangeResult {
         var autoArchived = false
         var consumptionId: String? = null
-        context.dataStore.edit { prefs ->
+        dataStore.edit { prefs ->
             val itemsDecoded = decodeItems(prefs[itemsKey])
+            // 主数据：数量写在库存上，损坏时必须拒绝覆盖。
+            if (isCorrupt(itemsDecoded)) return@edit
+            // 附带数据按 key 各自判断（2026-09-15）：消耗记录/归档损坏只降级对应副作用，
+            // 不再让「改个数量」整体失效。
             val consumptionDecoded = decodeConsumption(prefs[consumptionKey])
             val archiveDecoded = decodeArchive(prefs[archiveKey])
-            if (isCorrupt(itemsDecoded, consumptionDecoded, archiveDecoded)) return@edit
+            val consumptionOk = !isCorrupt(consumptionDecoded)
+            val archiveOk = !isCorrupt(archiveDecoded)
             val current = itemsDecoded.orElse(emptyList())
             val item = current.find { it.id == id } ?: return@edit
             val newQty = (item.quantity + delta).coerceAtLeast(0)
             val consumed = if (delta < 0) item.quantity - newQty else 0
-            if (consumed > 0) {
+            if (consumed > 0 && !consumptionOk) {
+                Log.w(TAG, "consumption_records 损坏：本次扣减不写消耗记录（库存已更新）")
+            }
+            if (consumed > 0 && consumptionOk) {
                 consumptionId = UUID.randomUUID().toString()
                 val records = consumptionDecoded.orElse(emptyList())
                 val record = ConsumptionRecord(
@@ -466,7 +622,7 @@ class FoodRepository(private val context: Context) {
                     compactConsumption(listOf(record) + records)
                 )
             }
-            if (newQty == 0 && delta < 0) {
+            if (newQty == 0 && delta < 0 && archiveOk) {
                 // 吃完了 → 自动归档
                 val today = LocalDate.now().toEpochDay()
                 val archive = archiveDecoded.orElse(emptyList())
@@ -475,6 +631,8 @@ class FoodRepository(private val context: Context) {
                 prefs[itemsKey] = json.encodeToString(current.filterNot { it.id == id })
                 autoArchived = true
             } else {
+                // 注意：归档损坏且刚好减到 0 时走这里 —— 刻意「保留 0 数量记录、不归档」，
+                // 因为把库存删掉却写不进归档 = 数据丢失。（坏掉的那份数据仍留档待恢复）
                 prefs[itemsKey] = json.encodeToString(
                     current.map { if (it.id == id) it.copy(quantity = newQty) else it }
                 )
@@ -489,7 +647,13 @@ class FoodRepository(private val context: Context) {
      * 避免 `record.id?.let{...}` 把关导致的无 id 记录删除按钮静默无效。
      */
     suspend fun deleteConsumption(record: ConsumptionRecord) {
-        context.dataStore.edit { prefs ->
+        // 月度聚合记录不允许单条删除：一条 = 整月合计，删掉等于抹掉整月历史（2026-09-15）。
+        // UI 侧已不提供删除按钮，这里是最后一道防线——撤销删除等路径也绕不过它。
+        if (!record.isDeletable()) {
+            Log.w(TAG, "拒绝删除月度聚合记录：${record.name} ${record.amount}${record.unit}（epochDay=${record.epochDay}）")
+            return
+        }
+        dataStore.edit { prefs ->
             val decoded = decodeConsumption(prefs[consumptionKey])
             if (isCorrupt(decoded)) return@edit
             val records = decoded.orElse(emptyList())
@@ -504,7 +668,7 @@ class FoodRepository(private val context: Context) {
 
     /** 重新插入一条消耗记录（撤销删除用）。index 为删除前在日期倒序列表中的位置。 */
     suspend fun addConsumption(record: ConsumptionRecord, index: Int? = null) {
-        context.dataStore.edit { prefs ->
+        dataStore.edit { prefs ->
             val decoded = decodeConsumption(prefs[consumptionKey])
             if (isCorrupt(decoded)) return@edit
             val records = decoded.orElse(emptyList())
@@ -521,11 +685,12 @@ class FoodRepository(private val context: Context) {
      * 若该食品因减到 0 已被自动归档，则从归档恢复为数量 1。
      */
     suspend fun undoConsumption(itemId: String, consumptionId: String) {
-        context.dataStore.edit { prefs ->
+        dataStore.edit { prefs ->
             val consumptionDecoded = decodeConsumption(prefs[consumptionKey])
             val itemsDecoded = decodeItems(prefs[itemsKey])
+            if (isCorrupt(consumptionDecoded, itemsDecoded)) return@edit
+            // 归档只在「该食品已因减到 0 被自动归档」这一分支才需要写，按需判定（2026-09-15）。
             val archiveDecoded = decodeArchive(prefs[archiveKey])
-            if (isCorrupt(consumptionDecoded, itemsDecoded, archiveDecoded)) return@edit
             val records = consumptionDecoded.orElse(emptyList())
             prefs[consumptionKey] = json.encodeToString(records.filterNot { it.id == consumptionId })
 
@@ -537,6 +702,10 @@ class FoodRepository(private val context: Context) {
                 )
             } else {
                 // 已被自动归档（减到 0），从归档恢复为数量 1
+                if (isCorrupt(archiveDecoded)) {
+                    Log.w(TAG, "archived_items 损坏：无法从归档恢复该食品（消耗记录已撤销）")
+                    return@edit
+                }
                 val archive = archiveDecoded.orElse(emptyList())
                 val entry = archive.find { it.item.id == itemId }
                 if (entry != null) {
@@ -549,7 +718,7 @@ class FoodRepository(private val context: Context) {
     }
 
     suspend fun setCategoryThreshold(categoryId: String, days: Int) {
-        context.dataStore.edit { prefs ->
+        dataStore.edit { prefs ->
             val current = decodeThresholds(prefs[thresholdsKey]).toMutableMap()
             current[categoryId] = days.coerceIn(1, 365)
             prefs[thresholdsKey] = json.encodeToString(current.toMap())
@@ -557,13 +726,13 @@ class FoodRepository(private val context: Context) {
     }
 
     suspend fun setCategories(categories: List<CategoryDef>) {
-        context.dataStore.edit { prefs ->
+        dataStore.edit { prefs ->
             prefs[categoriesKey] = json.encodeToString(categories)
         }
     }
 
     suspend fun setLocations(locations: List<String>) {
-        context.dataStore.edit { prefs ->
+        dataStore.edit { prefs ->
             prefs[locationsKey] = json.encodeToString(locations)
         }
     }
@@ -573,56 +742,85 @@ class FoodRepository(private val context: Context) {
      * 即便 key 已损坏也应允许执行，并借此解除损坏态。
      */
     suspend fun clearAll() {
-        context.dataStore.edit { prefs ->
+        dataStore.edit { prefs ->
             prefs[itemsKey] = json.encodeToString(emptyList<FoodItem>())
             _corruptedKeys.update { it - "food_items" }
         }
     }
 
+    /** 资产型 key 的名字 → Preferences.Key，供 [discardCorrupt] 按名字删除。 */
+    private val assetKeysByName: Map<String, Preferences.Key<String>> by lazy {
+        mapOf(
+            itemsKey.name to itemsKey,
+            archiveKey.name to archiveKey,
+            consumptionKey.name to consumptionKey,
+            historyKey.name to historyKey,
+        )
+    }
+
+    /**
+     * 放弃处于损坏态的数据：删除该 key 在 DataStore 中的内容并解除损坏标记，
+     * 让相关写入恢复正常。
+     *
+     * 这是用户显式确认的破坏性操作（UI 有二次确认）。原始串不会丢——[markCorrupt]
+     * 已把首次发现损坏时的原文留档到 `filesDir/corrupt/`，那个目录本方法**不动**。
+     * 只作用于「用户资产型」key；配置型 key 本就不会进入损坏态。
+     */
+    suspend fun discardCorrupt(keys: Set<String>) {
+        val targets = keys.mapNotNull { assetKeysByName[it] }
+        if (targets.isEmpty()) return
+        dataStore.edit { prefs -> targets.forEach { prefs.remove(it) } }
+        _corruptedKeys.update { it - keys }
+        Log.w(TAG, "已放弃损坏数据：${targets.joinToString { it.name }}（原文留档仍在 filesDir/corrupt/）")
+    }
+
     suspend fun setDynamicColor(enabled: Boolean) {
-        context.dataStore.edit { it[dynamicColorKey] = enabled }
+        dataStore.edit { it[dynamicColorKey] = enabled }
     }
 
     suspend fun setDarkMode(mode: Int) {
-        context.dataStore.edit { it[darkModeKey] = mode }
+        dataStore.edit { it[darkModeKey] = mode }
     }
 
     suspend fun setPalette(name: String) {
-        context.dataStore.edit { it[paletteKey] = name }
+        dataStore.edit { it[paletteKey] = name }
     }
 
     suspend fun setThemeStyle(name: String) {
-        context.dataStore.edit { it[themeStyleKey] = name }
+        dataStore.edit { it[themeStyleKey] = name }
     }
 
     suspend fun setFloatingNav(enabled: Boolean) {
-        context.dataStore.edit { it[floatingNavKey] = enabled }
+        dataStore.edit { it[floatingNavKey] = enabled }
     }
 
     suspend fun setNutstoreCredentials(account: String, password: String) {
-        context.dataStore.edit { prefs ->
+        dataStore.edit { prefs ->
             prefs[nutstoreAccountKey] = account.trim()
             val enc = SecureStore.encrypt(password.trim())
-            if (enc.isNotBlank()) {
+            if (enc != null) {
                 prefs[nutstorePasswordEncKey] = enc
                 prefs.remove(nutstorePasswordKey) // 确保明文不再落盘
             } else {
-                // Keystore 不可用的极端回退（不应发生）：保持旧行为以免功能不可用
+                // Keystore 不可用的极端回退：为了不打断同步功能只能先存明文，
+                // 但**绝不能静默**——记日志 + 由 nutstorePlaintextFallbackFlow 让设置页提示用户。
+                // 下次启动 migratePlaintextPassword 会重试加密。
+                Log.e(TAG, "凭据加密失败（Keystore 不可用？），本次以未加密形式保存，将于下次启动重试")
                 prefs[nutstorePasswordKey] = password.trim()
             }
         }
     }
 
     suspend fun setAutoSyncDays(days: Int) {
-        context.dataStore.edit { it[autoSyncDaysKey] = days.coerceIn(0, 30) }
+        dataStore.edit { it[autoSyncDaysKey] = days.coerceIn(0, 30) }
     }
 
     suspend fun setLastAutoSyncEpochDay(epochDay: Long) {
-        context.dataStore.edit { it[lastAutoSyncEpochDayKey] = epochDay.toString() }
+        dataStore.edit { it[lastAutoSyncEpochDayKey] = epochDay.toString() }
     }
 
     suspend fun setLastSync(text: String) {
-        context.dataStore.edit { it[lastSyncKey] = text }
+        dataStore.edit { it[lastSyncKey] = text }
     }
 
     // ---- 消耗记录压缩：不再粗暴裁剪前 1000 条 ----
@@ -644,7 +842,7 @@ class FoodRepository(private val context: Context) {
      * 反而可能被用来覆盖掉尚可抢救的原始数据。
      */
     suspend fun buildBackupJson(): String {
-        val prefs = context.dataStore.data.first()
+        val prefs = dataStore.data.first()
         val itemsDecoded = decodeItems(prefs[itemsKey])
         val archiveDecoded = decodeArchive(prefs[archiveKey])
         val consumptionDecoded = decodeConsumption(prefs[consumptionKey])
@@ -668,7 +866,7 @@ class FoodRepository(private val context: Context) {
      * 导出为 CSV 表格内容（带 UTF-8 BOM）。
      */
     suspend fun buildCsvExport(): String {
-        val prefs = context.dataStore.data.first()
+        val prefs = dataStore.data.first()
         val itemsDecoded = decodeItems(prefs[itemsKey])
         val items = itemsDecoded.orElse(emptyList())
         val categories = decodeCategories(prefs[categoriesKey])
@@ -677,12 +875,38 @@ class FoodRepository(private val context: Context) {
     }
 
     /**
+     * 解析备份内容用于「导入前预览」，**不改动任何数据**（2026-09-15 新增）。
+     *
+     * 导入是「整体替换」的破坏性操作，原先点一下文件就直接覆盖，用户看不到将覆盖什么。
+     * 现在 UI 先调本方法拿到摘要（条数 / 导出日期 / schema 版本）弹二次确认，再执行
+     * [importBackupJson]。
+     *
+     * 只认真正像备份的文件：必须含 `items` 键（v1/v2 备份均导出该字段）。
+     * 否则 `{}`、`{"foo":1}` 这类合法 JSON 也会因字段默认值解码「成功」，
+     * 变成一个能清空用户数据的「合法空备份」。
+     *
+     * @return 合法备份返回 [BackupData]；非备份 / 畸形 JSON 返回 null。
+     */
+    suspend fun previewBackup(raw: String): BackupData? = withContext(Dispatchers.Default) {
+        runCatching {
+            val obj = json.parseToJsonElement(raw).jsonObject
+            if ("items" !in obj) {
+                Log.w(TAG, "importBackupJson 预览被拒：文件不含 items 字段，不是本应用的备份")
+                return@runCatching null
+            }
+            json.decodeFromString<BackupData>(raw)
+        }
+            .onFailure { Log.w(TAG, "importBackupJson 预览解析失败", it) }
+            .getOrNull()
+    }
+
+    /**
      * 从备份整体替换。这是"用已知良好的数据覆盖当前状态"，
      * 因此**允许**在损坏态下执行——正是损坏后的恢复手段，成功后解除损坏标记。
      */
     suspend fun importBackupJson(raw: String): Boolean {
         val backup = runCatching { json.decodeFromString<BackupData>(raw) }.getOrNull() ?: return false
-        context.dataStore.edit { prefs ->
+        dataStore.edit { prefs ->
             prefs[itemsKey] = json.encodeToString(backup.items)
             prefs[archiveKey] = json.encodeToString(backup.archived)
             prefs[consumptionKey] = json.encodeToString(backup.consumption)
@@ -699,4 +923,28 @@ class FoodRepository(private val context: Context) {
         _corruptedKeys.value = emptySet()
         return true
     }
+}
+
+/**
+ * 损坏留档目录保留上限：同一 key 最多 [maxPerKey] 份、整个目录最多 [maxTotal] 份，
+ * 超出的按「最旧优先」删除（2026-09-15）。
+ *
+ * 为什么需要：`markCorrupt` 每次进程启动后只对同一个 key 留档一次，但 `corruptedKeys`
+ * 是内存态——解析一直失败时，**每次启动都会新增一份**留档，长期会把私有目录塞满。
+ * 留档只用于人工求助，保留最近几份足够。
+ */
+internal fun pruneCorruptDir(
+    dir: File,
+    maxPerKey: Int = 3,
+    maxTotal: Int = 12,
+) {
+    val files = dir.listFiles { f -> f.isFile && f.name.endsWith(".json") }
+        ?.sortedBy { it.lastModified() }
+        ?: return
+    val doomed = mutableListOf<File>()
+    if (files.size > maxTotal) doomed += files.take(files.size - maxTotal)
+    files.groupBy { it.name.substringBeforeLast('-') }.forEach { (_, group) ->
+        if (group.size > maxPerKey) doomed += group.take(group.size - maxPerKey)
+    }
+    doomed.distinct().forEach { runCatching { it.delete() } }
 }

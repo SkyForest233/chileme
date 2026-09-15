@@ -1,5 +1,7 @@
 package com.agon.app.ui.screens
 
+import com.agon.app.data.ArchiveReason
+import com.agon.app.data.ArchivedItem
 import com.agon.app.data.ConsumptionRecord
 import com.agon.app.data.FoodItem
 import org.junit.Assert.assertEquals
@@ -18,7 +20,7 @@ class StatsStateTest {
             unit = "包",
             epochDay = date.toEpochDay(),
             category = category,
-            id = "test-${name}-${date}",
+            id = "test-$name-$date",
         )
 
     private fun item(id: String, name: String, category: String, quantity: Int = 1) =
@@ -31,6 +33,23 @@ class StatsStateTest {
             productionEpochDay = today.minusDays(10).toEpochDay(),
             shelfLifeDays = 30,
         )
+
+    private fun archived(
+        name: String,
+        reason: ArchiveReason,
+        quantity: Int = 1,
+    ) = ArchivedItem(
+        item = FoodItem(
+            id = "archived-$name",
+            name = name,
+            quantity = quantity,
+            unit = "瓶",
+            productionEpochDay = today.minusDays(30).toEpochDay(),
+            shelfLifeDays = 10,
+        ),
+        archivedEpochDay = today.toEpochDay(),
+        reason = reason,
+    )
 
     // ---- 周 / 月消耗计算 ----
 
@@ -99,6 +118,30 @@ class StatsStateTest {
         assertEquals(2, share.size)
         assertEquals("drink" to 8, share[0])
         assertEquals("snack" to 5, share[1])
+    }
+
+    // ---- 过期浪费口径 ----
+
+    @Test
+    fun `calculateWastedTotal 按件数求和而不是按归档条数`() {
+        val list = listOf(
+            archived("冰红茶", ArchiveReason.EXPIRED, quantity = 6), // 6 瓶过期 → 计 6
+            archived("酸奶", ArchiveReason.EXPIRED, quantity = 2),
+            archived("薯片", ArchiveReason.CONSUMED, quantity = 4), // 吃完的不算浪费
+            archived("饼干", ArchiveReason.DELETED, quantity = 3), // 手动删除的不算浪费
+        )
+        // 回归：此前是 archived.count { reason == EXPIRED }，同一屏「本周消耗」按件、
+        // 「过期浪费」按条，口径自相矛盾（6 瓶记成 1）。
+        assertEquals(6 + 2, calculateWastedTotal(list))
+    }
+
+    @Test
+    fun `calculateWastedTotal 无归档或无非过期归档时为 0`() {
+        assertEquals(0, calculateWastedTotal(emptyList()))
+        assertEquals(
+            0,
+            calculateWastedTotal(listOf(archived("牛奶", ArchiveReason.CONSUMED, quantity = 5))),
+        )
     }
 
     // ---- TOP 5 消耗排行计算 ----

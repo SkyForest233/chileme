@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -78,12 +79,17 @@ import com.agon.app.ui.components.CheckSwitch
 import com.agon.app.ui.theme.filterPanelEnter
 import com.agon.app.ui.theme.filterPanelExit
 import com.agon.app.viewmodel.AppViewModel
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
 import java.util.UUID
+
+/** 相机临时原图保留时长：超过就当作「拍完被取消/没走完流程」的残留清掉。 */
+private const val CAMERA_TEMP_TTL_MS = 24L * 60 * 60 * 1000
 
 private val unitOptions = listOf("件", "包", "袋", "盒", "瓶", "杯", "桶", "罐")
 private val shelfLifePresets = listOf(7, 15, 30, 90, 180, 270, 365)
@@ -154,6 +160,7 @@ fun EditFoodScreen(
     }
 
     var cameraTempUri by remember { mutableStateOf<Uri?>(null) }
+    var cameraTempFile by remember { mutableStateOf<File?>(null) }
     val cameraLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.TakePicture()
     ) { success ->
@@ -163,15 +170,25 @@ fun EditFoodScreen(
                 val saved = copyImageToCovers(context, uri)
                 if (saved != null) photoPath = saved
                 else snackbarHostState.showSnackbar("照片保存失败")
+                // 原图已经拷进 covers/（或已失败），临时文件没用了，立刻删掉。
+                cameraTempFile?.let { temp -> withContext(Dispatchers.IO) { runCatching { temp.delete() } } }
+                cameraTempFile = null
             }
         }
     }
 
     fun launchCamera() {
         val dir = File(context.cacheDir, "camera").apply { mkdirs() }
+        // 清理残留（2026-09-15）：拍照被取消 / 进程被杀时原图会留在 cacheDir，
+        // 此前从不清理（每拍一张留一份）。这里随手清掉超过一天的残留。
+        val now = System.currentTimeMillis()
+        dir.listFiles()?.forEach { old ->
+            if (old.isFile && now - old.lastModified() > CAMERA_TEMP_TTL_MS) runCatching { old.delete() }
+        }
         val file = File(dir, "${UUID.randomUUID()}.jpg")
         val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
         cameraTempUri = uri
+        cameraTempFile = file
         cameraLauncher.launch(uri)
     }
 
@@ -180,6 +197,10 @@ fun EditFoodScreen(
     val expiry = production.plusDays(shelfLife.toLong())
 
     Scaffold(
+        // 键盘避让（2026-09-15）：Android 15+ 强制 edge-to-edge 后 adjustResize 已不再缩窗口，
+        // 必须自己消费 IME inset。整屏缩到键盘之上后，底部「保存/添加到零食柜」贴着键盘顶边，
+        // 滚动区同步变矮，任意输入框都能滚到可见位置。
+        modifier = Modifier.imePadding(),
         containerColor = MaterialTheme.colorScheme.background,
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {

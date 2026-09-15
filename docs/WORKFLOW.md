@@ -32,13 +32,31 @@
 - 字符串目前直接写在代码中（中文单语言）；app_name 必须在 strings.xml 维护
 
 ### 新增依赖
-1. 先用 `search_maven` 确认坐标；2. 加入 `app/build.gradle.kts`；3. 立即构建验证；4. 在 `docs/ARCHITECTURE.md` 依赖清单登记
+1. 先用 `search_maven` 确认坐标；2. 加入 `app/build.gradle.kts`；3. 在 `gradle/libs.versions.toml` 登记版本与别名（依赖坐标不在 `app/build.gradle.kts` 里写死）；4. 立即构建验证；5. 在 `docs/ARCHITECTURE.md` 依赖清单登记
 
 ## 3. 构建与验证
 
 - 构建命令：`./gradlew assembleDebug`（沙箱无 JDK/SDK 时看 GitHub Actions `Build`）
 - 产物：`app/build/outputs/apk/debug/app-debug.apk`
 - 频率：每完成一个功能模块就构建，不要积攒大量改动后一次性构建
+
+### CI 静态门禁（ktlint + detekt，2026-09-15 起）
+
+- 入口脚本：`tools/ci-gates.sh`（工具版本与 sha256 固定在此文件里）；规则配置：`.editorconfig`（ktlint）、`detekt.yml`（detekt）
+  **这三个文件必须同时在目标分支上**：缺 `.editorconfig` 时 ktlint 会退回默认全量规则集（一次报上百条格式违规），缺 `detekt.yml` 时 detekt CLI 直接抛异常——脚本已加防呆检查并给出明确报错，但根因是文件没凑齐，不要靠防呆兜着走
+- 本地跑法（首次会下载约 136 MB 工具到 `~/.cache/chileme-gates`，之后走缓存；不需要 Android SDK）：
+
+  ```bash
+  bash tools/ci-gates.sh                     # 默认：ktlint 拦截 + detekt 报告
+  DETEKT_MODE=block bash tools/ci-gates.sh   # detekt 也拦截
+  GATES_MODE=report bash tools/ci-gates.sh   # 两个都只报告（调规则时用）
+  ```
+
+- CI：`.github/workflows/build.yml` 的 `static-gates` job（PR 与 master 推送都会跑）。报告写 `build/reports/gates/`，CI 里同时上传为 `gate-reports` artifact 并打到日志。
+- 规则边界（为什么只开这几条）写在 `.editorconfig` 与 `detekt.yml` 的文件头，改规则前先读；**未开启 ≠ 遗漏**，多为「已有明确后续计划」或「对本项目属主观项」。
+- 升级工具版本：改 `tools/ci-gates.sh` 里的版本号 + sha256，并同步改 `build.yml` 里 `actions/cache` 的 key。
+- release 侧另有 `release-r8` job：每个 PR 都跑 `assembleRelease -PallowUnsignedRelease=true`（R8 + 资源压缩 + `lintRelease`），因为这类问题只在 release 构建出现。
+- 提交代码前建议先跑一次门禁，比等 CI 反馈快。
 
 ## 4. 常见错误处理
 
@@ -59,4 +77,5 @@
 | 数据模型/存储 key/路由/依赖变化 | ARCHITECTURE.md 对应表格 |
 | 新增复用组件/调整视觉规范 | DESIGN_SPEC.md |
 | 流程/规范本身调整 | WORKFLOW.md + CLAUDE.md |
+| CI 门禁规则调整（`.editorconfig` / `detekt.yml` / `tools/ci-gates.sh`） | WORKFLOW.md §3 + devlog |
 | 任何一轮开发完成 | devlog/YYYY-MM-DD.md + devlog/INDEX.md（强制） |

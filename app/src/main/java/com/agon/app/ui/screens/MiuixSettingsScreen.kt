@@ -21,8 +21,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -32,12 +35,16 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.agon.app.data.CLOUD_BACKUP_KEEP
-import com.agon.app.data.CloudBackup
-import com.agon.app.data.LocalSnapshot
+import com.agon.app.data.BACKUP_VERSION
+import com.agon.app.data.cn
+import com.agon.app.data.fileStamp
+import com.agon.app.data.itemQuantity
+import com.agon.app.data.readBackupText
 import com.agon.app.ui.theme.ThemeStyle
 import com.agon.app.viewmodel.AppViewModel
 import kotlinx.coroutines.launch
 import java.time.LocalDate
+import java.time.LocalDateTime
 import top.yukonga.miuix.kmp.basic.BasicComponentDefaults
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
@@ -110,20 +117,21 @@ fun MiuixSettingsScreen(
     }
 
     // ---- Backup import (SAF open document) ----
+    // 2026-09-15：不再是「选完即覆盖」。先读（带 20 MB 上限）→ 解析出摘要 →
+    // 弹二次确认（展示将覆盖的条数与导出日期）→ 导入前自动存一份本地快照。
+    var pendingImport by remember { mutableStateOf<PendingImport?>(null) }
     val importLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument()
     ) { uri ->
         if (uri != null) {
             scope.launch {
-                val raw = runCatching {
-                    context.contentResolver.openInputStream(uri)?.use { input ->
-                        input.readBytes().toString(Charsets.UTF_8)
-                    }
-                }.getOrNull()
-                val ok = raw != null && state.importBackupJson(raw)
-                snackbarHostState.showSnackbar(
-                    if (ok) "导入成功，数据已恢复 ✅" else "导入失败：文件格式不正确"
-                )
+                val raw = readBackupText(context, uri)
+                val preview = raw?.let { state.previewBackup(it) }
+                when {
+                    raw == null -> snackbarHostState.showSnackbar("读取文件失败，或文件超过 20 MB")
+                    preview == null -> snackbarHostState.showSnackbar("导入失败：这不是本应用的备份文件")
+                    else -> pendingImport = PendingImport(raw, preview)
+                }
             }
         }
     }
@@ -255,6 +263,7 @@ fun MiuixSettingsScreen(
                         summary = when {
                             state.nutstoreAccount.isBlank() -> "未配置，点击设置 WebDAV 账号"
                             state.credentialBroken -> "应用密码已失效，请重新填写"
+                            state.plaintextFallback -> "⚠️ 系统 Keystore 不可用，密码以未加密形式保存"
                             state.lastSync.isNotBlank() -> state.lastSync
                             else -> "已配置，尚未同步"
                         },
@@ -340,6 +349,64 @@ fun MiuixSettingsScreen(
             }
         }
 
+        // ---- 导入前预览与二次确认（2026-09-15）----
+        pendingImport?.let { pending ->
+            val preview = pending.preview
+            MiuixDialog(
+                title = "导入备份",
+                summary = buildString {
+                    append("备份导出日期：")
+                    append(LocalDate.ofEpochDay(preview.exportedEpochDay).cn())
+                    append("\n库存 ")
+                    append(preview.itemQuantity)
+                    append(" 件 · 归档 ")
+                    append(preview.archived.size)
+                    append(" 条 · 消耗 ")
+                    append(preview.consumption.size)
+                    append(" 条 · 历史 ")
+                    append(preview.history.size)
+                    append(" 条")
+                    if (preview.version > BACKUP_VERSION) {
+                        append("\n该备份来自更新的版本（v${preview.version}），部分字段可能无法识别。")
+                    }
+                    append("\n\n导入会整体替换当前全部数据，不可撤销。")
+                    append("导入前会自动保存一份本地快照，可在「从本地历史快照恢复」里回退。")
+                },
+                show = true,
+                onDismissRequest = { pendingImport = null },
+            ) {
+                Row(
+                    modifier = Modifier.padding(top = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    TextButton(
+                        text = "取消",
+                        onClick = { pendingImport = null },
+                        modifier = Modifier.weight(1f),
+                    )
+                    TextButton(
+                        text = "覆盖导入",
+                        onClick = {
+                            val raw = pending.raw
+                            pendingImport = null
+                            state.importBackupWithSnapshot(raw) { ok, snapshotSaved ->
+                                scope.launch {
+                                    val msg = when {
+                                        !ok -> "导入失败：文件格式不正确"
+                                        snapshotSaved -> "导入成功，数据已恢复 ✅（已自动留存导入前快照）"
+                                        else -> "导入成功，数据已恢复 ✅（导入前快照未能保存）"
+                                    }
+                                    snackbarHostState.showSnackbar(msg)
+                                }
+                            }
+                        },
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.textButtonColors(textColor = MiuixTheme.colorScheme.error),
+                    )
+                }
+            }
+        }
+
         // ---- 清空库存确认 ----
         MiuixDialog(
             title = "清空库存记录",
@@ -388,7 +455,7 @@ fun MiuixSettingsScreen(
                         .clip(RoundedCornerShape(16.dp))
                         .clickable {
                             state.setShowExportFormatDialog(false)
-                            exportLauncher.launch("吃了么备份_${LocalDate.now()}.json")
+                            exportLauncher.launch("吃了么备份_${LocalDateTime.now().fileStamp()}.json")
                         },
                 ) {
                     Row(
@@ -424,7 +491,7 @@ fun MiuixSettingsScreen(
                         .clip(RoundedCornerShape(16.dp))
                         .clickable {
                             state.setShowExportFormatDialog(false)
-                            csvExportLauncher.launch("吃了么库存_${LocalDate.now()}.csv")
+                            csvExportLauncher.launch("吃了么库存_${LocalDateTime.now().fileStamp()}.csv")
                         },
                 ) {
                     Row(

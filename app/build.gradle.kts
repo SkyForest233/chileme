@@ -125,6 +125,14 @@ android {
         compose = true
     }
 
+    testOptions {
+        unitTests {
+            // 仓储守卫路径会 Log.w/Log.e；不打这个开关，纯 JVM 单测一碰 Log 就
+            // 抛「Method w in android.util.Log not mocked」。见 FoodRepositoryGuardTest。
+            isReturnDefaultValues = true
+        }
+    }
+
     lint {
         // NewApi/InlinedApi 提为 error：minSdk 提升到 26 后仍可能误用更高版本 API，
         // 这类问题 assembleDebug 不报错、只在老设备上崩，必须由 CI 的 lint 拦住。
@@ -175,6 +183,13 @@ dependencies {
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.material3)
+    // 图标（2026-09-15 复核）：material-icons-extended 官方已弃用（不再发布更新、
+    // 已从 Material3 1.4+ 的 BOM 映射中移除，推荐自行引入 Material Symbols 矢量图）。
+    // 这里**暂时保留**：MD3 主题共有 70 处 `Icons.Rounded.*` 引用，其中 History / Schedule /
+    // RestartAlt / Inventory / CleaningServices / Category / CalendarMonth / TableChart /
+    // PieChart / FilterList 等图标只存在于 extended 包，迁移需要逐个人工引入矢量资源（约 40 个
+    // 图标），属于独立一轮的改动，不适合塞进本次小批量。若日后解析失败，做法是：把用到的图标从
+    // Google Fonts「Android」标签页导出为 Vector Drawable 放进 res/drawable，再逐步替换引用。
     implementation(libs.androidx.compose.material.icons.extended)
     implementation(libs.androidx.compose.ui.tooling.preview)
 

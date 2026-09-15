@@ -40,8 +40,12 @@ fun buildCsvExport(
 }
 
 internal fun escapeCsvField(value: String): String {
-    if (value.contains(',') || value.contains('"') || value.contains('\n') || value.contains('\r')) {
-        return "\"" + value.replace("\"", "\"\"") + "\""
+    // 公式注入防护（2026-09-15）：Excel / LibreOffice / Google Sheets 会把以 = + - @ 开头的
+    // 单元格当公式执行（`=HYPERLINK(...)`、`=cmd|...`），表格被分享出去时可能变成钓鱼载体。
+    // 通行做法是前置一个半角单引号让表格把它当纯文本（'' 本身也属于需要防的前缀）。
+    val safe = if (value.isNotEmpty() && value[0] in "=+-@\t\r") "'$value" else value
+    if (safe.contains(',') || safe.contains('"') || safe.contains('\n') || safe.contains('\r')) {
+        return "\"" + safe.replace("\"", "\"\"") + "\""
     }
-    return value
+    return safe
 }

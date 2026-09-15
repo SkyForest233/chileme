@@ -7,6 +7,28 @@ import java.time.LocalDate
 
 class CsvExportTest {
 
+    // ---- CSV 公式注入防护（2026-09-15）----
+
+    @Test
+    fun `以公式前缀开头的字段会被加单引号转义`() {
+        // Excel / LibreOffice / Numbers 会把 = + - @ 开头的单元格当公式执行；
+        // 用户备注里若写「=HYPERLINK(...)」，导出后被别人打开就可能变成钓鱼链接。
+        assertEquals("'=1+1", escapeCsvField("=1+1"))
+        assertEquals("'+1", escapeCsvField("+1"))
+        assertEquals("'-1", escapeCsvField("-1"))
+        assertEquals("'@SUM(A1)", escapeCsvField("@SUM(A1)"))
+    }
+
+    @Test
+    fun `普通文本与转义规则不受影响`() {
+        assertEquals("牛奶", escapeCsvField("牛奶"))
+        assertEquals("", escapeCsvField(""))
+        assertEquals("\"a,b\"", escapeCsvField("a,b"))
+        assertEquals("\"say \"\"hi\"\"\"", escapeCsvField("say \"hi\""))
+        // 含逗号的公式同样先加单引号、再整体加引号
+        assertEquals("\"'=A1,B1\"", escapeCsvField("=A1,B1"))
+    }
+
     private val today = LocalDate.of(2026, 8, 22)
     private val categories = listOf(
         CategoryDef("snack", "零食", "🍿"),

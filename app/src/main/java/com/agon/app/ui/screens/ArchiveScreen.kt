@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -69,6 +70,8 @@ fun ArchiveScreen(
     val scope = rememberCoroutineScope()
 
     Scaffold(
+        // 键盘避让：同 FoodListScreen（搜索框在顶部，列表末尾此前够不到键盘之上）。
+        modifier = Modifier.imePadding(),
         containerColor = MaterialTheme.colorScheme.background,
         snackbarHost = {
             SwipeDismissSnackbarHost(
@@ -177,7 +180,7 @@ fun ArchiveScreen(
                                         }
                                     }
                                 },
-                                onDelete = { state.deleteEntry(entry.item.id) },
+                                onDelete = { state.requestDelete(entry) },
                                 modifier = Modifier.animateItem(),
                             )
                         }
@@ -185,6 +188,27 @@ fun ArchiveScreen(
                 }
             }
         }
+    }
+
+    state.pendingDelete?.let { target ->
+        AlertDialog(
+            onDismissRequest = { state.cancelDelete() },
+            title = { Text("彻底删除这条归档？") },
+            text = {
+                Text(
+                    "「${target.item.name}」将被永久删除，无法恢复，也不会回到库存。" +
+                        "想留作记录的话，请改用「恢复到库存」。"
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { state.confirmDelete() }) {
+                    Text("彻底删除", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { state.cancelDelete() }) { Text("取消") }
+            },
+        )
     }
 
     if (state.showClearDialog) {

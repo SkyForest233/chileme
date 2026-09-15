@@ -20,13 +20,11 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.scaleIn
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -54,6 +52,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -76,8 +75,6 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import coil3.compose.AsyncImage
 import com.agon.app.data.CategoryDef
 import com.agon.app.data.FoodItem
@@ -108,7 +105,6 @@ import top.yukonga.miuix.kmp.icon.extended.Ok
 import top.yukonga.miuix.kmp.icon.extended.Report
 import top.yukonga.miuix.kmp.icon.extended.Timer
 import top.yukonga.miuix.kmp.squircle.squircleBorder
-import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.PressFeedbackType
 import top.yukonga.miuix.kmp.window.WindowDialog
 import com.agon.app.ui.theme.DangerContainerDark
@@ -882,33 +878,37 @@ fun EmptyState(
     }
 }
 
+/** 损坏 key 的中文名（损坏横幅与「放弃数据」确认弹窗共用）。 */
+fun corruptKeyNames(corruptedKeys: Set<String>): String =
+    corruptedKeys.joinToString("、") { key ->
+        when (key) {
+            "food_items" -> "库存"
+            "archived_items" -> "归档"
+            "consumption_records" -> "消耗记录"
+            "history_entries" -> "录入历史"
+            else -> key
+        }
+    }
+
 /**
- * 数据损坏告警条。
+ * 数据损坏告警条：说明「哪些数据读不出来、影响是什么」，并提供处理入口。
  *
  * 出现条件：仓库层解析某个用户资产 key（库存/归档/消耗/录入历史）失败。
- * 此时相关写操作已被仓库层全部拒绝——这是为了避免"解析失败被当成没有数据、
- * 随后一次写入就把空表覆盖回去"从而永久丢失数据。原始串已留档到
- * `filesDir/corrupt/`，用户可通过导入备份恢复。
+ * 原始串已留档到 `filesDir/corrupt/`，用户可导入备份恢复，或经 [onDiscard] 放弃这部分数据。
+ *
+ * 写守卫自 2026-09-15 起**按 key 粒度**降级：只有损坏的那个 key 停止写入，其余数据与功能
+ * 照常可用（此前是「任一 key 损坏就整体拒绝写入」，辅助数据损坏会锁死核心功能）。
  *
  * 两套主题共用：Miuix 模式下 MaterialTheme 已由 MiuixRootTheme 桥接为 Miuix 配色。
  */
 @Composable
 fun DataCorruptBanner(
     corruptedKeys: Set<String>,
+    onDiscard: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     if (corruptedKeys.isEmpty()) return
-    val names = remember(corruptedKeys) {
-        corruptedKeys.joinToString("、") { key ->
-            when (key) {
-                "food_items" -> "库存"
-                "archived_items" -> "归档"
-                "consumption_records" -> "消耗记录"
-                "history_entries" -> "录入历史"
-                else -> key
-            }
-        }
-    }
+    val names = remember(corruptedKeys) { corruptKeyNames(corruptedKeys) }
     Surface(
         shape = MaterialTheme.shapes.large,
         color = MaterialTheme.colorScheme.errorContainer,
@@ -929,11 +929,23 @@ fun DataCorruptBanner(
                 )
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    "为防止数据丢失，已暂停对这部分数据的写入。原始数据已留档，" +
-                        "可在设置页导入此前的备份来恢复。",
+                    "这部分数据的写入已暂停，其余数据不受影响（2026-09-15 起按 key 粒度降级）。" +
+                        "原始内容已留档到应用私有目录 corrupt/ 下：可导入此前的备份来恢复；" +
+                        "确认不再需要时，也可以放弃这部分数据让写入恢复。",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onErrorContainer,
                 )
+                TextButton(
+                    onClick = onDiscard,
+                    contentPadding = PaddingValues(0.dp),
+                ) {
+                    Text(
+                        "放弃这部分数据",
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
             }
         }
     }
@@ -945,7 +957,13 @@ fun DataCorruptBanner(
  * 基于 MIUIX 官方 WindowDialog 实现，遵循 HyperOS 规范：
  * - 手机竖屏（常规设备）：标准底部贴合弹出（Bottom-attached），顶部自适应屏幕 Squircle 大圆角；
  * - 大屏/平板/横屏：自动响应式转为屏幕居中卡片（Centered）；
- * - 独立 Window 层：拥有专属系统 Window 图层，不受外部悬浮底栏遮挡，且自适应软键盘。
+ * - 独立 Window 层：拥有专属系统 Window 图层，不受外部悬浮底栏遮挡；
+ * - 自适应软键盘（2026-09-15 核实库源码 pinned 快照 v0.9.4-rc01）：`DialogContentLayout.kt` 的
+ *   `DialogContent` 根节点在 `defaultWindowInsetsPadding = true`（默认值）时自带
+ *   `.imePadding().navigationBarsPadding().captionBarPadding()`，且 `WindowDialog` 的窗口属性来自
+ *   `platformDialogProperties()`（`decorFitsSystemWindows = false`、`usePlatformDefaultWidth = false`），
+ *   所以 IME inset 能一路传到弹窗内容、键盘弹出时弹窗整体上移。
+ *   **不要传 `defaultWindowInsetsPadding = false`**：那会让键盘盖住弹窗按钮（Miuix 侧弹窗因此无需在本项目里加任何 imePadding）。
  */
 @Composable
 fun MiuixDialog(

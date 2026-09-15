@@ -2,11 +2,17 @@ package com.agon.app.data
 
 import kotlinx.serialization.Serializable
 import java.time.LocalDate
+import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
 import java.util.Locale
 
 const val DEFAULT_EXPIRING_THRESHOLD = 7
+
+/**
+ * 当前备份 schema 版本。写入 [BackupData.version]；导入时据此判断「文件来自更新的版本」。
+ */
+const val BACKUP_VERSION = 2
 
 /**
  * 可自定义分类：id 稳定不变（默认分类沿用旧枚举名，新增用 UUID），
@@ -81,7 +87,22 @@ data class ConsumptionRecord(
     val epochDay: Long,
     /** 唯一 id（v2.8 起），供「撤销消耗」精确定位删除；旧数据缺省为 null。 */
     val id: String? = null,
+    /**
+     * 是否为「月度聚合」记录（2026-09-15 起）。
+     *
+     * 90 天前的逐笔明细会被 [compactConsumptionAt] 按「年 × 月 × 名称 × 单位」合并成一条，
+     * amount 是整月合计。这种记录**不能单条删除**——删掉它等于抹掉整月历史，
+     * 而用户看到的只是一行「×42 瓶」。老数据没有该字段，缺省 false 正好表示「逐笔明细」。
+     */
+    val aggregated: Boolean = false,
 )
+
+/**
+ * 能否单条删除这条消耗记录：月度聚合记录不行（一条代表整月合计）。
+ *
+ * 仓库层与 UI 层共用这一条判定：仓库拦截是最后一道防线，UI 侧不再给出删除按钮。
+ */
+fun ConsumptionRecord.isDeletable(): Boolean = !aggregated
 
 @Serializable
 data class HistoryEntry(
@@ -142,7 +163,7 @@ fun FoodItem.toHistoryEntry() = HistoryEntry(
 
 @Serializable
 data class BackupData(
-    val version: Int = 2,
+    val version: Int = BACKUP_VERSION,
     val exportedEpochDay: Long = LocalDate.now().toEpochDay(),
     val items: List<FoodItem> = emptyList(),
     val archived: List<ArchivedItem> = emptyList(),
@@ -152,6 +173,12 @@ data class BackupData(
     val categories: List<CategoryDef> = emptyList(),
     val locations: List<String> = emptyList(),
 )
+
+/**
+ * 库存总**件数**：一条记录可能有多件（[FoodItem.quantity]）。
+ * 面向用户的「件」一律用它，`items.size` 是记录**条数**（导入预览此前把条数写成了「件」）。
+ */
+val BackupData.itemQuantity: Int get() = items.sumOf { it.quantity }
 
 val FoodItem.productionDate: LocalDate
     get() = LocalDate.ofEpochDay(productionEpochDay)
@@ -212,6 +239,11 @@ fun FoodItem.remainingTextAt(today: LocalDate): String = when {
 val FoodItem.remainingText: String
     get() = remainingTextAt(LocalDate.now())
 
+private val fileStampFormatter = DateTimeFormatter.ofPattern("yyyyMMdd_HHmm")
+
+/** 导出文件名用的时间戳（精确到分钟）：只用日期，同一天导出两次会撞名。 */
+fun LocalDateTime.fileStamp(): String = format(fileStampFormatter)
+
 private val cnDateFormatter = DateTimeFormatter.ofPattern("yyyy年M月d日")
 private val cnDayFormatter = DateTimeFormatter.ofPattern("M月d日 EEEE", Locale.CHINESE)
 private val dotDateFormatter = DateTimeFormatter.ofPattern("yyyy.MM.dd")
@@ -253,6 +285,8 @@ fun compactConsumptionAt(
                 // 必须补 id：聚合记录 id 为 null 会导致消耗记录页的删除按钮
                 // （record.id?.let { ... }）静默无效。
                 id = idFactory(),
+                // 标记为聚合：UI 不提供单条删除，仓库层也会拒绝（见 isDeletable）。
+                aggregated = true,
             )
         }
     return (recent + aggregated).sortedByDescending { it.epochDay }

@@ -1,6 +1,7 @@
 package com.agon.app.ui.screens
 
 import com.agon.app.data.FoodItem
+import com.agon.app.data.FoodStatus
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import java.time.LocalDate
@@ -14,6 +15,7 @@ class HomeScreenStateTest {
         name: String,
         category: String = "snack",
         daysFromToday: Long = 10,
+        quantity: Int = 1,
     ): FoodItem {
         val expiry = today.plusDays(daysFromToday)
         val prod = expiry.minusDays(30)
@@ -21,7 +23,7 @@ class HomeScreenStateTest {
             id = id,
             name = name,
             category = category,
-            quantity = 1,
+            quantity = quantity,
             unit = "包",
             productionEpochDay = prod.toEpochDay(),
             shelfLifeDays = 30,
@@ -41,6 +43,21 @@ class HomeScreenStateTest {
         assertEquals(3, urgent.size)
         // 验证排序：按剩余天数升序（最紧急的最前）
         assertEquals(listOf("expired_yesterday", "expiring_soon", "expiring_in_5_days"), urgent.map { it.id })
+    }
+
+    @Test
+    fun `quantityOfStatus 按件求和而不是数记录条数`() {
+        val items = listOf(
+            food("milk", "牛奶", daysFromToday = -1, quantity = 6), // 过期 6 件
+            food("yogurt", "酸奶", daysFromToday = -2, quantity = 2), // 过期 2 件
+            food("bread", "面包", daysFromToday = 1, quantity = 3), // 临期 3 件
+            food("safe", "安全食品", daysFromToday = 25, quantity = 9), // 不计入
+        )
+
+        // 首页横幅「有 N 件食品已过期/即将到期」走的是件数，不是 records 条数
+        assertEquals(8, quantityOfStatus(items, emptyMap(), today, FoodStatus.EXPIRED))
+        assertEquals(3, quantityOfStatus(items, emptyMap(), today, FoodStatus.EXPIRING))
+        assertEquals(0, quantityOfStatus(emptyList(), emptyMap(), today, FoodStatus.EXPIRED))
     }
 
     @Test

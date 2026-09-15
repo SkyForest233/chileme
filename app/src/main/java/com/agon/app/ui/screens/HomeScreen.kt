@@ -28,6 +28,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowForward
 import androidx.compose.material.icons.rounded.CleaningServices
 import androidx.compose.material.icons.rounded.Inventory2
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -40,11 +41,15 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -64,6 +69,7 @@ import com.agon.app.ui.components.EmptyState
 import com.agon.app.ui.components.FoodAvatar
 import com.agon.app.ui.components.StatusBadge
 import com.agon.app.ui.components.SwipeDismissSnackbarHost
+import com.agon.app.ui.components.corruptKeyNames
 import com.agon.app.ui.components.rememberStatusUi
 import com.agon.app.ui.components.showUndoSnackbar
 import com.agon.app.viewmodel.AppViewModel
@@ -81,6 +87,7 @@ fun HomeScreen(
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+    var showDiscardCorruptDialog by remember { mutableStateOf(false) }
 
     // 启动自动同步完成后提示一次
     LaunchedEffect(state.autoSyncMessage) {
@@ -131,7 +138,12 @@ fun HomeScreen(
         ) {
             // 数据损坏告警：置顶且不可忽略，此时写入已被仓库层拒绝
             if (state.corruptedKeys.isNotEmpty()) {
-                item(key = "corrupt-banner") { DataCorruptBanner(state.corruptedKeys) }
+                item(key = "corrupt-banner") {
+                    DataCorruptBanner(
+                        corruptedKeys = state.corruptedKeys,
+                        onDiscard = { showDiscardCorruptDialog = true },
+                    )
+                }
             }
             item {
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -166,7 +178,11 @@ fun HomeScreen(
             }
 
             item {
-                FreshnessBanner(total = state.total, expiring = state.expiring, expired = state.expired)
+                FreshnessBanner(
+                    total = state.total,
+                    expiringQuantity = state.expiringQuantity,
+                    expiredQuantity = state.expiredQuantity,
+                )
             }
 
             item(key = "clean_expired_btn") {
@@ -177,7 +193,9 @@ fun HomeScreen(
                 ) {
                     FilledTonalButton(
                         onClick = {
-                            val count = state.expired
+                            // 按「件数」而非记录条数：一条记录可能有多件，按钮会把整条记录
+                            // 连同它的数量一起归档，显示件数才与操作效果一致（2026-09-15）。
+                            val count = state.expiredQuantity
                             state.cleanExpired { cleanedIds ->
                                 scope.launch {
                                     val result = snackbarHostState.showUndoSnackbar("已将 $count 件过期食品移入归档")
@@ -192,7 +210,7 @@ fun HomeScreen(
                     ) {
                         Icon(Icons.Rounded.CleaningServices, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(8.dp))
-                        Text("一键清理 ${state.expired} 件过期食品", fontWeight = FontWeight.SemiBold)
+                        Text("一键清理 ${state.expiredQuantity} 件过期食品", fontWeight = FontWeight.SemiBold)
                     }
                 }
             }
@@ -255,6 +273,33 @@ fun HomeScreen(
             }
         }
     }
+
+    // ---- 损坏数据：放弃确认（二次确认后清空该部分数据，让写入恢复）----
+    if (showDiscardCorruptDialog) {
+        AlertDialog(
+            onDismissRequest = { showDiscardCorruptDialog = false },
+            title = { Text("放弃损坏的数据？") },
+            text = {
+                Text(
+                    "将清空：${corruptKeyNames(state.corruptedKeys)}。\n\n" +
+                        "清除后这部分数据不再显示，相关写入恢复正常。原始内容仍留档在应用私有目录 " +
+                        "corrupt/ 下（普通界面看不到）。若想恢复这部分数据，请改用「导入此前的备份」。"
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    showDiscardCorruptDialog = false
+                    state.discardCorruptData()
+                    scope.launch { snackbarHostState.showSnackbar("已放弃损坏数据，相关功能恢复正常") }
+                }) {
+                    Text("放弃数据", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDiscardCorruptDialog = false }) { Text("取消") }
+            },
+        )
+    }
 }
 
 @Composable
@@ -288,11 +333,12 @@ private fun StatCard(
 }
 
 @Composable
-private fun FreshnessBanner(total: Int, expiring: Int, expired: Int) {
+private fun FreshnessBanner(total: Int, expiringQuantity: Int, expiredQuantity: Int) {
+    // 件数口径（2026-09-15）：expired/expiring 传进来的是 `quantity` 求和，不是记录条数。
     val message = when {
         total == 0 -> "零食柜空空的，去添加第一件食品吧 ✨"
-        expired > 0 -> "有 $expired 件食品已过期，记得及时清理哦"
-        expiring > 0 -> "有 $expiring 件食品即将到期，优先享用它们吧"
+        expiredQuantity > 0 -> "有 $expiredQuantity 件食品已过期，记得及时清理哦"
+        expiringQuantity > 0 -> "有 $expiringQuantity 件食品即将到期，优先享用它们吧"
         else -> "所有食品都很新鲜，安心享用 😋"
     }
     Surface(

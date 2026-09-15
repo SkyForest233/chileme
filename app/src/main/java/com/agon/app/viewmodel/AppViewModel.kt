@@ -1,10 +1,12 @@
 package com.agon.app.viewmodel
 
 import android.app.Application
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.agon.app.data.ArchiveReason
 import com.agon.app.data.ArchivedItem
+import com.agon.app.data.BackupData
 import com.agon.app.data.CategoryDef
 import com.agon.app.data.ConsumptionRecord
 import com.agon.app.data.DefaultCategories
@@ -20,6 +22,7 @@ import com.agon.app.data.QuantityChangeResult
 import com.agon.app.data.cleanupOrphanCovers
 import com.agon.app.data.daysLeft
 import com.agon.app.data.toHistoryEntry
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import java.time.Instant
 import java.time.LocalDate
@@ -32,7 +35,10 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.util.UUID
+
+private const val TAG = "AppViewModel"
 
 class AppViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -56,7 +62,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
      * 保证所有出现过的食品（含已归档）都能被联想匹配到。
      */
     val suggestionSource: StateFlow<List<HistoryEntry>> =
-        combine(repo.historyFlow, repo.itemsFlow, repo.archiveFlow) { history, items, archived ->
+        // 复用上面三个已经 stateIn 好的 StateFlow（2026-09-15）：此前这里又各收集了一遍
+        // 仓库的冷流，同一份 JSON 在启动期被多解一次。
+        combine(history, items, archived) { history, items, archived ->
             (history + items.map { it.toHistoryEntry() } + archived.map { it.item.toHistoryEntry() })
                 .distinctBy { it.name }
         }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
@@ -103,6 +111,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     /** 云同步凭据已失效（有密文但解不开，典型为换设备后恢复了云备份）。 */
     val nutstoreCredentialBroken: StateFlow<Boolean> =
         repo.nutstoreCredentialBrokenFlow.stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
+    /** 密码以未加密明文保存（Keystore 不可用时的极端回退）——设置页需明确提示。 */
+    val nutstorePlaintextFallback: StateFlow<Boolean> =
+        repo.nutstorePlaintextFallbackFlow.stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
     /** 自动同步间隔（天），0 = 关闭 */
     val autoSyncDays: StateFlow<Int> =
@@ -211,12 +223,21 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             repo.migratePlaintextPassword()
             // 迁移：旧消耗记录补 id（供删除/撤销定位）
             repo.migrateConsumptionIds()
-            // 启动时清理孤儿封面图片（未被库存/归档引用的文件）
-            val referenced = buildSet {
-                repo.itemsFlow.first().forEach { if (it.photoPath.isNotBlank()) add(it.photoPath) }
-                repo.archiveFlow.first().forEach { if (it.item.photoPath.isNotBlank()) add(it.item.photoPath) }
+            // 启动时清理孤儿封面图片（未被库存/归档引用的文件）。
+            //
+            // 关键：损坏态下**必须跳过**。items/archive 解码失败时 rawFlow 会回落空集
+            // （这是读路径的预期行为），若照此清理，covers/ 下的文件会被全部当成孤儿删除——
+            // 而图片无法从 corrupt/ 的 JSON 留档里恢复，等于把「保护数据」的机制变成
+            // 「销毁数据」。（2026-09-15 修复）
+            if (repo.corruptedKeys.value.isEmpty()) {
+                val referenced = buildSet {
+                    repo.itemsFlow.first().forEach { if (it.photoPath.isNotBlank()) add(it.photoPath) }
+                    repo.archiveFlow.first().forEach { if (it.item.photoPath.isNotBlank()) add(it.item.photoPath) }
+                }
+                cleanupOrphanCovers(getApplication(), referenced)
+            } else {
+                Log.w(TAG, "检测到数据损坏（${repo.corruptedKeys.value}），跳过孤儿封面清理以免误删图片")
             }
-            cleanupOrphanCovers(getApplication(), referenced)
             // 自动同步：到期且凭据完整时静默上传
             maybeAutoSync()
             // 本地滚动冷备：若今日尚无快照则静默保存一份
@@ -317,7 +338,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         val result: QuantityChangeResult = repo.changeQuantity(id, delta)
         if (result.autoArchived) onAutoArchived?.invoke()
         if (withUndo && delta < 0 && result.consumptionId != null) {
-            _undoRequest.value = UndoRequest(id, result.consumptionId!!)
+            _undoRequest.value = UndoRequest(id, result.consumptionId)
         }
     }
 
@@ -378,13 +399,56 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     suspend fun importBackupJson(raw: String): Boolean = repo.importBackupJson(raw)
 
+    /** 解析备份用于导入前预览（不改动数据）。非备份 / 畸形 JSON 返回 null。 */
+    suspend fun previewBackup(raw: String): BackupData? = repo.previewBackup(raw)
+
+    /**
+     * 恢复类操作的公共前置步骤：留一份「操作前状态」本地快照，返回是否保存成功。
+     *
+     * 三条恢复路径（文件导入 / 坚果云整版本恢复 / 本地快照还原）都走它，
+     * 保证任何一次整体替换之前都有一份可回退的快照。
+     * 快照失败（例如当前数据本身已损坏、无法序列化）不阻断恢复——那种情况正是恢复的用途。
+     */
+    private suspend fun snapshotBeforeRestore(): Boolean = withContext(Dispatchers.IO) {
+        runCatching { repo.buildBackupJson() }.getOrNull()
+            ?.let { json -> LocalSnapshotStore.saveSnapshot(getApplication(), json) != null }
+            ?: false
+    }
+
+    /**
+     * 导入备份的推荐入口：**先写一份本地快照兜底，再整体替换**。
+     *
+     * 导入是不可撤销的破坏性操作，此前点一下文件就直接覆盖。现在：
+     * 1. 先 `buildBackupJson()` + `LocalSnapshotStore.saveSnapshot()` 留一份「导入前状态」，
+     *    用户可在设置页「本地快照」里一键回到导入前；
+     * 2. 再执行 [FoodRepository.importBackupJson]。
+     *
+     * 快照失败（例如当前数据本身已损坏、无法序列化）**不阻断导入**——那种情况正是导入的用途。
+     *
+     * @param onResult 参数一：导入是否成功；参数二：导入前快照是否已保存。
+     */
+    fun importBackupWithSnapshot(raw: String, onResult: (ok: Boolean, snapshotSaved: Boolean) -> Unit) =
+        viewModelScope.launch {
+            // 快照（含整份 JSON 序列化与落盘）与导入都放 IO 线程，避免主线程卡顿
+            val snapshotSaved = snapshotBeforeRestore()
+            if (snapshotSaved) loadLocalSnapshots()
+            val ok = withContext(Dispatchers.IO) { repo.importBackupJson(raw) }
+            onResult(ok, snapshotSaved)
+        }
+
     // ---- 本地快照管理 ----
 
     private val _localSnapshots = MutableStateFlow<List<LocalSnapshot>>(emptyList())
     val localSnapshots: StateFlow<List<LocalSnapshot>> = _localSnapshots.asStateFlow()
 
+    /**
+     * 刷新本地快照列表。读取（含逐份解析 JSON 数条数）已下沉到 IO 线程，
+     * 这里 fire-and-forget 地更新 UI 状态 —— 调用方无需等待。
+     */
     fun loadLocalSnapshots() {
-        _localSnapshots.value = LocalSnapshotStore.listSnapshots(getApplication())
+        viewModelScope.launch {
+            _localSnapshots.value = LocalSnapshotStore.listSnapshots(getApplication())
+        }
     }
 
     fun saveLocalSnapshot(onDone: ((Boolean) -> Unit)? = null) = viewModelScope.launch {
@@ -398,11 +462,28 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    /**
+     * 从本地快照还原。
+     *
+     * 顺序很重要：**先读出目标快照内容，再写「还原前状态」快照**。
+     * 反过来的话，快照份数已达上限（[LocalSnapshotStore.MAX_SNAPSHOTS] = 3）时，
+     * 新写的那份会把要还原的旧快照挤掉（按修改时间淘汰），导致「点了还原却报找不到」。
+     */
     fun restoreLocalSnapshot(fileName: String, onResult: (Boolean, String) -> Unit) = viewModelScope.launch {
         val raw = LocalSnapshotStore.readSnapshot(getApplication(), fileName)
-        if (raw != null && repo.importBackupJson(raw)) {
+        if (raw == null) {
+            onResult(false, "快照文件损坏或无法还原")
+            return@launch
+        }
+        val snapshotSaved = snapshotBeforeRestore()
+        if (snapshotSaved) loadLocalSnapshots()
+        if (repo.importBackupJson(raw)) {
             loadLocalSnapshots()
-            onResult(true, "已成功从本地快照还原数据 ✅")
+            onResult(
+                true,
+                if (snapshotSaved) "已从本地快照还原数据 ✅（已自动留存还原前快照）"
+                else "已从本地快照还原数据 ✅（还原前快照未能保存）",
+            )
         } else {
             onResult(false, "快照文件损坏或无法还原")
         }
@@ -481,18 +562,37 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         _syncing.value = true
         val result = NutstoreSync.download(account, password, fileName)
         _syncing.value = false
-        result.fold(
-            onSuccess = { raw ->
-                if (repo.importBackupJson(raw)) {
-                    val time = java.time.LocalDateTime.now()
-                        .format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"))
-                    repo.setLastSync("恢复于 $time")
-                    onResult(true, "已从坚果云恢复数据 ✅")
-                } else {
-                    onResult(false, "云端备份格式不正确")
-                }
-            },
-            onFailure = { onResult(false, it.message ?: "下载失败") },
-        )
+        val raw = result.getOrNull()
+        if (raw == null) {
+            onResult(false, result.exceptionOrNull()?.message ?: "下载失败")
+            return@launch
+        }
+        // 与「文件导入」同一套前置校验：必须含 items 键，否则拒绝覆盖（防「合法空备份」清空数据）。
+        if (repo.previewBackup(raw) == null) {
+            onResult(false, "云端备份格式不正确")
+            return@launch
+        }
+        val snapshotSaved = snapshotBeforeRestore()
+        if (snapshotSaved) loadLocalSnapshots()
+        if (repo.importBackupJson(raw)) {
+            val time = java.time.LocalDateTime.now()
+                .format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"))
+            repo.setLastSync("恢复于 $time")
+            onResult(
+                true,
+                if (snapshotSaved) "已从坚果云恢复数据 ✅（已自动留存恢复前快照）"
+                else "已从坚果云恢复数据 ✅（恢复前快照未能保存）",
+            )
+        } else {
+            onResult(false, "云端备份格式不正确")
+        }
+    }
+
+    /**
+     * 放弃处于损坏态的数据（UI 二次确认后调用）：删除该 key 的内容并解除损坏标记，
+     * 让相关写入恢复正常。原文留档保留在 filesDir/corrupt/。
+     */
+    fun discardCorruptData() = viewModelScope.launch {
+        repo.discardCorrupt(repo.corruptedKeys.value)
     }
 }

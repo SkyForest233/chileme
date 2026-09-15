@@ -30,8 +30,11 @@ import androidx.compose.material.icons.rounded.Inventory2
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -48,7 +51,9 @@ import com.agon.app.data.statusForAt
 import com.agon.app.ui.components.DataCorruptBanner
 import com.agon.app.ui.components.EmptyState
 import com.agon.app.ui.components.FoodAvatar
+import com.agon.app.ui.components.MiuixDialog
 import com.agon.app.ui.components.StatusBadge
+import com.agon.app.ui.components.corruptKeyNames
 import com.agon.app.ui.components.rememberStatusUi
 import com.agon.app.ui.components.showUndoSnackbar
 import com.agon.app.viewmodel.AppViewModel
@@ -63,6 +68,7 @@ import top.yukonga.miuix.kmp.basic.SnackbarHost
 import top.yukonga.miuix.kmp.basic.SnackbarHostState
 import top.yukonga.miuix.kmp.basic.SnackbarResult as MiuixSnackbarResult
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Forward
@@ -84,6 +90,7 @@ fun MiuixHomeScreen(
     val state = rememberHomeUiState(viewModel)
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+    var showDiscardCorruptDialog by remember { mutableStateOf(false) }
 
     // 启动自动同步完成后提示一次
     LaunchedEffect(state.autoSyncMessage) {
@@ -112,7 +119,12 @@ fun MiuixHomeScreen(
         ) {
             // 数据损坏告警：置顶且不可忽略，此时写入已被仓库层拒绝
             if (state.corruptedKeys.isNotEmpty()) {
-                item(key = "corrupt-banner") { DataCorruptBanner(state.corruptedKeys) }
+                item(key = "corrupt-banner") {
+                    DataCorruptBanner(
+                        corruptedKeys = state.corruptedKeys,
+                        onDiscard = { showDiscardCorruptDialog = true },
+                    )
+                }
             }
             item {
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -147,7 +159,11 @@ fun MiuixHomeScreen(
             }
 
             item {
-                FreshnessBanner(total = state.total, expiring = state.expiring, expired = state.expired)
+                FreshnessBanner(
+                    total = state.total,
+                    expiringQuantity = state.expiringQuantity,
+                    expiredQuantity = state.expiredQuantity,
+                )
             }
 
             item(key = "clean_expired_btn") {
@@ -158,7 +174,8 @@ fun MiuixHomeScreen(
                 ) {
                     Button(
                         onClick = {
-                            val count = state.expired
+                            // 件数口径，与 MD3 首页 / 统计页保持一致（2026-09-15）
+                            val count = state.expiredQuantity
                             state.cleanExpired { cleanedIds ->
                                 scope.launch {
                                     val result = snackbarHostState.showUndoSnackbar("已将 $count 件过期食品移入归档")
@@ -178,7 +195,7 @@ fun MiuixHomeScreen(
                             tint = MiuixTheme.colorScheme.onPrimary,
                         )
                         Spacer(Modifier.width(8.dp))
-                        Text("一键清理 ${state.expired} 件过期食品", fontWeight = FontWeight.SemiBold)
+                        Text("一键清理 ${state.expiredQuantity} 件过期食品", fontWeight = FontWeight.SemiBold)
                     }
                 }
             }
@@ -241,6 +258,39 @@ fun MiuixHomeScreen(
             }
         }
     }
+
+    // ---- 损坏数据：放弃确认（与 MD3 首页同款流程）----
+    if (showDiscardCorruptDialog) {
+        MiuixDialog(
+            title = "放弃损坏的数据？",
+            summary = "将清空：${corruptKeyNames(state.corruptedKeys)}。\n\n" +
+                "清除后这部分数据不再显示，相关写入恢复正常。原始内容仍留档在应用私有目录 " +
+                "corrupt/ 下（普通界面看不到）。若想恢复这部分数据，请改用「导入此前的备份」。",
+            show = true,
+            onDismissRequest = { showDiscardCorruptDialog = false },
+        ) {
+            Row(
+                modifier = Modifier.padding(top = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                TextButton(
+                    text = "取消",
+                    onClick = { showDiscardCorruptDialog = false },
+                    modifier = Modifier.weight(1f),
+                )
+                TextButton(
+                    text = "放弃数据",
+                    onClick = {
+                        showDiscardCorruptDialog = false
+                        state.discardCorruptData()
+                        scope.launch { snackbarHostState.showSnackbar("已放弃损坏数据，相关功能恢复正常") }
+                    },
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.textButtonColors(textColor = MiuixTheme.colorScheme.error),
+                )
+            }
+        }
+    }
 }
 
 @Composable
@@ -268,11 +318,12 @@ private fun StatCard(
 }
 
 @Composable
-private fun FreshnessBanner(total: Int, expiring: Int, expired: Int) {
+private fun FreshnessBanner(total: Int, expiringQuantity: Int, expiredQuantity: Int) {
+    // 件数口径（2026-09-15）：expired/expiring 传进来的是 `quantity` 求和，不是记录条数。
     val message = when {
         total == 0 -> "零食柜空空的，去添加第一件食品吧 ✨"
-        expired > 0 -> "有 $expired 件食品已过期，记得及时清理哦"
-        expiring > 0 -> "有 $expiring 件食品即将到期，优先享用它们吧"
+        expiredQuantity > 0 -> "有 $expiredQuantity 件食品已过期，记得及时清理哦"
+        expiringQuantity > 0 -> "有 $expiringQuantity 件食品即将到期，优先享用它们吧"
         else -> "所有食品都很新鲜，安心享用 😋"
     }
     Card(modifier = Modifier.fillMaxWidth()) {

@@ -5,6 +5,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.layout.imePadding
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
@@ -159,6 +160,12 @@ import top.yukonga.miuix.kmp.nav.core.rememberNavBackStack
 import top.yukonga.miuix.kmp.nav.core.rememberNavSystemCornerRadius
 import top.yukonga.miuix.kmp.nav.transition.NavTransitions
 
+/**
+ * 启动放行超时：`ready`（DataStore 首发）在此时间内未达成也强制渲染首帧。
+ * 见 `onCreate` 中 `contentReady` 的注释——宁可闪一帧，也不能变砖。
+ */
+private const val READY_TIMEOUT_MS = 3_000L
+
 // MD3 motion easing tokens 统一从 ui/theme/Motion.kt 引用
 private val EmphasizedDecelerate = MotionEasing.EmphasizedDecelerate
 private val EmphasizedAccelerate = MotionEasing.EmphasizedAccelerate
@@ -168,9 +175,12 @@ class MainActivity : ComponentActivity() {
         val splash = installSplashScreen()
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
-        // 持持 SplashScreen 直到 DataStore 首次发出数据，
-        // 避免启动时先用默认绿主题/空内容渲染一帧再闪成真实内容
-        var contentReady = false
+        // 持住 SplashScreen 直到 DataStore 首次发出数据，
+        // 避免启动时先用默认绿主题/空内容渲染一帧再闪成真实内容。
+        //
+        // 用 MutableState 而非普通 var：composition 里读它，超时兜底翻转后要触发重组，
+        // 否则 `if (!contentReady) return@setContent` 会一直停在空白帧。
+        var contentReady by mutableStateOf(false)
         splash.setKeepOnScreenCondition { !contentReady }
         setContent {
             val viewModel: AppViewModel = viewModel()
@@ -195,8 +205,15 @@ class MainActivity : ComponentActivity() {
                     delay(30_000)
                 }
             }
+            // 放行条件 = ready（正常路径）或超时兜底。
+            // 兜底必不可少：异常/读阻塞会让 ready 永不发射，没有超时就是
+            // 「启动画面永久停留、只能杀进程」——比多显示一帧默认主题糟糕得多。
             LaunchedEffect(ready) { if (ready) contentReady = true }
-            if (!ready) return@setContent
+            LaunchedEffect(Unit) {
+                delay(READY_TIMEOUT_MS)
+                contentReady = true
+            }
+            if (!contentReady) return@setContent
             val darkTheme = when (darkMode) {
                 1 -> false
                 2 -> true
@@ -544,6 +561,9 @@ fun MainApp(viewModel: AppViewModel) {
             .align(Alignment.BottomCenter)
             .fillMaxWidth()
             .navigationBarsPadding()
+            // 键盘打开时也要能看见/点到「撤销」：两段式书写 = max(导航栏, 键盘)，
+            // 内层只补差额，不会叠加成一条大空隙（等价于旧的 navigationBarsWithImePadding）。
+            .imePadding()
             .padding(bottom = snackbarOffset),
     ) {
         if (isMiuix) {
@@ -708,6 +728,7 @@ private fun BatchActionBar(
             modifier = Modifier
                 .fillMaxWidth()
                 .navigationBarsPadding()
+                .imePadding()
                 .padding(bottom = 12.dp, top = 4.dp),
             contentAlignment = Alignment.Center,
         ) {
@@ -730,6 +751,7 @@ private fun BatchActionBar(
                 modifier = Modifier
                     .fillMaxWidth()
                     .navigationBarsPadding()
+                    .imePadding()
                     .padding(horizontal = 16.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp),

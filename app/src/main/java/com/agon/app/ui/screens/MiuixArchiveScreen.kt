@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -71,6 +72,8 @@ fun MiuixArchiveScreen(
     val scope = rememberCoroutineScope()
 
     Scaffold(
+        // 键盘避让：与 ArchiveScreen 同一处处理。
+        modifier = Modifier.imePadding(),
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
@@ -168,12 +171,37 @@ fun MiuixArchiveScreen(
                                         }
                                     }
                                 },
-                                onDelete = { state.deleteEntry(entry.item.id) },
+                                onDelete = { state.requestDelete(entry) },
                                 modifier = Modifier.animateItem(),
                             )
                         }
                     }
                 }
+            }
+        }
+
+        MiuixDialog(
+            title = "彻底删除这条归档？",
+            summary = state.pendingDelete?.let { target ->
+                "「${target.item.name}」将被永久删除，无法恢复，也不会回到库存。想留作记录的话，请改用「恢复到库存」。"
+            } ?: "",
+            show = state.pendingDelete != null,
+            onDismissRequest = { state.cancelDelete() },
+        ) {
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                TextButton(
+                    text = "取消",
+                    onClick = { state.cancelDelete() },
+                    modifier = Modifier.weight(1f),
+                )
+                TextButton(
+                    text = "彻底删除",
+                    onClick = { state.confirmDelete() },
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.textButtonColors(
+                        textColor = MiuixTheme.colorScheme.error,
+                    ),
+                )
             }
         }
 

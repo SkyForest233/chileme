@@ -58,6 +58,19 @@ fun calculateDailyTrend(consumption: List<ConsumptionRecord>, todayDate: LocalDa
     }
 }
 
+/**
+ * 过期浪费总量（**按件数**，不是按归档条目数）。
+ *
+ * `FoodRepository.archiveItems` 归档时保留原 `quantity`（只有「吃完自动归档」才 copy(quantity = 0)，
+ * 那类归属 CONSUMED 不在此列）。所以「冰箱里 6 瓶冰红茶过期」应当是 6，不是 1；
+ * 同屏的「本周消耗」也是按件求和（`sumOf { it.amount }`），两者口径必须一致。
+ *
+ * 注意：本指标仍受归档上限 `take(200)` 影响——超出上限被淘汰的旧归档不再计入。
+ * 若要长期不失真，需要独立的单调计数器（见 docs/audits/2026-09-15-code-review.md §1.8）。
+ */
+fun calculateWastedTotal(archived: List<ArchivedItem>): Int =
+    archived.filter { it.reason == ArchiveReason.EXPIRED }.sumOf { it.item.quantity }
+
 fun calculateCategoryShare(items: List<FoodItem>): List<Pair<String, Int>> {
     return items.groupBy { it.category }
         .mapValues { (_, list) -> list.sumOf { it.quantity } }
@@ -91,7 +104,7 @@ fun rememberStatsUiState(viewModel: AppViewModel): StatsUiState {
     val consumedThisMonth = remember(consumption, todayDate) {
         calculateConsumedThisMonth(consumption, todayDate)
     }
-    val wastedTotal = archived.count { it.reason == ArchiveReason.EXPIRED }
+    val wastedTotal = remember(archived) { calculateWastedTotal(archived) }
 
     val dailyTrend = remember(consumption, todayDate) {
         calculateDailyTrend(consumption, todayDate)

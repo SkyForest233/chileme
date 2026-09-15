@@ -53,14 +53,14 @@ app/src/main/java/com/agon/app/
 | `CategoryDef` | `custom_categories` | 可编辑分类(id/label/emoji)；默认 8 个 id 沿用旧枚举名，新增用 UUID；孤儿 id 由 `byId()` 回退 FallbackCategory("其他") |
 | `List<String>` | `custom_locations` | 可编辑位置预设列表 |
 | `ArchivedItem` | `archived_items` | 归档：原 item + 归档日 + 原因(DELETED/CONSUMED/EXPIRED)；上限 200 |
-| `ConsumptionRecord` | `consumption_records` | 消耗流水（减库存时自动记录）；上限 1000 |
+| `ConsumptionRecord` | `consumption_records` | 消耗流水（减库存时自动记录）；90 天内逐笔，更早按「年×月×名称×单位」聚合成一条并标记 `aggregated=true`（见 `compactConsumptionAt`），无条数硬上限 |
 | `HistoryEntry` | `history_entries` | 录入历史（名称去重，上限 50） |
-| `Map<String,Int>` | `category_thresholds` | 分类临期阈值；key 为 FoodCategory.name |
-| `BackupData` | （导出文件） | 以上全部数据的聚合，version=2（含 categories/locations；v1 文件可兼容导入） |
+| `Map<String,Int>` | `category_thresholds` | 分类临期阈值；key 为 `CategoryDef.id`（不是枚举名/显示名） |
+| `BackupData` | （导出文件） | 以上全部数据的聚合，version=`BACKUP_VERSION`(=2)（含 categories/locations；v1 文件可兼容导入）。导入前必须经 `previewBackup()` 校验（含 `items` 键） |
 
 其他 key：`seeded`(Boolean)、`dynamic_color`(Boolean)、`dark_mode`(Int: 0跟随/1浅/2深)、`palette`(String: AppPalette 枚举名，默认 "MINT")、`theme_style`(String: ThemeStyle 枚举名，默认 "MATERIAL3")、`floating_nav`(Boolean: 悬浮导航开关，默认 true)（v2.8）。
 
-**状态判定逻辑**（FoodModels.kt）：`statusFor(thresholds)` — 过期: daysLeft<0；临期: daysLeft<=有效阈值；有效阈值 = 单条覆盖 ?: 分类设置 ?: 7。UI 一律用 `statusFor`，不要自行比较天数。
+**状态判定逻辑**（FoodModels.kt）：`statusForAt(thresholds, today)` — 过期: daysLeft<0；临期: daysLeft<=有效阈值；有效阈值 = 单条覆盖 ?: 分类设置 ?: 7。UI 一律用 `statusForAt`（`today` 取 `LocalToday`，跨零点才会刷新），不要自行比较天数，也不要再用内部取 `LocalDate.now()` 的旧属性。
 
 ## 4. 导航路由表
 
@@ -94,23 +94,35 @@ app/src/main/java/com/agon/app/
 - **数据完整性守卫（2026-08-21）**：解码分三态 `Decoded.Ok / Empty / Corrupt`
   - 「用户资产型」key（`food_items` / `archived_items` / `consumption_records` / `history_entries`）走 `decodeStrict`，解析失败即 `Corrupt`
   - **所有写路径必须先 `isCorrupt(...)` 守卫，命中则 `return@edit` 放弃写入**。理由：此前 `Corrupt` 与 `Empty` 都回落 `emptyList()`，随后任一写操作会把空表 encode 覆盖，一次解析异常即永久摧毁全部数据。新增写方法时**必须**加守卫
-  - 例外（允许在损坏态执行，因其本身就是恢复/丢弃手段）：`clearAll()` / `clearArchive()` / `importBackupJson()`，执行后解除对应标记
+  - **守卫按 key 粒度（2026-09-15）**：守卫只覆盖**本次写入真正会覆盖的 key**，且**主数据必须先判、辅助数据按需判**。已落地的三处：`upsert` 在 `history_entries` 损坏时跳过历史写入、库存照常保存；`changeQuantity` 分别判 `consumption_records`（跳过消耗记录，`consumptionId` 返回 null 因而不给撤销入口）与 `archived_items`（归档不可写时**保留 0 数量记录而不删库存**，避免「删了却归档不进去」的数据丢失）；`undoConsumption` 只在「需要从归档恢复」的分支才要求归档可写。**禁止退回 `isCorrupt(a, b, c)` 式一起判**：辅助数据损坏会连带锁死核心功能（`CorruptGuardTest` 静态拦截）
+  - 例外（允许在损坏态执行，因其本身就是恢复/丢弃手段）：`clearAll()` / `clearArchive()` / `importBackupJson()` / `discardCorrupt()`，执行后解除对应标记
+  - **放弃损坏数据入口（2026-09-15）**：`discardCorrupt(keys)` 删除这些 key 的内容并解除损坏标记，让写入恢复；**不动 `filesDir/corrupt/` 里的留档**。UI 入口是首页横幅上的「放弃这部分数据」按钮（MD3 用 `AlertDialog`、Miuix 用 `MiuixDialog` 二次确认），文案由 `corruptKeyNames()` 复用生成
   - `buildBackupJson()` 在损坏态**抛异常**，避免生成残缺备份；调用方需捕获（两个设置页提示用户，自动同步/手动上传则放弃本次上传，防止残缺备份覆盖云端完好版本）
   - 损坏原始串留档 `filesDir/corrupt/<key>-<时间戳>.json`；`corruptedKeys: StateFlow<Set<String>>` 暴露给 UI，首页顶部显示 `DataCorruptBanner`（`ui/components/Common.kt`，MD3 / Miuix 共用）
   - 「配置型」key（thresholds / categories / locations）丢失可重设，维持回落默认值的旧行为，不阻断写入
+- **读流兜底（2026-09-15）**：所有 DataStore 读流统一经 `FoodRepository.resilientRead()` —— `IOException` 先退避重试 2 次（间隔 300ms），仍失败则记日志并回落默认值（`rawFlow` 解码 `null` = Empty、`lightFlow` 用传入的 fallback）。理由：19 个 `stateIn` 全是 `SharingStarted.Eagerly` 且 `viewModelScope` 未挂 `CoroutineExceptionHandler`，读异常会终止共享协程→交给默认处理器→**杀进程**。**新增读流一律走 `rawFlow()` / `lightFlow()`，禁止直接 `dataStore.data`**
+- **启动放行超时（2026-09-15）**：`MainActivity.READY_TIMEOUT_MS`（3s）。`ready`（DataStore 首发）在 3 秒内未达成也强制渲染首帧——否则「读阻塞/异常」会让启动画面永久停留，用户只能杀进程。`contentReady` 用 `mutableStateOf`，因为 composition 里读它
+- **封面清理守卫（2026-09-15）**：`cleanupOrphanCovers()` **仅在 `corruptedKeys` 为空时执行**。损坏态下 items/archive 解码回落空集，照常清理会把 `covers/` 下所有文件当孤儿删除，而图片无法从 `corrupt/` 的 JSON 留档恢复
+- **恢复前置快照（2026-09-15）**：三条恢复路径（文件导入 / 坚果云整版本恢复 / 本地快照还原）都先经 `AppViewModel.snapshotBeforeRestore()` 留一份「操作前状态」，用户可回退。**顺序陷阱**：本地快照还原必须**先读出目标快照内容、再写前置快照**——反过来在快照已满 3 份时会按修改时间把目标挤掉
+- **本地快照 IO（2026-09-15）**：`LocalSnapshotStore` 的 `saveSnapshot` / `listSnapshots` / `readSnapshot` 均为 `suspend` + `withContext(Dispatchers.IO)`（此前在主线程写盘/读盘）；列表条数用 `countItemsInSnapshot()` **解析 JSON** 得到，禁止再用正则数 `"id":`（会把归档/消耗/历史里的 id 也算进去）
+- **导入备份加固（2026-09-15）**：SAF 选文件 → `readBackupText()`（IO 线程，20 MB 上限）→ `previewBackup()`（必须含 `items` 键且可解析，否则拒收）→ 二次确认弹窗（导出日期 / 各表条数 / schema 版本）→ `importBackupWithSnapshot()`（**先写一份本地快照兜底**再整体替换）。禁止退回「选完即覆盖」
 - **Flow 读取规约（2026-08-21）**：DataStore 每次 `edit` 都会重发整份 Preferences。所有重型（需 JSON 解码）key 一律走 `rawFlow()` —— 先取原始串 → `distinctUntilChanged()` → 解码 → `flowOn(Dispatchers.Default)`；轻量 key 走 `lightFlow()`（仅去重）。**禁止**直接 `dataStore.data.map { decodeXxx(...) }`：那会让改一次主题色就重新解析全部 JSON 并产生新 List 实例（全屏重组），且解码发生在 `viewModelScope`（`Main.immediate`）即主线程
 - **备份排除规则（2026-08-21）**：`res/xml/backup_rules.xml`（API ≤30）与 `res/xml/data_extraction_rules.xml`（API 31+）排除 `datastore/`。坚果云密码是 Keystore AES-GCM 密文，**密钥不跨设备**，备份恢复后必然解不开；`nutstoreCredentialBrokenFlow` 检测该状态并在设置页提示重新填写
 - **归档恢复去重（v2.4）**：`restoreArchived()` —— 同 ID 只移除归档；同名+同生产日期合并数量（返回 merged 供 UI 提示）；否则新增，数量 0 恢复为 1
 - **主题渐变（v2.4）**：Theme.kt `animateColorScheme()` 对全部 35 个颜色角色 450ms tween；新增颜色角色时需同步加入该函数
 - **图片存储**：封面统一通过 `copyImageToCovers()` 落盘到 `filesDir/covers/`，FoodItem 只存绝对路径；展示用 `FoodAvatar`，优先级：照片 > coverText > 分类 emoji
 - **进度条语义**：一律用 `elapsedRatio`（正相关，时间过去多少走多少），禁止再用 freshness 直接作进度
+- **键盘避让（2026-09-15）**：Android 15+ 强制 edge-to-edge 后 manifest 的 `adjustResize` **不再缩窗口**，键盘只是叠在窗口上，必须自己消费 `WindowInsets.ime`。三条硬规则：① **含输入框的屏幕**一律 `Scaffold(modifier = Modifier.imePadding())`（整屏缩到键盘之上，滚动区同步变矮）；② **不在 Scaffold 内的 App 级浮层**用 `.navigationBarsPadding().imePadding()` 两段式（等价于旧的 `navigationBarsWithImePadding()`，内层只补差额，不会叠加成一条大空隙）——**底栏按产品决定不跟随抬升（A 方案）**，是全 App 唯一「键盘弹出时允许被遮挡」的元素；③ **MD3 弹窗**是独立浮动窗口，必须 `DialogProperties(decorFitsSystemWindows = false)` 才会把 IME inset 透给内容，否则底部按钮被键盘盖住。**Miuix `WindowDialog` 例外**：库内 `DialogContent` 根节点自带 `imePadding()`（窗口属性 `decorFitsSystemWindows = false` + `usePlatformDefaultWidth = false`），本项目**不要**传 `defaultWindowInsetsPadding = false`，也不要给 Miuix 弹窗再加 padding。回归守卫见 `ImeHandlingTest`
+- **统计口径（2026-09-15）**：「过期浪费」= `calculateWastedTotal(archived)`，按**件数**（`sumOf { item.quantity }`）而非归档条数，与同屏按件求和的「本周消耗」保持一致。注意该指标仍受归档上限 `take(200)` 影响，长期不失真需独立计数器（见 `docs/audits/2026-09-15-code-review.md` §1.8）
+- **「件」与「条」的用词规则（2026-09-15）**：写给用户的**带「件」的文案必须是 `quantity` 求和**（`BackupData.itemQuantity` / `HomeScreenState.quantityOfStatus` / `StatsState` 的按件字段），`items.size` 只能出现在「条/记录」语境或**不带单位**的筛选计数里（首页三张统计卡不带单位、点进去是记录列表）。归档/消耗/历史一律「条」。已按此修正：首页新鲜度横幅、一键清理按钮及其撤销提示、导入预览的库存位数
+- **Miuix 屏幕只换外壳（2026-09-15）**：`Miuix*Screen.kt` 必须调用 `remember*UiState` 复用已测状态容器，**禁止在 UI 文件里重写聚合计算**；`MiuixParityTest` 会静态拦截（此前 `MiuixStatsScreen` 手抄了一份统计逻辑，导致 `StatsStateTest` 测的是 MIUIX 下不执行的代码）
 - **启动门控**：MainActivity 用 core-splashscreen `setKeepOnScreenCondition` 持住启动画面，直到 `viewModel.ready`（DataStore 首发）才渲染，避免主题/内容闪烁；新增首屏依赖的 Flow 时要加入 ready 的 combine
 - **拍照**：FileProvider authority 固定 `com.agon.app.fileprovider`，临时文件写 `cacheDir/camera/`，paths 配置见 `res/xml/file_paths.xml`。该文件已由 `path="."`（暴露整个私有目录）收窄为仅 `camera/` 与 `covers/` 两个子目录，新增共享目录需显式登记
-- **备份**：导出用 `CreateDocument("application/json")`，导入用 `OpenDocument`；导入是整体替换而非合并
+- **备份**：导出用 `CreateDocument("application/json")`，导入用 `OpenDocument`；导入是整体替换而非合并（流程加固见上方「导入备份加固」条）
 - **列表批量操作**：长按卡片进入多选模式（selectedIds 非空即多选）；顶栏切换为选择态（退出/全选），底部滑入批量归档栏；BackHandler 退出多选；批量操作走 `archiveBatch`/`restoreArchivedBatch`；多选期间 FAB 隐藏（fabSuppressed）
 - **应用图标**：自适应图标 `mipmap-anydpi-v26/ic_launcher.xml`（前景 `drawable-*/ic_launcher_foreground.png` + 纯色背景 `#FBF6E9`）；legacy 兰容图标在 `mipmap-*/ic_launcher.png`；源图由用户 SVG 处理而来（已去黑边，主体缩放至 66dp 安全区）
 - **Snackbar**：带悬浮导航栏的屏幕，SnackbarHost 必须加 `padding(bottom = 84.dp)` 避免遮挡
 - **撤销 Snackbar**：`ui/components/UndoSnackbar.kt` 的 `showUndoSnackbar`。MD3 自绘 Material History 圆环 path（去指针），变换到圆心后再叠粗数字。消耗记录撤销：`DeletedConsumption(record, index)`，`addConsumption(record, index)` 插回删除前在日期倒序列表中的位置，避免 `listOf(record)+records` 提到最前；LazyColumn `animateItem` 带 placementSpec。消耗记录页 MD3 宿主加 `navigationBarsPadding` + 24dp。覆盖层 Box 必须 `fillMaxWidth`。MIUIX 宿主保持库默认 `canSwipeToDismiss=true`
-- **滑动归档（两段式）**：SwipeToDismissBoxState 用 `remember(item.id)` 手动构造（禁止 rememberSaveable，防撤销后复用脏状态循环触发）；第一滑弹回进入 armed 待确认（3.5s 超时解除），第二滑才确认滑出；`deleted` 标志保证 onDelete 只触发一次；列表项配 `animateItem(fadeIn 280/fadeOut 200)`
+- **批量操作（v2.3 起，取代早期「两段式滑动归档」）**：列表项**长按进入多选**（`MainActivity` 的 `BatchActionBar`），选中集合通过 `AppViewModel.selectedIds` 暴露；底部操作栏提供 归档 / 改存放位置 / 取消，归档时按 `ArchiveReason.DELETED` 记因。**不要**再按滑动归档实现新功能（`SwipeToDismissBox` 现在只用于 `UndoSnackbar` 的提示条滑动）
 - **FAB 与撤销**：Snackbar 展示“撤销”期间调 `viewModel.setFabSuppressed(true)` 隐藏 FAB（finally 复位），避免遮挡撤销按钮
 - **底栏自动隐藏**：MainApp 的 NestedScrollConnection 监听列表滚动，下滑隐藏底栏+FAB（slideOutVertically），上滑/切页恢复

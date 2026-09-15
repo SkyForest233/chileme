@@ -1,7 +1,6 @@
 package com.agon.app.data
 
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -32,6 +31,40 @@ class LocalSnapshotTest {
         assertTrue(f3.name in remaining)
         assertTrue(f1.name !in remaining)
         assertTrue(f2.name !in remaining)
+    }
+
+    @Test
+    fun `countItemsInSnapshot 解析 items 条数而不是全文数 id`() {
+        // 旧实现用 Regex("\"id\"\\s*:") 全文匹配，会把归档/消耗/历史里的 id 也算进去。
+        // 另外这里的条目**故意只有 id/name**：计数不该被条目 schema 绑架
+        // （改成反序列化 BackupData 后，缺字段会让整份快照显示 0 条 —— CI 第一次跑就是这么挂的）。
+        val json = """
+            {
+              "version": 2,
+              "items": [
+                {"id": "a", "name": "牛奶"},
+                {"id": "b", "name": "饼干"}
+              ],
+              "archived": [ {"item": {"id": "c", "name": "过期酸奶"}} ],
+              "consumption": [ {"id": "d"}, {"id": "e"} ],
+              "history": [ {"id": "f"} ]
+            }
+        """.trimIndent()
+        assertEquals(2, countItemsInSnapshot(json))
+    }
+
+    @Test
+    fun `countItemsInSnapshot 对空档与畸形内容返回 0`() {
+        assertEquals(0, countItemsInSnapshot("""{"items": []}"""))
+        assertEquals(0, countItemsInSnapshot("{}"))
+        assertEquals(0, countItemsInSnapshot("这不是 JSON"))
+        assertEquals(0, countItemsInSnapshot(""))
+    }
+
+    @Test
+    fun `countItemsInSnapshot 容忍未来新增字段`() {
+        val json = """{"items":[{"id":"a"}],"someFutureField":{"x":1}}"""
+        assertEquals(1, countItemsInSnapshot(json))
     }
 
     @Test
