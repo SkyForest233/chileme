@@ -16,7 +16,7 @@
 | 数据完整性守卫 | `Decoded.Ok/Empty/Corrupt` 三态（`FoodRepository.kt:31-48`）+ 写路径 `isCorrupt` 守卫 + 损坏留档 + UI 告警条，思路正确且注释解释了"为什么" |
 | Flow 读取规约 | `rawFlow()` / `lightFlow()`（`FoodRepository.kt:168-175`）避免"改主题色 → 全量重解析 JSON"，是正确的 DataStore 用法 |
 | 构建/发布 | Version Catalog、R8（不混淆但压缩）、release 签名缺失即失败、CI 跑 lint 且 `NewApi` 提升为 error——都是"踩过坑之后"的正确决定 |
-| 测试起步 | 10 个测试文件 42 例，纯函数优先（`statusForAt` / `compactConsumption` / `planRestore` / `parsePropfind` / 三态解码），选点准确 |
+| 测试起步 | 10 个测试文件 **73 例**（`grep -c @Test` 实测；`devlog/INDEX.md` 写的 42 例已过期），纯函数优先（`statusForAt` / `compactConsumption` / `planRestore` / `parsePropfind` / 三态解码），选点准确 |
 | 隐私定位 | 无网络依赖（除用户自配 WebDAV）、无统计 SDK、Keystore 加密凭据 |
 
 **最需要修的不是"缺功能"，而是三个系统性隐患**
@@ -94,13 +94,13 @@
   LaunchedEffect(ready) { if (ready) contentReady = true }
   if (!ready) return@setContent
   ```
-- 全项目 25 个 `stateIn(Eagerly)`（`AppViewModel.kt:37-125`）都没有异常处理；`viewModelScope` 未挂 `CoroutineExceptionHandler`；
+- 全项目 **19 个** `stateIn(...)` 且全部 `SharingStarted.Eagerly`（`AppViewModel.kt:37-125`，实测计数）都没有异常处理；`viewModelScope` 未挂 `CoroutineExceptionHandler`；
 - 写路径：`AppViewModel` 里 `viewModelScope.launch { repo.xxx() }` 形式的调用约 40 处，无一处 `try/catch`。`DataStore.edit` 在磁盘满 / IO 错误时抛 `IOException`。
 
-**影响（两种后果都会发生）**
+**影响（按可能性排序）**
 
-- 上游 flow 抛异常 → `stateIn` 的共享协程失败 → `viewModelScope` 无处理器 → 交给线程默认处理器（**进程崩溃**）；
-- 即使不崩（例如异常发生在某个非 `ready` 参与流上），`ready` 也永远为 `false` → **Splash 永久停留**，用户只能杀进程；
+- **主因：进程崩溃。** 上游 flow 抛异常 → 该 `stateIn` 的共享协程失败 → `viewModelScope` 是 `SupervisorJob()` 根 Job 且未挂 `CoroutineExceptionHandler` → `handleCoroutineException` 回落到线程默认处理器 → 进程被杀。注意几乎所有读流都会走到这一步：`itemsFlow` 在 `ready` 的 `combine` 里，`archiveFlow`/`historyFlow` 在 `suggestionSource` 的 `combine` 里，任一条失败即崩；
+- **次生：卡在启动页。** 只有在"流一直不发射"（读阻塞 / 系统级问题）而非抛异常时才会出现：`ready` 永为 `false`，`setKeepOnScreenCondition` 不放行，用户只能杀进程——这也是为什么 `ready` 必须加超时，而不是只加 `catch`；
 - 写异常 → 直接崩溃，且 `EditFoodScreen` 里 `viewModel.upsert(item); onBack()`（`EditFoodScreen.kt:222`）是"乐观返回"，写失败时用户看到的是"保存成功并返回"。
 
 **建议**
@@ -124,7 +124,7 @@ val ok = raw != null && state.importBackupJson(raw)   // 直接整体替换
 - 无二次确认（对比：云端恢复有 `restoreCandidate` 二次确认 `SettingsScreen.kt:812-830`，本地快照恢复也有 `:899-915`——**同一 App 内三套标准**）；
 - 无导入前自动本地快照（`LocalSnapshotStore` 明明已有能力）；
 - 无体积上限（`readBytes()` 全量入内存，几百 MB 的"备份"可 OOM）；
-- `BackupData.version` 字段（`FoodModels.kt:146`）**从未被校验**，也没有迁移分发；
+- `BackupData.version` 字段（`FoodModels.kt:145`）**从未被校验**，也没有迁移分发；
 - 无内容校验：`productionEpochDay` 越界 / `shelfLifeDays` 为负 / `quantity` 为 1e9 / 空 name 都会原样落库，之后污染排序、统计与 UI。
 
 **建议**
@@ -202,7 +202,7 @@ val ok = raw != null && state.importBackupJson(raw)   // 直接整体替换
 - `AppViewModel.kt:387-389`：`_localSnapshots.value = LocalSnapshotStore.listSnapshots(getApplication())`（在 Main 上执行）；调用点 `SettingsScreen.kt:647`、`MiuixSettingsScreen.kt:519` 都在点击回调里；
 - `LocalSnapshotStore.kt:62-71`：为了显示"包含 N 项资产"，对**每个快照整份 `readText()`** 再用正则数 `"id":` 出现次数。
 
-**影响**：(a) 有 3 份几 MB 的 JSON 时，点开"本地快照"必然掉帧甚至 ANR（StrictMode 会直接报 DiskReadViolation）；(b) 统计数字**偏大**——`archived[].item.id`、`consumption[].id`、`history` 都被算进去了，用户看到的"资产项数"没有意义。
+**影响**：(a) 打开"本地快照"时在**主线程**读 3 份完整 JSON + 正则扫描——注意 `SettingsScreen.kt:647` / `MiuixSettingsScreen.kt:519` 都在点击回调里（Main）。几 MB 量级时是明显卡顿与 StrictMode `DiskReadViolation`（默认未开启，所以线上表现为掉帧）；单次 5s 级 ANR 只在快照异常大时才可能，不必夸大；(b) 统计数字**偏大**——`archived[].item.id`、`consumption[].id`、`history` 都被算进去了，用户看到的"资产项数"没有意义。
 
 **建议**
 
@@ -219,7 +219,7 @@ val ok = raw != null && state.importBackupJson(raw)   // 直接整体替换
 | 位置 | 现状 | 问题 | 建议 |
 |---|---|---|---|
 | `StatsState.kt:42-45` + `StatsScreen.kt:122` | 卡片写"**本周**消耗"，算法是 `today-6 .. today` | 周二看到的"本周"其实包含上周三~周日 | 改 ISO 周（周一起）或把文案改成"近 7 天" |
-| `StatsState.kt:68-75` | TOP5 按 `name` 分组，`amount` 直接相加，`category` 取 `first()` | "牛奶 3 瓶 + 2 箱 = 5"，与 `compactConsumptionAt` 特意加入 `unit` 分组的结论**自相矛盾**（`FoodModels.kt:216-243`） | 分组键改 `(name, unit)`，展示"牛奶 · 瓶" |
+| `StatsState.kt:68-75` | TOP5 按 `name` 分组，`amount` 直接相加，`category` 取 `first()` | "牛奶 3 瓶 + 2 箱 = 5"，与 `compactConsumptionAt` 特意加入 `unit` 分组的结论**自相矛盾**（`FoodModels.kt:229-243`） | 分组键改 `(name, unit)`，展示"牛奶 · 瓶" |
 | `StatsState.kt:94` | 过期浪费按**条数**统计且依赖 200 条归档 | 见 §1.8；且"1 箱牛奶"和"1 包糖"权重相同 | 用数量或独立计数 |
 | `StatsState.kt:61-67` | 分类占比只用**当前库存** | 已吃完/已归档的食品让占比失真（用户视角是"我的消耗结构"） | 提供"库存 / 消耗"切换，或明确文案"当前库存构成" |
 
@@ -233,7 +233,7 @@ val ok = raw != null && state.importBackupJson(raw)   // 直接整体替换
 |---|---|---|---|
 | a | `CloudSync.kt:57-61` | OkHttp 未设 `callTimeout`；`upload`（:85-110）把"上传成功"和"轮转清理"放在**同一个 `runCatching`** 里，PROPFIND 失败会让整体返回 `Result.failure`，于是 `lastSync` 不更新、UI 报"上传失败"，而云端其实已有一份新备份 | 加 `callTimeout(60s)`；轮转包在独立 `runCatching` 内（清理失败不算上传失败） |
 | b | `CloudSync.kt:161-164` | 用正则解析 PROPFIND XML（`split("</...response>")` + 两个正则）；虽然有单测，但对命名空间前缀变体/嵌套 `<D:response>` 脆弱 | 换 `XmlPullParser`（Android 内置，无新依赖），保留 `parsePropfind` 签名与既有测试 |
-| c | `CloudSync.kt:30-34` | `displaySize` 用默认 Locale 的 `"%.1f".format(...)`，德语/法语环境显示 "1,5 MB"，而 `LocalSnapshot.displaySize` 用 `Locale.US` —— 同一 App 两种格式 | 统一 `Locale.US` 或走资源字符串 |
+| c | `CloudSync.kt:30-34` | `displaySize` 用默认 Locale 的 `"%.1f".format(...)`（Kotlin 的 `String.format` 走 `Locale.getDefault(FORMAT)`），德语/法语环境显示 "1,5 MB"，而 `LocalSnapshotStore.kt:26-27` 用 `Locale.US` —— 同一 App 两种格式。**且** `CloudBackupTest.kt:43-44` 断言了 `"2.0 KB"`/`"1.5 MB"`，在逗号小数分隔符的机器上**本地单测会失败**（CI 的 `LANG=C` 恰好掩盖了它） | 统一 `Locale.US` 或走资源字符串；测试固定 `Locale.setDefault(Locale.US)` |
 | d | `CloudSync.kt:47` | `BASE_URL` 硬编码坚果云 | 设置页加"自定义 WebDAV 地址"（可选，高级），至少留注释说明如何改 |
 | e | `FoodModels.kt:146` | `BackupData.exportedEpochDay` 用 `LocalDate.now()` 作 data class 默认值——隐式依赖时钟 | 由 `buildBackupJson` 显式传入（顺便注入 `Clock`，见 §2.3） |
 | f | `ImageStore.kt:52,76` | 解码失败时**降级为原始流直接拷贝**（5–15 MB 原图落盘，且不做 EXIF 纠正）——静默突破"长边 ≤1200px"的设计承诺 | 降级路径加日志 + 尺寸上限；失败时删除半成品文件 |
@@ -266,7 +266,7 @@ val ok = raw != null && state.importBackupJson(raw)   // 直接整体替换
 3. **`MainActivity` 收敛**：`MainTabsPager` 里的 4 组 if/else 变成 4 个直接调用（`MainActivity.kt:904-955`）。
 4. **守住底线**：编辑页/统计页保留各自实现（DatePicker 与图表无 Miuix 对应）——但要写进 `DESIGN_SPEC.md` §7 作为**明确例外**，避免后来者以为是漏改。
 
-**代价**：大（3–5 天），但这是唯一能停止"3,329 行重复"继续增长的办法；建议在有 §2.9 的 UI 测试基线之后动手（否则没有安全网）。
+**代价**：大（**估算** 3–5 人天，未实测），但这是唯一能停止"3,329 行重复"继续增长的办法；建议在有 §2.9 的 UI 测试基线之后动手（否则没有安全网）。
 
 ---
 
@@ -288,7 +288,7 @@ return remember(items, archived, categories, thresholds, today, query, statusFil
 **建议**：把"flow → 派生数据"的表达搬到 VM，用 `combine(...).map{}.stateIn(viewModelScope, WhileSubscribed(5_000), initial)` 或 `derivedStateOf` 产出不可变 `UiState`；Compose 侧只留 `dialog 开关`/`输入框草稿`/`展开态`。附带收益：
 
 - 全部可 JVM 单测（无需 Compose 测试运行器）；
-- 副页面的 flow 用 `WhileSubscribed`（现在是 25 条 `Eagerly` 全程常驻，启动即解码全部 JSON）；
+- 副页面的 flow 用 `WhileSubscribed`（现在是 19 条 `Eagerly` 全程常驻，启动即解码全部 JSON）；
 - `combine` 的 transform 现在跑在 `viewModelScope`（Main.immediate）上——例如 `suggestionSource`（`AppViewModel.kt:58-62`）每次 items 变化都在**主线程**做 `distinctBy`。改用 `flowOn(Dispatchers.Default)` 或 `stateIn` 前的 `map` 放到后台。
 
 **代价**：中（逐页迁移，每页半天）。
@@ -396,7 +396,7 @@ class AppContainer(app: Application) {
 
 ### 🟡 2.9 测试策略：从"纯函数"扩展到"守卫与集成"
 
-**现状**（10 个文件 / 42 例）：纯函数覆盖得不错——`statusForAt`、`compactConsumptionAt`、`planRestore`、`filterFoodItems`、`calculate*`、`parsePropfind`、v1→v2 兼容、三态解码。
+**现状**（10 个文件 / **73 例**，实测）：纯函数覆盖得不错——`statusForAt`、`compactConsumptionAt`、`planRestore`、`filterFoodItems`、`calculate*`、`parsePropfind`、v1→v2 兼容、三态解码。
 
 **缺口（按价值排序）**
 
@@ -460,13 +460,14 @@ class AppContainer(app: Application) {
 | 产物 | 每个 PR 上传 63 MB debug APK | `retention-days: 7`，或仅在失败时上传 |
 | 静态检查 | 只有 lint | 加 ktlint/detekt |
 
-### 🟠 4.3 文档漂移（三处已确认）
+### 🟠 4.3 文档漂移（六处已确认）
 
 1. `ARCHITECTURE.md:114` 仍在描述**已删除的功能**："滑动归档（两段式）… 第一滑弹回进入 armed 待确认 … `remember(item.id)` 构造 SwipeToDismissBoxState"。全仓库已无 `SwipeToDismissBox` 用于列表（只有 `UndoSnackbar.kt` 的 Snackbar 用了它），`REQUIREMENTS.md` F5 也写着 v2.3 已改为长按多选。→ 删除该段，改为描述"长按多选 + 底部批量操作栏"。
 2. `ARCHITECTURE.md` §3 注释："`category_thresholds`；key 为 `FoodCategory.name`"——实际已是 `CategoryDef.id`（`ManageState.kt:22-26`）。
 3. `REQUIREMENTS.md` 头部："版本：v2.0 · 状态：已实现并验收"，而实际已到 v2.8.1（CLAUDE.md 自己写 v2.8）。→ 版本号应指向 devlog INDEX 或改为"截至 2026-08-22 全部已实现"。
 4. `docs/audits/ci/build.yml` 与 `.github/workflows/build.yml` **逐字节相同**（已核对），`docs/audits/ci/release.yml` **已与真实工作流产生差异**（`diff` 可复现）。→ 删除 `docs/audits/ci/` 与两份 `.patch`（`2026-08-21-*.patch`），文档里改用链接指向真实文件；保留历史副本的代价是"读者会照着过期的 YAML 排查问题"。
 5. `devlog/INDEX.md` 的"当前待办总览"里"高优先级：本地构建验证 v2.8"仍挂着（2026-08-22 的日志写"CI 通过"，但 INDEX 未同步）——建议核对一次。
+6. `devlog/INDEX.md` 写"状态层单测…新增 16 例，**总 42 例**"，而仓库实际有 **73** 个 `@Test`（10 个文件，`grep -c` 实测；全部由最近一次提交引入）。测试规模被低估了 40%，会直接影响"要不要继续投入测试"的判断。
 
 ### 🟡 4.4 仓库卫生
 
@@ -523,3 +524,37 @@ class AppContainer(app: Application) {
 - 未编译、未运行、未上机（沙箱无 JDK / Android SDK），所有结论来自源码与配置的静态推演；涉及运行时行为的判断（§1.1/§1.3）已在文中给出触发路径与代码证据，但仍建议先在真机按路径复现一次再改。
 - 未评估第三方库（Miuix 0.9.4-rc01、MaterialKolor）的 API 正确性；Miuix 相关 API 应以 `.claude/skills/miuix` 的 pinned source 为准。
 - 未做性能剖析（无设备），§1.9 / §2.2 的性能结论基于"主线程 I/O 与主线程全量解码"的事实推断。
+
+---
+
+## 7. 结论可靠性自评（针对"这份审计是否合理"）
+
+把本文的结论按**证据强度**分三类，便于决定"照做"还是"再确认"：
+
+### A. 事实级（可用命令行/`file:line` 复现，可直接照做）
+
+§1.1（损坏态删封面）、§1.2（守卫粒度过粗）、§1.4（导入无确认/无校验/无版本判断）、§1.5（明文回退分支存在）、§1.6（备份规则排除整库、`covers/` 却在 device-transfer 中未排除）、§1.7（绝对路径）、§1.8（`take(200)` + 统计依赖它）、§1.9（主线程 I/O + `"id":` 计数偏大）、§1.10（"本周"= 近 7 天；TOP5 只按 name 分组）、§1.11 全部、§4.3 全部（含 `docs/audits/ci/*.yml` 已漂移、`ARCHITECTURE.md:114` 描述已删除功能）。
+
+这些不依赖对运行时行为的推测：要么是代码里"读得到"的事实，要么是两次 `grep`/`diff` 可直接复现的差异。
+
+### B. 推断级（有代码证据，但严重程度依赖运行时表现，建议先复现再定性）
+
+- §1.3（异常 → 崩溃 / 卡启动页）：崩溃路径由 `SupervisorJob` + 无 `CoroutineExceptionHandler` 的协程语义推出，**触发条件**（DataStore 读/写抛 `IOException`、文件损坏）在真机上属小概率；建议先按"读流加 `catch` + `ready` 加超时"修掉，风险为零；
+- §1.9 / §2.2 的性能结论：来自"主线程 I/O / 主线程 `combine`"的事实，具体卡顿幅度未实测；
+- §1.11(a)（上传成功却报失败）：由 `runCatching` 的范围推出，需一次网络异常场景才能观察。
+
+### C. 判断/取舍级（**不建议直接照做，需要你决策**）
+
+- §1.2 的"守卫改按 key 粒度"**修改了项目已写进文档的安全不变量**（`ARCHITECTURE.md` §5「损坏时放弃写入」）。它换来可用性，但把"整表覆盖"的风险窗口从 0 变成"仅限损坏的那个 key"。这是产品级取舍，应由你确认后再改文档、再改代码；
+- §1.6 的"凭据拆库 + 用户数据参与系统备份"**改变了隐私承诺的措辞**（README 现称"数据 100% 仅存本机"）；
+- §2.1（组件层去重）的工作量是估算；§2.5 的"何时上 Room"取决于未来需求；
+- §3.x 中标注 **[需确认]** 的三条属于 `REQUIREMENTS.md` §4 的"明确不做"，按项目规矩必须你点头；
+- §1.10 改文案（"本周"→"近 7 天"）与改算法（周一起算）是两种产品选择，本文只指出不一致，未替你选。
+
+### D. 本文自身的已知局限（复核后已修正）
+
+- 初稿把"读流异常"的后果写成"崩溃与卡启动页都会发生"——更准确的表述是：**崩溃是主因，卡启动页只在"流不发射"时出现**（§1.3 已更新）；
+- 初稿称点开"本地快照"**必然 ANR**——夸大了，实际是主线程 I/O 导致的卡顿，ANR 需要异常大的快照（§1.9 已更新）；
+- 初稿沿用 `devlog/INDEX.md` 的"42 例"，实测为 **73 例**；另把 `stateIn` 数量写成 25，实测 **19**（§0 / §2.2 / §2.9 已更正）；
+- 初稿的 `BackupData.version` 行号写错一行（应为 `FoodModels.kt:145`，§1.4 已更正）；
+- **未编译、未运行、未上机**：任何与运行时性能、Android 版本行为、厂商 ROM 差异相关的判断都未经验证。
