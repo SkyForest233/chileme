@@ -175,6 +175,13 @@ dependencies {
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.material3)
+    // 图标（2026-09-15 复核）：material-icons-extended 官方已弃用（不再发布更新、
+    // 已从 Material3 1.4+ 的 BOM 映射中移除，推荐自行引入 Material Symbols 矢量图）。
+    // 这里**暂时保留**：MD3 主题共有 70 处 `Icons.Rounded.*` 引用，其中 History / Schedule /
+    // RestartAlt / Inventory / CleaningServices / Category / CalendarMonth / TableChart /
+    // PieChart / FilterList 等图标只存在于 extended 包，迁移需要逐个人工引入矢量资源（约 40 个
+    // 图标），属于独立一轮的改动，不适合塞进本次小批量。若日后解析失败，做法是：把用到的图标从
+    // Google Fonts「Android」标签页导出为 Vector Drawable 放进 res/drawable，再逐步替换引用。
     implementation(libs.androidx.compose.material.icons.extended)
     implementation(libs.androidx.compose.ui.tooling.preview)
 

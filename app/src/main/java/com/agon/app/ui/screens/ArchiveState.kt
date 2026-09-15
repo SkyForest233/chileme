@@ -111,6 +111,7 @@ fun rememberArchiveUiState(viewModel: AppViewModel): ArchiveUiState {
             onReasonFilterChanged = { reasonFilter = it },
             onQueryChanged = { query = it },
             onShowClearDialogChanged = { showClearDialog = it },
+            onPendingDeleteChanged = { pendingDelete = it },
         )
     }
 }

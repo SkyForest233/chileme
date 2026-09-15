@@ -37,12 +37,13 @@ class CorruptArchiveTest {
         pruneCorruptDir(dir, maxPerKey = 3, maxTotal = 100)
 
         val left = dir.listFiles()!!.map { it.name }.sorted()
-        assertEquals(3, left.size)
-        assertTrue(
-            "应保留最新的三份（…0903/0904/0905），实际：$left",
-            left.any { it.contains("20260903") } &&
-                left.any { it.contains("20260904") } &&
-                left.any { it.contains("20260905") },
+        assertEquals(
+            listOf(
+                "food_items-20260903_101112.json",
+                "food_items-20260904_101112.json",
+                "food_items-20260905_101112.json",
+            ),
+            left,
         )
     }
 
