@@ -3,10 +3,8 @@ package com.agon.app.ui.screens
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.agon.app.data.ArchivedItem
 import com.agon.app.data.BackupData
@@ -115,71 +113,76 @@ class SettingsUiState internal constructor(
 
     // ---- 本屏私有的 UI 状态（弹窗、候选、输入框）----
 
-    var showClearDialog by mutableStateOf(false)
-        private set
-    var showNutstoreDialog by mutableStateOf(false)
-        private set
-    var showBackupPicker by mutableStateOf(false)
-        private set
-    var showSnapshotPicker by mutableStateOf(false)
-        private set
-    var showExportFormatDialog by mutableStateOf(false)
-        private set
-    var showRestoreSourceDialog by mutableStateOf(false)
-        private set
-    var restoreCandidate by mutableStateOf<CloudBackup?>(null)
-        private set
-    var restoreSnapshotCandidate by mutableStateOf<LocalSnapshot?>(null)
-        private set
-    var accountInput by mutableStateOf("")
-        private set
-    var passwordInput by mutableStateOf("")
-        private set
+    // 这里刻意不用 `var x by mutableStateOf(...)`：属性自动生成的 setter（JVM 名
+    // setShowClearDialog(Z)V）会和下面为屏幕保留的 `fun setShowClearDialog(show)` 撞签名
+    // （CI 34930365615 报 Platform declaration clash）。改成「私有 MutableState + val
+    // getter + 同名函数」，屏幕层调用写法不变，Compose 的读取追踪也不受影响。
+    private val showClearDialogState = mutableStateOf(false)
+    private val showNutstoreDialogState = mutableStateOf(false)
+    private val showBackupPickerState = mutableStateOf(false)
+    private val showSnapshotPickerState = mutableStateOf(false)
+    private val showExportFormatDialogState = mutableStateOf(false)
+    private val showRestoreSourceDialogState = mutableStateOf(false)
+    private val restoreCandidateState = mutableStateOf<CloudBackup?>(null)
+    private val restoreSnapshotCandidateState = mutableStateOf<LocalSnapshot?>(null)
+    private val accountInputState = mutableStateOf("")
+    private val passwordInputState = mutableStateOf("")
+
+    val showClearDialog: Boolean get() = showClearDialogState.value
+    val showNutstoreDialog: Boolean get() = showNutstoreDialogState.value
+    val showBackupPicker: Boolean get() = showBackupPickerState.value
+    val showSnapshotPicker: Boolean get() = showSnapshotPickerState.value
+    val showExportFormatDialog: Boolean get() = showExportFormatDialogState.value
+    val showRestoreSourceDialog: Boolean get() = showRestoreSourceDialogState.value
+    val restoreCandidate: CloudBackup? get() = restoreCandidateState.value
+    val restoreSnapshotCandidate: LocalSnapshot? get() = restoreSnapshotCandidateState.value
+    val accountInput: String get() = accountInputState.value
+    val passwordInput: String get() = passwordInputState.value
 
     fun setShowClearDialog(show: Boolean) {
-        showClearDialog = show
+        showClearDialogState.value = show
     }
 
     fun setShowNutstoreDialog(show: Boolean) {
-        showNutstoreDialog = show
+        showNutstoreDialogState.value = show
     }
 
     fun setShowBackupPicker(show: Boolean) {
-        showBackupPicker = show
+        showBackupPickerState.value = show
     }
 
     fun setShowSnapshotPicker(show: Boolean) {
-        showSnapshotPicker = show
+        showSnapshotPickerState.value = show
     }
 
     fun setShowExportFormatDialog(show: Boolean) {
-        showExportFormatDialog = show
+        showExportFormatDialogState.value = show
     }
 
     fun setShowRestoreSourceDialog(show: Boolean) {
-        showRestoreSourceDialog = show
+        showRestoreSourceDialogState.value = show
     }
 
     fun setRestoreCandidate(candidate: CloudBackup?) {
-        restoreCandidate = candidate
+        restoreCandidateState.value = candidate
     }
 
     fun setRestoreSnapshotCandidate(candidate: LocalSnapshot?) {
-        restoreSnapshotCandidate = candidate
+        restoreSnapshotCandidateState.value = candidate
     }
 
     fun setAccountInput(account: String) {
-        accountInput = account
+        accountInputState.value = account
     }
 
     fun setPasswordInput(password: String) {
-        passwordInput = password
+        passwordInputState.value = password
     }
 
     /** 打开「坚果云账号」弹窗时用当前已存凭据初始化输入框。 */
     fun fillCredentialInputs(account: String, password: String) {
-        accountInput = account
-        passwordInput = password
+        accountInputState.value = account
+        passwordInputState.value = password
     }
 
     // ---- 动作转发 ----
