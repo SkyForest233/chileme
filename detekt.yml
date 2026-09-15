@@ -22,6 +22,13 @@ build:
   # 有任何一条 issue 就让 CI 失败（0 = 零容忍，不用权重打分）
   maxIssues: 0
 
+# ⚠️ 改这个文件务必核对键名：detekt 的 config.validation=true 会让**拼错的规则名直接 fail**
+#   （CI 日志是 "Property 'style>Xxx' is misspelled or does not exist" + exit=3，且报告为空）。
+#   核对方法（2026-09-15 实践）：拉官方默认配置比对自己的键路径 ——
+#     gh api -H "Accept: application/vnd.github.raw" \
+#       "repos/detekt/detekt/contents/detekt-core/src/main/resources/default-detekt-config.yml?ref=v1.23.8" \
+#       > /tmp/detekt-default.yml
+#   本文件已按该方法逐键核对（1.23.8 全部键名存在）。
 config:
   validation: true
   warningsAsErrors: false
@@ -33,8 +40,21 @@ complexity:
   active: false
 naming:
   active: false
+# exceptions：**只开 SwallowedException / PrintStackTrace**（2026-09-15）
+# SwallowedException 找的是「catch 到异常却一个字都不用」——即静默吞掉失败。它对本项目
+# 特别相关：2026-09-15 那轮已定原则「凭据加密失败不再静默」，SecureStore 两处 catch
+# 已改为带日志（Log.e/Log.w，随 PR #7 合并）；**合并后预期剩 2 处**：
+# ImageStore.kt:114（catch → null）、:133（catch → 0）。
+# TooGenericExceptionCaught（禁止笼统 catch Exception）保持关闭——本项目的防御性 IO 代码
+# 是刻意为之，全开会变噪声；等 SwallowedException 清零后再评估是否启用。
 exceptions:
-  active: false
+  active: true
+  TooGenericExceptionCaught:
+    active: false
+  SwallowedException:
+    active: true
+  PrintStackTrace:
+    active: true
 
 # ---- 开启：疑似缺陷类 ----
 potential-bugs:
@@ -63,8 +83,6 @@ style:
     active: false        # 由 ktlint 负责
   NewLineAtEndOfFile:
     active: false        # 由 ktlint 的 final-newline 负责
-  FinalNewline:
-    active: false        # 同上（detekt 里另有同名规则）
   ForbiddenComment:
     active: false        # 不允许 TODO/FIXME 的硬性规定不适用
   ReturnCount:
@@ -75,8 +93,8 @@ style:
     active: false        # 状态容器类刻意不用 data class（见 SettingsState.kt 说明）
   ExplicitItLambdaParameter:
     active: false        # 主观风格
-  MandatoryBracesIfStatements:
-    active: false        # 主观风格（ktlint_official 风格也未开启）
+  BracesOnIfStatements:
+    active: false        # 主观风格（旧名 MandatoryBracesIfStatements 在 1.23.8 已停用）
   MandatoryBracesLoops:
     active: false        # 同上
   UnnecessaryAbstractClass:

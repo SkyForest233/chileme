@@ -6,6 +6,7 @@ import android.graphics.BitmapFactory
 import android.graphics.Matrix
 import android.media.ExifInterface
 import android.net.Uri
+import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -13,6 +14,7 @@ import java.io.FileOutputStream
 import java.util.UUID
 import kotlin.math.max
 
+private const val TAG = "ImageStore"
 private const val MAX_COVER_DIMENSION = 1200
 private const val JPEG_QUALITY = 85
 
@@ -112,6 +114,9 @@ suspend fun copyImageToCovers(context: Context, uri: Uri): String? = withContext
 
         out.absolutePath
     } catch (e: Exception) {
+        // 静默吞掉会让「选完封面却没反应」无从排查（2026-09-15，detekt SwallowedException 指出）。
+        // 语义不变（失败返回 null，调用方据此提示），只把原因落到日志。
+        Log.w(TAG, "封面图片处理失败：$uri", e)
         null
     }
 }
@@ -131,6 +136,8 @@ suspend fun cleanupOrphanCovers(context: Context, referencedPaths: Set<String>):
             }
             deleted
         } catch (e: Exception) {
+            // 同理：清理失败返回 0（下次启动会再试），但要留下日志
+            Log.w(TAG, "清理孤儿封面失败", e)
             0
         }
     }
