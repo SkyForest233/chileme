@@ -90,7 +90,9 @@ run_ktlint() {
     if [ ! -f .editorconfig ]; then
         echo "::error::找不到 .editorconfig —— ktlint 会用默认全量规则集跑出上百条格式违规。"
         echo "          门禁三件套必须同时在目标分支上：tools/ci-gates.sh / .editorconfig / detekt.yml（见 docs/WORKFLOW.md §3）。"
-        return 2
+        # 用 90 作为「本脚本前置检查失败」的哨兵码：detekt 自己的 exit=2 含义是
+        # 「发现问题数超过 maxIssues」（正常判红），不能混用（2026-09-15 实测踩到）。
+        return 90
     fi
     prepare_ktlint
     log "ktlint $KTLINT_VERSION（规则见 .editorconfig）"
@@ -117,7 +119,7 @@ run_detekt() {
     # 同上：detekt.yml 缺失时 detekt CLI 会直接抛 ExistingPathConverter 异常（栈里看不出原因）。
     if [ ! -f detekt.yml ]; then
         echo "::error::找不到 detekt.yml —— 门禁三件套必须同时在目标分支上（见 docs/WORKFLOW.md §3）。"
-        return 2
+        return 90
     fi
     prepare_detekt
     log "detekt $DETEKT_VERSION（规则见 detekt.yml）"
@@ -149,9 +151,10 @@ echo "ktlint: exit=$ktlint_status（mode=$KTLINT_MODE）"
 echo "detekt: exit=$detekt_status（mode=$DETEKT_MODE）"
 echo "报告目录: $REPORT_DIR（ktlint.txt / ktlint-checkstyle.xml / detekt.txt / detekt.xml / detekt.html）"
 
-# exit=2 = 本脚本自己的前置检查失败（缺配置文件）；exit=3 = detekt 配置无效。
+# exit=90 = 本脚本自己的前置检查失败（缺配置文件）；exit=3 = detekt 配置无效（键名写错等）。
 # 这两种都不是「代码有问题」，日志里必须说清楚，否则会像 2026-09-15 那样误导排查方向。
-if [ "$ktlint_status" -eq 2 ] || [ "$detekt_status" -eq 2 ] || [ "$detekt_status" -eq 3 ]; then
+# 注意：**detekt 的 exit=2 是「发现问题数超过 maxIssues」**（正常的判红），不要当成配置错误。
+if [ "$ktlint_status" -eq 90 ] || [ "$detekt_status" -eq 90 ] || [ "$detekt_status" -eq 3 ]; then
     echo "::error::静态门禁自身的配置有问题（不是代码问题）：请检查 tools/ci-gates.sh / .editorconfig / detekt.yml 是否齐全且键名正确（见 docs/WORKFLOW.md §3）"
 fi
 
