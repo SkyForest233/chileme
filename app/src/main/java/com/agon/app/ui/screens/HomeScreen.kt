@@ -180,8 +180,8 @@ fun HomeScreen(
             item {
                 FreshnessBanner(
                     total = state.total,
-                    expiring = state.expiringQuantity,
-                    expired = state.expiredQuantity,
+                    expiringQuantity = state.expiringQuantity,
+                    expiredQuantity = state.expiredQuantity,
                 )
             }
 

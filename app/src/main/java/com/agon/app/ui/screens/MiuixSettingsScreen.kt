@@ -39,6 +39,7 @@ import com.agon.app.data.CloudBackup
 import com.agon.app.data.BACKUP_VERSION
 import com.agon.app.data.LocalSnapshot
 import com.agon.app.data.cn
+import com.agon.app.data.itemQuantity
 import com.agon.app.data.readBackupText
 import com.agon.app.ui.theme.ThemeStyle
 import com.agon.app.viewmodel.AppViewModel
