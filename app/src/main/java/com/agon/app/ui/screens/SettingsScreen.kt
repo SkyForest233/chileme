@@ -76,6 +76,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.DialogProperties
 import com.agon.app.data.BACKUP_VERSION
 import com.agon.app.data.CLOUD_BACKUP_KEEP
 import com.agon.app.data.CloudBackup
@@ -759,6 +760,11 @@ fun SettingsScreen(
     if (state.showNutstoreDialog) {
         AlertDialog(
             onDismissRequest = { state.setShowNutstoreDialog(false) },
+            // 键盘避让（2026-09-15）：MD3 弹窗是独立浮动窗口，默认 DialogProperties
+            // （decorFitsSystemWindows = true）不会把 IME inset 透给内容，底部按钮会被键盘盖住。
+            // 关掉 decorFits 拿到 inset，再由 imePadding 让弹窗整体上移到键盘之上。
+            properties = DialogProperties(decorFitsSystemWindows = false),
+            modifier = Modifier.imePadding(),
             title = { Text("坚果云账号") },
             text = {
                 Column {

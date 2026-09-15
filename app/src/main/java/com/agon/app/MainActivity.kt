@@ -5,6 +5,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.layout.imePadding
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
@@ -560,6 +561,9 @@ fun MainApp(viewModel: AppViewModel) {
             .align(Alignment.BottomCenter)
             .fillMaxWidth()
             .navigationBarsPadding()
+            // 键盘打开时也要能看见/点到「撤销」：两段式书写 = max(导航栏, 键盘)，
+            // 内层只补差额，不会叠加成一条大空隙（等价于旧的 navigationBarsWithImePadding）。
+            .imePadding()
             .padding(bottom = snackbarOffset),
     ) {
         if (isMiuix) {
@@ -724,6 +728,7 @@ private fun BatchActionBar(
             modifier = Modifier
                 .fillMaxWidth()
                 .navigationBarsPadding()
+                .imePadding()
                 .padding(bottom = 12.dp, top = 4.dp),
             contentAlignment = Alignment.Center,
         ) {
@@ -746,6 +751,7 @@ private fun BatchActionBar(
                 modifier = Modifier
                     .fillMaxWidth()
                     .navigationBarsPadding()
+                    .imePadding()
                     .padding(horizontal = 16.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp),

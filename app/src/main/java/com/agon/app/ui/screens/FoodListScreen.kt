@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -80,6 +81,9 @@ fun FoodListScreen(
     }
 
     Scaffold(
+        // 键盘避让：搜索框聚焦后列表可视区止于键盘顶边，末尾条目才滚得出来
+        //（原先底部留白只算了导航栏 + 96dp，不含 IME）。
+        modifier = Modifier.imePadding(),
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             if (state.selectionMode) {

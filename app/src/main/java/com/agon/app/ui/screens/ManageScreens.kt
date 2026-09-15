@@ -42,6 +42,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.DialogProperties
 import com.agon.app.viewmodel.AppViewModel
 
 /** 通用二级管理页脚手架 */
@@ -305,6 +306,9 @@ internal fun CategoryEditDialog(
     var emoji by remember { mutableStateOf(initialEmoji) }
     AlertDialog(
         onDismissRequest = onDismiss,
+        // 键盘避让（2026-09-15）：见 SettingsScreen 坚果云弹窗处的说明（decorFits + imePadding）。
+        properties = DialogProperties(decorFitsSystemWindows = false),
+        modifier = Modifier.imePadding(),
         title = { Text(title) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -422,6 +426,9 @@ fun LocationManageScreen(viewModel: AppViewModel, onBack: () -> Unit) {
         var locName by remember { mutableStateOf("") }
         AlertDialog(
             onDismissRequest = { state.setShowAdd(false) },
+            // 键盘避让：同 CategoryEditDialog。
+            properties = DialogProperties(decorFitsSystemWindows = false),
+            modifier = Modifier.imePadding(),
             title = { Text("添加存放位置") },
             text = {
                 OutlinedTextField(

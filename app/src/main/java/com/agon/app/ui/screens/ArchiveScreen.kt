@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -69,6 +70,8 @@ fun ArchiveScreen(
     val scope = rememberCoroutineScope()
 
     Scaffold(
+        // 键盘避让：同 FoodListScreen（搜索框在顶部，列表末尾此前够不到键盘之上）。
+        modifier = Modifier.imePadding(),
         containerColor = MaterialTheme.colorScheme.background,
         snackbarHost = {
             SwipeDismissSnackbarHost(

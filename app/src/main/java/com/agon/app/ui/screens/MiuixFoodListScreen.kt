@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -83,6 +84,8 @@ fun MiuixFoodListScreen(
     }
 
     Scaffold(
+        // 键盘避让：与 FoodListScreen 同一处处理，两套主题行为保持一致。
+        modifier = Modifier.imePadding(),
         topBar = {
             if (state.selectionMode) {
                 TopAppBar(

@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -180,6 +181,10 @@ fun EditFoodScreen(
     val expiry = production.plusDays(shelfLife.toLong())
 
     Scaffold(
+        // 键盘避让（2026-09-15）：Android 15+ 强制 edge-to-edge 后 adjustResize 已不再缩窗口，
+        // 必须自己消费 IME inset。整屏缩到键盘之上后，底部「保存/添加到零食柜」贴着键盘顶边，
+        // 滚动区同步变矮，任意输入框都能滚到可见位置。
+        modifier = Modifier.imePadding(),
         containerColor = MaterialTheme.colorScheme.background,
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
