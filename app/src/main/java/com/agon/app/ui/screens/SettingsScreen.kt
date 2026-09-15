@@ -413,11 +413,12 @@ fun SettingsScreen(
                             Text(
                                 when {
                                     state.credentialBroken -> "应用密码已失效，请重新填写"
+                                    state.plaintextFallback -> "⚠️ 系统 Keystore 不可用，密码以未加密形式保存"
                                     state.lastSync.isBlank() -> "通过 WebDAV 备份到坚果云"
                                     else -> state.lastSync
                                 },
                                 style = MaterialTheme.typography.bodySmall,
-                                color = if (state.credentialBroken) {
+                                color = if (state.credentialBroken || state.plaintextFallback) {
                                     MaterialTheme.colorScheme.error
                                 } else {
                                     MaterialTheme.colorScheme.onSurfaceVariant

@@ -35,6 +35,38 @@ class LocalSnapshotTest {
     }
 
     @Test
+    fun `countItemsInSnapshot 解析 items 条数而不是全文数 id`() {
+        // 旧实现用 Regex("\"id\"\\s*:") 全文匹配，会把归档/消耗/历史里的 id 也算进去。
+        val json = """
+            {
+              "version": 2,
+              "items": [
+                {"id": "a", "name": "牛奶"},
+                {"id": "b", "name": "饼干"}
+              ],
+              "archived": [ {"item": {"id": "c", "name": "过期酸奶"}} ],
+              "consumption": [ {"id": "d"}, {"id": "e"} ],
+              "history": [ {"id": "f"} ]
+            }
+        """.trimIndent()
+        assertEquals(2, countItemsInSnapshot(json))
+    }
+
+    @Test
+    fun `countItemsInSnapshot 对空档与畸形内容返回 0`() {
+        assertEquals(0, countItemsInSnapshot("""{"items": []}"""))
+        assertEquals(0, countItemsInSnapshot("{}"))
+        assertEquals(0, countItemsInSnapshot("这不是 JSON"))
+        assertEquals(0, countItemsInSnapshot(""))
+    }
+
+    @Test
+    fun `countItemsInSnapshot 容忍未来新增字段`() {
+        val json = """{"items":[{"id":"a"}],"someFutureField":{"x":1}}"""
+        assertEquals(1, countItemsInSnapshot(json))
+    }
+
+    @Test
     fun `LocalSnapshot displaySize 字节与容量格式化正确`() {
         val b1 = LocalSnapshot("s1.json", 500L, 0L, 2)
         assertEquals("500 B", b1.displaySize)

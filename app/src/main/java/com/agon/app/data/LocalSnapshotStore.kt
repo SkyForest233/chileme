@@ -1,6 +1,9 @@
 package com.agon.app.data
 
 import android.content.Context
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.Json
 import java.io.File
 import java.time.Instant
 import java.time.LocalDateTime
@@ -28,6 +31,21 @@ data class LocalSnapshot(
     }
 }
 
+/**
+ * 容错 Json（只看 items 条数，新增字段不该让统计失败）。
+ */
+private val tolerantJson = Json { ignoreUnknownKeys = true }
+
+/**
+ * 数一份快照里的库存条数：**解析 JSON**，而不是正则数 `"id":`。
+ *
+ * 旧实现用 `Regex("\"id\"\\s*:")` 全文匹配，会把归档、消耗记录、历史条目里的 id
+ * 一并算进去 —— 于是列表里显示的「N 条」明显偏大（一条记录在快照里可能出现多次）。
+ * 解析失败返回 0：宁可不显示数字，也不显示错的。
+ */
+internal fun countItemsInSnapshot(text: String): Int =
+    runCatching { tolerantJson.decodeFromString<BackupData>(text).items.size }.getOrDefault(0)
+
 object LocalSnapshotStore {
     const val MAX_SNAPSHOTS = 3
     private const val DIR_NAME = "snapshots"
@@ -38,35 +56,37 @@ object LocalSnapshotStore {
 
     /**
      * 保存一份本地快照，并按时间倒序仅保留最新的 [MAX_SNAPSHOTS] 份。
+     *
+     * 文件写入已下沉到 [Dispatchers.IO]（2026-09-15）：调用点包括启动路径、
+     * 每日自动快照与三条恢复路径的前置快照，此前都在主线程同步写盘。
      */
-    fun saveSnapshot(context: Context, jsonPayload: String, maxKeep: Int = MAX_SNAPSHOTS): File? {
-        return runCatching {
-            val dir = getDir(context)
-            val timestamp = LocalDateTime.now().format(timeFormatter)
-            val file = File(dir, "snapshot_$timestamp.json")
-            file.writeText(jsonPayload)
+    suspend fun saveSnapshot(context: Context, jsonPayload: String, maxKeep: Int = MAX_SNAPSHOTS): File? =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                val dir = getDir(context)
+                val timestamp = LocalDateTime.now().format(timeFormatter)
+                val file = File(dir, "snapshot_$timestamp.json")
+                file.writeText(jsonPayload)
 
-            // 清理多余旧快照
-            cleanupOldSnapshots(dir, maxKeep)
-            file
-        }.getOrNull()
-    }
+                // 清理多余旧快照
+                cleanupOldSnapshots(dir, maxKeep)
+                file
+            }.getOrNull()
+        }
 
     /**
      * 列出所有本地快照（按修改时间倒序）。
+     *
+     * 读取 + 逐份解析 JSON（取库存条数）都在 [Dispatchers.IO] 上做（2026-09-15）：
+     * 此前在主线程读文件、跑正则，快照多/文件大时会让首屏掉帧。
      */
-    fun listSnapshots(context: Context): List<LocalSnapshot> {
+    suspend fun listSnapshots(context: Context): List<LocalSnapshot> = withContext(Dispatchers.IO) {
         val dir = getDir(context)
         val files = dir.listFiles { f -> f.isFile && f.name.startsWith("snapshot_") && f.name.endsWith(".json") }
-            ?: return emptyList()
+            ?: return@withContext emptyList()
 
-        return files.map { file ->
-            val itemCount = runCatching {
-                val text = file.readText()
-                // 统计 items 数组中的对象个数
-                Regex("\"id\"\\s*:").findAll(text).count()
-            }.getOrDefault(0)
-
+        files.map { file ->
+            val itemCount = runCatching { countItemsInSnapshot(file.readText()) }.getOrDefault(0)
             LocalSnapshot(
                 fileName = file.name,
                 fileSizeBytes = file.length(),
@@ -77,12 +97,12 @@ object LocalSnapshotStore {
     }
 
     /**
-     * 读取指定快照的 JSON 内容。
+     * 读取指定快照的 JSON 内容（IO 线程）。
      */
-    fun readSnapshot(context: Context, fileName: String): String? {
+    suspend fun readSnapshot(context: Context, fileName: String): String? = withContext(Dispatchers.IO) {
         val dir = getDir(context)
         val file = File(dir, fileName)
-        return if (file.exists() && file.isFile) {
+        if (file.exists() && file.isFile) {
             runCatching { file.readText() }.getOrNull()
         } else null
     }

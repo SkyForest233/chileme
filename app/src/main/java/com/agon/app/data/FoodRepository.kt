@@ -290,6 +290,13 @@ class FoodRepository(private val context: Context) {
         .flowOn(Dispatchers.Default)
 
     /**
+     * 密码是否以「未加密明文」形式落在 DataStore 里（Keystore 不可用时的极端回退）。
+     * 功能可用但安全性降级，UI 必须明确告知用户；下次启动 [migratePlaintextPassword] 会重试加密。
+     */
+    val nutstorePlaintextFallbackFlow: Flow<Boolean> = nutstoreCredentialKeysFlow()
+        .map { (plain, _) -> !plain.isNullOrBlank() }
+
+    /**
      * 凭据两个 key 的原始值（明文待迁移 / 密文），已做读兜底与去重。
      * 上面两个 flow 共用它，避免各自重复一遍 resilientRead 与解密去重逻辑。
      */
@@ -319,7 +326,7 @@ class FoodRepository(private val context: Context) {
             val plain = prefs[nutstorePasswordKey]
             if (!plain.isNullOrBlank()) {
                 val enc = SecureStore.encrypt(plain)
-                if (enc.isNotBlank()) {
+                if (enc != null) {
                     prefs[nutstorePasswordEncKey] = enc
                     prefs.remove(nutstorePasswordKey)
                 }
@@ -363,11 +370,17 @@ class FoodRepository(private val context: Context) {
         }
     }
 
+    /**
+     * 新增/编辑一条库存。
+     *
+     * **守卫按 key 粒度**（2026-09-15）：库存是本次写入的主数据，损坏时拒绝覆盖；
+     * 「录入历史」只是输入联想的辅助数据，它损坏时**不再连带锁死新增/编辑食品**，
+     * 而是跳过历史写入并记日志（原始串保持不动，留档仍在 filesDir/corrupt/）。
+     */
     suspend fun upsert(item: FoodItem) {
         context.dataStore.edit { prefs ->
             val itemsDecoded = decodeItems(prefs[itemsKey])
-            val historyDecoded = decodeHistory(prefs[historyKey])
-            if (isCorrupt(itemsDecoded, historyDecoded)) return@edit
+            if (isCorrupt(itemsDecoded)) return@edit
             val current = itemsDecoded.orElse(emptyList())
             val updated = if (current.any { it.id == item.id }) {
                 current.map { if (it.id == item.id) item else it }
@@ -376,6 +389,11 @@ class FoodRepository(private val context: Context) {
             }
             prefs[itemsKey] = json.encodeToString(updated)
 
+            val historyDecoded = decodeHistory(prefs[historyKey])
+            if (isCorrupt(historyDecoded)) {
+                Log.w(TAG, "history_entries 损坏：本次跳过录入历史写入（库存已正常保存）")
+                return@edit
+            }
             val history = historyDecoded.orElse(emptyList())
             val entry = HistoryEntry(
                 name = item.name,
@@ -511,14 +529,22 @@ class FoodRepository(private val context: Context) {
         var consumptionId: String? = null
         context.dataStore.edit { prefs ->
             val itemsDecoded = decodeItems(prefs[itemsKey])
+            // 主数据：数量写在库存上，损坏时必须拒绝覆盖。
+            if (isCorrupt(itemsDecoded)) return@edit
+            // 附带数据按 key 各自判断（2026-09-15）：消耗记录/归档损坏只降级对应副作用，
+            // 不再让「改个数量」整体失效。
             val consumptionDecoded = decodeConsumption(prefs[consumptionKey])
             val archiveDecoded = decodeArchive(prefs[archiveKey])
-            if (isCorrupt(itemsDecoded, consumptionDecoded, archiveDecoded)) return@edit
+            val consumptionOk = !isCorrupt(consumptionDecoded)
+            val archiveOk = !isCorrupt(archiveDecoded)
             val current = itemsDecoded.orElse(emptyList())
             val item = current.find { it.id == id } ?: return@edit
             val newQty = (item.quantity + delta).coerceAtLeast(0)
             val consumed = if (delta < 0) item.quantity - newQty else 0
-            if (consumed > 0) {
+            if (consumed > 0 && !consumptionOk) {
+                Log.w(TAG, "consumption_records 损坏：本次扣减不写消耗记录（库存已更新）")
+            }
+            if (consumed > 0 && consumptionOk) {
                 consumptionId = UUID.randomUUID().toString()
                 val records = consumptionDecoded.orElse(emptyList())
                 val record = ConsumptionRecord(
@@ -533,7 +559,7 @@ class FoodRepository(private val context: Context) {
                     compactConsumption(listOf(record) + records)
                 )
             }
-            if (newQty == 0 && delta < 0) {
+            if (newQty == 0 && delta < 0 && archiveOk) {
                 // 吃完了 → 自动归档
                 val today = LocalDate.now().toEpochDay()
                 val archive = archiveDecoded.orElse(emptyList())
@@ -542,6 +568,8 @@ class FoodRepository(private val context: Context) {
                 prefs[itemsKey] = json.encodeToString(current.filterNot { it.id == id })
                 autoArchived = true
             } else {
+                // 注意：归档损坏且刚好减到 0 时走这里 —— 刻意「保留 0 数量记录、不归档」，
+                // 因为把库存删掉却写不进归档 = 数据丢失。（坏掉的那份数据仍留档待恢复）
                 prefs[itemsKey] = json.encodeToString(
                     current.map { if (it.id == id) it.copy(quantity = newQty) else it }
                 )
@@ -591,8 +619,9 @@ class FoodRepository(private val context: Context) {
         context.dataStore.edit { prefs ->
             val consumptionDecoded = decodeConsumption(prefs[consumptionKey])
             val itemsDecoded = decodeItems(prefs[itemsKey])
+            if (isCorrupt(consumptionDecoded, itemsDecoded)) return@edit
+            // 归档只在「该食品已因减到 0 被自动归档」这一分支才需要写，按需判定（2026-09-15）。
             val archiveDecoded = decodeArchive(prefs[archiveKey])
-            if (isCorrupt(consumptionDecoded, itemsDecoded, archiveDecoded)) return@edit
             val records = consumptionDecoded.orElse(emptyList())
             prefs[consumptionKey] = json.encodeToString(records.filterNot { it.id == consumptionId })
 
@@ -604,6 +633,10 @@ class FoodRepository(private val context: Context) {
                 )
             } else {
                 // 已被自动归档（减到 0），从归档恢复为数量 1
+                if (isCorrupt(archiveDecoded)) {
+                    Log.w(TAG, "archived_items 损坏：无法从归档恢复该食品（消耗记录已撤销）")
+                    return@edit
+                }
                 val archive = archiveDecoded.orElse(emptyList())
                 val entry = archive.find { it.item.id == itemId }
                 if (entry != null) {
@@ -646,6 +679,32 @@ class FoodRepository(private val context: Context) {
         }
     }
 
+    /** 资产型 key 的名字 → Preferences.Key，供 [discardCorrupt] 按名字删除。 */
+    private val assetKeysByName: Map<String, Preferences.Key<String>> by lazy {
+        mapOf(
+            itemsKey.name to itemsKey,
+            archiveKey.name to archiveKey,
+            consumptionKey.name to consumptionKey,
+            historyKey.name to historyKey,
+        )
+    }
+
+    /**
+     * 放弃处于损坏态的数据：删除该 key 在 DataStore 中的内容并解除损坏标记，
+     * 让相关写入恢复正常。
+     *
+     * 这是用户显式确认的破坏性操作（UI 有二次确认）。原始串不会丢——[markCorrupt]
+     * 已把首次发现损坏时的原文留档到 `filesDir/corrupt/`，那个目录本方法**不动**。
+     * 只作用于「用户资产型」key；配置型 key 本就不会进入损坏态。
+     */
+    suspend fun discardCorrupt(keys: Set<String>) {
+        val targets = keys.mapNotNull { assetKeysByName[it] }
+        if (targets.isEmpty()) return
+        context.dataStore.edit { prefs -> targets.forEach { prefs.remove(it) } }
+        _corruptedKeys.update { it - keys }
+        Log.w(TAG, "已放弃损坏数据：${targets.joinToString { it.name }}（原文留档仍在 filesDir/corrupt/）")
+    }
+
     suspend fun setDynamicColor(enabled: Boolean) {
         context.dataStore.edit { it[dynamicColorKey] = enabled }
     }
@@ -670,11 +729,14 @@ class FoodRepository(private val context: Context) {
         context.dataStore.edit { prefs ->
             prefs[nutstoreAccountKey] = account.trim()
             val enc = SecureStore.encrypt(password.trim())
-            if (enc.isNotBlank()) {
+            if (enc != null) {
                 prefs[nutstorePasswordEncKey] = enc
                 prefs.remove(nutstorePasswordKey) // 确保明文不再落盘
             } else {
-                // Keystore 不可用的极端回退（不应发生）：保持旧行为以免功能不可用
+                // Keystore 不可用的极端回退：为了不打断同步功能只能先存明文，
+                // 但**绝不能静默**——记日志 + 由 nutstorePlaintextFallbackFlow 让设置页提示用户。
+                // 下次启动 migratePlaintextPassword 会重试加密。
+                Log.e(TAG, "凭据加密失败（Keystore 不可用？），本次以未加密形式保存，将于下次启动重试")
                 prefs[nutstorePasswordKey] = password.trim()
             }
         }

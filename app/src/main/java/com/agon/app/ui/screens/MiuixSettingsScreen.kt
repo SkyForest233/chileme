@@ -262,6 +262,7 @@ fun MiuixSettingsScreen(
                         summary = when {
                             state.nutstoreAccount.isBlank() -> "未配置，点击设置 WebDAV 账号"
                             state.credentialBroken -> "应用密码已失效，请重新填写"
+                            state.plaintextFallback -> "⚠️ 系统 Keystore 不可用，密码以未加密形式保存"
                             state.lastSync.isNotBlank() -> state.lastSync
                             else -> "已配置，尚未同步"
                         },

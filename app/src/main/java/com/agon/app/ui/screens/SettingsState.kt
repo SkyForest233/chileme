@@ -40,6 +40,8 @@ class SettingsUiState(
     val nutstorePassword: String,
     val lastSync: String,
     val credentialBroken: Boolean,
+    /** 密码以未加密明文保存（Keystore 不可用时的极端回退）——需提示用户。 */
+    val plaintextFallback: Boolean,
     val syncing: Boolean,
     val autoSyncDays: Int,
     val cloudBackups: List<CloudBackup>,
@@ -127,6 +129,7 @@ fun rememberSettingsUiState(viewModel: AppViewModel): SettingsUiState {
     val nutstorePassword by viewModel.nutstorePassword.collectAsStateWithLifecycle()
     val lastSync by viewModel.lastSync.collectAsStateWithLifecycle()
     val credentialBroken by viewModel.nutstoreCredentialBroken.collectAsStateWithLifecycle()
+    val plaintextFallback by viewModel.nutstorePlaintextFallback.collectAsStateWithLifecycle()
     val syncing by viewModel.syncing.collectAsStateWithLifecycle()
     val autoSyncDays by viewModel.autoSyncDays.collectAsStateWithLifecycle()
     val cloudBackups by viewModel.cloudBackups.collectAsStateWithLifecycle()
@@ -165,6 +168,7 @@ fun rememberSettingsUiState(viewModel: AppViewModel): SettingsUiState {
         nutstorePassword,
         lastSync,
         credentialBroken,
+        plaintextFallback,
         syncing,
         autoSyncDays,
         cloudBackups,
@@ -195,6 +199,7 @@ fun rememberSettingsUiState(viewModel: AppViewModel): SettingsUiState {
             nutstorePassword = nutstorePassword,
             lastSync = lastSync,
             credentialBroken = credentialBroken,
+            plaintextFallback = plaintextFallback,
             syncing = syncing,
             autoSyncDays = autoSyncDays,
             cloudBackups = cloudBackups,

@@ -94,13 +94,17 @@ app/src/main/java/com/agon/app/
 - **数据完整性守卫（2026-08-21）**：解码分三态 `Decoded.Ok / Empty / Corrupt`
   - 「用户资产型」key（`food_items` / `archived_items` / `consumption_records` / `history_entries`）走 `decodeStrict`，解析失败即 `Corrupt`
   - **所有写路径必须先 `isCorrupt(...)` 守卫，命中则 `return@edit` 放弃写入**。理由：此前 `Corrupt` 与 `Empty` 都回落 `emptyList()`，随后任一写操作会把空表 encode 覆盖，一次解析异常即永久摧毁全部数据。新增写方法时**必须**加守卫
-  - 例外（允许在损坏态执行，因其本身就是恢复/丢弃手段）：`clearAll()` / `clearArchive()` / `importBackupJson()`，执行后解除对应标记
+  - **守卫按 key 粒度（2026-09-15）**：守卫只覆盖**本次写入真正会覆盖的 key**，且**主数据必须先判、辅助数据按需判**。已落地的三处：`upsert` 在 `history_entries` 损坏时跳过历史写入、库存照常保存；`changeQuantity` 分别判 `consumption_records`（跳过消耗记录，`consumptionId` 返回 null 因而不给撤销入口）与 `archived_items`（归档不可写时**保留 0 数量记录而不删库存**，避免「删了却归档不进去」的数据丢失）；`undoConsumption` 只在「需要从归档恢复」的分支才要求归档可写。**禁止退回 `isCorrupt(a, b, c)` 式一起判**：辅助数据损坏会连带锁死核心功能（`CorruptGuardTest` 静态拦截）
+  - 例外（允许在损坏态执行，因其本身就是恢复/丢弃手段）：`clearAll()` / `clearArchive()` / `importBackupJson()` / `discardCorrupt()`，执行后解除对应标记
+  - **放弃损坏数据入口（2026-09-15）**：`discardCorrupt(keys)` 删除这些 key 的内容并解除损坏标记，让写入恢复；**不动 `filesDir/corrupt/` 里的留档**。UI 入口是首页横幅上的「放弃这部分数据」按钮（MD3 用 `AlertDialog`、Miuix 用 `MiuixDialog` 二次确认），文案由 `corruptKeyNames()` 复用生成
   - `buildBackupJson()` 在损坏态**抛异常**，避免生成残缺备份；调用方需捕获（两个设置页提示用户，自动同步/手动上传则放弃本次上传，防止残缺备份覆盖云端完好版本）
   - 损坏原始串留档 `filesDir/corrupt/<key>-<时间戳>.json`；`corruptedKeys: StateFlow<Set<String>>` 暴露给 UI，首页顶部显示 `DataCorruptBanner`（`ui/components/Common.kt`，MD3 / Miuix 共用）
   - 「配置型」key（thresholds / categories / locations）丢失可重设，维持回落默认值的旧行为，不阻断写入
 - **读流兜底（2026-09-15）**：所有 DataStore 读流统一经 `FoodRepository.resilientRead()` —— `IOException` 先退避重试 2 次（间隔 300ms），仍失败则记日志并回落默认值（`rawFlow` 解码 `null` = Empty、`lightFlow` 用传入的 fallback）。理由：19 个 `stateIn` 全是 `SharingStarted.Eagerly` 且 `viewModelScope` 未挂 `CoroutineExceptionHandler`，读异常会终止共享协程→交给默认处理器→**杀进程**。**新增读流一律走 `rawFlow()` / `lightFlow()`，禁止直接 `dataStore.data`**
 - **启动放行超时（2026-09-15）**：`MainActivity.READY_TIMEOUT_MS`（3s）。`ready`（DataStore 首发）在 3 秒内未达成也强制渲染首帧——否则「读阻塞/异常」会让启动画面永久停留，用户只能杀进程。`contentReady` 用 `mutableStateOf`，因为 composition 里读它
 - **封面清理守卫（2026-09-15）**：`cleanupOrphanCovers()` **仅在 `corruptedKeys` 为空时执行**。损坏态下 items/archive 解码回落空集，照常清理会把 `covers/` 下所有文件当孤儿删除，而图片无法从 `corrupt/` 的 JSON 留档恢复
+- **恢复前置快照（2026-09-15）**：三条恢复路径（文件导入 / 坚果云整版本恢复 / 本地快照还原）都先经 `AppViewModel.snapshotBeforeRestore()` 留一份「操作前状态」，用户可回退。**顺序陷阱**：本地快照还原必须**先读出目标快照内容、再写前置快照**——反过来在快照已满 3 份时会按修改时间把目标挤掉
+- **本地快照 IO（2026-09-15）**：`LocalSnapshotStore` 的 `saveSnapshot` / `listSnapshots` / `readSnapshot` 均为 `suspend` + `withContext(Dispatchers.IO)`（此前在主线程写盘/读盘）；列表条数用 `countItemsInSnapshot()` **解析 JSON** 得到，禁止再用正则数 `"id":`（会把归档/消耗/历史里的 id 也算进去）
 - **导入备份加固（2026-09-15）**：SAF 选文件 → `readBackupText()`（IO 线程，20 MB 上限）→ `previewBackup()`（必须含 `items` 键且可解析，否则拒收）→ 二次确认弹窗（导出日期 / 各表条数 / schema 版本）→ `importBackupWithSnapshot()`（**先写一份本地快照兜底**再整体替换）。禁止退回「选完即覆盖」
 - **Flow 读取规约（2026-08-21）**：DataStore 每次 `edit` 都会重发整份 Preferences。所有重型（需 JSON 解码）key 一律走 `rawFlow()` —— 先取原始串 → `distinctUntilChanged()` → 解码 → `flowOn(Dispatchers.Default)`；轻量 key 走 `lightFlow()`（仅去重）。**禁止**直接 `dataStore.data.map { decodeXxx(...) }`：那会让改一次主题色就重新解析全部 JSON 并产生新 List 实例（全屏重组），且解码发生在 `viewModelScope`（`Main.immediate`）即主线程
 - **备份排除规则（2026-08-21）**：`res/xml/backup_rules.xml`（API ≤30）与 `res/xml/data_extraction_rules.xml`（API 31+）排除 `datastore/`。坚果云密码是 Keystore AES-GCM 密文，**密钥不跨设备**，备份恢复后必然解不开；`nutstoreCredentialBrokenFlow` 检测该状态并在设置页提示重新填写
