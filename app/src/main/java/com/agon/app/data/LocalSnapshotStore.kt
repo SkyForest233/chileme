@@ -4,6 +4,8 @@ import android.content.Context
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
 import java.io.File
 import java.time.Instant
 import java.time.LocalDateTime
@@ -32,19 +34,19 @@ data class LocalSnapshot(
 }
 
 /**
- * 容错 Json（只看 items 条数，新增字段不该让统计失败）。
- */
-private val tolerantJson = Json { ignoreUnknownKeys = true }
-
-/**
- * 数一份快照里的库存条数：**解析 JSON**，而不是正则数 `"id":`。
+ * 数一份快照里的库存条数：**解析 JSON 取 `items` 数组长度**，而不是正则数 `"id":`。
  *
  * 旧实现用 `Regex("\"id\"\\s*:")` 全文匹配，会把归档、消耗记录、历史条目里的 id
  * 一并算进去 —— 于是列表里显示的「N 条」明显偏大（一条记录在快照里可能出现多次）。
+ *
+ * 这里刻意**只数数组长度、不反序列化成 [BackupData]**：条数展示不该被条目字段的 schema 绑架
+ * ——旧版本/异常备份里的条目若缺必填字段，整体反序列化会失败，那时明明有库存却显示 0 比不显示更糟
+ * （CI 第一次跑正是在「条目只有 id/name 的备份」上踩到这个坑）。
  * 解析失败返回 0：宁可不显示数字，也不显示错的。
  */
-internal fun countItemsInSnapshot(text: String): Int =
-    runCatching { tolerantJson.decodeFromString<BackupData>(text).items.size }.getOrDefault(0)
+internal fun countItemsInSnapshot(text: String): Int = runCatching {
+    Json.parseToJsonElement(text).jsonObject["items"]?.jsonArray?.size ?: 0
+}.getOrDefault(0)
 
 object LocalSnapshotStore {
     const val MAX_SNAPSHOTS = 3

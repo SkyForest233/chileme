@@ -337,7 +337,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         val result: QuantityChangeResult = repo.changeQuantity(id, delta)
         if (result.autoArchived) onAutoArchived?.invoke()
         if (withUndo && delta < 0 && result.consumptionId != null) {
-            _undoRequest.value = UndoRequest(id, result.consumptionId!!)
+            _undoRequest.value = UndoRequest(id, result.consumptionId)
         }
     }
 

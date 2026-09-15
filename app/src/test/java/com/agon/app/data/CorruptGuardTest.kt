@@ -1,5 +1,6 @@
 package com.agon.app.data
 
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeTrue
 import org.junit.Test
@@ -25,14 +26,20 @@ class CorruptGuardTest {
             .firstOrNull { it.exists() }
             ?.readText()
 
-    /** 粗略截出某个函数体：从签名起，到第一个 4 空格缩进的收尾花括号。 */
+    /**
+     * 粗略截出某个函数体：从签名起，到「4 空格缩进的收尾花括号」或「空行 + 恰好 4 空格缩进」为止。
+     *
+     * 注意不能用 `indexOf("\n\n    ")`：更深缩进的行（如 12 空格的语句块）也以它开头，
+     * 会提前截断函数体（CI 第一次跑时 `upsert` 就是这么被截到 `historyDecoded` 之前的）。
+     */
     private fun functionBody(src: String, signature: String): String {
         val start = src.indexOf(signature)
         assertTrue("源码里找不到 $signature", start >= 0)
         val rest = src.substring(start)
-        val end = listOf(rest.indexOf("\n    }"), rest.indexOf("\n\n    "))
-            .filter { it > 0 }
-            .minOrNull() ?: rest.length
+        val end = listOf(
+            Regex("\n {4}\}").find(rest)?.range?.first ?: -1,
+            Regex("\n\n {4}[^ \n]").find(rest)?.range?.first ?: -1,
+        ).filter { it > 0 }.minOrNull() ?: rest.length
         return rest.substring(0, end)
     }
 
@@ -92,6 +99,31 @@ class CorruptGuardTest {
             assertTrue("$name 的损坏横幅没有接上 onDiscard 入口", src.contains("onDiscard = {"))
             assertTrue("$name 缺少放弃确认弹窗", src.contains("放弃损坏的数据？"))
         }
+    }
+
+    @Test
+    fun `凭据加密失败必须可区分且调用方按非空判定`() {
+        val store = read("com/agon/app/data/SecureStore.kt")
+        val repo = read("com/agon/app/data/FoodRepository.kt")
+        assumeTrue("找不到 SecureStore.kt / FoodRepository.kt，跳过", store != null && repo != null)
+
+        // 旧实现失败返回空串，调用方的 `enc != null` 恒为真：既写不进密文（"" 覆盖已有密文），
+        // 又会删掉明文键 —— 凭据直接丢失；而且「Keystore 不可用」的降级没有任何 UI 能感知。
+        // 这个恒真条件连编译器都只是 warning，所以在这里钉一个测试。
+        assertTrue(
+            "SecureStore.encrypt 必须返回可空类型（失败返回 null 才能与成功区分）",
+            store!!.contains("fun encrypt(plain: String): String?"),
+        )
+        assertTrue("encrypt 失败必须记日志，不能静默", store.contains("Log.e(TAG, \"凭据加密失败"))
+        assertEquals(
+            "两处凭据写入都必须走非空判定，否则加密失败会写入空密文",
+            2,
+            Regex("if \\(enc != null\\)").findAll(repo!!).count(),
+        )
+        assertTrue(
+            "明文降级必须能被 UI 感知（nutstorePlaintextFallbackFlow → 设置页提示）",
+            repo.contains("nutstorePlaintextFallbackFlow"),
+        )
     }
 
     @Test

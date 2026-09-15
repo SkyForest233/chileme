@@ -3,6 +3,7 @@ package com.agon.app.data
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
+import android.util.Log
 import java.security.KeyStore
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
@@ -18,6 +19,7 @@ object SecureStore {
     private const val ANDROID_KEYSTORE = "AndroidKeyStore"
     private const val KEY_ALIAS = "chileme_webdav_key"
     private const val TRANSFORMATION = "AES/GCM/NoPadding"
+    private const val TAG = "SecureStore"
 
     private fun getOrCreateKey(): SecretKey {
         val ks = KeyStore.getInstance(ANDROID_KEYSTORE).apply { load(null) }
@@ -35,18 +37,26 @@ object SecureStore {
         return generator.generateKey()
     }
 
-    /** 返回 "base64(iv):base64(ciphertext)"；失败返回空串。 */
-    fun encrypt(plain: String): String = try {
+    /**
+     * 返回 "base64(iv):base64(ciphertext)"；失败（Keystore 不可用等）返回 null 并记日志。
+     *
+     * 2026-09-15 修正：此前失败返回**空串**，调用方无法把「加密失败」与「加密成功」区分开，
+     * 于是 `prefs[nutstorePasswordEncKey] = ""` 会覆盖掉已有密文、同时删掉明文键 —— 凭据直接丢失；
+     * 而「Keystore 不可用」这种降级也不会被任何 UI 感知（静默落明文）。改成可空返回后，
+     * 调用方可以显式走 `nutstorePlaintextFallbackFlow` 提示用户，并在下次启动重试加密。
+     */
+    fun encrypt(plain: String): String? = try {
         val cipher = Cipher.getInstance(TRANSFORMATION)
         cipher.init(Cipher.ENCRYPT_MODE, getOrCreateKey())
         val iv = Base64.encodeToString(cipher.iv, Base64.NO_WRAP)
         val ct = Base64.encodeToString(cipher.doFinal(plain.toByteArray(Charsets.UTF_8)), Base64.NO_WRAP)
         "$iv:$ct"
     } catch (e: Exception) {
-        ""
+        Log.e(TAG, "凭据加密失败（Keystore 不可用？），调用方需回退并提示用户", e)
+        null
     }
 
-    /** 解密；失败（包括密钥丢失/数据损坏）返回 null。 */
+    /** 解密；失败（包括密钥丢失/数据损坏）返回 null 并记日志。 */
     fun decrypt(stored: String): String? = try {
         val parts = stored.split(":", limit = 2)
         if (parts.size != 2) {
@@ -61,6 +71,7 @@ object SecureStore {
             String(cipher.doFinal(Base64.decode(parts[1], Base64.NO_WRAP)), Charsets.UTF_8)
         }
     } catch (e: Exception) {
+        Log.w(TAG, "凭据解密失败（系统 Keystore 密钥丢失或数据损坏）", e)
         null
     }
 }

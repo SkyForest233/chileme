@@ -37,6 +37,8 @@ class LocalSnapshotTest {
     @Test
     fun `countItemsInSnapshot 解析 items 条数而不是全文数 id`() {
         // 旧实现用 Regex("\"id\"\\s*:") 全文匹配，会把归档/消耗/历史里的 id 也算进去。
+        // 另外这里的条目**故意只有 id/name**：计数不该被条目 schema 绑架
+        // （改成反序列化 BackupData 后，缺字段会让整份快照显示 0 条 —— CI 第一次跑就是这么挂的）。
         val json = """
             {
               "version": 2,
