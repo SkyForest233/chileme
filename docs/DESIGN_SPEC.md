@@ -14,7 +14,7 @@
 
 **主题采用 MD3 种子色方案（v2.2 起）**：主题不再手写完整 ColorScheme，由 MaterialKolor（`com.materialkolor:material-kolor:4.0.1`）从种子色生成：`rememberDynamicColorScheme(seed, isDark, PaletteStyle.TonalSpot)`。屏幕代码一律引用 `MaterialTheme.colorScheme.*`，不得写死主题色值。
 
-**7 套配色方案（`ui/theme/Palettes.kt` · AppPalette 枚举，食物主题命名）**
+**15 套配色方案（`ui/theme/Palettes.kt` · AppPalette 枚举，食物主题命名）**
 
 | 方案 | 种子色 | 意象 |
 |---|---|---|
@@ -147,9 +147,11 @@ StatusUi 提供三个颜色槽位，按用途严格区分：
 - 状态：`ThemeStyle` 枚举（`ui/theme/ThemeStyle.kt`）+ DataStore key `theme_style`；`LocalThemeStyle` CompositionLocal 由 MainActivity 下发。
 - 切换入口：设置页「外观」分组的「主题风格」——MD3 侧用 SegmentedButton，Miuix 侧用 RadioButtonPreference。
 - **根级主题切换 + MaterialTheme 桥接（阶段二起）**：MainActivity 在 MIUIX 模式下包 `MiuixRootTheme`（`MiuixTheme` + 桥接 `MaterialTheme`），让未迁移的 MD3 页面与 Common.kt 复用组件仍可经 `MaterialTheme.colorScheme` 取到 Miuix 配色；桥接映射见 `ui/theme/MiuixRootTheme.kt`（缺失角色用最接近角色近似）。
-- 迁移进度（v2.8）：
-  - **已 Miuix 化**：设置页、首页、食品列表、食品详情、归档页、管理三页（阈值/分类/位置），以及底部导航（悬浮/全宽）、FAB、Common.kt 复用组件（StatusBadge/LocationTag/QuantityStepper/EmptyState/FoodCard）。
-  - **刻意保留 MD3+桥接**：编辑页（`DatePicker` 为 MD3 特有、无 Miuix 对应）、统计页（图表自绘、Miuix 化收益低）、`CheckSwitch`（项目特色打勾/打叉，规范禁止 material3 Switch，自绘且颜色桥接）。
+- 迁移进度（v2.8 起，2026-09-16 校正）：
+  - **已 Miuix 化（8 对，全部屏幕除编辑页）**：设置页、首页、食品列表、食品详情、归档页、管理三页（阈值/分类/位置）、**统计页**（`MiuixStatsScreen`）、**消耗记录页**（`MiuixConsumptionLogScreen`），以及底部导航（悬浮/全宽）、FAB、Common.kt 复用组件（StatusBadge/LocationTag/QuantityStepper/EmptyState/FoodCard/DataCorruptBanner）。统计页与消耗记录页的**图表仍是 Canvas 自绘**，但外壳与组件（Scaffold/TopAppBar/Card/Text/Icon/SmallTitle）走 Miuix。
+  - **刻意保留 MD3+桥接**：编辑页（`DatePicker` 为 MD3 特有、无 Miuix 对应）、`CheckSwitch`（项目特色打勾/打叉，规范禁止 material3 Switch，自绘且颜色桥接）。
+  - **双实现铁律**：`Miuix*Screen.kt` 必须调 `remember*UiState` 复用状态容器，**禁止在 UI 文件里重写聚合计算**（`MiuixParityTest` 静态拦截；此前 `MiuixStatsScreen` 手抄过一份统计逻辑，导致 `StatsStateTest` 测的是 MIUIX 下不执行的代码）。
+  - **已知缺口**：MIUIX 风格下**没有配色方案入口**（`MiuixSettingsScreen` 只有深色模式/动态取色/悬浮导航），15 套 `AppPalette` 选不了，且 MD3 下选好的配色切到 Miuix 后无提示地失效——根因是 `MiuixRootTheme` 只消费 `darkMode` + `dynamicColor`，没有种子色通道。故 `MiuixSettingsScreen` 顶部 KDoc 的「与 SettingsScreen 功能对等」目前**不成立**（用户已指示暂缓，见 `devlog/INDEX.md`）。
   - **导航双形态**：新增「悬浮导航」开关（`floating_nav`，默认 true）。MD3 悬浮=自绘 `FloatingPillNav`（图标+标签）、非悬浮=MD3 `NavigationBar`；MIUIX 悬浮=Miuix `FloatingNavigationBar`（仅图标）、非悬浮=Miuix `NavigationBar`（全宽图标+文字）。
 - Miuix 主题由 `ThemeController` 驱动，语义对齐 MD3 侧：动态取色→Monet（keyColor=null 跟随壁纸），否则按 darkMode 映射 System/Light/Dark。
 - Miuix 组件 API 一律以 `.claude/skills/miuix` pinned source（v0.9.4-rc01）为准，禁止凭 MD3 记忆臆造参数/颜色 token。

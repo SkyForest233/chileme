@@ -26,22 +26,26 @@
 
 ## 1. 审查中发现的关键问题（除既有 backlog 外，本轮走查补充）
 
-### 1.1 跨零点剩余天数不刷新（沿用 fix-plan 阶段 6，代码确认存在）
+> **2026-09-16 状态批注**：本节 §1.1–§1.4 四条**当时**的问题描述现已全部落地修复（对应下方 §2 表格里的 B3 / B10 / B11 / B5+B6），
+> 但正文当时没有随表格一起更新，读起来仍像未修。原文按「不改写历史」原则保留，只在各条标题上加状态标记。
+
+### 1.1 跨零点剩余天数不刷新（沿用 fix-plan 阶段 6，代码确认存在）→ ✅ 已修（B3，`LocalToday` + 周期性轮询日期）
 `FoodModels.kt:130` 的 `daysLeft` 是 `ChronoUnit.DAYS.between(LocalDate.now(), expiryDate)`，在组合期求值。进程存活期间**跨午夜不会重算**——用户挂一晚，第二天看到的"还剩 X 天"是旧值。
 - 影响：临期/过期判断错一天，首页提醒失真。属真实体验缺陷。
 - 建议修法：`MainActivity` 监听 `Lifecycle.ON_RESUME`，日期变化时 bump 一个 `todayEpochDay` 状态触发重组。顺带为 `daysLeft` 注入 `Clock` 便于单测。
 
-### 1.2 `restoreArchivedBatch` 非原子（批量撤销是 N 次独立 DataStore edit）
+### 1.2 `restoreArchivedBatch` 非原子（批量撤销是 N 次独立 DataStore edit）→ ✅ 已修（B10，`repo.restoreArchivedBatch` 单次 edit）
 `AppViewModel.restoreArchivedBatch` 对每个 id 各跑一次 `repo.restoreArchived`，一次编辑触发整份 Preferences 重发。批量较大（几十条）时：
 - 非原子：中途失败会留下一半已恢复/一半未恢复的中间态；
 - 性能：N 次全量解码 + 重写。
 - 影响：低（归档上限 200，实际批量通常个位数）。列为 P3。
 
-### 1.3 `AppViewModel.deleteConsumption` 对 id=null 的旧记录静默跳过
+### 1.3 `AppViewModel.deleteConsumption` 对 id=null 的旧记录静默跳过 → ✅ 已修（B11，改传 `record` 并按内容匹配；现签名为 `deleteConsumption(record: ConsumptionRecord)`）
 `index = sorted.indexOfFirst { it.id == id }`，旧数据 id=null 时 `getOrNull(-1) → null → return`，删除无效。启动迁移 `migrateConsumptionIds()` 已兜底，故仅剩「迁移前删除」的极窄窗口。列为 P3，可顺手改。
 
-### 1.4 依赖跨 7 个月未升（既有 backlog 1.1，确认为最高性价比技术债）
+### 1.4 依赖跨 7 个月未升（既有 backlog 1.1，确认为最高性价比技术债）→ ✅ 已修（B6 引入 catalog → B5 升级，2026-08-22 `41a728f`）
 `compose-bom 2026.01.01 → 2026.08.00` 等 7 项（见下）。无 version catalog，Miuix 三坐标 + BOM 易漏改，**升前应先引入 catalog**。
+（落地结果：`gradle/libs.versions.toml` 已建立，composeBom 2026.08.00 / coreKtx 1.19.0 / coreSplashscreen 1.2.0 / activityCompose 1.13.0 / lifecycle 2.11.0 / Gradle wrapper 9.7.1 全部到位。）
 
 > 其余既有发现（签名失效、minSdk、解码清空、主线程解码）已在 PR #3 修复，本文不再重复。
 
@@ -70,16 +74,16 @@
 | # | 事项 | 严重 | 难度 | 来源 | 状态 |
 |---|---|---|---|---|---|
 | B4 | **无障碍补全**：45 处 `contentDescription=null` 逐一判定（装饰→保留 null，信息型→补文案）；统计柱状图/环形图容器加 `semantics` 汇总文案（MD3 + Miuix 两套） | 🟡 | 中（量大、需逐处判断） | 阶段6 + MD3审计 | 待做 |
-| B5 | **升级过期依赖**（单独 PR，勿与功能混）：compose-bom 2026.01.01→2026.08.00、core-ktx 1.15→1.19、core-splashscreen 1.0.1→1.2.0、activity-compose 1.12.2→1.13.0、lifecycle 2.10→2.11、Gradle 9.6.1→9.7.1。升级后重点回归 Miuix 页面（占 44%） | 🟡 | 中（Miuix 依赖 Compose 1.12-rc01，有连带风险需独立回滚） | backlog 1.1 | 待做 |
-| B6 | **引入 `gradle/libs.versions.toml`**（version catalog）——升级依赖（B5）的前置，Miuix 三坐标 + BOM 对齐 | 🟡 | 低–中（机械，需小心坐标） | backlog 基建 | 待做 |
-| B7 | **README + LICENSE**：仓库公开根目录只有写给 AI 的 `CLAUDE.md`，路人无法理解项目；补带截图 README，选定开源协议 | 🟡 | 低 | 阶段6 | 待做 |
+| B5 | ~~**升级过期依赖**（单独 PR，勿与功能混）：compose-bom 2026.01.01→2026.08.00、core-ktx 1.15→1.19、core-splashscreen 1.0.1→1.2.0、activity-compose 1.12.2→1.13.0、lifecycle 2.10→2.11、Gradle 9.6.1→9.7.1~~。升级后重点回归 Miuix 页面（占 44%） | 🟡 | 中（Miuix 依赖 Compose 1.12-rc01，有连带风险需独立回滚） | backlog 1.1 | ✅ **已完成**（2026-08-22 `41a728f` B-03，CI 全绿；2026-09-16 补标） |
+| B6 | ~~**引入 `gradle/libs.versions.toml`**（version catalog）——升级依赖（B5）的前置，Miuix 三坐标 + BOM 对齐~~ | 🟡 | 低–中（机械，需小心坐标） | backlog 基建 | ✅ **已完成**（2026-08-22 B-02；Miuix 四坐标共用单一 `miuix` 版本位点。截图仍缺） |
+| B7 | ~~**README + LICENSE**：仓库公开根目录只有写给 AI 的 `CLAUDE.md`，路人无法理解项目；补带截图 README，选定开源协议~~ | 🟡 | 低 | 阶段6 | ✅ **已完成**（Apache-2.0；README 于 2026-09-16 补齐已上线功能与门禁说明。**截图仍未补**） |
 | B8 | ~~CI 首次真跑单测~~：master Build（run 32492016050）的 `Unit tests` 步骤 success，`test-report` 已上传——26 例在 CI 上真实跑绿 | 🟡 | 低 | 阶段5 | ✅ 已完成（2026-08-21 核实） |
 
 ### 🟢 P3 · 低价值 / 锦上添花
 
 | # | 事项 | 严重 | 难度 | 来源 | 状态 |
 |---|---|---|---|---|---|
-| B9 | **MD3 / Miuix 双实现去重**（最大长期维护税）：抽状态层（`rememberXxxState` / VM 派生 Flow），两套 UI 只留纯渲染 | 🟢 | 难（16+ 文件；**须在 B2 测试基线就位后再动**，否则无安全网） | 阶段7 | 待讨论 |
+| B9 | **MD3 / Miuix 双实现去重**（最大长期维护税）：抽状态层（`rememberXxxState` / VM 派生 Flow），两套 UI 只留纯渲染 | 🟢 | 难（16+ 文件；**须在 B2 测试基线就位后再动**，否则无安全网） | 阶段7 | 🟡 **第一步已完成**：8 个 `*State.kt` 状态容器已抽离（2026-08-22 B-08），最后一个绕过状态层的 `MiuixStatsScreen` 已于 2026-09-15 接回并加 `MiuixParityTest` 守卫。**渲染层仍是两套平行实现（16 文件约 7,200 行）**，组件级 style kit 去重见 `docs/audits/chileme-review.md` P1-10 / `2026-09-15-code-review.md` 第三批 1，未做 |
 | B10 | ~~`restoreArchivedBatch` 批量化/原子化~~（见 §1.2）：新增 `repo.restoreArchivedBatch` 单次 edit 批量恢复 | 🟢 | 中 | 本轮走查 | ✅ 已完成（CI 全绿） |
 | B11 | ~~`deleteConsumption` 对 id=null 旧记录兜底~~（见 §1.3）：改传 record，无 id 按内容匹配删除 | 🟢 | 低 | 本轮走查 | ✅ 已完成（CI 全绿） |
 | B12 | **Miuix 0.9.4-rc01 → 稳定版回迁** | 🟢 | 低–中 | 08-20 | 等上游发版 |

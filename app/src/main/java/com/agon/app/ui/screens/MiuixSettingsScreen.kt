@@ -73,8 +73,13 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 /**
  * 设置页的 Miuix（HyperOS）实现（v2.8）。
  *
- * 与 [SettingsScreen]（Material 3 实现）功能对等：外观（主题风格/深浅/动态取色/配色/悬浮导航）、
+ * 与 [SettingsScreen]（Material 3 实现）**基本**对等：外观（主题风格/深浅/动态取色/悬浮导航）、
  * 物品管理入口、备份与数据（导出/导入 JSON、坚果云同步、自动同步、清空库存）、关于。
+ *
+ * 已知差异（勿再声明「完全对等」）：本页**没有配色方案（AppPalette）入口** ——
+ * `MiuixRootTheme` 只消费 darkMode + dynamicColor，Miuix 侧没有种子色通道，
+ * 因此 MIUIX 风格下 15 套配色一个都选不了，MD3 下选好的配色切过来也会无提示地失效。
+ * 补齐或明示「配色仅对 Material 3 风格生效」二选一，用户已指示暂缓（见 devlog/INDEX.md）。
  *
  * 主题风格说明：
  * - MiuixTheme 由根级 `MiuixRootTheme` 统一提供，本页不再自行包裹。

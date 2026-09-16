@@ -8,7 +8,7 @@
 ## 0. 升级前必读的前提
 
 1. **Miuix 是 KMP 库，版本与工具链强绑定**。每个 Miuix 版本都要求特定的 Kotlin / AGP / Compose 版本。升级 Miuix 大概率要**连带升级整套工具链**，不是只改依赖版本号。
-2. **本项目当前锁定在 `0.9.4-rc01`（候选版）**，工具链为 Kotlin 2.4.10 / AGP 9.3.1 / Gradle 9.6.1 / compileSdk 37 / minSdk 24。
+2. **本项目当前锁定在 `0.9.4-rc01`（候选版）**，工具链为 Kotlin 2.4.10 / AGP 9.3.1 / **Gradle 9.7.1** / compileSdk 37 / **minSdk 26** / JDK 21。（2026-09-16 校正：此前本文写 Gradle 9.6.1、minSdk 24，均已过期）
 3. **优先升级到稳定版**（如 `0.9.4` 正式 tag），候选版/快照版风险高。
 4. **升级前确保工作区干净、PR 已合并**，避免在未合并改动上叠加升级。
 5. **严禁凭记忆臆造 Miuix API**。本项目已安装 skill（`.claude/skills/miuix/`），所有组件签名一律以 skill 的 pinned source 为准；升级后需用**新版本的 source** 重新核对。
@@ -41,19 +41,30 @@ https://raw.githubusercontent.com/compose-miuix-ui/miuix/<tag>/gradle/libs.versi
 
 ### 第 2 步：改依赖版本
 
-`app/build.gradle.kts` 中三处（注意保持 common 坐标，勿加 `-android` 后缀）：
+**v2.8.1 起项目已引入 Version Catalog，Miuix 版本号只有一个位点**：`gradle/libs.versions.toml` 的
 
-```kotlin
-implementation("top.yukonga.miuix.kmp:miuix-ui:<新版本>")
-implementation("top.yukonga.miuix.kmp:miuix-preference:<新版本>")
-implementation("top.yukonga.miuix.kmp:miuix-icons:<新版本>")
+```toml
+[versions]
+miuix = "0.9.4-rc01"     # ← 只改这一行
 ```
+
+四个坐标都 `version.ref = "miuix"`，改一处即可全部对齐（注意 `miuix-ui` / `miuix-preference` / `miuix-icons` 保持 **common 坐标**，勿加 `-android` 后缀；只有导航用 `miuix-nav-android`）：
+
+```toml
+miuix-nav-android = { module = "top.yukonga.miuix.kmp:miuix-nav-android", version.ref = "miuix" }
+miuix-ui          = { module = "top.yukonga.miuix.kmp:miuix-ui",          version.ref = "miuix" }
+miuix-preference  = { module = "top.yukonga.miuix.kmp:miuix-preference",  version.ref = "miuix" }
+miuix-icons       = { module = "top.yukonga.miuix.kmp:miuix-icons",       version.ref = "miuix" }
+```
+
+`app/build.gradle.kts` 里只写 `implementation(libs.miuix.ui)` 这类别名，**不要再写死坐标字符串**。
 
 ### 第 3 步：连带升级工具链（若基线变化）
 
-- 根 `build.gradle.kts`：Kotlin 插件版本（`org.jetbrains.kotlin.plugin.compose` / `plugin.serialization`）+ AGP（`com.android.application`）。**注意：本项目是 AGP 9 内置 Kotlin，勿重新加 `org.jetbrains.kotlin.android`**。
+- `gradle/libs.versions.toml` 的 `[versions]`：`agp`、`kotlin`、`composeBom`（`[plugins]` 里 `kotlin-compose` / `kotlin-serialization` 的版本都 `version.ref = "kotlin"`，改 `kotlin` 一处即可；根 `build.gradle.kts` 与 `app/build.gradle.kts` 均用 `alias(libs.plugins.*)` 引用）。**注意：本项目是 AGP 9 内置 Kotlin，勿重新加 `org.jetbrains.kotlin.android`**。
 - `gradle/wrapper/gradle-wrapper.properties`：Gradle distributionUrl。
 - `app/build.gradle.kts`：`compileSdk`（如需更高）。
+- ⚠️ Miuix 依赖 Compose 1.12.0-rc01，升 `composeBom` 与升 `miuix` 有连带关系，**不要和功能改动混在同一个 PR**，保证能独立回滚。
 
 ### 第 4 步：扫描并核对受影响的 API
 
@@ -99,7 +110,7 @@ grep -rn "top.yukonga.miuix.kmp" app/src/main/java | sed 's/.*import //' | sort 
 4. **图标分流**：MIUIX 用 `MiuixIcons.Regular.*`，MD3 用 material 图标；`CleaningServices`/`Inventory2` 无 Miuix 对应，保留 material。
 5. **桥接层**：`MiuixRootTheme.kt` 的 `miuixColorsToMd3ColorScheme` 是「MD3 页面取色」的过渡层，升级时若 Miuix `Colors` 字段变化，需同步修正映射。
 6. **状态色**：安全/临期/过期是硬编码语义色（`Color.kt`），不随主题/版本变。
-7. **minSdk 24 不变**（除非新 Miuix 强制要求更高，需评估）。
+7. **minSdk 26 不变**（2026-08-21 由 24 提升：全项目 28 处 `java.time` 未开脱糖，API 24/25 会 `NoClassDefFoundError`。除非新 Miuix 强制要求更高，需评估）。
 
 ---
 
@@ -123,6 +134,8 @@ grep -rn "top.yukonga.miuix.kmp" app/src/main/java | sed 's/.*import //' | sort 
 
 - [ ] 依赖版本已改，工具链（Kotlin/AGP/Gradle/compileSdk）已对齐目标版本基线
 - [ ] `./gradlew assembleDebug`（或 CI）通过
+- [ ] `bash tools/ci-gates.sh` 通过（ktlint 为拦截模式，见 `docs/WORKFLOW.md` §3）
+- [ ] `./gradlew testDebugUnitTest` 通过 —— 尤其 `MiuixParityTest`（拦「Miuix 页面重写业务计算」）与 `ImeHandlingTest`（拦「弹窗/输入屏丢失 IME 处理」）
 - [ ] 所有 Miuix API 调用已对照新版本 source 核对，无臆造签名
 - [ ] MD3 主题未受影响（未改 MD3 页面代码）
 - [ ] 双主题切换、弹窗、图标、squircle 等关键路径回归正常
@@ -135,8 +148,9 @@ grep -rn "top.yukonga.miuix.kmp" app/src/main/java | sed 's/.*import //' | sort 
 
 | 文件 | 作用 |
 |---|---|
-| `app/build.gradle.kts` | Miuix 依赖 + compileSdk |
-| `build.gradle.kts` | Kotlin/AGP 插件版本 |
+| `gradle/libs.versions.toml` | **Miuix 版本的唯一位点**（`miuix = "..."`）+ 插件/工具链版本 |
+| `app/build.gradle.kts` | 依赖别名引用（`libs.miuix.*`）+ compileSdk / minSdk / targetSdk |
+| `build.gradle.kts` | 插件声明（`alias(libs.plugins.*)`，均 `apply false`） |
 | `gradle/wrapper/gradle-wrapper.properties` | Gradle 版本 |
 | `app/src/main/java/com/agon/app/ui/theme/MiuixRootTheme.kt` | 根主题 + 桥接 |
 | `app/src/main/java/com/agon/app/ui/theme/ThemeStyle.kt` | 主题风格枚举 |

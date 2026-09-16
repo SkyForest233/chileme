@@ -483,31 +483,37 @@ class AppContainer(app: Application) {
 
 ### 第一批 · 立刻做（每项 < 1 小时，风险低，价值高）
 
-| # | 动作 | 位置 |
-|---|---|---|
-| 1 | 损坏态下跳过封面清理 | `AppViewModel.kt:219` |
-| 2 | `ready` 加 3 秒超时兜底（永远不要卡启动页） | `MainActivity.kt:198` / `AppViewModel.kt:119` |
-| 3 | 读流加 `.retryWhen` + `.catch`（IO 异常不再崩） | `FoodRepository.kt:168-175` |
-| 4 | `loadLocalSnapshots` 切 IO + `itemCount` 改为解析 `BackupData` | `AppViewModel.kt:387`, `LocalSnapshotStore.kt:58-78` |
-| 5 | "本周消耗"文案改"近 7 天"（或改成周一起算） | `StatsScreen.kt:122`, `StatsState.kt:42` |
-| 6 | TOP5 按 `(name, unit)` 分组 | `StatsState.kt:69` |
-| 7 | 导入备份加二次确认 + 导入前自动本地快照 | `SettingsScreen.kt:125`, `MiuixSettingsScreen.kt` |
-| 8 | 删除漂移的 `docs/audits/ci/*.yml` 与 `*.patch` | `docs/audits/` |
-| 9 | 修正 `ARCHITECTURE.md` 的"滑动归档"段落与 thresholds 注释 | `docs/ARCHITECTURE.md:114` |
-| 10 | CI：`build.yml` 加 `concurrency` + `permissions: contents: read` | `.github/workflows/build.yml` |
+> **2026-09-16 状态校订**：10 项中 **8 项已在 PR #7（`58534fd`）落地**，第 5、6 项（统计口径文案与 TOP5 分组）**用户指示暂缓**，代码未改。
+
+| # | 动作 | 位置 | 状态 |
+|---|---|---|---|
+| 1 | 损坏态下跳过封面清理 | `AppViewModel.kt:219` | ✅ 已修 |
+| 2 | `ready` 加 3 秒超时兜底（永远不要卡启动页） | `MainActivity.kt:198` / `AppViewModel.kt:119` | ✅ 已修（`READY_TIMEOUT_MS`） |
+| 3 | 读流加 `.retryWhen` + `.catch`（IO 异常不再崩） | `FoodRepository.kt:168-175` | ✅ 已修（`resilientRead()` 收口 19 个读流） |
+| 4 | `loadLocalSnapshots` 切 IO + `itemCount` 改为解析 `BackupData` | `AppViewModel.kt:387`, `LocalSnapshotStore.kt:58-78` | ✅ 已修（三方法 suspend + `Dispatchers.IO` + `countItemsInSnapshot()`） |
+| 5 | "本周消耗"文案改"近 7 天"（或改成周一起算） | `StatsScreen.kt:122`, `StatsState.kt:42` | ⏸ **暂缓**（用户指示；`StatsScreen.kt:122` 仍为「本周消耗」） |
+| 6 | TOP5 按 `(name, unit)` 分组 | `StatsState.kt:69` | ⏸ **暂缓**（仍 `groupBy { it.name }`） |
+| 7 | 导入备份加二次确认 + 导入前自动本地快照 | `SettingsScreen.kt:125`, `MiuixSettingsScreen.kt` | ✅ 已修（另加 `previewBackup()` 校验与 20 MB 上限） |
+| 8 | 删除漂移的 `docs/audits/ci/*.yml` 与 `*.patch` | `docs/audits/` | ✅ 已删（4 个文件） |
+| 9 | 修正 `ARCHITECTURE.md` 的"滑动归档"段落与 thresholds 注释 | `docs/ARCHITECTURE.md:114` | ✅ 已修 |
+| 10 | CI：`build.yml` 加 `concurrency` + `permissions: contents: read` | `.github/workflows/build.yml` | ✅ 已修 |
 
 ### 第二批 · 两周内（每项 0.5–1 天）
 
-1. 错误模型统一：`Result` 返回值 + `Channel<UiEvent>` + 全局异常处理器 + 写失败反馈（§1.3 / §2.4）
-2. 写守卫改按 key 粒度 + 提供"放弃损坏数据"入口（§1.2）
-3. 导入/恢复:校验 + 版本迁移 + 结果对象 + 体积上限（§1.4）
-4. 仓储集成测试落地（Robolectric + 临时 DataStore），先把 §1.1/§1.2/§1.3 的回归测试写上（§2.9）
-5. 凭据拆库 + 备份规则调整（§1.6）；封面改存文件名（§1.7）
-6. ktlint + detekt + editorconfig 上 CI（§4.1）；CI 增加 release 构建验证（§4.2）
-7. 统计口径修正 + 归档上限提示 + 浪费独立计数（§1.8 / §1.10）
-8. `MainActivity` 拆分（§2.6）
+> **2026-09-16 状态校订**：2/3/4/6 已完成，1/5/8 未动，7 部分完成。
+
+1. ❌ **未做** 错误模型统一：`Result` 返回值 + `Channel<UiEvent>` + 全局异常处理器 + 写失败反馈（§1.3 / §2.4）——实测全项目 `Channel<` / `UiEvent` 0 处
+2. ✅ 写守卫改按 key 粒度 + 提供"放弃损坏数据"入口（§1.2）
+3. ✅ 导入/恢复:校验 + 版本迁移 + 结果对象 + 体积上限（§1.4）
+4. ✅ 仓储集成测试落地（**未用 Robolectric**，改注入临时 DataStore + 临时留档目录，8 例；理由见 devlog §13.3）
+5. ❌ **未做** 凭据拆库 + 备份规则调整（§1.6）；封面改存文件名（§1.7）——`photoPath` 仍存绝对路径，`data_extraction_rules.xml` 未调整
+6. ✅ ktlint + detekt + editorconfig 上 CI（§4.1）；CI 增加 release 构建验证（§4.2）
+7. 🟡 **部分**：浪费口径已改按件数；**归档上限提示与浪费独立计数器未做**（`take(200)` 仍在 `FoodRepository.kt:487/630`）
+8. ❌ **未做** `MainActivity` 拆分（§2.6）——现 1,115 行（`Common.kt` 983 行）
 
 ### 第三批 · 一两个月（结构性）
+
+> **2026-09-16 状态校订**：全部未动（属结构性重构，需先有第 1 项的组件层与测试安全网）。
 
 1. **App 级组件层 + 页面去重**（§2.1）——最大收益，也最大工作量
 2. 派生数据下沉 VM + `WhileSubscribed`（§2.2）

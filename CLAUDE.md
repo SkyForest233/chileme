@@ -19,7 +19,8 @@
 | `docs/REQUIREMENTS.md` | 需求规格：功能清单、需求边界（明确不做的功能）、验收标准 | 新增/修改功能前必读；判断需求是否越界 |
 | `docs/ARCHITECTURE.md` | 技术架构：分层结构、数据模型、数据流、导航路由表、依赖清单 | 改动数据层/导航/新增依赖前必读 |
 | `docs/DESIGN_SPEC.md` | 设计规范：配色、圆角、间距、字体层级、组件规范、动效规范 | 新建/修改任何 UI 前必读 |
-| `docs/WORKFLOW.md` | 开发流程：从需求到交付的标准执行步骤、代码规范、构建与验证、常见错误处理 | 每次开发任务开始前必读 |
+| `docs/WORKFLOW.md` | 开发流程：从需求到交付的标准执行步骤、代码规范、构建与验证、**CI 静态门禁（ktlint + detekt）**、常见错误处理 | 每次开发任务开始前必读；提交前跑 `bash tools/ci-gates.sh` |
+| `docs/MIUIX_UPGRADE.md` | Miuix 版本升级操作手册（上游基线查询、Version Catalog 单一版本位点、API 核对、常见坑） | 只在升级 Miuix / 工具链时读 |
 
 ## 2.5 已安装 Skill 与审计
 
@@ -54,10 +55,11 @@
 - 数据持久化统一走 `FoodRepository`（DataStore + kotlinx-serialization），UI 不直接碰 DataStore
 - 删除类操作一律走归档（Archive），不直接物理删除库存记录
 - 主题为 MD3 种子色方案（MaterialKolor 生成），配色方案定义在 `ui/theme/Palettes.kt`（AppPalette 枚举）；`Color.kt` 仅保留状态语义色；状态色（安全/临期/过期）通过 `rememberStatusUi()` 获取
-- 渐进 Miuix 迁移（v2.8）：已 Miuix 化的页面见 `docs/DESIGN_SPEC.md` §7；编辑页/统计页/CheckSwitch 刻意保留 MD3+桥接（有明确理由，勿擅自迁移）；新增「悬浮导航」开关（`floating_nav`）；Miuix 组件 API 一律以 `.claude/skills/miuix` 的 pinned source（v0.9.4-rc01）为准，不得凭记忆臆造
+- 渐进 Miuix 迁移（v2.8）：已 Miuix 化的页面见 `docs/DESIGN_SPEC.md` §7 —— **除编辑页外的 8 对屏幕全部已 Miuix 化（含统计页 `MiuixStatsScreen` 与消耗记录页 `MiuixConsumptionLogScreen`，二者图表仍 Canvas 自绘但外壳走 Miuix）**；只有**编辑页**与 `CheckSwitch` 刻意保留 MD3+桥接（DatePicker 无 Miuix 对应 / 项目特色打勾打叉样式），勿擅自迁移。`Miuix*Screen.kt` 必须调 `remember*UiState` 复用状态容器，禁止在 UI 文件里重写业务计算（`MiuixParityTest` 会拦）。新增「悬浮导航」开关（`floating_nav`）；Miuix 组件 API 一律以 `.claude/skills/miuix` 的 pinned source（v0.9.4-rc01）为准，不得凭记忆臆造
 - 所有布尔开关一律使用 `ui/components/Common.kt` 的 `CheckSwitch`（打勾/打叉样式），禁止使用 material3 Switch
 - 构建前确认 `strings.xml` 的 app_name 为“吃了么”，不得回退为占位名
 - **版本号锁定**：设置页“关于”中的版本号固定为 **v1.0**，未经用户明确指示不得更改（用户 2026-07-31 明确要求，此后新增功能不再自行递增版本号）。**注意**：该约束仅针对设置页展示的硬编码字符串；`build.gradle.kts` 的 `versionCode` / `versionName` 由 CI 注入（2026-08-21 起），两者互不影响，不要因为这条约束把 versionCode 改回恒定值
 - **提交前跑静态门禁**：`bash tools/ci-gates.sh`（ktlint 拦截 / detekt 报告；`GATES_MODE=report` 只看报告）。规则边界与理由见 `.editorconfig` 与 `detekt.yml` 文件头，流程见 `docs/WORKFLOW.md` §3；CI 在每个 PR 上跑同一脚本，外加 `assembleRelease` 的 R8 验证
-- **数据写入守卫**：`FoodRepository` 中任何写「用户资产型」key（items / archived / consumption / history）的方法，**必须先 `isCorrupt(...)` 判断并在损坏时放弃写入**；新增读 flow 一律走 `rawFlow()` / `lightFlow()`。详见 `docs/ARCHITECTURE.md` §5「数据完整性守卫」与「Flow 读取规约」
+- **数据写入守卫（2026-09-15 起按 key 粒度）**：`FoodRepository` 中任何写「用户资产型」key（items / archived / consumption / history）的方法，**必须先 `isCorrupt(...)` 判断**，但守卫只覆盖**本次写入真正会覆盖的 key**，且主数据先判、辅助数据按需判（例：`upsert` 在 `history_entries` 损坏时跳过历史、库存照常保存）。**禁止退回 `isCorrupt(a, b, c)` 式一起判**——辅助数据损坏会连带锁死核心功能（`CorruptGuardTest` 静态拦截）。新增读 flow 一律走 `rawFlow()` / `lightFlow()`（内含 `resilientRead()` 兜底），禁止直接 `dataStore.data`。详见 `docs/ARCHITECTURE.md` §5「数据完整性守卫」「读流兜底」与「Flow 读取规约」
+- **双主题铁律**：`Miuix*Screen.kt` 必须调 `remember*UiState` 复用状态容器，**禁止在 UI 文件里重写业务/聚合计算**（`MiuixParityTest` 静态拦截）；含输入框的屏幕必须消费 IME inset（`ImeHandlingTest` 拦截）。详见 `docs/ARCHITECTURE.md` §5「Miuix 屏幕只换外壳」与「键盘避让」
 - **release 签名**：凭据缺失时构建应当**失败**而非回退 debug 签名。若看到 `Release 签名凭据缺失` 报错，那是预期行为，不要通过恢复静默回退来"修复"它
