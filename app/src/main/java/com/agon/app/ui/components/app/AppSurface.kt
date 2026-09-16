@@ -18,6 +18,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.agon.app.ui.theme.LocalThemeStyle
@@ -30,13 +31,22 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 /**
  * 列表行/信息块的卡片底：MD3 走 `shapes.large` + `surfaceContainer`，
  * Miuix 走 16dp 圆角 + 同名色。不传 `contentColor`，与合并前两版的用法一致。
+ *
+ * @param miuixCornerRadius **只影响 Miuix 侧的圆角**（MD3 侧恒走 `shapes.large` 这个 token，
+ *   按 `docs/ARCHITECTURE.md` 的约束 ⑥ 点名哪边不生效）。默认 16dp = Miuix 库 `Surface` 的默认圆角，
+ *   也是合并前消耗记录行等调用点的取值。管理页三行（阈值 / 分类 / 位置）合并前显式写了
+ *   `RoundedCornerShape(24.dp)`，与 MD3 侧 `shapes.large`（= 24dp）同值，故那边传 `24.dp`。
  */
 @Composable
-fun AppCard(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
+fun AppCard(
+    modifier: Modifier = Modifier,
+    miuixCornerRadius: Dp = 16.dp,
+    content: @Composable () -> Unit,
+) {
     if (LocalThemeStyle.current == ThemeStyle.MIUIX) {
         MiuixSurface(
             modifier = modifier,
-            shape = RoundedCornerShape(16.dp),
+            shape = RoundedCornerShape(miuixCornerRadius),
             color = MiuixTheme.colorScheme.surfaceContainer,
         ) {
             content()

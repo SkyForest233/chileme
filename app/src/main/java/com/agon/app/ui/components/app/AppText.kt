@@ -234,3 +234,17 @@ internal fun appPrimaryColor(): Color =
     } else {
         MaterialTheme.colorScheme.primary
     }
+
+/**
+ * 最弱的一档前景色：**禁用状态的图标**（分类只剩一个时那个点不动的删除按钮）。
+ * MD3 `outlineVariant` / Miuix `dividerLine` —— 合并前两版各自就是这么取的。
+ * 名字按「弱到接近分割线」这个共同语义起，不叫 `appOutlineVariantColor`，
+ * 免得暗示 Miuix 侧也是那个角色（它没有 outlineVariant）。
+ */
+@Composable
+internal fun appFaintColor(): Color =
+    if (LocalThemeStyle.current == ThemeStyle.MIUIX) {
+        MiuixTheme.colorScheme.dividerLine
+    } else {
+        MaterialTheme.colorScheme.outlineVariant
+    }

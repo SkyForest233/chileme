@@ -33,11 +33,6 @@ import com.agon.app.ui.screens.EditFoodScreen
 import com.agon.app.ui.screens.LocationManageScreen
 import com.agon.app.ui.screens.ThresholdManageScreen
 import com.agon.app.ui.screens.FoodDetailScreen
-import com.agon.app.ui.screens.MiuixCategoryManageScreen
-import com.agon.app.ui.screens.MiuixLocationManageScreen
-import com.agon.app.ui.screens.MiuixThresholdManageScreen
-import com.agon.app.ui.theme.LocalThemeStyle
-import com.agon.app.ui.theme.ThemeStyle
 import com.agon.app.viewmodel.AppViewModel
 import top.yukonga.miuix.kmp.nav.core.NavCornerClipMode
 import top.yukonga.miuix.kmp.nav.core.NavDisplay
@@ -48,8 +43,12 @@ import top.yukonga.miuix.kmp.nav.core.NavBackStack
 import androidx.compose.foundation.pager.PagerState
 
 /**
- * 唯一的 NavDisplay：按 backStack 顶端路由渲染 8 个页面（主页 Pager + 7 个二级页），
- * 每个二级页按 LocalThemeStyle 分流 MD3 / MIUIX 两套实现。
+ * 唯一的 NavDisplay：按 backStack 顶端路由渲染 8 个页面（主页 Pager + 7 个二级页）。
+ *
+ * **本文件已不含任何主题分支**（2026-09-16 第三批 #3 第 6 对合并管理页后达成）：8 个页面全是
+ * 单文件双主题，MD3 / MIUIX 的差异只在 `ui/components/app/` 的骨架组件里分流。
+ * 原来这里是「每个二级页按 LocalThemeStyle 分流两套实现」，故 `LocalThemeStyle` / `ThemeStyle`
+ * 两个 import 与三处 if/else 一并删除（`ScreenParityTest.MergedScreens` 守着不许把双胞胎加回来）。
  */
 @Composable
 internal fun AppNavHost(
@@ -128,25 +127,16 @@ internal fun AppNavHost(
                 ArchiveScreen(viewModel = viewModel, onBack = { popRoute() })
             }
             entry<AppRoute.ManageThresholds> {
-                if (LocalThemeStyle.current == ThemeStyle.MIUIX) {
-                    MiuixThresholdManageScreen(viewModel = viewModel, onBack = { popRoute() })
-                } else {
-                    ThresholdManageScreen(viewModel = viewModel, onBack = { popRoute() })
-                }
+                // 双主题已合并为一份（外壳差异在 ui/components/app/ 的骨架组件里分流）
+                ThresholdManageScreen(viewModel = viewModel, onBack = { popRoute() })
             }
             entry<AppRoute.ManageCategories> {
-                if (LocalThemeStyle.current == ThemeStyle.MIUIX) {
-                    MiuixCategoryManageScreen(viewModel = viewModel, onBack = { popRoute() })
-                } else {
-                    CategoryManageScreen(viewModel = viewModel, onBack = { popRoute() })
-                }
+                // 双主题已合并为一份（外壳差异在 ui/components/app/ 的骨架组件里分流）
+                CategoryManageScreen(viewModel = viewModel, onBack = { popRoute() })
             }
             entry<AppRoute.ManageLocations> {
-                if (LocalThemeStyle.current == ThemeStyle.MIUIX) {
-                    MiuixLocationManageScreen(viewModel = viewModel, onBack = { popRoute() })
-                } else {
-                    LocationManageScreen(viewModel = viewModel, onBack = { popRoute() })
-                }
+                // 双主题已合并为一份（外壳差异在 ui/components/app/ 的骨架组件里分流）
+                LocationManageScreen(viewModel = viewModel, onBack = { popRoute() })
             }
         }
     }

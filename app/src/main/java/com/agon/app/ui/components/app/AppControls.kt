@@ -19,12 +19,15 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.FilterList
+import androidx.compose.material.icons.rounded.Remove
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
@@ -35,6 +38,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.agon.app.ui.theme.LocalThemeStyle
@@ -42,10 +46,12 @@ import com.agon.app.ui.theme.MotionSpring
 import com.agon.app.ui.theme.ThemeStyle
 import top.yukonga.miuix.kmp.anim.folmeSpring
 import top.yukonga.miuix.kmp.basic.Icon as MiuixIcon
+import top.yukonga.miuix.kmp.basic.IconButton as MiuixIconButton
 import top.yukonga.miuix.kmp.basic.InputField as MiuixInputField
 import top.yukonga.miuix.kmp.basic.Surface as MiuixSurface
 import top.yukonga.miuix.kmp.basic.Text as MiuixText
 import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.extended.Add
 import top.yukonga.miuix.kmp.icon.extended.ExpandMore
 import top.yukonga.miuix.kmp.icon.extended.Filter
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -275,4 +281,97 @@ private fun FilterToggleIcon(
     } else {
         Icon(md3, contentDescription = null, modifier = modifier, tint = tint)
     }
+}
+
+/**
+ * 步进器胶囊：减号 + 数值文本 + 加号，装在 `surfaceContainerHighest` 的全圆角（50%）胶囊里。
+ * 管理页「临期提醒阈值」每行的行尾在用（「N 天」）。
+ *
+ * 三处照抄而非统一的地方：
+ * - **减号两版都用 material 的 `Icons.Rounded.Remove`**：Miuix 的 `Remove` 是「移除/退出」形状，
+ *   合并前 Miuix 版就明确回退了 material 字形（原注释：「减号与列表步进器一样回退 material」）；
+ *   只有加号用 `MiuixIcons.Add`。所以这里 MD3 分支两个字形都来自 material，Miuix 分支只有加号来自 Miuix。
+ * - 数值文本走 [AppTextScale.Action] 档 + Bold（MD3 `labelLarge` / Miuix `body2`，两版原样）。
+ * - 胶囊容器两版**逐字相同**（`RoundedCornerShape(50)` + `surfaceContainerHighest`），故不分流。
+ *
+ * 不与 `ui/components/QuantityStepper.kt` 合并：那个带触感反馈与数字竖直滑动动画、单位固定不动，
+ * 形态与本胶囊不同，合并前就是两套东西。设置页也有步进器（第 8 对），届时两边都看得见再决定复用还是各留一份
+ * —— 与首页 `MiniStat` 同一处理原则：不替还没合并的调用点定 API。
+ *
+ * 触摸目标保持库默认 48dp，只有字形是 18dp（`docs/DESIGN_SPEC.md` §6：IconButton 不得用 `Modifier.size` 缩小容器）。
+ */
+@Composable
+fun AppStepperPill(
+    valueText: String,
+    onDecrement: () -> Unit,
+    onIncrement: () -> Unit,
+    decrementEnabled: Boolean,
+    incrementEnabled: Boolean,
+    decrementDescription: String?,
+    incrementDescription: String?,
+) {
+    if (LocalThemeStyle.current == ThemeStyle.MIUIX) {
+        MiuixSurface(
+            shape = RoundedCornerShape(50),
+            color = MiuixTheme.colorScheme.surfaceContainerHighest,
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                MiuixIconButton(onClick = onDecrement, enabled = decrementEnabled) {
+                    MiuixIcon(
+                        Icons.Rounded.Remove,
+                        contentDescription = decrementDescription,
+                        modifier = Modifier.size(18.dp),
+                    )
+                }
+                StepperValue(valueText)
+                MiuixIconButton(onClick = onIncrement, enabled = incrementEnabled) {
+                    MiuixIcon(
+                        MiuixIcons.Add,
+                        contentDescription = incrementDescription,
+                        modifier = Modifier.size(18.dp),
+                    )
+                }
+            }
+        }
+    } else {
+        Surface(
+            shape = RoundedCornerShape(50),
+            color = MaterialTheme.colorScheme.surfaceContainerHighest,
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                IconButton(onClick = onDecrement, enabled = decrementEnabled) {
+                    Icon(
+                        Icons.Rounded.Remove,
+                        contentDescription = decrementDescription,
+                        modifier = Modifier.size(18.dp),
+                    )
+                }
+                StepperValue(valueText)
+                IconButton(onClick = onIncrement, enabled = incrementEnabled) {
+                    Icon(
+                        Icons.Rounded.Add,
+                        contentDescription = incrementDescription,
+                        modifier = Modifier.size(18.dp),
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** 胶囊中间的数值文本：Action 档 + Bold + 左右 6dp（两版一致）。 */
+@Composable
+private fun StepperValue(valueText: String) {
+    AppText(
+        valueText,
+        AppTextScale.Action,
+        fontWeight = FontWeight.Bold,
+        modifier = Modifier.padding(horizontal = 6.dp),
+    )
 }

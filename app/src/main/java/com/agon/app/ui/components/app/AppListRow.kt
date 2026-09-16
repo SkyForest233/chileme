@@ -17,7 +17,10 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowForward
+import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.DeleteForever
+import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.Place
 import androidx.compose.material.icons.rounded.RestartAlt
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -27,8 +30,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.agon.app.ui.theme.LocalThemeStyle
@@ -38,7 +44,9 @@ import top.yukonga.miuix.kmp.basic.IconButton as MiuixIconButton
 import top.yukonga.miuix.kmp.basic.Text as MiuixText
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Delete
+import top.yukonga.miuix.kmp.icon.extended.Edit
 import top.yukonga.miuix.kmp.icon.extended.Forward
+import top.yukonga.miuix.kmp.icon.extended.Location
 import top.yukonga.miuix.kmp.icon.extended.Refresh
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
@@ -109,6 +117,139 @@ private fun RowTrailing(trailing: String) =
  */
 @Composable
 private fun RowTag(tag: String) = AppText(tag, AppTextScale.Tag, color = appMutedColor())
+
+/**
+ * 卡片里的一行：**前导槽**（emoji 或图标）+ 标题 + 可选副标题 + **尾部槽**（步进器、操作按钮）。
+ * 管理页三行（阈值 / 分类 / 位置）合并前逐字同构，只有前导与尾部不同。
+ *
+ * 与 [AppListRow] 的分工：那个是「emoji + 标题 + 副标题 + 行尾强调文本」的**固定组合**（消耗记录行在用），
+ * 这里两侧都是槽位，因为管理页的行尾是控件而不是文本。外壳走 [AppCard] 且
+ * **Miuix 侧圆角传 24dp** —— 合并前两版都是 24dp（MD3 `shapes.large`、Miuix 显式 `RoundedCornerShape(24.dp)`），
+ * 若走 [AppCard] 的默认 16dp 就是只有真机看得出来的视觉改动。
+ *
+ * @param verticalPadding 行内上下留白。合并前阈值行 8dp、分类/位置行 6dp，**两版一致**，故留参数不统一。
+ * @param modifier 只作用于卡片外壳，`fillMaxWidth()` 由内部补，所以调用方的 `animateItem()` 会排在它前面
+ *   （与 [AppActionRow] 同一情况，第 2 对已真机验证过）。
+ * @param subtitle 传 null 就不渲染（分类/位置行只在「有食品在用」时才显示这一行）。
+ *   标题走 [AppTextScale.Body] + Medium、副标题走 [AppHintText]，都是两版原来的取值。
+ *   合并前阈值行是把 `weight(1f)` 直接写在标题 `Text` 上、没有 `Column` 包裹，这里统一成 `Column`
+ *   （无副标题时渲染等价：宽度分配与垂直居中都一样）—— 结构统一，取值不动。
+ */
+@Composable
+fun AppCardRow(
+    title: String,
+    modifier: Modifier = Modifier,
+    subtitle: String? = null,
+    verticalPadding: Dp = 6.dp,
+    leading: (@Composable () -> Unit)? = null,
+    trailing: (@Composable RowScope.() -> Unit)? = null,
+) {
+    AppCard(modifier = modifier.fillMaxWidth(), miuixCornerRadius = 24.dp) {
+        Row(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = verticalPadding),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            if (leading != null) {
+                leading()
+                Spacer(Modifier.width(10.dp))
+            }
+            Column(Modifier.weight(1f)) {
+                AppText(title, AppTextScale.Body, fontWeight = FontWeight.Medium)
+                if (subtitle != null) {
+                    AppHintText(subtitle)
+                }
+            }
+            if (trailing != null) {
+                trailing()
+            }
+        }
+    }
+}
+
+/**
+ * 位置行的前导图标：MD3 `Place` / Miuix `Location`，18dp + 弱化色。
+ * 装饰性图标，两版都不给 contentDescription（旁边那行文字已经念出位置名）。
+ */
+@Composable
+fun AppLocationIcon(modifier: Modifier = Modifier) {
+    if (LocalThemeStyle.current == ThemeStyle.MIUIX) {
+        MiuixIcon(
+            MiuixIcons.Location,
+            contentDescription = null,
+            modifier = modifier.size(18.dp),
+            tint = appMutedColor(),
+        )
+    } else {
+        Icon(
+            Icons.Rounded.Place,
+            contentDescription = null,
+            modifier = modifier.size(18.dp),
+            tint = appMutedColor(),
+        )
+    }
+}
+
+/** 行内「编辑」图标按钮：两版都是各自的 `Edit` 字形、18dp、主色。 */
+@Composable
+fun AppEditRowAction(onClick: () -> Unit, contentDescription: String?) {
+    RowIconButton(
+        onClick = onClick,
+        enabled = true,
+        contentDescription = contentDescription,
+        md3 = Icons.Rounded.Edit,
+        miuix = MiuixIcons.Edit,
+        tint = appPrimaryColor(),
+    )
+}
+
+/**
+ * 行内「删除」图标按钮：两版都是各自的 `Delete` 字形、18dp。
+ * **可点时危险色、禁用时最弱色**（MD3 `outlineVariant` / Miuix `dividerLine`）——
+ * 分类只剩一个时删除按钮禁用，两版都是这个规则，故收进组件而不是让屏幕传色。
+ */
+@Composable
+fun AppDeleteRowAction(
+    onClick: () -> Unit,
+    contentDescription: String?,
+    enabled: Boolean = true,
+) {
+    RowIconButton(
+        onClick = onClick,
+        enabled = enabled,
+        contentDescription = contentDescription,
+        md3 = Icons.Rounded.Delete,
+        miuix = MiuixIcons.Delete,
+        tint = if (enabled) appErrorColor() else appFaintColor(),
+    )
+}
+
+/**
+ * 行内 18dp 图标按钮的公共实现。
+ *
+ * **不接 `modifier` 参数**：合并前两版都没往这两个 `IconButton` 上传 modifier，
+ * 而 Miuix 的 `IconButton` 是否有该形参本轮没有按 pinned source 核过 —— 按 `CLAUDE.md`
+ * 「不得凭记忆臆造 Miuix 签名」，不需要的参数就不加（要加时先核上游）。
+ * 触摸目标保持库默认（48dp），只有里面的字形是 18dp，与 `docs/DESIGN_SPEC.md` §6 一致。
+ */
+@Composable
+private fun RowIconButton(
+    onClick: () -> Unit,
+    enabled: Boolean,
+    contentDescription: String?,
+    md3: ImageVector,
+    miuix: ImageVector,
+    tint: Color,
+) {
+    if (LocalThemeStyle.current == ThemeStyle.MIUIX) {
+        MiuixIconButton(onClick = onClick, enabled = enabled) {
+            MiuixIcon(miuix, contentDescription = contentDescription, modifier = Modifier.size(18.dp), tint = tint)
+        }
+    } else {
+        IconButton(onClick = onClick, enabled = enabled) {
+            Icon(md3, contentDescription = contentDescription, modifier = Modifier.size(18.dp), tint = tint)
+        }
+    }
+}
 
 /** 删除按钮：两主题图标字形不同（MD3 `DeleteForever` / Miuix `Delete`），都用 error 色、20dp。 */
 @Composable

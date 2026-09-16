@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -161,6 +162,27 @@ fun AppWideButton(
             Icon(icon, contentDescription = null, modifier = Modifier.size(18.dp))
             Spacer(Modifier.width(8.dp))
             Text(label, fontWeight = FontWeight.SemiBold)
+        }
+    }
+}
+
+/**
+ * 「添加分类 / 添加位置」这类整宽的添加按钮 —— **两版形态差得最远的一处**：
+ * MD3 是 `OutlinedButton` 胶囊（圆角 50）+ 16dp 加号图标 + 6dp 间隔 + 文案；
+ * Miuix 是库的 `TextButton(text = …)`，**没有图标、没有圆角参数**。
+ * 照抄两版，不互相靠拢（给 Miuix 补图标或给 MD3 去图标都是只有真机看得出来的改动）。
+ *
+ * @param modifier 两版都直接交给按钮本身；合并前两版都在这里传 `fillMaxWidth().padding(top = 6.dp)`。
+ */
+@Composable
+fun AppAddItemButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    if (LocalThemeStyle.current == ThemeStyle.MIUIX) {
+        MiuixTextButton(text = text, onClick = onClick, modifier = modifier)
+    } else {
+        OutlinedButton(onClick = onClick, modifier = modifier, shape = RoundedCornerShape(50)) {
+            Icon(Icons.Rounded.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+            Spacer(Modifier.width(6.dp))
+            Text(text)
         }
     }
 }

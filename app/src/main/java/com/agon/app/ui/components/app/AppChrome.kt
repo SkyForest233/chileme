@@ -378,8 +378,8 @@ fun AppMessageScreen(message: String, actionLabel: String, onAction: () -> Unit)
  * MD3 侧保留原来的 `containerColor = background`（顶栏与内容区同底色，否则会出现色差）；
  * Miuix 侧用它自己的默认底色（`colorScheme.surface`），与合并前一致。
  *
- * 取代 `ManageScreens.kt` / `MiuixManageScreens.kt` 里那两份私有的 `*ManageScaffold`
- * ——等管理页那一对合并时删掉它们。
+ * `ManageScreens.kt` / `MiuixManageScreens.kt` 里那两份私有的 `*ManageScaffold` 已由本组件取代，
+ * 并在 2026-09-16 第 6 对（管理页合并）时随之删除 —— 当初留的「等管理页那一对合并时删掉」已兑现。
  *
  * **弹窗要放在 [content] 里面**：Miuix 的 `WindowDialog` 必须在 Miuix Scaffold 的
  * content lambda 内无条件调用、靠 `show` 控制显隐，否则不显示（见 `MiuixDialog.kt` 的 KDoc

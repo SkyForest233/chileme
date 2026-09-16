@@ -42,6 +42,7 @@ class ScreenParityTest {
             "FoodDetailScreen.kt",       // 第 3 对（2026-09-16）
             "HomeScreen.kt",             // 第 4 对（2026-09-16）
             "FoodListScreen.kt",         // 第 5 对（2026-09-16）
+            "ManageScreens.kt",          // 第 6 对（2026-09-16）：一个文件里三个管理页
         )
     }
 
