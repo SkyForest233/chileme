@@ -21,9 +21,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.DeleteForever
 import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.History
+import androidx.compose.material.icons.rounded.SelectAll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -62,8 +65,11 @@ import top.yukonga.miuix.kmp.basic.Text as MiuixText
 import top.yukonga.miuix.kmp.basic.TopAppBar as MiuixTopAppBar
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
+import top.yukonga.miuix.kmp.icon.extended.Close
 import top.yukonga.miuix.kmp.icon.extended.Delete
 import top.yukonga.miuix.kmp.icon.extended.Edit
+import top.yukonga.miuix.kmp.icon.extended.Recent
+import top.yukonga.miuix.kmp.icon.extended.SelectAll
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /**
@@ -159,6 +165,11 @@ internal fun AppSnackbarHost(
  * 没有这个参数，改用 `LargeTopAppBar` 把标题排成两行 —— 这正是合并前 MD3 首页的写法，
  * 顺带带来折叠效果（见 [scrollBehavior]）。
  *
+ * @param onClose 多选态左侧的「退出多选」关闭键（字形 MD3 `Close` / Miuix `Close`），与 [onBack]
+ *   互斥、优先级更高；都不传即无左侧图标。
+ * @param selectionMode 顶栏进入多选态。**只影响 MD3 侧**：底色从 `background` 转 `surfaceContainer`
+ *   （合并前就是这样）；Miuix 侧两态同色（都用库默认 `colorScheme.surface`），所以这个参数在 Miuix
+ *   分支没有可见效果 —— 不是静默忽略，是原版两态本来就同色。
  * @param scrollBehavior 只由 [AppScaffold] 传，屏幕层别碰。非 null 时 MD3 侧走折叠式
  *   `LargeTopAppBar`；Miuix 侧不传（上游 `TopAppBar` 也有 `largeTitle` + `scrollBehavior` 可做折叠，
  *   但合并前的 Miuix 首页没用，替它开就是视觉改动）。
@@ -168,6 +179,8 @@ internal fun AppSnackbarHost(
 fun AppTopBar(
     title: String,
     onBack: (() -> Unit)? = null,
+    onClose: (() -> Unit)? = null,
+    selectionMode: Boolean = false,
     subtitle: String? = null,
     scrollBehavior: TopAppBarScrollBehavior? = null,
     actions: @Composable RowScope.() -> Unit = {},
@@ -176,13 +189,7 @@ fun AppTopBar(
         MiuixTopAppBar(
             title = title,
             subtitle = subtitle ?: "",
-            navigationIcon = {
-                if (onBack != null) {
-                    MiuixIconButton(onClick = onBack) {
-                        MiuixIcon(MiuixIcons.Back, contentDescription = "返回")
-                    }
-                }
-            },
+            navigationIcon = { AppBarNavIcon(onBack, onClose) },
             actions = actions,
         )
     } else if (subtitle != null) {
@@ -197,6 +204,7 @@ fun AppTopBar(
                     )
                 }
             },
+            navigationIcon = { AppBarNavIcon(onBack, onClose) },
             colors = TopAppBarDefaults.largeTopAppBarColors(
                 containerColor = MaterialTheme.colorScheme.background,
                 scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainer,
@@ -206,17 +214,35 @@ fun AppTopBar(
     } else {
         TopAppBar(
             title = { Text(title, fontWeight = FontWeight.Bold) },
-            navigationIcon = {
-                if (onBack != null) {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "返回")
-                    }
-                }
-            },
+            navigationIcon = { AppBarNavIcon(onBack, onClose) },
             actions = actions,
             colors = TopAppBarDefaults.topAppBarColors(
-                containerColor = MaterialTheme.colorScheme.background,
+                containerColor = if (selectionMode) {
+                    MaterialTheme.colorScheme.surfaceContainer
+                } else {
+                    MaterialTheme.colorScheme.background
+                },
             ),
+        )
+    }
+}
+
+/**
+ * 顶栏左侧图标：**关闭（多选态）优先于返回**，两者都为 null 就不渲染。
+ *
+ * 三个分支都无条件传这个 lambda：两主题 `navigationIcon` 的默认值本来就是空 lambda，
+ * 渲染一个「什么都不组合」的槽位与不传等价，所以不会给没有左侧图标的页面凭空留出位置。
+ * 字形与描述照 [AppBarIconButton] 的规矩按语义传入（`Close` / `ArrowBack`+`Back`）。
+ */
+@Composable
+private fun AppBarNavIcon(onBack: (() -> Unit)?, onClose: (() -> Unit)?) {
+    when {
+        onClose != null -> AppBarIconButton(onClose, "退出多选", Icons.Rounded.Close, MiuixIcons.Close)
+        onBack != null -> AppBarIconButton(
+            onBack,
+            "返回",
+            Icons.AutoMirrored.Rounded.ArrowBack,
+            MiuixIcons.Back,
         )
     }
 }
@@ -264,6 +290,37 @@ fun AppEditAction(onClick: () -> Unit, contentDescription: String = "编辑") {
 @Composable
 fun AppDeleteAction(onClick: () -> Unit, contentDescription: String = "删除") {
     AppBarIconButton(onClick, contentDescription, Icons.Rounded.Delete, MiuixIcons.Delete, appErrorColor())
+}
+
+/** 顶栏「归档历史」入口：MD3 `History` / Miuix `Recent`，primary 色（列表页在用）。 */
+@Composable
+fun AppArchiveAction(onClick: () -> Unit, contentDescription: String = "归档历史") {
+    AppBarIconButton(onClick, contentDescription, Icons.Rounded.History, MiuixIcons.Recent, appPrimaryColor())
+}
+
+/**
+ * 顶栏「全选 / 取消全选」入口（列表页多选态），primary 色。
+ *
+ * ⚠️ **两主题的字形逻辑不同，合并前就是这样，照抄不统一**：MD3 恒用 `SelectAll` 字形、只换
+ * contentDescription（「全选」/「取消全选」）；Miuix 在已全选时把字形换成 `Close`。
+ * 与 [AppEditButton]（MD3 有铅笔图标、Miuix 没有）同一类刻意保留的不对称。
+ */
+@Composable
+fun AppSelectAllAction(allSelected: Boolean, onClick: () -> Unit) {
+    val description = if (allSelected) "取消全选" else "全选"
+    if (LocalThemeStyle.current == ThemeStyle.MIUIX) {
+        MiuixIconButton(onClick = onClick) {
+            MiuixIcon(
+                if (allSelected) MiuixIcons.Close else MiuixIcons.SelectAll,
+                contentDescription = description,
+                tint = appPrimaryColor(),
+            )
+        }
+    } else {
+        IconButton(onClick = onClick) {
+            Icon(Icons.Rounded.SelectAll, contentDescription = description, tint = appPrimaryColor())
+        }
+    }
 }
 
 /** 顶栏「清空 / 删除全部」入口：MD3 `DeleteForever` / Miuix `Delete`，error 色（归档页在用）。 */
@@ -343,6 +400,8 @@ fun AppMessageScreen(message: String, actionLabel: String, onAction: () -> Unit)
 fun AppScaffold(
     title: String,
     onBack: (() -> Unit)? = null,
+    onClose: (() -> Unit)? = null,
+    selectionMode: Boolean = false,
     modifier: Modifier = Modifier,
     subtitle: String? = null,
     snackbar: AppSnackbarHostState? = null,
@@ -357,7 +416,16 @@ fun AppScaffold(
             snackbarHost = {
                 if (snackbar != null) AppSnackbarHost(snackbar, snackbarModifier, snackbarPlacement)
             },
-            topBar = { AppTopBar(title = title, onBack = onBack, subtitle = subtitle, actions = actions) },
+            topBar = {
+                AppTopBar(
+                    title = title,
+                    onBack = onBack,
+                    onClose = onClose,
+                    selectionMode = selectionMode,
+                    subtitle = subtitle,
+                    actions = actions,
+                )
+            },
             content = content,
         )
     } else {
@@ -382,6 +450,8 @@ fun AppScaffold(
                 AppTopBar(
                     title = title,
                     onBack = onBack,
+                    onClose = onClose,
+                    selectionMode = selectionMode,
                     subtitle = subtitle,
                     scrollBehavior = scrollBehavior,
                     actions = actions,

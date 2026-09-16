@@ -4,11 +4,16 @@ package com.agon.app.ui.components.app
 // 2026-09-16 由 FoodDetailScreen + MiuixFoodDetailScreen 合并时抽出。
 
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.History
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -20,8 +25,11 @@ import androidx.compose.ui.unit.dp
 import com.agon.app.ui.theme.LocalThemeStyle
 import com.agon.app.ui.theme.ThemeStyle
 import top.yukonga.miuix.kmp.basic.HorizontalDivider as MiuixHorizontalDivider
+import top.yukonga.miuix.kmp.basic.Icon as MiuixIcon
 import top.yukonga.miuix.kmp.basic.LinearProgressIndicator as MiuixLinearProgressIndicator
 import top.yukonga.miuix.kmp.basic.ProgressIndicatorDefaults
+import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.extended.Recent
 
 /** 详情行标签列宽（两版原本都是 88dp，照抄）。 */
 private val DetailLabelWidth = 88.dp
@@ -91,5 +99,35 @@ fun AppLinearProgress(
             color = color,
             trackColor = trackColor,
         )
+    }
+}
+
+/**
+ * 「归档中找到 N 条」这类带小图标的说明行：字形 MD3 `History` / Miuix `Recent`，16dp + 弱化色；
+ * 文字走 [AppTextScale.Label]（MD3 `labelMedium` / Miuix `footnote2`）+ 弱化色，图标与文字间隔 6dp。
+ * 外框间距（列表页是 `fillMaxWidth().padding(top = 8.dp).animateItem()`）由调用方的 modifier 给。
+ *
+ * 与顶栏的 [AppArchiveAction] 用的是同一对字形，但那是 IconButton + primary 色，这是纯图标 + 弱化色。
+ */
+@Composable
+fun AppHistoryNote(text: String, modifier: Modifier = Modifier) {
+    Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically) {
+        if (LocalThemeStyle.current == ThemeStyle.MIUIX) {
+            MiuixIcon(
+                MiuixIcons.Recent,
+                contentDescription = null,
+                modifier = Modifier.size(16.dp),
+                tint = appMutedColor(),
+            )
+        } else {
+            Icon(
+                Icons.Rounded.History,
+                contentDescription = null,
+                modifier = Modifier.size(16.dp),
+                tint = appMutedColor(),
+            )
+        }
+        Spacer(Modifier.width(6.dp))
+        AppText(text, AppTextScale.Label, color = appMutedColor())
     }
 }

@@ -68,7 +68,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.agon.app.ui.screens.FoodListScreen
 import com.agon.app.ui.screens.HomeScreen
-import com.agon.app.ui.screens.MiuixFoodListScreen
 import com.agon.app.ui.screens.MiuixSettingsScreen
 import com.agon.app.ui.screens.MiuixStatsScreen
 import com.agon.app.ui.screens.SettingsScreen
@@ -138,21 +137,13 @@ internal fun MainTabsPager(
                 onOpenList = onOpenList,
                 onOpenItem = onOpenItem,
             )
-            1 -> if (isMiuix) {
-                MiuixFoodListScreen(
-                    viewModel = viewModel,
-                    initialFilter = listFilter,
-                    onOpenItem = onOpenItem,
-                    onOpenArchive = onOpenArchive,
-                )
-            } else {
-                FoodListScreen(
-                    viewModel = viewModel,
-                    initialFilter = listFilter,
-                    onOpenItem = onOpenItem,
-                    onOpenArchive = onOpenArchive,
-                )
-            }
+            // 食品列表页已于 2026-09-16 合并为单文件双主题（第三批 #3 第 5 对）
+            1 -> FoodListScreen(
+                viewModel = viewModel,
+                initialFilter = listFilter,
+                onOpenItem = onOpenItem,
+                onOpenArchive = onOpenArchive,
+            )
             2 -> if (isMiuix) {
                 MiuixStatsScreen(
                     viewModel = viewModel,

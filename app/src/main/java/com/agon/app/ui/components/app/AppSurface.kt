@@ -63,10 +63,21 @@ fun AppCard(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
  * 消耗记录行用的是 `Surface`（无内衬）。这层差别真机上看得到，所以按原样分成两个组件，
  * 谁用哪个由「合并前那一版用的是什么」决定，不许顺手统一。
  */
+/**
+ * 卡片底色的语义档。
+ *
+ * ⚠️ **只影响 MD3 侧**：Miuix 的 `Card` 两版都用库默认底色（归档页的行与列表页「归档中找到」的行
+ * 都是默认值），所以 [ContainerLow] 在 Miuix 分支没有可见效果 —— 不是静默忽略参数，是原版 Miuix
+ * 两态本来就同色。MD3 侧 `surfaceContainer` 与 `surfaceContainerLow` 是两个相邻但**不同**的
+ * surface 角色（本项目色板由 seed 动态生成，两者不同值），合并前两版分别用过，不许统一。
+ */
+enum class AppCardTone { Container, ContainerLow }
+
 @Composable
 fun AppPaddedCard(
     modifier: Modifier = Modifier,
     onClick: (() -> Unit)? = null,
+    tone: AppCardTone = AppCardTone.Container,
     content: @Composable () -> Unit,
 ) {
     if (LocalThemeStyle.current == ThemeStyle.MIUIX) {
@@ -84,7 +95,7 @@ fun AppPaddedCard(
             onClick = onClick,
             modifier = modifier,
             shape = MaterialTheme.shapes.large,
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+            colors = CardDefaults.cardColors(containerColor = md3CardColor(tone)),
             elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
         ) {
             content()
@@ -93,7 +104,7 @@ fun AppPaddedCard(
         Surface(
             modifier = modifier,
             shape = MaterialTheme.shapes.large,
-            color = MaterialTheme.colorScheme.surfaceContainer,
+            color = md3CardColor(tone),
         ) {
             content()
         }
@@ -213,3 +224,11 @@ fun AppStatusCard(
 fun AppHintText(text: String, modifier: Modifier = Modifier) {
     AppText(text, AppTextScale.Hint, modifier = modifier, color = appMutedColor())
 }
+
+/** MD3 侧的卡片底色：按 [AppCardTone] 在两个相邻的 surface 角色之间选（Miuix 侧不需要，见枚举 KDoc）。 */
+@Composable
+private fun md3CardColor(tone: AppCardTone): Color =
+    when (tone) {
+        AppCardTone.Container -> MaterialTheme.colorScheme.surfaceContainer
+        AppCardTone.ContainerLow -> MaterialTheme.colorScheme.surfaceContainerLow
+    }

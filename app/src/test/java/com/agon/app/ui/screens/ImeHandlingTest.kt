@@ -60,16 +60,16 @@ class ImeHandlingTest {
      * 2026-09-16 起双主题逐对合并（第三批 #3）：**合并后一个条目就覆盖两套主题**，
      * 因为 `imePadding()` 写在合并后那一份文件里。所以每合并一对，就把对应的 `Miuix*Screen.kt`
      * 条目删掉（文件已不存在，留着会让 `read()` 返回 null 而误报「缺少 imePadding」）。
-     * 归档页已合并（`ArchiveScreen.kt` 一份含两主题）；`MiuixArchiveScreen.kt` 条目随之删除。
+     * 归档页、食品列表页已合并（各一份含两主题）；`MiuixArchiveScreen.kt` /
+     * `MiuixFoodListScreen.kt` 条目随之删除（列表页那条原本就注着「合并后删掉这一条」）。
      *
      * 键盘避让仍由**屏幕自己**声明 `AppScaffold(modifier = Modifier.imePadding())`，
      * 组件层不无条件加 —— 没有输入框的屏幕不需要，且这样「哪一屏要避让」在屏幕文件里看得见。
      */
     private val imeScreens = listOf(
         "com/agon/app/ui/screens/EditFoodScreen.kt",        // 保存按钮在 bottomBar，最严重
-        "com/agon/app/ui/screens/FoodListScreen.kt",        // 搜索框 + 列表末尾
-        "com/agon/app/ui/screens/ArchiveScreen.kt",         // 已合并双主题：搜索框
-        "com/agon/app/ui/screens/MiuixFoodListScreen.kt",   // 食品列表合并后删掉这一条
+        "com/agon/app/ui/screens/FoodListScreen.kt",        // 已合并双主题（2026-09-16 第 5 对）：搜索框 + 列表末尾
+        "com/agon/app/ui/screens/ArchiveScreen.kt",         // 已合并双主题（2026-09-16 第 2 对）：搜索框
     )
 
     /**

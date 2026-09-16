@@ -64,12 +64,24 @@ enum class AppTextScale {
     /** 分区标题（首页「需要处理」）：MD3 `titleMedium` / Miuix `title4` */
     SectionTitle,
 
-    /** 分区标题右侧的文字链接（首页「全部食品」）：MD3 `labelLarge` / Miuix `body2` */
-    Link,
+    /**
+     * 可点文字 / 控件文案（首页「全部食品」链接、列表页筛选切换按钮的「筛选(N)」）：
+     * MD3 `labelLarge` / Miuix `body2`。第 4 对时叫 `Link`，第 5 对发现筛选按钮文案是同一映射，
+     * 改成不限于链接的名字。
+     */
+    Action,
 
     /** 条目名称（首页「需要处理」列表里的食品名）：MD3 `titleSmall` / Miuix `body2` */
     ItemTitle,
+
+    /**
+     * 更小的标注（列表行的来源标注「月度合计」、筛选面板的分组小标题「状态/分类/位置」）：
+     * MD3 `labelSmall` / Miuix `footnote2`。比 [Hint] 在 MD3 侧再小一档 —— 两处原本都这么写，
+     * 第 5 对凑齐两个调用点后从 `AppListRow` 的私有实现提到表里。
+     */
+    Tag,
 }
+
 
 /**
  * 双主题文字。字号档位查 [AppTextScale]，其余参数（颜色/字重/字号/行数/省略）默认值与两主题的
@@ -105,8 +117,9 @@ fun AppText(
                 AppTextScale.Value -> MiuixTheme.textStyles.title2
                 AppTextScale.Label -> MiuixTheme.textStyles.footnote2
                 AppTextScale.SectionTitle -> MiuixTheme.textStyles.title4
-                AppTextScale.Link -> MiuixTheme.textStyles.body2
+                AppTextScale.Action -> MiuixTheme.textStyles.body2
                 AppTextScale.ItemTitle -> MiuixTheme.textStyles.body2
+                AppTextScale.Tag -> MiuixTheme.textStyles.footnote2
             },
         )
     } else {
@@ -128,8 +141,9 @@ fun AppText(
                 AppTextScale.Value -> MaterialTheme.typography.headlineMedium
                 AppTextScale.Label -> MaterialTheme.typography.labelMedium
                 AppTextScale.SectionTitle -> MaterialTheme.typography.titleMedium
-                AppTextScale.Link -> MaterialTheme.typography.labelLarge
+                AppTextScale.Action -> MaterialTheme.typography.labelLarge
                 AppTextScale.ItemTitle -> MaterialTheme.typography.titleSmall
+                AppTextScale.Tag -> MaterialTheme.typography.labelSmall
             },
         )
     }

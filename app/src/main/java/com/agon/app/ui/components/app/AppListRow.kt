@@ -102,23 +102,13 @@ private fun RowTrailing(trailing: String) =
         color = appPrimaryColor(),
     )
 
-/** 不可删行的来源标注。MD3 原来用 `labelSmall`（比副标题再小一档、也不在 AppTextScale 表里），故不复用 [AppHintText]。 */
+/**
+ * 不可删行的来源标注（「月度合计」）。走 [AppTextScale.Tag] + 弱化色 —— 第 5 对发现列表页筛选面板的
+ * 分组小标题是同一映射（MD3 `labelSmall` / Miuix `footnote2`，都配弱化色），于是把这一档提进档位表，
+ * 这里改成委托；取值与委托前逐字相同。
+ */
 @Composable
-private fun RowTag(tag: String) {
-    if (LocalThemeStyle.current == ThemeStyle.MIUIX) {
-        MiuixText(
-            tag,
-            style = MiuixTheme.textStyles.footnote2,
-            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-        )
-    } else {
-        Text(
-            tag,
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-    }
-}
+private fun RowTag(tag: String) = AppText(tag, AppTextScale.Tag, color = appMutedColor())
 
 /** 删除按钮：两主题图标字形不同（MD3 `DeleteForever` / Miuix `Delete`），都用 error 色、20dp。 */
 @Composable
@@ -152,11 +142,15 @@ private fun RowDeleteButton(onDelete: () -> Unit, contentDescription: String?) {
  * 一致；**不要**换成 [AppCard]，那会让 Miuix 归档行少一层内衬（见 `AppPaddedCard` 的 KDoc）。
  *
  * `leading` 交给调用方（归档行传 `FoodAvatar`），组件层不认识领域类型。
+ *
+ * @param tone 外壳底色档：归档页用默认的 [AppCardTone.Container]；列表页「归档中找到 N 条」那些行
+ *   合并前 MD3 用的是 `surfaceContainerLow`（低一档），故传 [AppCardTone.ContainerLow]。只影响 MD3 侧。
  */
 @Composable
 fun AppActionRow(
     title: String,
     subtitle: String,
+    tone: AppCardTone = AppCardTone.Container,
     modifier: Modifier = Modifier,
     leading: (@Composable () -> Unit)? = null,
     onRestore: (() -> Unit)? = null,
@@ -177,7 +171,7 @@ fun AppActionRow(
         if (onRestore != null) RowRestoreButton(onRestore, restoreDescription)
         if (onDelete != null) RowDeleteButton(onDelete, deleteDescription)
     }
-    AppPaddedCard(modifier.fillMaxWidth()) {
+    AppPaddedCard(modifier.fillMaxWidth(), tone = tone) {
         Row(
             modifier = Modifier.padding(12.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -224,7 +218,7 @@ private fun RowRestoreButton(onRestore: () -> Unit, contentDescription: String) 
  *
  * 两主题的箭头字形不同（MD3 `ArrowForward` / Miuix `Forward`），链接文字与箭头都用强调色，
  * 点击区是圆角 50 的胶囊（`clip` 在 `clickable` 之前，涟漪才是胶囊形）。
- * 标题走 [AppTextScale.SectionTitle]、链接走 [AppTextScale.Link] —— 合并前两版各自的取值。
+ * 标题走 [AppTextScale.SectionTitle]、链接走 [AppTextScale.Action] —— 合并前两版各自的取值。
  *
  * `modifier` 由调用方给：首页传 `fillMaxWidth().padding(top = 8.dp)`，与合并前逐字一致。
  */
@@ -249,7 +243,7 @@ fun AppSectionHeader(
                 .padding(horizontal = 10.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            AppText(linkLabel, AppTextScale.Link, color = appPrimaryColor())
+            AppText(linkLabel, AppTextScale.Action, color = appPrimaryColor())
             Spacer(Modifier.width(4.dp))
             if (LocalThemeStyle.current == ThemeStyle.MIUIX) {
                 MiuixIcon(
