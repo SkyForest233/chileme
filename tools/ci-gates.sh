@@ -84,6 +84,53 @@ prepare_detekt() {
 }
 
 # ---------------------------------------------------------------- ktlint
+# ---------------------------------------------------------------- annotations
+# 把报告里的发现转成 GitHub check-run annotation（`::warning file=…::…`）。
+#
+# 为什么非做不可：CI 的**日志与 artifact** 都托管在 results-receiver.actions.githubusercontent.com /
+# *.blob.core.windows.net，在受限网络里（本项目的开发沙箱就是）**下载不到**；而 annotation 走
+# api.github.com，是 `gh api repos/OWNER/REPO/check-runs/<job-id>/annotations` 能读回来的唯一通道。
+# report 模式下 detekt 的发现原本只存在于日志里 —— 对读不到日志的人等于没有。2026-09-16 收敛
+# complexity 规则时就是靠这个把清单捞回来的。
+#
+# GitHub 每个级别最多保留 10 条 annotation，所以**按规则聚合**：一条 annotation = 一个规则 +
+# 计数 + 前若干个位点（截断到 800 字符），外加一条汇总 notice。要看完整清单仍得靠 artifact。
+emit_annotations() {
+    local tool="$1" report="$2"
+    [ -s "$report" ] || return 0
+    awk -v tool="$tool" '
+        {
+            if ($0 !~ /\.kt:[0-9]+:/) next
+            split($0, p, ":")
+            path = p[1]; line = p[2]
+            i = index(path, "app/src"); if (i > 1) path = substr(path, i)   # detekt 可能给绝对路径
+            rule = "unknown"
+            if (match($0, /\(([a-z-]+:)?[A-Za-z0-9_-]+\)/)) {          # ktlint plain: (standard:rule-id)
+                rule = substr($0, RSTART, RLENGTH); gsub(/[()]/, "", rule); sub(/^[a-z-]+:/, "", rule)
+            } else if (match($0, /\.kt:[0-9]+(:[0-9]+)?: [A-Za-z][A-Za-z0-9]* - /)) {   # detekt txt: Rule - msg
+                rule = substr($0, RSTART, RLENGTH)
+                sub(/^\.kt:[0-9]+(:[0-9]+)?: /, "", rule); sub(/ - $/, "", rule)
+            }
+            cnt[rule]++; if (cnt[rule] == 1) nrules++; total++
+            if (length(loc[rule]) < 800) loc[rule] = loc[rule] (loc[rule] == "" ? "" : "; ") path ":" line
+        }
+        END {
+            if (!total) exit
+            printf "::notice title=%s 汇总::%d 条发现，涉及 %d 个规则（逐规则见后续 warning）\n", tool, total, nrules
+            shown = 0
+            for (r in cnt) {
+                if (shown >= 8) {
+                    printf "::notice title=%s 其余规则::还有 %d 个规则未逐条列出，完整清单见 artifact\n", tool, nrules - 8
+                    break
+                }
+                msg = loc[r]; gsub(/%/, "%25", msg)
+                printf "::warning file=tools/ci-gates.sh,line=1,title=%s %s (%d 处)::%s\n", tool, r, cnt[r], msg
+                shown++
+            }
+        }
+    ' "$report"
+}
+
 run_ktlint() {
     # 防呆（2026-09-15 实测教训）：.editorconfig 缺失时 ktlint 会用**默认全量规则集**跑，
     # 于是报出上百条纯格式违规、门禁一路飘红，而日志里根本看不出「只是少了个配置文件」。
@@ -111,6 +158,7 @@ run_ktlint() {
     if [ "$status" -ge 2 ]; then
         echo "::error::ktlint 内部错误（exit=$status）—— 多半是源码解析失败或 .editorconfig 写错，见上面的输出"
     fi
+    emit_annotations "ktlint" "$REPORT_DIR/ktlint.txt"
     return "$status"
 }
 
@@ -137,6 +185,7 @@ run_detekt() {
         echo "--- detekt 报告（txt）---"
         cat "$REPORT_DIR/detekt.txt"
     fi
+    emit_annotations "detekt" "$REPORT_DIR/detekt.txt"
     return "$status"
 }
 

@@ -36,10 +36,26 @@ config:
 # ---- 关闭：主观/与 ktlint 重叠的类别 ----
 comments:
   active: false
-complexity:
-  active: false
 naming:
   active: false
+
+# ---- complexity：2026-09-16 开启（第三批 #2）----
+# 分两步走，**这一步只开规则、不切拦截**（DETEKT_MODE 仍是 report）：先让 CI 把清单跑出来，
+# 逐条判断「真该修 / 阈值不合理 / Compose 场景本就如此」，再决定豁免与阈值，最后才把
+# DETEKT_MODE 改成 block。顺序反了就是拿一次红 CI 换一份清单。
+#
+# 清单怎么读：日志与 artifact 在受限网络里下载不到，故 tools/ci-gates.sh 会把发现按规则聚合成
+# check-run annotation —— `gh api repos/SkyForest233/chileme/check-runs/<job-id>/annotations`。
+complexity:
+  active: true
+  # Compose 的屏幕文件天然是「一个文件里十几个小 @Composable」，按默认 11 个/文件会全是噪声；
+  # 这里只把 @Composable 函数排除在计数外，普通函数照数。
+  TooManyFunctions:
+    ignoreAnnotatedFunctions: ['Composable']
+  # LongParameterList 保持默认 functionThreshold: 6 —— 它点名的正是第三批 #3 要收窄的那批
+  # （AppNavHost 9 个、BatchMoveLocationDialog 8 个、MainTabsPager 11 个形参）。
+  # 1.23.8 没有「按函数注解豁免整条规则」的键（只有 ignoreAnnotatedParameter，那是豁免单个形参），
+  # 故先让它如实报，收窄完成后再评估阈值。
 # exceptions：**只开 SwallowedException / PrintStackTrace**（2026-09-15）
 # SwallowedException 找的是「catch 到异常却一个字都不用」——即静默吞掉失败。它对本项目
 # 特别相关：2026-09-15 那轮已定原则「凭据加密失败不再静默」，SecureStore 两处 catch
