@@ -26,43 +26,27 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import top.yukonga.miuix.kmp.basic.Button as MiuixButton
-import top.yukonga.miuix.kmp.basic.ButtonDefaults as MiuixButtonDefaults
 import top.yukonga.miuix.kmp.basic.FloatingActionButton as MiuixFloatingActionButton
 import top.yukonga.miuix.kmp.basic.Icon as MiuixIcon
 import top.yukonga.miuix.kmp.basic.SnackbarHost as MiuixSnackbarHost
 import top.yukonga.miuix.kmp.basic.SnackbarHostState as MiuixSnackbarHostState
 import top.yukonga.miuix.kmp.basic.SnackbarResult as MiuixSnackbarResult
-import top.yukonga.miuix.kmp.basic.TextButton as MiuixTextButton
-import com.agon.app.ui.components.MiuixDialog
-import top.yukonga.miuix.kmp.theme.MiuixTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -78,10 +62,8 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.agon.app.data.ArchiveReason
@@ -446,148 +428,16 @@ fun MainApp(viewModel: AppViewModel) {
         }
     }
 
-    // ---- 批量修改存放位置弹窗 ----
-    if (showMoveLocationDialog) {
-        val locations by viewModel.locations.collectAsStateWithLifecycle()
-        var selectedLocation by remember { mutableStateOf(locations.firstOrNull() ?: "零食柜") }
-        var customLocation by remember { mutableStateOf("") }
-
-        if (isMiuix) {
-            MiuixDialog(
-                title = "批量修改存放位置",
-                summary = "已选 ${selectedIds.size} 件食品，请选择目标位置：",
-                show = showMoveLocationDialog,
-                onDismissRequest = { showMoveLocationDialog = false },
-            ) {
-                Column(
-                    modifier = Modifier.padding(top = 8.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        items(locations) { loc ->
-                            FilterChip(
-                                selected = selectedLocation == loc && customLocation.isBlank(),
-                                onClick = {
-                                    selectedLocation = loc
-                                    customLocation = ""
-                                },
-                                label = { Text(loc, style = MiuixTheme.textStyles.body2) },
-                                shape = RoundedCornerShape(50),
-                                colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = MiuixTheme.colorScheme.primaryContainer,
-                                    selectedLabelColor = MiuixTheme.colorScheme.onPrimaryContainer,
-                                ),
-                            )
-                        }
-                    }
-                    OutlinedTextField(
-                        value = customLocation,
-                        onValueChange = { customLocation = it },
-                        label = { Text("或输入新位置（如：书房）") },
-                        singleLine = true,
-                        shape = RoundedCornerShape(16.dp),
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    Row(
-                        modifier = Modifier.padding(top = 8.dp),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    ) {
-                        MiuixTextButton(
-                            text = "取消",
-                            onClick = { showMoveLocationDialog = false },
-                            modifier = Modifier.weight(1f),
-                        )
-                        MiuixButton(
-                            onClick = {
-                                val target = customLocation.trim().ifBlank { selectedLocation.trim() }
-                                val count = selectedIds.size
-                                if (target.isNotBlank()) {
-                                    viewModel.updateLocationBatch(selectedIds, target)
-                                    viewModel.clearSelection()
-                                    showMoveLocationDialog = false
-                                    scope.launch {
-                                        miuixSnackbarHostState.showSnackbar("已将 $count 件食品移动到「$target」")
-                                    }
-                                }
-                            },
-                            modifier = Modifier.weight(1f),
-                            colors = MiuixButtonDefaults.buttonColorsPrimary(),
-                        ) {
-                            Text("确定移动", fontWeight = FontWeight.SemiBold, color = MiuixTheme.colorScheme.onPrimary)
-                        }
-                    }
-                }
-            }
-        } else {
-            AlertDialog(
-                onDismissRequest = { showMoveLocationDialog = false },
-                // 键盘避让（2026-09-16 补，与 SettingsScreen 坚果云弹窗 / ManageScreens 两处一致）：
-                // MD3 弹窗是独立浮动窗口，默认 DialogProperties（decorFitsSystemWindows = true）不会把
-                // IME inset 透给内容 —— 下面「或输入新位置」这个输入框弹出键盘时，「确定移动」按钮会被盖住。
-                // 关掉 decorFits 拿到 inset，再由 imePadding 把弹窗整体上移到键盘之上。
-                // Miuix 分支不需要：WindowDialog 的 DialogContent 由库自理 IME（见 MiuixDialog 的 KDoc）。
-                properties = DialogProperties(decorFitsSystemWindows = false),
-                modifier = Modifier.imePadding(),
-                title = { Text("批量修改存放位置") },
-                text = {
-                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Text(
-                            "已选 ${selectedIds.size} 件食品，请选择目标位置：",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            items(locations) { loc ->
-                                FilterChip(
-                                    selected = selectedLocation == loc && customLocation.isBlank(),
-                                    onClick = {
-                                        selectedLocation = loc
-                                        customLocation = ""
-                                    },
-                                    label = { Text(loc) },
-                                    shape = RoundedCornerShape(50),
-                                    colors = FilterChipDefaults.filterChipColors(
-                                        selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                                        selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                                    ),
-                                )
-                            }
-                        }
-                        OutlinedTextField(
-                            value = customLocation,
-                            onValueChange = { customLocation = it },
-                            label = { Text("或输入新位置（如：书房）") },
-                            singleLine = true,
-                            shape = MaterialTheme.shapes.medium,
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                    }
-                },
-                confirmButton = {
-                    TextButton(
-                        onClick = {
-                            val target = customLocation.trim().ifBlank { selectedLocation.trim() }
-                            val count = selectedIds.size
-                            if (target.isNotBlank()) {
-                                viewModel.updateLocationBatch(selectedIds, target)
-                                viewModel.clearSelection()
-                                showMoveLocationDialog = false
-                                scope.launch {
-                                    snackbarHostState.showSnackbar("已将 $count 件食品移动到「$target」")
-                                }
-                            }
-                        },
-                    ) {
-                        Text("确定移动", fontWeight = FontWeight.SemiBold)
-                    }
-                },
-                dismissButton = {
-                    TextButton(onClick = { showMoveLocationDialog = false }) {
-                        Text("取消")
-                    }
-                },
-            )
-        }
-    }
+    // ---- 批量修改存放位置弹窗（实现在 AppDialogs.kt）----
+    BatchMoveLocationDialog(
+        viewModel = viewModel,
+        selectedIds = selectedIds,
+        isMiuix = isMiuix,
+        scope = scope,
+        snackbarHostState = snackbarHostState,
+        miuixSnackbarHostState = miuixSnackbarHostState,
+        show = showMoveLocationDialog,
+        onDismiss = { showMoveLocationDialog = false },
+    )
     }
 }

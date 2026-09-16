@@ -123,9 +123,9 @@ class ImeHandlingTest {
         val files = listOf(
             "com/agon/app/ui/screens/SettingsScreen.kt",        // 坚果云账号 / 应用密码
             "com/agon/app/ui/screens/ManageScreens.kt",         // 分类名称 + Emoji、添加存放位置
-            // 批量「移动存放位置」弹窗：2026-09-16 补入清单（当时在 MainActivity.kt），拆分后随 MainApp 走
-            "com/agon/app/MainApp.kt",
-            "com/agon/app/AppDialogs.kt",                       // 弹窗独立成文件后改到这里
+            // 批量「移动存放位置」弹窗：2026-09-16 补入清单时它在 MainActivity.kt，同日拆分后落在 AppDialogs.kt。
+            // 弹窗再搬家就改这一行 —— 清单外的文件不会被检查，这正是它当初漏网的原因。
+            "com/agon/app/AppDialogs.kt",
         )
         val contents = files.mapNotNull { f -> read(f)?.let { f to it } }.toMap()
         assumeTrue("找不到设置/管理页源码（非 Gradle 工作目录？），跳过", contents.isNotEmpty())
