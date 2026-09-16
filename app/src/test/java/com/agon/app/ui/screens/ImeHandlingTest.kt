@@ -61,7 +61,7 @@ class ImeHandlingTest {
      * 算成一处实现（拆分当天就踩到了：注释让计数从 4 变 5，还让底栏那条 assertFalse 直接误报）。
      */
     private fun String.codeOnly(): String =
-        replace(Regex("/\*.*?\*/", RegexOption.DOT_MATCHES_ALL), "")
+        replace(Regex("""/\*.*?\*/""", RegexOption.DOT_MATCHES_ALL), "")
             .lines()
             .joinToString("\n") { it.substringBefore("//") }
 

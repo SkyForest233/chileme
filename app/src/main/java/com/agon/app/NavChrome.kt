@@ -12,7 +12,8 @@ package com.agon.app
 // 硬约定：Tab 切换与二级页进出都走回调（onSelect / onTabs），backStack 不得传进来。
 //
 // 2026-09-16 由 MainActivity.kt 拆分而来（纯搬运：除 private→internal 外，签名与实现逐字节未改）。
-// MainTabs / MainTabsPager / 4 套底栏被 MainApp 调用 → internal；TabSpec / MiuixMainTabs 只在本文件内使用 → 保持 private。
+// MainTabs / MainTabsPager / 4 套底栏被 MainApp 调用 → internal；TabSpec 因被 internal val MainTabs
+// 的推断类型暴露，也必须 internal（见下方声明处注释）；MiuixMainTabs 只在本文件内使用 → 保持 private。
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.animateColorAsState
@@ -80,7 +81,10 @@ import com.agon.app.ui.theme.ThemeStyle
 import com.agon.app.viewmodel.AppViewModel
 import kotlin.math.roundToInt
 
-private data class TabSpec(
+// internal 而非 private：MainTabs 是 internal val，其推断类型 List<TabSpec> 会**暴露** TabSpec，
+// 而 Kotlin 要求「被暴露类型的可见性不得低于声明本身」（否则编译报 exposes its private type）。
+// 这是本轮 private→internal 放宽时唯一的连带项 —— 单看 TabSpec 只在文件内用，很容易漏。
+internal data class TabSpec(
     val route: String,
     val label: String,
     val icon: ImageVector,
