@@ -1,0 +1,171 @@
+package com.agon.app.ui.components.app
+
+// 语义字号档位：屏幕层写一次文字，两主题各自的 TextStyle 由这里映射。
+//
+// 为什么用档位枚举、而不是逐个包一个组件：详情页一页就用到 5 种档位（主标题 / 强调 / 小标题 /
+// 正文 / 元信息），逐个包装会让 components/app/ 长出一排只差字号的函数，改一次要改五处；
+// 一张映射表反而好核对（下面每个档位都标了合并前两版各自的取值）。
+//
+// 两主题的档位不是一一对应：Miuix 的 body1 同时承接 MD3 的 titleMedium 与 bodyLarge。这不是偷懒，
+// 合并前 MiuixFoodDetailScreen 本来就这么用（剩余天数 / DetailRow 的值 / 按钮文案全是 body1），照抄。
+//
+// 默认值与两主题的 Text 完全对齐（已核对上游 v0.9.4-rc01 的 Text.kt 与 material3 的 Text）：
+// color = Color.Unspecified（两边都表示「用默认内容色」）、fontWeight = null、
+// fontSize = TextUnit.Unspecified、maxLines = Int.MAX_VALUE、overflow = TextOverflow.Clip。
+//
+// 2026-09-16 由 FoodDetailScreen + MiuixFoodDetailScreen 合并时抽出。
+
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.TextUnit
+import com.agon.app.ui.theme.LocalThemeStyle
+import com.agon.app.ui.theme.ThemeStyle
+import top.yukonga.miuix.kmp.basic.Text as MiuixText
+import top.yukonga.miuix.kmp.theme.MiuixTheme
+
+/** 屏幕层用的语义字号档位。每项后面是合并前两版各自的取值。 */
+enum class AppTextScale {
+    /** 页面主标题（详情页的食品名）：MD3 `headlineSmall` / Miuix `title2` */
+    Hero,
+
+    /** 强调文本（剩余天数、空态提示语）：MD3 `titleMedium` / Miuix `body1` */
+    Emphasis,
+
+    /** 卡片小标题（「库存数量」）：MD3 `titleSmall` / Miuix `subtitle` */
+    Heading,
+
+    /** 正文（详情行的值）：MD3 `bodyLarge` / Miuix `body1` */
+    Body,
+
+    /** 元信息（详情行的标签、行尾强调数字）：MD3 `bodyMedium` / Miuix `body2` */
+    Meta,
+
+    /** 弱化说明（列表副标题、卡片提示语）：MD3 `bodySmall` / Miuix `footnote2` */
+    Hint,
+}
+
+/**
+ * 双主题文字。字号档位查 [AppTextScale]，其余参数（颜色/字重/字号/行数/省略）默认值与两主题的
+ * `Text` 一致，所以「不传 = 和合并前一样」。
+ */
+@Composable
+fun AppText(
+    text: String,
+    scale: AppTextScale,
+    modifier: Modifier = Modifier,
+    color: Color = Color.Unspecified,
+    fontWeight: FontWeight? = null,
+    fontSize: TextUnit = TextUnit.Unspecified,
+    maxLines: Int = Int.MAX_VALUE,
+    overflow: TextOverflow = TextOverflow.Clip,
+) {
+    if (LocalThemeStyle.current == ThemeStyle.MIUIX) {
+        MiuixText(
+            text,
+            modifier = modifier,
+            color = color,
+            fontSize = fontSize,
+            fontWeight = fontWeight,
+            maxLines = maxLines,
+            overflow = overflow,
+            style = when (scale) {
+                AppTextScale.Hero -> MiuixTheme.textStyles.title2
+                AppTextScale.Emphasis -> MiuixTheme.textStyles.body1
+                AppTextScale.Heading -> MiuixTheme.textStyles.subtitle
+                AppTextScale.Body -> MiuixTheme.textStyles.body1
+                AppTextScale.Meta -> MiuixTheme.textStyles.body2
+                AppTextScale.Hint -> MiuixTheme.textStyles.footnote2
+            },
+        )
+    } else {
+        Text(
+            text,
+            modifier = modifier,
+            color = color,
+            fontSize = fontSize,
+            fontWeight = fontWeight,
+            maxLines = maxLines,
+            overflow = overflow,
+            style = when (scale) {
+                AppTextScale.Hero -> MaterialTheme.typography.headlineSmall
+                AppTextScale.Emphasis -> MaterialTheme.typography.titleMedium
+                AppTextScale.Heading -> MaterialTheme.typography.titleSmall
+                AppTextScale.Body -> MaterialTheme.typography.bodyLarge
+                AppTextScale.Meta -> MaterialTheme.typography.bodyMedium
+                AppTextScale.Hint -> MaterialTheme.typography.bodySmall
+            },
+        )
+    }
+}
+
+/**
+ * 主题色：卡片底 / 头像底 / 进度条轨道用的那一层 surface
+ * （MD3 `MaterialTheme.colorScheme.surface` / Miuix `MiuixTheme.colorScheme.surface`）。
+ *
+ * 只开口子给「屏幕层必须自己取色」的少数场合（详情页把它同时用作头像底色与进度条轨道色）；
+ * 弱化文字色不在此列 —— 那是 [AppHintText] / [AppDetailRow] 内部的事，屏幕层不该关心。
+ */
+@Composable
+fun appSurfaceColor(): Color =
+    if (LocalThemeStyle.current == ThemeStyle.MIUIX) {
+        MiuixTheme.colorScheme.surface
+    } else {
+        MaterialTheme.colorScheme.surface
+    }
+
+/**
+ * 弱化文字色：MD3 `onSurfaceVariant` / Miuix `onSurfaceVariantSummary`。
+ * 组件层内部用（`AppHintText` / `AppDetailRow`），不对屏幕层开口 —— 屏幕要弱化文字就用
+ * [AppHintText]，别自己取色再拼一个 Text，否则两主题的色板角色又要各写一遍。
+ */
+@Composable
+internal fun appMutedColor(): Color =
+    if (LocalThemeStyle.current == ThemeStyle.MIUIX) {
+        MiuixTheme.colorScheme.onSurfaceVariantSummary
+    } else {
+        MaterialTheme.colorScheme.onSurfaceVariant
+    }
+
+/** 危险操作色：MD3 `colorScheme.error` / Miuix `colorScheme.error`（顶栏删除入口、行内删除按钮用）。 */
+@Composable
+internal fun appErrorColor(): Color =
+    if (LocalThemeStyle.current == ThemeStyle.MIUIX) {
+        MiuixTheme.colorScheme.error
+    } else {
+        MaterialTheme.colorScheme.error
+    }
+
+/**
+ * 纯 emoji 文本：**不指定 style**。
+ *
+ * 两主题「不传 style」时的默认正文样式并不相同（MD3 取 `LocalTextStyle`，Miuix 取
+ * `LocalTextStyles.current.main`），所以这里刻意不套 [AppTextScale] —— 套任何一档都等于
+ * 悄悄改掉其中一边的原样。详情页那颗飘起来的「😋」在用（合并前两版都只传 `fontSize = 28.sp`）。
+ * 列表行的 emoji 不走这里：Miuix 侧原本显式用了 `title3`，仍由 `AppListRow` 内部的 RowEmoji 处理。
+ */
+@Composable
+fun AppEmojiText(
+    text: String,
+    modifier: Modifier = Modifier,
+    fontSize: TextUnit = TextUnit.Unspecified,
+) {
+    if (LocalThemeStyle.current == ThemeStyle.MIUIX) {
+        MiuixText(text, modifier = modifier, fontSize = fontSize)
+    } else {
+        Text(text, modifier = modifier, fontSize = fontSize)
+    }
+}
+
+/** 强调色：MD3 `colorScheme.primary` / Miuix `colorScheme.primary`（行尾数量、恢复按钮用）。 */
+@Composable
+internal fun appPrimaryColor(): Color =
+    if (LocalThemeStyle.current == ThemeStyle.MIUIX) {
+        MiuixTheme.colorScheme.primary
+    } else {
+        MaterialTheme.colorScheme.primary
+    }

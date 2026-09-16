@@ -9,13 +9,22 @@ package com.agon.app.ui.components.app
 //
 // 2026-09-16 由 ConsumptionLogScreen + MiuixConsumptionLogScreen 合并时抽出。
 
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.DeleteForever
+import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -29,23 +38,29 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.agon.app.ui.components.SwipeDismissSnackbarHost
 import com.agon.app.ui.components.showUndoSnackbar
 import com.agon.app.ui.theme.LocalThemeStyle
 import com.agon.app.ui.theme.ThemeStyle
+import top.yukonga.miuix.kmp.basic.Button as MiuixButton
 import top.yukonga.miuix.kmp.basic.Icon as MiuixIcon
 import top.yukonga.miuix.kmp.basic.IconButton as MiuixIconButton
 import top.yukonga.miuix.kmp.basic.Scaffold as MiuixScaffold
 import top.yukonga.miuix.kmp.basic.SnackbarHost as MiuixSnackbarHost
 import top.yukonga.miuix.kmp.basic.SnackbarHostState as MiuixSnackbarHostState
 import top.yukonga.miuix.kmp.basic.SnackbarResult as MiuixSnackbarResult
+import top.yukonga.miuix.kmp.basic.Text as MiuixText
 import top.yukonga.miuix.kmp.basic.TopAppBar as MiuixTopAppBar
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.icon.extended.Delete
+import top.yukonga.miuix.kmp.icon.extended.Edit
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /**
@@ -145,26 +160,95 @@ fun AppTopBar(
 }
 
 /**
- * 顶栏里的「危险操作」入口（清空归档、删除全部之类）：两主题各自的删除字形
- * （MD3 `DeleteForever` / Miuix `Delete`）+ error 色，尺寸都用各自 IconButton 的默认值。
+ * 顶栏图标按钮的共用实现：字形由语义入口（下面三个）传进来，两主题各挑各的。
+ *
+ * `tint` 为 null 时**不传**这个参数，而不是传 `Color.Unspecified` —— 合并前两版在
+ * 「非危险操作」上都是整个参数不写（用各自库的默认内容色），照抄最稳。
  */
 @Composable
-fun AppDestructiveAction(onClick: () -> Unit, contentDescription: String) {
+private fun AppBarIconButton(
+    onClick: () -> Unit,
+    contentDescription: String,
+    md3Icon: ImageVector,
+    miuixIcon: ImageVector,
+    tint: Color? = null,
+) {
     if (LocalThemeStyle.current == ThemeStyle.MIUIX) {
         MiuixIconButton(onClick = onClick) {
-            MiuixIcon(
-                MiuixIcons.Delete,
-                contentDescription = contentDescription,
-                tint = MiuixTheme.colorScheme.error,
-            )
+            if (tint != null) {
+                MiuixIcon(miuixIcon, contentDescription = contentDescription, tint = tint)
+            } else {
+                MiuixIcon(miuixIcon, contentDescription = contentDescription)
+            }
         }
     } else {
         IconButton(onClick = onClick) {
-            Icon(
-                Icons.Rounded.DeleteForever,
-                contentDescription = contentDescription,
-                tint = MaterialTheme.colorScheme.error,
-            )
+            if (tint != null) {
+                Icon(md3Icon, contentDescription = contentDescription, tint = tint)
+            } else {
+                Icon(md3Icon, contentDescription = contentDescription)
+            }
+        }
+    }
+}
+
+/** 顶栏「编辑」入口：MD3 `Edit` / Miuix `Edit`，都用默认内容色（详情页在用）。 */
+@Composable
+fun AppEditAction(onClick: () -> Unit, contentDescription: String = "编辑") {
+    AppBarIconButton(onClick, contentDescription, Icons.Rounded.Edit, MiuixIcons.Edit)
+}
+
+/** 顶栏「删除这一条」入口：MD3 `Delete` / Miuix `Delete`，error 色（详情页在用）。 */
+@Composable
+fun AppDeleteAction(onClick: () -> Unit, contentDescription: String = "删除") {
+    AppBarIconButton(onClick, contentDescription, Icons.Rounded.Delete, MiuixIcons.Delete, appErrorColor())
+}
+
+/** 顶栏「清空 / 删除全部」入口：MD3 `DeleteForever` / Miuix `Delete`，error 色（归档页在用）。 */
+@Composable
+fun AppDestructiveAction(onClick: () -> Unit, contentDescription: String) {
+    AppBarIconButton(onClick, contentDescription, Icons.Rounded.DeleteForever, MiuixIcons.Delete, appErrorColor())
+}
+
+/**
+ * 「这一页没东西可显示」的兜底屏：**无顶栏**的空 Scaffold + 居中一句话 + 一个返回按钮。
+ * 详情页在食品已归档/移除时用（合并前两版各写一份）。
+ *
+ * 文案走 [AppText] 的 Emphasis 档位（两版原来就是 MD3 `titleMedium` / Miuix `body1`）；
+ * 按钮两版形态不同 —— MD3 是圆角 50 胶囊，Miuix 是库默认按钮 + 显式 `onSecondaryVariant` 文字色，
+ * 照原样保留，所以这一处仍是两段分支。
+ */
+@Composable
+fun AppMessageScreen(message: String, actionLabel: String, onAction: () -> Unit) {
+    if (LocalThemeStyle.current == ThemeStyle.MIUIX) {
+        MiuixScaffold { padding ->
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center,
+            ) {
+                AppText(message, AppTextScale.Emphasis)
+                Spacer(Modifier.height(12.dp))
+                MiuixButton(onClick = onAction) {
+                    MiuixText(actionLabel, color = MiuixTheme.colorScheme.onSecondaryVariant)
+                }
+            }
+        }
+    } else {
+        Scaffold(containerColor = MaterialTheme.colorScheme.background) { padding ->
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center,
+            ) {
+                AppText(message, AppTextScale.Emphasis)
+                Spacer(Modifier.height(12.dp))
+                Button(onClick = onAction, shape = RoundedCornerShape(50)) { Text(actionLabel) }
+            }
         }
     }
 }

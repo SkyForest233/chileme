@@ -19,7 +19,6 @@ import androidx.compose.material.icons.rounded.RestartAlt
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -30,7 +29,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.agon.app.ui.theme.LocalThemeStyle
 import com.agon.app.ui.theme.ThemeStyle
-import top.yukonga.miuix.kmp.basic.Card as MiuixCard
 import top.yukonga.miuix.kmp.basic.Icon as MiuixIcon
 import top.yukonga.miuix.kmp.basic.IconButton as MiuixIconButton
 import top.yukonga.miuix.kmp.basic.Text as MiuixText
@@ -88,34 +86,18 @@ private fun RowEmoji(emoji: String) {
 }
 
 @Composable
-private fun RowTitle(title: String) {
-    if (LocalThemeStyle.current == ThemeStyle.MIUIX) {
-        MiuixText(title, style = MiuixTheme.textStyles.body1, fontWeight = FontWeight.Medium)
-    } else {
-        Text(title, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
-    }
-}
+private fun RowTitle(title: String) = AppText(title, AppTextScale.Body, fontWeight = FontWeight.Medium)
 
 @Composable
-private fun RowTrailing(trailing: String) {
-    if (LocalThemeStyle.current == ThemeStyle.MIUIX) {
-        MiuixText(
-            trailing,
-            style = MiuixTheme.textStyles.body2,
-            fontWeight = FontWeight.SemiBold,
-            color = MiuixTheme.colorScheme.primary,
-        )
-    } else {
-        Text(
-            trailing,
-            style = MaterialTheme.typography.bodyMedium,
-            fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.primary,
-        )
-    }
-}
+private fun RowTrailing(trailing: String) =
+    AppText(
+        trailing,
+        AppTextScale.Meta,
+        fontWeight = FontWeight.SemiBold,
+        color = appPrimaryColor(),
+    )
 
-/** 不可删行的来源标注。MD3 原来用 `labelSmall`（比副标题再小一档），故不复用 [AppHintText]。 */
+/** 不可删行的来源标注。MD3 原来用 `labelSmall`（比副标题再小一档、也不在 AppTextScale 表里），故不复用 [AppHintText]。 */
 @Composable
 private fun RowTag(tag: String) {
     if (LocalThemeStyle.current == ThemeStyle.MIUIX) {
@@ -161,10 +143,8 @@ private fun RowDeleteButton(onDelete: () -> Unit, contentDescription: String?) {
  * 带头像槽位的操作行：leading + 标题 + 副标题 + 右侧「主操作 + 危险操作」两个图标按钮。
  * 归档行（恢复 / 彻底删除）在用；管理页的分类行、存放位置行（编辑 / 删除）同构。
  *
- * **两版原来的卡片外壳并不相同，这里照原样保留**：MD3 是 `Surface(shapes.large, surfaceContainer)`，
- * Miuix 是库的 `Card` —— 上游 `Card`（v0.9.4-rc01）圆角同为 16dp，但会额外套一层
- * `Column(Modifier.padding(CardDefaults.InsideMargin))`，content 还是 `ColumnScope`，
- * 所以它与 `AppCard`（Miuix 侧用 `Surface`、无内衬）**不等价**，不能合并成一个组件。
+ * 外壳走 [AppPaddedCard]（Miuix 侧是官方 `Card`、带库默认内衬），与合并前的 `MiuixArchiveRow`
+ * 一致；**不要**换成 [AppCard]，那会让 Miuix 归档行少一层内衬（见 `AppPaddedCard` 的 KDoc）。
  *
  * `leading` 交给调用方（归档行传 `FoodAvatar`），组件层不认识领域类型。
  */
@@ -192,50 +172,25 @@ fun AppActionRow(
         if (onRestore != null) RowRestoreButton(onRestore, restoreDescription)
         if (onDelete != null) RowDeleteButton(onDelete, deleteDescription)
     }
-    if (LocalThemeStyle.current == ThemeStyle.MIUIX) {
-        MiuixCard(modifier = modifier.fillMaxWidth()) {
-            Row(
-                modifier = Modifier.padding(12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                content = body,
-            )
-        }
-    } else {
-        Surface(
-            shape = MaterialTheme.shapes.large,
-            color = MaterialTheme.colorScheme.surfaceContainer,
-            modifier = modifier.fillMaxWidth(),
-        ) {
-            Row(
-                modifier = Modifier.padding(12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                content = body,
-            )
-        }
+    AppPaddedCard(modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            content = body,
+        )
     }
 }
 
-/** 行主标题（比 [AppListRow] 的标题重一档，且强制单行省略）：MD3 `titleSmall` / Miuix `subtitle`。 */
+/** 行主标题（比 [AppListRow] 的标题重一档，且强制单行省略）：Heading 档位 = MD3 `titleSmall` / Miuix `subtitle`。 */
 @Composable
-private fun RowHeading(title: String) {
-    if (LocalThemeStyle.current == ThemeStyle.MIUIX) {
-        MiuixText(
-            title,
-            style = MiuixTheme.textStyles.subtitle,
-            fontWeight = FontWeight.SemiBold,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
-    } else {
-        Text(
-            title,
-            style = MaterialTheme.typography.titleSmall,
-            fontWeight = FontWeight.SemiBold,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
-    }
-}
+private fun RowHeading(title: String) =
+    AppText(
+        title,
+        AppTextScale.Heading,
+        fontWeight = FontWeight.SemiBold,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+    )
 
 /** 主操作按钮（恢复 / 撤销归档）：primary 色，MD3 `RestartAlt` / Miuix `Refresh`，尺寸用各自默认值。 */
 @Composable
