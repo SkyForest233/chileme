@@ -111,7 +111,13 @@ prepare_detekt() {
 emit_console_tail() {
     local tool="$1" file="$2" exit_code="$3"
     if [ ! -s "$file" ]; then
-        echo "::notice title=${tool} 控制台::（无输出；exit=${exit_code}）—— 工具可能没跑起来，检查上面的下载/前置步骤"
+        # exit=0 + 无输出 = 零发现（detekt 在 0 issue 时连 Complexity Report 都不打，2026-09-16 实测）；
+        # exit≠0 + 无输出才是「工具没跑起来」。别把前者说成故障，否则读 annotation 的人会白排查一轮。
+        if [ "$exit_code" -eq 0 ]; then
+            echo "::notice title=${tool} 控制台::（无输出，exit=0）—— 零发现，正常"
+        else
+            echo "::notice title=${tool} 控制台::（无输出，exit=${exit_code}）—— 工具可能没跑起来，检查下载/前置步骤"
+        fi
         return 0
     fi
     local lines bytes tail_text
