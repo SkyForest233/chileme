@@ -1,14 +1,24 @@
 package com.agon.app
 
+// App 入口：Activity 本体（深浅色 / 主题风格分流、启动放行超时、splash、CompositionLocalProvider）。
+//
+// 原 MainActivity.kt 有 1,123 行，2026-09-16 起按职责分步拆到同包（com.agon.app）的兄弟文件：
+//   MainApp.kt（App 外壳：状态 + Scaffold + Snackbar 覆盖层）· AppNavGraph.kt（路由入口）
+//   AppDialogs.kt（弹窗）· BatchBars.kt（多选批量操作栏）· NavChrome.kt（底栏与 Tab Pager）
+// 跨文件复用的顶层声明由 private 放宽为 internal —— Kotlin 顶层 private 是**文件级**作用域，
+// 不放宽就看不见；internal 只是模块内可见（app 模块没有第二个消费方，R8 照常裁剪），不是公开 API。
+// 代价：detekt 的 UnusedPrivateMember 从此不再覆盖它们。理由与取舍见 devlog/2026-09-16.md「🧭 拆分路线图」。
+//
+// 硬约定（拆分不得破坏）：rememberNavBackStack + NavDisplay 只在 MainApp 一处；二级页一律走回调
+// （navigate / onTabs），**不得**把 backStack 往下传给屏幕；外层 Scaffold 的 contentPadding 刻意不消费。
+
 import android.os.Bundle
 import androidx.activity.ComponentActivity
-import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.imePadding
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -18,74 +28,44 @@ import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.pager.HorizontalPager
-import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
-import androidx.compose.material.icons.rounded.Delete
-import androidx.compose.material.icons.rounded.Home
-import androidx.compose.material.icons.rounded.PieChart
-import androidx.compose.material.icons.rounded.Place
-import androidx.compose.material.icons.rounded.Settings
-import androidx.compose.material.icons.automirrored.rounded.ListAlt
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import top.yukonga.miuix.kmp.basic.Button as MiuixButton
 import top.yukonga.miuix.kmp.basic.ButtonDefaults as MiuixButtonDefaults
 import top.yukonga.miuix.kmp.basic.FloatingActionButton as MiuixFloatingActionButton
-import top.yukonga.miuix.kmp.basic.FloatingNavigationBar as MiuixFloatingNavigationBar
-import top.yukonga.miuix.kmp.basic.FloatingNavigationBarItem as MiuixFloatingNavigationBarItem
 import top.yukonga.miuix.kmp.basic.Icon as MiuixIcon
-import top.yukonga.miuix.kmp.basic.NavigationBar as MiuixNavigationBar
-import top.yukonga.miuix.kmp.basic.NavigationBarItem as MiuixNavigationBarItem
 import top.yukonga.miuix.kmp.basic.SnackbarHost as MiuixSnackbarHost
 import top.yukonga.miuix.kmp.basic.SnackbarHostState as MiuixSnackbarHostState
 import top.yukonga.miuix.kmp.basic.SnackbarResult as MiuixSnackbarResult
 import top.yukonga.miuix.kmp.basic.TextButton as MiuixTextButton
 import com.agon.app.ui.components.MiuixDialog
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.GridView
-import top.yukonga.miuix.kmp.icon.extended.Home
-import top.yukonga.miuix.kmp.icon.extended.ListView
-import top.yukonga.miuix.kmp.icon.extended.Location
-import top.yukonga.miuix.kmp.icon.extended.Settings
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -99,13 +79,10 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
@@ -123,20 +100,12 @@ import com.agon.app.ui.screens.EditFoodScreen
 import com.agon.app.ui.screens.LocationManageScreen
 import com.agon.app.ui.screens.ThresholdManageScreen
 import com.agon.app.ui.screens.FoodDetailScreen
-import com.agon.app.ui.screens.FoodListScreen
-import com.agon.app.ui.screens.HomeScreen
 import com.agon.app.ui.screens.MiuixArchiveScreen
 import com.agon.app.ui.screens.MiuixCategoryManageScreen
 import com.agon.app.ui.screens.MiuixConsumptionLogScreen
 import com.agon.app.ui.screens.MiuixFoodDetailScreen
-import com.agon.app.ui.screens.MiuixFoodListScreen
-import com.agon.app.ui.screens.MiuixHomeScreen
 import com.agon.app.ui.screens.MiuixLocationManageScreen
-import com.agon.app.ui.screens.MiuixSettingsScreen
-import com.agon.app.ui.screens.MiuixStatsScreen
 import com.agon.app.ui.screens.MiuixThresholdManageScreen
-import com.agon.app.ui.screens.SettingsScreen
-import com.agon.app.ui.screens.StatsScreen
 import com.agon.app.ui.components.SwipeDismissSnackbarHost
 import com.agon.app.ui.components.showUndoSnackbar
 import com.agon.app.ui.theme.AgonAppTheme
@@ -149,7 +118,6 @@ import com.agon.app.ui.theme.MotionSpring
 import com.agon.app.ui.theme.ThemeStyle
 import com.agon.app.viewmodel.AppViewModel
 import kotlin.math.abs
-import kotlin.math.roundToInt
 import java.time.LocalDate
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.filterNotNull
@@ -169,6 +137,7 @@ private const val READY_TIMEOUT_MS = 3_000L
 
 // MD3 motion easing tokens 统一从 ui/theme/Motion.kt 引用
 private val EmphasizedDecelerate = MotionEasing.EmphasizedDecelerate
+
 private val EmphasizedAccelerate = MotionEasing.EmphasizedAccelerate
 
 class MainActivity : ComponentActivity() {
@@ -242,12 +211,6 @@ class MainActivity : ComponentActivity() {
         }
     }
 }
-
-private data class TabSpec(
-    val route: String,
-    val label: String,
-    val icon: ImageVector,
-)
 
 // 外层 Scaffold 的 contentPadding 由各屏自行处理，见下方 content lambda 处注释。
 @Suppress("UnusedMaterial3ScaffoldPaddingParameter")
@@ -717,407 +680,5 @@ fun MainApp(viewModel: AppViewModel) {
             )
         }
     }
-    }
-}
-
-/** 多选批量操作栏：取消 + 移动位置 + 归档 N 项（多选时替换底部导航，MD3 / MIUIX 两套按钮，跟随悬浮/非悬浮）。 */
-@Composable
-private fun BatchActionBar(
-    count: Int,
-    isMiuix: Boolean,
-    floating: Boolean,
-    onCancel: () -> Unit,
-    onMoveLocation: () -> Unit,
-    onArchive: () -> Unit,
-) {
-    if (floating) {
-        // 悬浮：仅按钮本身悬浮（无外层胶囊背景），「取消」文字 + 「移动位置」胶囊 + 「归档」实心胶囊独立悬浮。
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .navigationBarsPadding()
-                .imePadding()
-                .padding(bottom = 12.dp, top = 4.dp),
-            contentAlignment = Alignment.Center,
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                BatchCancelButton(isMiuix = isMiuix, onClick = onCancel)
-                BatchMoveLocationButton(isMiuix = isMiuix, onClick = onMoveLocation)
-                BatchArchiveButton(isMiuix = isMiuix, count = count, onClick = onArchive)
-            }
-        }
-    } else {
-        // 非悬浮：全宽常驻操作栏
-        Surface(
-            color = MaterialTheme.colorScheme.surfaceContainer,
-            shadowElevation = 8.dp,
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .navigationBarsPadding()
-                    .imePadding()
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                BatchCancelButton(isMiuix = isMiuix, onClick = onCancel, modifier = Modifier.weight(1f))
-                BatchMoveLocationButton(isMiuix = isMiuix, onClick = onMoveLocation, modifier = Modifier.weight(1.3f))
-                BatchArchiveButton(isMiuix = isMiuix, count = count, onClick = onArchive, modifier = Modifier.weight(1.4f))
-            }
-        }
-    }
-}
-
-@Composable
-private fun BatchCancelButton(
-    isMiuix: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    if (isMiuix) {
-        // Miuix 标准文字按钮
-        MiuixTextButton(
-            text = "取消",
-            onClick = onClick,
-            modifier = modifier,
-        )
-    } else {
-        // MD3 实心胶囊（中性色），与归档实心胶囊视觉统一
-        Button(
-            onClick = onClick,
-            modifier = modifier.defaultMinSize(minHeight = 48.dp),
-            shape = RoundedCornerShape(50),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                contentColor = MaterialTheme.colorScheme.onSurface,
-            ),
-        ) {
-            Text("取消")
-        }
-    }
-}
-
-@Composable
-private fun BatchMoveLocationButton(
-    isMiuix: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    if (isMiuix) {
-        MiuixButton(
-            onClick = onClick,
-            modifier = modifier,
-            colors = MiuixButtonDefaults.buttonColors(
-                color = MiuixTheme.colorScheme.secondaryContainer,
-                contentColor = MiuixTheme.colorScheme.onSecondaryContainer,
-            ),
-        ) {
-            MiuixIcon(
-                MiuixIcons.Location,
-                contentDescription = null,
-                modifier = Modifier.size(18.dp),
-                tint = MiuixTheme.colorScheme.onSecondaryContainer,
-            )
-            Spacer(Modifier.width(6.dp))
-            Text(
-                "移动位置",
-                fontWeight = FontWeight.SemiBold,
-                color = MiuixTheme.colorScheme.onSecondaryContainer,
-            )
-        }
-    } else {
-        Button(
-            onClick = onClick,
-            modifier = modifier.defaultMinSize(minHeight = 48.dp),
-            shape = RoundedCornerShape(50),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-            ),
-        ) {
-            Icon(Icons.Rounded.Place, contentDescription = null, modifier = Modifier.size(18.dp))
-            Spacer(Modifier.width(6.dp))
-            Text("移动位置", fontWeight = FontWeight.SemiBold)
-        }
-    }
-}
-
-@Composable
-private fun BatchArchiveButton(isMiuix: Boolean, count: Int, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    if (isMiuix) {
-        // Miuix 标准实心按钮（默认 16dp 圆角）
-        MiuixButton(
-            onClick = onClick,
-            modifier = modifier,
-            colors = MiuixButtonDefaults.buttonColors(
-                color = MiuixTheme.colorScheme.error,
-                contentColor = MiuixTheme.colorScheme.onError,
-            ),
-        ) {
-            MiuixIcon(
-                Icons.Rounded.Delete,
-                contentDescription = null,
-                modifier = Modifier.size(18.dp),
-                tint = MiuixTheme.colorScheme.onError,
-            )
-            Spacer(Modifier.width(6.dp))
-            Text(
-                "归档 $count 项",
-                fontWeight = FontWeight.SemiBold,
-                color = MiuixTheme.colorScheme.onError,
-            )
-        }
-    } else {
-        Button(
-            onClick = onClick,
-            modifier = modifier.defaultMinSize(minHeight = 48.dp),
-            shape = RoundedCornerShape(50),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = MaterialTheme.colorScheme.error,
-                contentColor = MaterialTheme.colorScheme.onError,
-            ),
-        ) {
-            Icon(Icons.Rounded.Delete, contentDescription = null, modifier = Modifier.size(18.dp))
-            Spacer(Modifier.width(6.dp))
-            Text("归档 $count 项", fontWeight = FontWeight.SemiBold)
-        }
-    }
-}
-
-/** 底部导航共享 Tab 定义（MD3 / MIUIX 共用标签；图标按主题分流）。顺序即 Pager 页序。 */
-private val MainTabs = listOf(
-    TabSpec("home", "首页", Icons.Rounded.Home),
-    TabSpec("list", "食品", Icons.AutoMirrored.Rounded.ListAlt),
-    TabSpec("stats", "统计", Icons.Rounded.PieChart),
-    TabSpec("settings", "设置", Icons.Rounded.Settings),
-)
-
-/** MIUIX 主题的底部导航图标（MiuixIcons.Regular；统计用 GridView 替代无对应的 PieChart）。 */
-private val MiuixMainTabs = listOf(
-    TabSpec("home", "首页", MiuixIcons.Home),
-    TabSpec("list", "食品", MiuixIcons.ListView),
-    TabSpec("stats", "统计", MiuixIcons.GridView),
-    TabSpec("settings", "设置", MiuixIcons.Settings),
-)
-
-/**
- * 四个底栏 Tab 用 HorizontalPager 按索引左右连滑。
- * Miuix-nav 的 MultiPush 是堆栈推进（中间页被盖住），Tab 切换要露出中间页，故用 Pager。
- * 关闭手势翻页，避免和列表里横向 Chip 抢手势；点击底栏 / 首页卡片驱动 animateScrollToPage。
- */
-@Composable
-private fun MainTabsPager(
-    viewModel: AppViewModel,
-    pagerState: PagerState,
-    listFilter: String?,
-    onOpenList: (String?) -> Unit,
-    onOpenItem: (String) -> Unit,
-    onOpenArchive: () -> Unit,
-    onOpenConsumption: () -> Unit,
-    onOpenThresholds: () -> Unit,
-    onOpenCategories: () -> Unit,
-    onOpenLocations: () -> Unit,
-    onBackToHome: () -> Unit,
-) {
-    val isMiuix = LocalThemeStyle.current == ThemeStyle.MIUIX
-    BackHandler(enabled = pagerState.currentPage != 0) { onBackToHome() }
-    HorizontalPager(
-        state = pagerState,
-        userScrollEnabled = false,
-        beyondViewportPageCount = 3,
-        modifier = Modifier.fillMaxSize(),
-    ) { page ->
-        when (page) {
-            0 -> if (isMiuix) {
-                MiuixHomeScreen(
-                    viewModel = viewModel,
-                    onOpenList = onOpenList,
-                    onOpenItem = onOpenItem,
-                )
-            } else {
-                HomeScreen(
-                    viewModel = viewModel,
-                    onOpenList = onOpenList,
-                    onOpenItem = onOpenItem,
-                )
-            }
-            1 -> if (isMiuix) {
-                MiuixFoodListScreen(
-                    viewModel = viewModel,
-                    initialFilter = listFilter,
-                    onOpenItem = onOpenItem,
-                    onOpenArchive = onOpenArchive,
-                )
-            } else {
-                FoodListScreen(
-                    viewModel = viewModel,
-                    initialFilter = listFilter,
-                    onOpenItem = onOpenItem,
-                    onOpenArchive = onOpenArchive,
-                )
-            }
-            2 -> if (isMiuix) {
-                MiuixStatsScreen(
-                    viewModel = viewModel,
-                    onOpenItem = onOpenItem,
-                    onOpenConsumption = onOpenConsumption,
-                )
-            } else {
-                StatsScreen(
-                    viewModel = viewModel,
-                    onOpenItem = onOpenItem,
-                    onOpenConsumption = onOpenConsumption,
-                )
-            }
-            else -> if (isMiuix) {
-                MiuixSettingsScreen(
-                    viewModel = viewModel,
-                    onOpenArchive = onOpenArchive,
-                    onOpenThresholds = onOpenThresholds,
-                    onOpenCategories = onOpenCategories,
-                    onOpenLocations = onOpenLocations,
-                )
-            } else {
-                SettingsScreen(
-                    viewModel = viewModel,
-                    onOpenArchive = onOpenArchive,
-                    onOpenThresholds = onOpenThresholds,
-                    onOpenCategories = onOpenCategories,
-                    onOpenLocations = onOpenLocations,
-                )
-            }
-        }
-    }
-}
-
-/** MIUIX：全宽图标+文字底栏（HyperOS 风格）。 */
-@Composable
-private fun MiuixBottomNav(selectedIndex: Int, onSelect: (Int) -> Unit) {
-    MiuixNavigationBar {
-        MiuixMainTabs.forEachIndexed { index, tab ->
-            val selected = index == selectedIndex
-            MiuixNavigationBarItem(
-                selected = selected,
-                onClick = { if (!selected) onSelect(index) },
-                icon = tab.icon,
-                label = tab.label,
-            )
-        }
-    }
-}
-
-/** MIUIX：居中悬浮底栏（仅图标）。 */
-@Composable
-private fun MiuixFloatingNav(selectedIndex: Int, onSelect: (Int) -> Unit) {
-    MiuixFloatingNavigationBar {
-        MiuixMainTabs.forEachIndexed { index, tab ->
-            val selected = index == selectedIndex
-            MiuixFloatingNavigationBarItem(
-                selected = selected,
-                onClick = { if (!selected) onSelect(index) },
-                icon = tab.icon,
-                label = tab.label,
-            )
-        }
-    }
-}
-
-/** Material 3：全宽图标+文字底栏（非悬浮态）。 */
-@Composable
-private fun Md3BottomNav(selectedIndex: Int, onSelect: (Int) -> Unit) {
-    NavigationBar(containerColor = MaterialTheme.colorScheme.surfaceContainer) {
-        MainTabs.forEachIndexed { index, tab ->
-            val selected = index == selectedIndex
-            NavigationBarItem(
-                selected = selected,
-                onClick = { if (!selected) onSelect(index) },
-                icon = { Icon(tab.icon, contentDescription = null) },
-                label = { Text(tab.label) },
-            )
-        }
-    }
-}
-
-/**
- * 居中悬浮胶囊导航栏（带滑动指示器）：
- * 等宽槽位 + 背后一枚 primary 胶囊指示器，位置跟随 Pager 连续偏移。
- * MD3 导航规范：所有 Tab 常显标签（always show labels），图标上、标签下竖排；
- * 槽位 48dp 高满足最小触摸目标；选中/未选中颜色用 MD3 standard 缓动渐变。
- */
-@Composable
-private fun FloatingPillNav(pagePosition: Float, onSelect: (Int) -> Unit) {
-    val tabs = MainTabs
-    val slotWidth = 76.dp
-    val slotHeight = 48.dp
-    val selectedIndex = pagePosition.roundToInt().coerceIn(0, tabs.lastIndex)
-    val indicatorOffset = slotWidth * pagePosition
-
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .navigationBarsPadding()
-            .padding(bottom = 12.dp, top = 4.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        Surface(
-            shape = RoundedCornerShape(50),
-            color = MaterialTheme.colorScheme.primaryContainer,
-            shadowElevation = 6.dp,
-        ) {
-            Box(modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp)) {
-                Box(
-                    modifier = Modifier
-                        .offset(x = indicatorOffset)
-                        .size(width = slotWidth, height = slotHeight)
-                        .clip(RoundedCornerShape(50))
-                        .background(MaterialTheme.colorScheme.primary),
-                )
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    tabs.forEachIndexed { index, tab ->
-                        val selected = index == selectedIndex
-                        val contentColor by animateColorAsState(
-                            targetValue = if (selected) MaterialTheme.colorScheme.onPrimary
-                            else MaterialTheme.colorScheme.onPrimaryContainer,
-                            animationSpec = tween(250, easing = MotionEasing.Standard),
-                            label = "navContent$index",
-                        )
-                        Column(
-                            modifier = Modifier
-                                .size(width = slotWidth, height = slotHeight)
-                                .clip(RoundedCornerShape(50))
-                                .selectable(
-                                    selected = selected,
-                                    role = Role.Tab,
-                                    interactionSource = remember { MutableInteractionSource() },
-                                    indication = null,
-                                ) {
-                                    if (!selected) onSelect(index)
-                                },
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.Center,
-                        ) {
-                            Icon(
-                                tab.icon,
-                                contentDescription = null,
-                                modifier = Modifier.size(20.dp),
-                                tint = contentColor,
-                            )
-                            Spacer(Modifier.height(2.dp))
-                            Text(
-                                tab.label,
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-                                color = contentColor,
-                                maxLines = 1,
-                            )
-                        }
-                    }
-                }
-            }
-        }
     }
 }

@@ -37,6 +37,34 @@ class ImeHandlingTest {
             .firstOrNull { it.exists() }
             ?.readText()
 
+    /**
+     * App 外壳（浮层 + 底栏）分散在哪几个文件里 —— 第 2 条守卫按这份清单**跨文件求和**。
+     *
+     * 2026-09-16 起 `MainActivity.kt` 按职责拆分，守卫从「读一个文件点数」改成「读一组文件求和」；
+     * 搬动浮层时必须同步改这份清单。清单里不存在的文件会被跳过（拆分分步做，中间态只有部分文件在）。
+     */
+    private val chromeFiles = listOf(
+        "com/agon/app/MainActivity.kt",   // 拆分前：Snackbar + 批量栏 + 弹窗 + 底栏全在这里；拆分后只剩 Activity 本体
+        "com/agon/app/MainApp.kt",        // Snackbar 覆盖层
+        "com/agon/app/BatchBars.kt",      // 悬浮 / 常驻两条批量操作栏
+        "com/agon/app/AppDialogs.kt",     // 批量「移动存放位置」弹窗（MD3 分支）
+        "com/agon/app/NavChrome.kt",      // 4 套底栏：只有 navigationBarsPadding，**没有** imePadding
+    )
+
+    /** 其中「底栏实现」所在的文件：A 方案要求它们只避让导航栏、**不**避让键盘。 */
+    private val navBarFiles = listOf("com/agon/app/NavChrome.kt")
+
+    /**
+     * 只留代码、去掉注释再点数。
+     *
+     * 文件头与 KDoc 里写「本文件不得出现 .imePadding()」这类**说明**是好事，但按原始文本点数会把它
+     * 算成一处实现（拆分当天就踩到了：注释让计数从 4 变 5，还让底栏那条 assertFalse 直接误报）。
+     */
+    private fun String.codeOnly(): String =
+        replace(Regex("/\*.*?\*/", RegexOption.DOT_MATCHES_ALL), "")
+            .lines()
+            .joinToString("\n") { it.substringBefore("//") }
+
     @Test
     fun `含输入框的屏幕必须处理 IME inset`() {
         val screens = listOf(
@@ -58,9 +86,9 @@ class ImeHandlingTest {
 
     @Test
     fun `App 级浮层必须同时避让导航栏与键盘`() {
-        val src = read("com/agon/app/MainActivity.kt")
-        assumeTrue("找不到 MainActivity.kt（非 Gradle 工作目录？），跳过", src != null)
-        val text = src!!
+        val chrome = chromeFiles.mapNotNull(::read)
+        assumeTrue("找不到任何 App 外壳源码（非 Gradle 工作目录？），跳过", chrome.isNotEmpty())
+        val text = chrome.joinToString("\n").codeOnly()
 
         val imeCount = Regex("\\.imePadding\\(\\)").findAll(text).count()
         val navCount = Regex("\\.navigationBarsPadding\\(\\)").findAll(text).count()
@@ -76,17 +104,17 @@ class ImeHandlingTest {
         assertTrue("原有 navigationBarsPadding() 不应被删（底栏仍在用），实际 $navCount", navCount >= 4)
 
         // A 方案（2026-09-15 产品决定）：底部导航栏不随键盘抬升。
-        // 旧写法是「imePadding 数 < navigationBarsPadding 数」，用数量差间接表达；2026-09-16 给 MD3 弹窗
-        // 补上键盘避让后两边都是 4、数量差归零，这个代理指标当场失效（它本来也测不准：任何一处新增浮层
-        // 都会让它翻脸，而真正的约束只关于底栏）。改成直接检查导航栏实现那一段不含 imePadding。
-        val navStart = text.indexOf("private fun MiuixBottomNav")
+        // 2026-09-16 之前这里用「imePadding 数 < navigationBarsPadding 数」间接表达，但那个代理指标会被
+        // 任何一处新增浮层推翻（给 MD3 弹窗补键盘避让后两边都是 4，一次正确的修复反被判成违规）。
+        // 现在直接对着「底栏实现所在的文件」断言，约束与被约束物一一对应。
+        val navBars = navBarFiles.mapNotNull(::read)
         assertTrue(
-            "找不到 private fun MiuixBottomNav —— 导航栏实现被搬走了？请同步更新本守卫的读取范围",
-            navStart >= 0,
+            "找不到底栏实现 $navBarFiles —— 又被搬走了？请同步更新 navBarFiles",
+            navBars.isNotEmpty(),
         )
         assertFalse(
-            "底栏不应跟随键盘抬升（A 方案）：4 套导航栏实现里出现了 .imePadding()",
-            text.substring(navStart).contains(".imePadding()"),
+            "底栏不应跟随键盘抬升（A 方案）：底栏实现里出现了 .imePadding()",
+            navBars.any { it.codeOnly().contains(".imePadding()") },
         )
     }
 
