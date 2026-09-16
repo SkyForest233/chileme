@@ -68,12 +68,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.agon.app.ui.screens.FoodListScreen
 import com.agon.app.ui.screens.HomeScreen
-import com.agon.app.ui.screens.MiuixSettingsScreen
 import com.agon.app.ui.screens.SettingsScreen
 import com.agon.app.ui.screens.StatsScreen
-import com.agon.app.ui.theme.LocalThemeStyle
 import com.agon.app.ui.theme.MotionEasing
-import com.agon.app.ui.theme.ThemeStyle
 import com.agon.app.viewmodel.AppViewModel
 import kotlin.math.roundToInt
 
@@ -121,7 +118,6 @@ internal fun MainTabsPager(
     onOpenLocations: () -> Unit,
     onBackToHome: () -> Unit,
 ) {
-    val isMiuix = LocalThemeStyle.current == ThemeStyle.MIUIX
     BackHandler(enabled = pagerState.currentPage != 0) { onBackToHome() }
     HorizontalPager(
         state = pagerState,
@@ -149,23 +145,14 @@ internal fun MainTabsPager(
                 onOpenItem = onOpenItem,
                 onOpenConsumption = onOpenConsumption,
             )
-            else -> if (isMiuix) {
-                MiuixSettingsScreen(
-                    viewModel = viewModel,
-                    onOpenArchive = onOpenArchive,
-                    onOpenThresholds = onOpenThresholds,
-                    onOpenCategories = onOpenCategories,
-                    onOpenLocations = onOpenLocations,
-                )
-            } else {
-                SettingsScreen(
-                    viewModel = viewModel,
-                    onOpenArchive = onOpenArchive,
-                    onOpenThresholds = onOpenThresholds,
-                    onOpenCategories = onOpenCategories,
-                    onOpenLocations = onOpenLocations,
-                )
-            }
+            // 设置页已于 2026-09-16 合并为单文件双主题（第三批 #3 第 8 对，八对全数完成）
+            else -> SettingsScreen(
+                viewModel = viewModel,
+                onOpenArchive = onOpenArchive,
+                onOpenThresholds = onOpenThresholds,
+                onOpenCategories = onOpenCategories,
+                onOpenLocations = onOpenLocations,
+            )
         }
     }
 }

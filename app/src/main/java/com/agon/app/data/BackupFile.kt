@@ -19,8 +19,8 @@ const val MAX_BACKUP_BYTES = 20L * 1024 * 1024
 /**
  * 从系统文件选择器（SAF）返回的 [uri] 读取备份 JSON 文本。
  *
- * 相比原先直接 `openInputStream(uri).readBytes()`（SettingsScreen / MiuixSettingsScreen
- * 各一份），这里补了三件事：
+ * 相比原先直接 `openInputStream(uri).readBytes()`（合并前 MD3 / Miuix 两版设置页各一份），
+ * 这里补了三件事：
  * 1. 先查 `AssetFileDescriptor.length`（多数 provider 都提供），**在分配内存之前**就能拒绝超大文件；
  * 2. 读取后再校验一次实际字节数（provider 未声明长度时的兜底）；
  * 3. 整体切到 [Dispatchers.IO]，避免在主线程做文件 IPC 读。

@@ -1,7 +1,11 @@
 package com.agon.app.ui.components.app
 
 // 带输入框的弹窗：管理页的「添加/编辑分类」（两个字段）与「添加存放位置」（一个字段）。
-// 设置页的坚果云账号 / 应用密码弹窗是同一形态，第 8 对合并时再决定要不要并进来（不提前抽象）。
+// 设置页的坚果云账号 / 应用密码弹窗看着是同一形态，**第 8 对（2026-09-16）判定不并**：那两个输入框
+// 两版都用 MD3 `OutlinedTextField`（Miuix 的 `TextField` 没有 `visualTransformation`，做不了密码遮蔽），
+// 且值直接读写 `state.accountInput` / `state.passwordInput`；本组件是「本地字段 + onConfirm(values)」的
+// 口径，硬套要改字段所有权，还要新增密码遮蔽与说明文槽位 —— 为一个弹窗动三个在用的调用方，不划算。
+// 那个弹窗留在 `SettingsScreen.kt` 里按 `isMiuix` 分支（`ImeHandlingTest` 第 3 条仍点名该文件）。
 //
 // ⚠️ MD3 分支的 `DialogProperties(decorFitsSystemWindows = false)` + `Modifier.imePadding()` 是
 // `ImeHandlingTest` 第 3 条**按文件点名**的位置：这个弹窗再搬家，测试清单要跟着改

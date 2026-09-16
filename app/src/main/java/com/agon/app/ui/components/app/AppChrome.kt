@@ -34,6 +34,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LargeTopAppBar
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
@@ -118,37 +119,51 @@ fun rememberAppSnackbarHostState(): AppSnackbarHostState {
  * - [FloatingNav]：带悬浮导航栏的 Tab 页（首页 / 设置）。两版都抬 `84dp` 到悬浮栏之上，且 MD3 侧
  *   **不再**叠加 `navigationBarsPadding()` —— 原版本来就没叠，叠上去会把条推得更高。
  *
- * ⚠️ 留给设置页那一对（第 8 对）：MD3 `SettingsScreen` 用的是普通 `SnackbarHost` 而不是可滑掉的
- * `SwipeDismissSnackbarHost`，届时要么给这里加一个「宿主形态」维度，要么接受「设置页的条也能滑掉」
- * 这个行为变化并单独说明 —— 别默认套用 [FloatingNav] 就算完。
+ * 第 8 对（设置页）核过了：两版设置页都抬 84dp，正是 [FloatingNav]；**但那条 ⚠️ 警告不能「默认套用就算完」** ——
+ * MD3 设置页用的是普通 `SnackbarHost`，而 MD3 侧默认宿主是可滑掉的 `SwipeDismissSnackbarHost`。
+ * 处置是给宿主**形态**另开一个维度 [AppSnackbarForm]：落位与形态是两件正交的事，塞进同一个枚举会变成
+ * `SystemBarsPlain` / `FloatingNavUndo` 这种四个字的名字，而且四种组合里有三种本来就合法。
  */
 enum class AppSnackbarPlacement { SystemBars, FloatingNav }
 
-/** 撤销条宿主：MD3 用可滑掉的自绘条（`SwipeDismissSnackbarHost`），Miuix 用官方 `SnackbarHost`。抬升见 [AppSnackbarPlacement]。 */
+/**
+ * 撤销条宿主**形态**（与 [AppSnackbarPlacement] 的「落位」正交）。
+ *
+ * - [UndoCountdown]：可滑掉 + **单行正文（超出走省略号）** + 右侧 History 倒计时圆环（点了执行 action）。
+ *   首页 / 消耗记录页 / 归档页用这个 —— 它们的条都带「撤销」。
+ * - [Plain]：MD3 侧改用 material3 原生 `SnackbarHost`（正文可换行、没有圆环、不可滑掉）；
+ *   **Miuix 侧两种形态没有区别**（本来就是库的官方 `SnackbarHost`），故本枚举只在 MD3 侧生效
+ *   （按 `docs/ARCHITECTURE.md` 约束 ⑥ 点名）。
+ *
+ * 为什么设置页必须 [Plain]：它的消息全是「备份导出成功 ✅」「坚果云账号已保存」这类**没有 action** 的提示，
+ * 其中「导入成功，数据已恢复 ✅（已自动留存导入前快照）」有 24 个字 —— 套 [UndoCountdown] 会把它截成一行
+ * 省略号，并在右侧挂一个点了没有任何反应的倒计时圆环。合并前 MD3 设置页本来就是普通 `SnackbarHost`，
+ * 所以这是照抄，不是统一。
+ */
+enum class AppSnackbarForm { UndoCountdown, Plain }
+
+/**
+ * 撤销条宿主：抬升见 [AppSnackbarPlacement]，形态见 [AppSnackbarForm]（形态只影响 MD3 侧）。
+ * Miuix 侧恒为库的官方 `SnackbarHost`。
+ */
 @Composable
 internal fun AppSnackbarHost(
     state: AppSnackbarHostState,
     modifier: Modifier = Modifier,
     placement: AppSnackbarPlacement = AppSnackbarPlacement.SystemBars,
+    form: AppSnackbarForm = AppSnackbarForm.UndoCountdown,
 ) {
-    if (LocalThemeStyle.current == ThemeStyle.MIUIX) {
-        MiuixSnackbarHost(
-            state.miuix,
-            modifier = if (placement == AppSnackbarPlacement.FloatingNav) {
-                modifier.padding(bottom = 84.dp)
-            } else {
-                modifier
-            },
-        )
-    } else if (placement == AppSnackbarPlacement.FloatingNav) {
-        SwipeDismissSnackbarHost(state.md3, modifier = modifier.padding(bottom = 84.dp))
-    } else {
-        SwipeDismissSnackbarHost(
-            state.md3,
-            modifier = modifier
-                .navigationBarsPadding()
-                .padding(bottom = 24.dp),
-        )
+    val isMiuix = LocalThemeStyle.current == ThemeStyle.MIUIX
+    // 落位先算一次：原本三个分支各写一遍，再加形态维度就成 2×2 四份，分散写容易漏改其中一份
+    val placed = when {
+        placement == AppSnackbarPlacement.FloatingNav -> modifier.padding(bottom = 84.dp)
+        isMiuix -> modifier
+        else -> modifier.navigationBarsPadding().padding(bottom = 24.dp)
+    }
+    when {
+        isMiuix -> MiuixSnackbarHost(state.miuix, modifier = placed)
+        form == AppSnackbarForm.Plain -> SnackbarHost(hostState = state.md3, modifier = placed)
+        else -> SwipeDismissSnackbarHost(state.md3, modifier = placed)
     }
 }
 
@@ -406,6 +421,7 @@ fun AppScaffold(
     subtitle: String? = null,
     snackbar: AppSnackbarHostState? = null,
     snackbarPlacement: AppSnackbarPlacement = AppSnackbarPlacement.SystemBars,
+    snackbarForm: AppSnackbarForm = AppSnackbarForm.UndoCountdown,
     snackbarModifier: Modifier = Modifier,
     actions: @Composable RowScope.() -> Unit = {},
     content: @Composable (PaddingValues) -> Unit,
@@ -414,7 +430,7 @@ fun AppScaffold(
         MiuixScaffold(
             modifier = modifier,
             snackbarHost = {
-                if (snackbar != null) AppSnackbarHost(snackbar, snackbarModifier, snackbarPlacement)
+                if (snackbar != null) AppSnackbarHost(snackbar, snackbarModifier, snackbarPlacement, snackbarForm)
             },
             topBar = {
                 AppTopBar(
@@ -444,7 +460,7 @@ fun AppScaffold(
             },
             containerColor = MaterialTheme.colorScheme.background,
             snackbarHost = {
-                if (snackbar != null) AppSnackbarHost(snackbar, snackbarModifier, snackbarPlacement)
+                if (snackbar != null) AppSnackbarHost(snackbar, snackbarModifier, snackbarPlacement, snackbarForm)
             },
             topBar = {
                 AppTopBar(

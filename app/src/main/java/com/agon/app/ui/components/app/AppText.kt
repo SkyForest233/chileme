@@ -81,6 +81,16 @@ enum class AppTextScale {
      * 第 5 对凑齐两个调用点后从 `AppListRow` 的私有实现提到表里。
      */
     Tag,
+
+    /**
+     * 弹窗选项行的标题（设置页「JSON 完整备份」「CSV 数据表格」「从本地历史快照恢复」这类）：
+     * MD3 `bodyMedium` / Miuix `body1`。
+     *
+     * **表里第一个两侧不同级别的档位**：MD3 侧与 [Meta] 同级、Miuix 侧与 [Body] 同级。合并前两版就是这么写的，
+     * 第 8 对凑齐四个调用点（导出格式 2 + 恢复来源 2）后提到表里 —— 不为了「表看着整齐」把任何一边挪一级，
+     * 那是只有真机看得出来的字号改动。
+     */
+    OptionTitle,
 }
 
 /**
@@ -120,6 +130,7 @@ fun AppText(
                 AppTextScale.Action -> MiuixTheme.textStyles.body2
                 AppTextScale.ItemTitle -> MiuixTheme.textStyles.body2
                 AppTextScale.Tag -> MiuixTheme.textStyles.footnote2
+                AppTextScale.OptionTitle -> MiuixTheme.textStyles.body1
             },
         )
     } else {
@@ -144,6 +155,7 @@ fun AppText(
                 AppTextScale.Action -> MaterialTheme.typography.labelLarge
                 AppTextScale.ItemTitle -> MaterialTheme.typography.titleSmall
                 AppTextScale.Tag -> MaterialTheme.typography.labelSmall
+                AppTextScale.OptionTitle -> MaterialTheme.typography.bodyMedium
             },
         )
     }

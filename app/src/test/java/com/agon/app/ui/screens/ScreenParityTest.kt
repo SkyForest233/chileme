@@ -44,6 +44,10 @@ class ScreenParityTest {
             "FoodListScreen.kt",         // 第 5 对（2026-09-16）
             "ManageScreens.kt",          // 第 6 对（2026-09-16）：一个文件里三个管理页
             "StatsScreen.kt",            // 第 7 对（2026-09-16）：图表本来就是 Canvas 自绘，与主题无关
+            // 第 8 对（2026-09-16）：八对全数完成。两版只有 287 行逐字相同（八对里最低），
+            // body 仍是 Md3SettingsBody / MiuixSettingsBody 两套；去重发生在弹窗（AppConfirmDialog /
+            // AppOptionDialog）、SAF 启动器与 AppScaffold 骨架上。规则 1 靠 rememberSettingsUiState 通过。
+            "SettingsScreen.kt",
         )
     }
 
