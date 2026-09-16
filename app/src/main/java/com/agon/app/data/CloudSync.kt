@@ -155,21 +155,23 @@ object NutstoreSync {
 
     /** 解析 PROPFIND 响应，提取备份文件名与大小（容忍不同命名空间前缀）。 */
     internal fun parsePropfind(xml: String): List<CloudBackup> {
-        val results = mutableListOf<CloudBackup>()
         val blocks = xml.split(Regex("</[a-zA-Z0-9]*:?response>", RegexOption.IGNORE_CASE))
         val hrefRegex =
             Regex("<[a-zA-Z0-9]*:?href>([^<]+)</[a-zA-Z0-9]*:?href>", RegexOption.IGNORE_CASE)
         val sizeRegex =
             Regex("<[a-zA-Z0-9]*:?getcontentlength[^>]*>(\\d+)<", RegexOption.IGNORE_CASE)
-        for (block in blocks) {
-            val href = hrefRegex.find(block)?.groupValues?.get(1) ?: continue
+        // 原来是 for + 两个 continue（href 缺失 / 不是备份文件），detekt 的
+        // LoopWithTooManyJumpStatements（阈值 1）报「一个循环里跳转太多」。换成 mapNotNull：
+        // 语义等价（顺序不变、两种跳过都变成返回 null）、跳转语句 0 条。
+        // 行为由 CloudBackupTest 的 3 条 parsePropfind 断言兜住（新版+旧版、忽略非备份、空响应）。
+        return blocks.mapNotNull { block ->
+            val href = hrefRegex.find(block)?.groupValues?.get(1) ?: return@mapNotNull null
             val name = URLDecoder.decode(href, "UTF-8").trimEnd('/').substringAfterLast('/')
             val isBackup = name == LEGACY_FILE_NAME ||
                 (name.startsWith(PREFIX) && name.endsWith(".json"))
-            if (!isBackup) continue
+            if (!isBackup) return@mapNotNull null
             val size = sizeRegex.find(block)?.groupValues?.get(1)?.toLongOrNull() ?: 0L
-            results.add(CloudBackup(name, size))
+            CloudBackup(name, size)
         }
-        return results
     }
 }
