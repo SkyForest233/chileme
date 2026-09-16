@@ -135,7 +135,7 @@ grep -rn "top.yukonga.miuix.kmp" app/src/main/java | sed 's/.*import //' | sort 
 - [ ] 依赖版本已改，工具链（Kotlin/AGP/Gradle/compileSdk）已对齐目标版本基线
 - [ ] `./gradlew assembleDebug`（或 CI）通过
 - [ ] `bash tools/ci-gates.sh` 通过（ktlint 为拦截模式，见 `docs/WORKFLOW.md` §3）
-- [ ] `./gradlew testDebugUnitTest` 通过 —— 尤其 `MiuixParityTest`（拦「Miuix 页面重写业务计算」）与 `ImeHandlingTest`（拦「弹窗/输入屏丢失 IME 处理」）
+- [ ] `./gradlew testDebugUnitTest` 通过 —— 尤其 `ScreenParityTest`（原名 `MiuixParityTest`，拦「屏幕文件重写业务计算」）与 `ImeHandlingTest`（拦「弹窗/输入屏丢失 IME 处理」）
 - [ ] 所有 Miuix API 调用已对照新版本 source 核对，无臆造签名
 - [ ] MD3 主题未受影响（未改 MD3 页面代码）
 - [ ] 双主题切换、弹窗、图标、squircle 等关键路径回归正常

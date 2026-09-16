@@ -35,7 +35,6 @@ import com.agon.app.ui.screens.ThresholdManageScreen
 import com.agon.app.ui.screens.FoodDetailScreen
 import com.agon.app.ui.screens.MiuixArchiveScreen
 import com.agon.app.ui.screens.MiuixCategoryManageScreen
-import com.agon.app.ui.screens.MiuixConsumptionLogScreen
 import com.agon.app.ui.screens.MiuixFoodDetailScreen
 import com.agon.app.ui.screens.MiuixLocationManageScreen
 import com.agon.app.ui.screens.MiuixThresholdManageScreen
@@ -107,11 +106,8 @@ internal fun AppNavHost(
                 )
             }
             entry<AppRoute.Consumption> {
-                if (LocalThemeStyle.current == ThemeStyle.MIUIX) {
-                    MiuixConsumptionLogScreen(viewModel = viewModel, onBack = { popRoute() })
-                } else {
-                    ConsumptionLogScreen(viewModel = viewModel, onBack = { popRoute() })
-                }
+                // 双主题已合并为一份（外壳差异在 ui/components/app/ 的骨架组件里分流）
+                ConsumptionLogScreen(viewModel = viewModel, onBack = { popRoute() })
             }
             entry<AppRoute.Detail> { route ->
                 if (LocalThemeStyle.current == ThemeStyle.MIUIX) {

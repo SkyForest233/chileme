@@ -109,21 +109,24 @@ class CompactConsumptionTest {
     }
 
     @Test
-    fun `仓储层与两套消耗记录页都必须拦住聚合记录的删除`() {
+    fun `仓储层与消耗记录页都必须拦住聚合记录的删除`() {
         // 无 Robolectric：靠读源码做静态守卫（与 CorruptGuardTest 同一套路）。
+        // 2026-09-16：消耗记录页双主题合并成一份文件（外壳差异下沉到 ui/components/app/），
+        // 这里原来要同时读 MD3 与 Miuix 两个文件、分别断言，现在只剩一个——
+        // 「两套实现都得拦」变成「一套就够」，这正是合并想要的效果：漏改一个主题不再可能。
         val repo = read("com/agon/app/data/FoodRepository.kt")
-        val md3 = read("com/agon/app/ui/screens/ConsumptionLogScreen.kt")
-        val miuix = read("com/agon/app/ui/screens/MiuixConsumptionLogScreen.kt")
-        assertTrue("找不到源码（非 Gradle 工作目录？）", repo != null && md3 != null && miuix != null)
+        val screen = read("com/agon/app/ui/screens/ConsumptionLogScreen.kt")
+        assertTrue("找不到源码（非 Gradle 工作目录？）", repo != null && screen != null)
 
         assertTrue(
             "仓储层 deleteConsumption 必须先判 isDeletable()，否则任何入口都能抹掉整月历史",
             repo!!.contains("if (!record.isDeletable())"),
         )
-        listOf("ConsumptionLogScreen.kt" to md3!!, "MiuixConsumptionLogScreen.kt" to miuix!!).forEach { (name, src) ->
-            assertTrue("$name 必须按 isDeletable() 决定是否给出删除按钮", src.contains("record.isDeletable()"))
-            assertTrue("$name 应对聚合记录标注「月度合计」", src.contains("月度合计"))
-        }
+        assertTrue(
+            "ConsumptionLogScreen.kt 必须按 isDeletable() 决定是否给出删除按钮",
+            screen!!.contains("record.isDeletable()"),
+        )
+        assertTrue("ConsumptionLogScreen.kt 应对聚合记录标注「月度合计」", screen.contains("月度合计"))
     }
 
     private fun read(relativePath: String): String? =
