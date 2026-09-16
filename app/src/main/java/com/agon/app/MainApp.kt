@@ -1,11 +1,12 @@
 package com.agon.app
 
 // App 外壳：状态与副作用（backStack / pagerState / 多选 / Snackbar 收集 / nestedScroll）+
-// Scaffold（底栏槽位、FAB、内容）+ Snackbar 覆盖层。
+// Scaffold（底栏槽位、FAB、内容槽位一次 AppNavHost 调用）+ Snackbar 覆盖层。
 //
 // ⚠️ 硬约定（docs/ARCHITECTURE.md §3、devlog/2026-09-15.md）：
-//   · rememberNavBackStack + NavDisplay **只在这一处**；二级页一律走回调（navigate / onTabs），
-//     不得把 backStack 往下传给屏幕；
+//   · rememberNavBackStack **只在这一处**（导航状态源唯一）；全 App 唯一的 NavDisplay 在
+//     AppNavGraph.kt 的 AppNavHost 里，由本文件的内容槽位调用一次；二级页一律走回调
+//     （navigate / popRoute），不得把 backStack 再往下传给屏幕；
 //   · 外层 Scaffold 的 contentPadding **刻意不消费**（底栏是浮层，inset 由各屏自己的 Scaffold +
 //     LazyColumn.contentPadding 处理），故函数上有 @Suppress("UnusedMaterial3ScaffoldPaddingParameter")，
 //     该注解与其解释注释必须跟着 MainApp 一起搬；
@@ -13,6 +14,8 @@ package com.agon.app
 //     目前只有 FAB 动画用 → 保持 private。
 //
 // 2026-09-16 由 MainActivity.kt 拆分而来（纯搬运：除 private→internal 外，签名与实现逐字节未改）。
+// 同日拆分 ④：路由表（NavDisplay + 8 个 entry）搬去 AppNavGraph.kt，弹窗搬去 AppDialogs.kt，
+// 批量操作栏搬去 BatchBars.kt，底栏搬去 NavChrome.kt —— 本文件只剩 App 外壳本身。
 
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.animation.AnimatedVisibility
@@ -30,7 +33,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -61,26 +63,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
-import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewmodel.compose.viewModel
 import com.agon.app.data.ArchiveReason
 import com.agon.app.ui.navigation.AppRoute
-import com.agon.app.ui.screens.ArchiveScreen
-import com.agon.app.ui.screens.CategoryManageScreen
-import com.agon.app.ui.screens.ConsumptionLogScreen
-import com.agon.app.ui.screens.EditFoodScreen
-import com.agon.app.ui.screens.LocationManageScreen
-import com.agon.app.ui.screens.ThresholdManageScreen
-import com.agon.app.ui.screens.FoodDetailScreen
-import com.agon.app.ui.screens.MiuixArchiveScreen
-import com.agon.app.ui.screens.MiuixCategoryManageScreen
-import com.agon.app.ui.screens.MiuixConsumptionLogScreen
-import com.agon.app.ui.screens.MiuixFoodDetailScreen
-import com.agon.app.ui.screens.MiuixLocationManageScreen
-import com.agon.app.ui.screens.MiuixThresholdManageScreen
 import com.agon.app.ui.components.SwipeDismissSnackbarHost
 import com.agon.app.ui.components.showUndoSnackbar
 import com.agon.app.ui.theme.LocalThemeStyle
@@ -91,12 +78,7 @@ import com.agon.app.viewmodel.AppViewModel
 import kotlin.math.abs
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.launch
-import top.yukonga.miuix.kmp.nav.core.NavCornerClipMode
-import top.yukonga.miuix.kmp.nav.core.NavDisplay
-import top.yukonga.miuix.kmp.nav.core.NavDisplayEffects
 import top.yukonga.miuix.kmp.nav.core.rememberNavBackStack
-import top.yukonga.miuix.kmp.nav.core.rememberNavSystemCornerRadius
-import top.yukonga.miuix.kmp.nav.transition.NavTransitions
 
 // MD3 motion easing tokens 统一从 ui/theme/Motion.kt 引用
 private val EmphasizedDecelerate = MotionEasing.EmphasizedDecelerate
@@ -307,107 +289,17 @@ fun MainApp(viewModel: AppViewModel) {
         // Scaffold + LazyColumn.contentPadding 处理（见 HomeScreen 的
         // calculateBottomPadding() + 96.dp）。在此再消费一次会把内容重复下推。
         // 对应函数上的 @Suppress("UnusedMaterial3ScaffoldPaddingParameter")。
-        // 大屏/折叠屏适配：内容最大宽 840dp 居中（MD3 大屏可读性要求），
-        // 手机上无变化；背景由外层 Scaffold 统一铺满。
-        Box(
-            modifier = Modifier.fillMaxSize(),
-            contentAlignment = Alignment.TopCenter,
-        ) {
-            val cornerRadius = rememberNavSystemCornerRadius()
-            NavDisplay(
-                backStack = backStack,
-                onBack = { popRoute() },
-                // 澎湃记 / HyperOS 设置二级页同款：全宽跟手滑出 + 下层 1/4 视差。
-                // 圆角与 dim 在 NavDisplayEffects；不在转场里缩放到中心。
-                transition = NavTransitions.MiuixDefault,
-                effects = NavDisplayEffects(
-                    enableCornerClip = true,
-                    cornerClipRadius = cornerRadius,
-                    // Leading：全宽滑只圆露出的那条边；All 是给缩放卡片用的。
-                    cornerClipMode = NavCornerClipMode.Leading,
-                    dimAmount = 0.5f,
-                ),
-                modifier = Modifier
-                    .widthIn(max = 840.dp)
-                    .fillMaxSize()
-                    .nestedScroll(chromeScrollConnection),
-            ) {
-                entry<AppRoute.Main> {
-                    MainTabsPager(
-                        viewModel = viewModel,
-                        pagerState = pagerState,
-                        listFilter = listFilter,
-                        onOpenList = { openList(it) },
-                        onOpenItem = { navigate(AppRoute.Detail(it)) },
-                        onOpenArchive = { navigate(AppRoute.Archive) },
-                        onOpenConsumption = { navigate(AppRoute.Consumption) },
-                        onOpenThresholds = { navigate(AppRoute.ManageThresholds) },
-                        onOpenCategories = { navigate(AppRoute.ManageCategories) },
-                        onOpenLocations = { navigate(AppRoute.ManageLocations) },
-                        onBackToHome = { selectTab(0) },
-                    )
-                }
-                entry<AppRoute.Consumption> {
-                    if (LocalThemeStyle.current == ThemeStyle.MIUIX) {
-                        MiuixConsumptionLogScreen(viewModel = viewModel, onBack = { popRoute() })
-                    } else {
-                        ConsumptionLogScreen(viewModel = viewModel, onBack = { popRoute() })
-                    }
-                }
-                entry<AppRoute.Detail> { route ->
-                    if (LocalThemeStyle.current == ThemeStyle.MIUIX) {
-                        MiuixFoodDetailScreen(
-                            viewModel = viewModel,
-                            itemId = route.id,
-                            onEdit = { navigate(AppRoute.Edit(it)) },
-                            onBack = { popRoute() },
-                        )
-                    } else {
-                        FoodDetailScreen(
-                            viewModel = viewModel,
-                            itemId = route.id,
-                            onEdit = { navigate(AppRoute.Edit(it)) },
-                            onBack = { popRoute() },
-                        )
-                    }
-                }
-                entry<AppRoute.Edit> { route ->
-                    EditFoodScreen(
-                        viewModel = viewModel,
-                        editId = route.id,
-                        onBack = { popRoute() },
-                    )
-                }
-                entry<AppRoute.Archive> {
-                    if (LocalThemeStyle.current == ThemeStyle.MIUIX) {
-                        MiuixArchiveScreen(viewModel = viewModel, onBack = { popRoute() })
-                    } else {
-                        ArchiveScreen(viewModel = viewModel, onBack = { popRoute() })
-                    }
-                }
-                entry<AppRoute.ManageThresholds> {
-                    if (LocalThemeStyle.current == ThemeStyle.MIUIX) {
-                        MiuixThresholdManageScreen(viewModel = viewModel, onBack = { popRoute() })
-                    } else {
-                        ThresholdManageScreen(viewModel = viewModel, onBack = { popRoute() })
-                    }
-                }
-                entry<AppRoute.ManageCategories> {
-                    if (LocalThemeStyle.current == ThemeStyle.MIUIX) {
-                        MiuixCategoryManageScreen(viewModel = viewModel, onBack = { popRoute() })
-                    } else {
-                        CategoryManageScreen(viewModel = viewModel, onBack = { popRoute() })
-                    }
-                }
-                entry<AppRoute.ManageLocations> {
-                    if (LocalThemeStyle.current == ThemeStyle.MIUIX) {
-                        MiuixLocationManageScreen(viewModel = viewModel, onBack = { popRoute() })
-                    } else {
-                        LocationManageScreen(viewModel = viewModel, onBack = { popRoute() })
-                    }
-                }
-            }
-        }
+        AppNavHost(
+            backStack = backStack,
+            chromeScrollConnection = chromeScrollConnection,
+            viewModel = viewModel,
+            pagerState = pagerState,
+            listFilter = listFilter,
+            navigate = ::navigate,
+            popRoute = ::popRoute,
+            openList = ::openList,
+            selectTab = ::selectTab,
+        )
     }
 
     // Snackbar 覆盖层（自定义定位：底栏可见→悬浮导航上方，隐藏→贴底，平滑过渡不瞬移）
