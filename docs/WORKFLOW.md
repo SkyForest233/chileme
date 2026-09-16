@@ -47,12 +47,14 @@
 - 本地跑法（首次会下载约 136 MB 工具到 `~/.cache/chileme-gates`，之后走缓存；不需要 Android SDK）：
 
   ```bash
-  bash tools/ci-gates.sh                     # 默认：ktlint 拦截 + detekt 报告
-  DETEKT_MODE=block bash tools/ci-gates.sh   # detekt 也拦截
-  GATES_MODE=report bash tools/ci-gates.sh   # 两个都只报告（调规则时用）
+  bash tools/ci-gates.sh                     # 默认：ktlint 与 detekt 都拦截（2026-09-16 起）
+  GATES_MODE=report bash tools/ci-gates.sh   # 两个都只报告（收敛规则时用）
+  DETEKT_MODE=report bash tools/ci-gates.sh  # 只把 detekt 降回报告
   ```
 
 - CI：`.github/workflows/build.yml` 的 `static-gates` job（PR 与 master 推送都会跑）。报告写 `build/reports/gates/`，CI 里同时上传为 `gate-reports` artifact 并打到日志。
+- **两个门禁现在都是 block**（2026-09-16 起）：detekt 从 report 切 block 的前提是清单归零 —— 修好空转问题后第一次拿到真实清单是 **73 条 / 6 个规则**，其中 2 条改代码修掉、71 条体量指标（`LongMethod` 33 / `LongParameterList` 24 / `TooManyFunctions` 7 / `CyclomaticComplexMethod` 7）在 `detekt.yml` 里**显式关闭并写明实测数字与归口**（路线图 #3 去重、#5 拆 Repository/VM）。`potential-bugs` / `coroutines` / `empty-blocks` / `performance` / `exceptions` / `style` 六类**全为 0**，即「疑似缺陷」那部分本来就是干净的。
+- **`detekt_selftest`（门禁自身健康检查）**：每次门禁先用一个含必然命中违规的临时文件（生成在 `build/reports/gates/selftest/`，不在 `app/src` 下，故不会被 ktlint 主扫描收到）跑一遍 detekt；**命中 0 条即 `::error::` 并判红，与 `DETEKT_MODE` 无关**（哨兵码 91）。这条是为了防止 2026-09-16 那种「门禁静默空转、报告恒为 0」再发生一次 —— 空转的门禁比没有门禁更糟，它提供虚假的安全感。若你有意关掉了自测里用到的规则，请同步改自测文件。
 - 规则边界（为什么只开这几条）写在 `.editorconfig` 与 `detekt.yml` 的文件头，改规则前先读；**未开启 ≠ 遗漏**，多为「已有明确后续计划」或「对本项目属主观项」。
 - ⚠️ **`detekt.yml` 是覆盖层，必须与 `--build-upon-default-config` 同用**（2026-09-16 实测）：只给 `--config` 时 detekt 不拿默认配置当基线，**文件里没逐条列出的规则一律不激活** —— 规则集写着 `active: true` 也白搭，报告恒为 0 条，门禁静默空转。脚本已固化该参数，并加了 `detekt_selftest`：每次门禁先用一个含 3 类必然命中违规的临时文件（放在 `build/reports/gates/selftest/`，不进 `app/src`，故不被 ktlint 主扫描收到）验一遍，**命中 0 条即判红，与 `DETEKT_MODE` 无关**。
 - 发现清单怎么读：CI 日志与 artifact 都托管在 `results-receiver` / `*.blob.core.windows.net`，受限网络里下载不到；脚本已把 ktlint/detekt 的发现**按规则聚合**成 check-run annotation（`gh api repos/SkyForest233/chileme/check-runs/<job-id>/annotations`），另有「detekt 自测」「控制台尾部」「报告文件行数」三条 notice 作为门禁健康度探针。GitHub 每级别最多留 10 条 annotation，故聚合而非逐条，完整清单仍以 artifact 为准。

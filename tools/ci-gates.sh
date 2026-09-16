@@ -8,9 +8,10 @@
 #   DETEKT_MODE=block bash tools/ci-gates.sh      # 单独把 detekt 改成拦截
 #   GATES_CACHE_DIR=/tmp/g bash tools/ci-gates.sh # 指定工具缓存目录
 #
-# 当前默认：ktlint = block（预检零违规，可直接拦），detekt = report
-#   —— 规则噪声需要据实际报告收敛；先只报告，确认噪声可控后再把 DETEKT_MODE 改成 block
-#      （一次改动，不需要改 workflow）。见 devlog/2026-09-15.md §14 与 2026-09-16.md §14。
+# 当前默认：ktlint = block，detekt = block（2026-09-16 起，两个门禁都真拦）
+#   —— detekt 此前一直是 report，且因为少了 --build-upon-default-config 而**空转**（报告恒为 0 条）。
+#      修好之后第一次拿到真实清单：73 条发现 / 6 个规则，其中 71 条是体量指标（按 detekt.yml 里的
+#      实测清单显式关闭并写明归口），2 条已改代码修掉 → 归零后才切 block。见 devlog/2026-09-16.md §14。
 #
 # ⚠️ 2026-09-16 实测发现（此前 detekt 一直是**空转**的）：`--config detekt.yml` 单独用时，
 #   detekt **不会**把默认配置作为基线，未在本仓库配置里逐条列出的规则一律不激活 ——
@@ -48,7 +49,7 @@ DETEKT_URL="https://repo1.maven.org/maven2/io/gitlab/arturbosch/detekt/detekt-cl
 # GATES_MODE 非空时覆盖下面两个工具的独立设置。
 GATES_MODE="${GATES_MODE:-}"
 KTLINT_MODE="${KTLINT_MODE:-block}"
-DETEKT_MODE="${DETEKT_MODE:-report}"
+DETEKT_MODE="${DETEKT_MODE:-block}"
 [ -n "$GATES_MODE" ] && { KTLINT_MODE="$GATES_MODE"; DETEKT_MODE="$GATES_MODE"; }
 CACHE_DIR="${GATES_CACHE_DIR:-$HOME/.cache/chileme-gates}"
 REPORT_DIR="${GATES_REPORT_DIR:-build/reports/gates}"
@@ -201,6 +202,8 @@ run_ktlint() {
 # 门禁自身的健康检查：造一个含**必然命中**违规的临时文件（放在报告目录下，不在 app/src 里，
 # 因此不会被 ktlint 的主扫描收到），用与主运行完全相同的配置跑一遍。
 # 命中 0 条 = 规则没在跑（配置/版本/参数问题）→ 判红，因为空转的门禁会给人虚假的安全感。
+# 注意：自测文件里的 8 形参函数是给 LongParameterList 用的，那条规则若被关闭就只剩
+# UnusedPrivateMember + EmptyCatchBlock 两类命中 —— 判据是「≥1 条」，不是固定条数。
 # 2026-09-16 就是这么发现「--config 不带 --build-upon-default-config 时 detekt 一条规则都不激活」的。
 detekt_selftest() {
     local dir="$REPORT_DIR/selftest"
@@ -228,7 +231,7 @@ KT
     local st=$? hits=0
     [ -f "$dir/findings.txt" ] && hits=$(grep -c '\.kt:' "$dir/findings.txt")
     if [ "$hits" -eq 0 ]; then
-        echo "::error title=detekt 自测失败（门禁空转）::自测文件含 3 类必然命中的违规（UnusedPrivateMember / LongParameterList / EmptyCatchBlock），detekt 却报 0 条（exit=$st）。多半是 --config 少了 --build-upon-default-config，或 detekt.yml 把对应规则集/规则关掉了。控制台尾部：$(tail -c 400 "$dir/console.txt" | tr '\n\r' '  ' | sed 's/%/%25/g')"
+        echo "::error title=detekt 自测失败（门禁空转）::自测文件含必然命中的违规（UnusedPrivateMember / EmptyCatchBlock；LongParameterList 已按 detekt.yml 关闭，不计入），detekt 却报 0 条（exit=$st）。多半是 --config 少了 --build-upon-default-config，或 detekt.yml 把对应规则集/规则关掉了。控制台尾部：$(tail -c 400 "$dir/console.txt" | tr '\n\r' '  ' | sed 's/%/%25/g')"
         return 91
     fi
     echo "::notice title=detekt 自测::命中 $hits 条已知违规（exit=$st）—— 规则确实在跑"

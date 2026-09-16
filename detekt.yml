@@ -51,30 +51,42 @@ comments:
 naming:
   active: false
 
-# ---- complexity：2026-09-16 开启（第三批 #2）----
-# 分两步走，**这一步只开规则、不切拦截**（DETEKT_MODE 仍是 report）：先让 CI 把清单跑出来，
-# 逐条判断「真该修 / 阈值不合理 / Compose 场景本就如此」，再决定豁免与阈值，最后才把
-# DETEKT_MODE 改成 block。顺序反了就是拿一次红 CI 换一份清单。
+# ---- complexity：2026-09-16 开启（第三批 #2），并按实测清单收敛 ----
+# 修好 `--build-upon-default-config` 之后 detekt 第一次真跑起来，全仓 **73 条发现 / 6 个规则**：
 #
-# 清单怎么读：日志与 artifact 在受限网络里下载不到，故 tools/ci-gates.sh 会把发现按规则聚合成
-# check-run annotation —— `gh api repos/SkyForest233/chileme/check-runs/<job-id>/annotations`。
+#   LongMethod 33 · LongParameterList 24 · TooManyFunctions 7 · CyclomaticComplexMethod 7
+#   ComplexCondition 1 · LoopWithTooManyJumpStatements 1
+#
+# 即：**potential-bugs / coroutines / empty-blocks / performance / exceptions / style 全为 0** ——
+# 「疑似缺陷」那几类本来就是干净的，73 条全部是体量与复杂度指标。分两类处理：
+#
+# · 后 2 条（各 1 处）**改代码**：`CsvExport.escapeCsvField` 的 4 个 contains 串联 → `any { }`；
+#   `NutstoreSync.parsePropfind` 的 for + 2 个 continue → `mapNotNull`。规则保留（便宜、命中少、
+#   真指向「读不动」的地方）。
+# · 前 4 条（71 处）**显式关闭**，理由不是「不想管」而是「管的方式不对」：
+#   - LongMethod(33) / CyclomaticComplexMethod(7)：命中的几乎全是 Compose 屏幕（一个屏幕就是一个
+#     长 @Composable：MiuixSettingsScreen 863 行、EditFoodScreen 557 行…）。真正要做的拆分是
+#     路线图 #3（双主题去重 + App 级组件层），目标是可数的「16 个渲染层文件 → 8 个、7,205 行 →
+#     4,500 量级」，而不是让 detekt 天天报 40 条永远不拦的噪声。
+#   - LongParameterList(24)：命中的多是 `*State.kt` 状态容器（`FoodDetailUiState` 13 个形参）与
+#     App 级组件（`AppNavHost` 9、`MainTabsPager` 11、`BatchMoveLocationDialog` 8）。前者是**刻意的
+#     设计**（精确订阅要求把字段摊平，见 SettingsState.kt 说明），后者由 #3 收窄成回调后再评估阈值。
+#   - TooManyFunctions(7)：`AppViewModel` 53 个、`FoodRepository` 47 个 —— 正是路线图 #5（Repository
+#     拆分 + 轻量 DI）要拆的对象。规则没错，但现在开着的唯一效果是噪声。
+#   噪声的代价是具体的：71 条永远红的发现会让人不再读这份报告，剩下那 2 条真问题反而被埋掉。
+#   #3 / #5 做完后应回来重新评估这 4 条（至少 LongParameterList 可以把阈值降回来）。
 complexity:
   active: true
-  # Compose 的屏幕文件天然是「一个文件里十几个小 @Composable」，按默认 11 个/文件会全是噪声；
-  # 这里只把 @Composable 函数排除在计数外，普通函数照数。
+  LongMethod:
+    active: false
+  CyclomaticComplexMethod:
+    active: false
+  LongParameterList:
+    active: false
   TooManyFunctions:
-    ignoreAnnotatedFunctions: ['Composable']
-  # LongParameterList 保持默认 functionThreshold: 6 —— 它点名的正是第三批 #3 要收窄的那批
-  # （AppNavHost 9 个、BatchMoveLocationDialog 8 个、MainTabsPager 11 个形参）。
-  # 1.23.8 没有「按函数注解豁免整条规则」的键（只有 ignoreAnnotatedParameter，那是豁免单个形参），
-  # 故先让它如实报，收窄完成后再评估阈值。
-# exceptions：**只开 SwallowedException / PrintStackTrace**（2026-09-15）
-# SwallowedException 找的是「catch 到异常却一个字都不用」——即静默吞掉失败。它对本项目
-# 特别相关：2026-09-15 那轮已定原则「凭据加密失败不再静默」，SecureStore 两处 catch
-# 已改为带日志（Log.e/Log.w，随 PR #7 合并）；**合并后预期剩 2 处**：
-# ImageStore.kt:114（catch → null）、:133（catch → 0）。
-# TooGenericExceptionCaught（禁止笼统 catch Exception）保持关闭——本项目的防御性 IO 代码
-# 是刻意为之，全开会变噪声；等 SwallowedException 清零后再评估是否启用。
+    active: false
+  # ComplexCondition 保留默认（阈值 4）：唯一那处命中已修。
+
 exceptions:
   active: true
   TooGenericExceptionCaught:
