@@ -109,6 +109,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -648,6 +649,13 @@ fun MainApp(viewModel: AppViewModel) {
         } else {
             AlertDialog(
                 onDismissRequest = { showMoveLocationDialog = false },
+                // 键盘避让（2026-09-16 补，与 SettingsScreen 坚果云弹窗 / ManageScreens 两处一致）：
+                // MD3 弹窗是独立浮动窗口，默认 DialogProperties（decorFitsSystemWindows = true）不会把
+                // IME inset 透给内容 —— 下面「或输入新位置」这个输入框弹出键盘时，「确定移动」按钮会被盖住。
+                // 关掉 decorFits 拿到 inset，再由 imePadding 把弹窗整体上移到键盘之上。
+                // Miuix 分支不需要：WindowDialog 的 DialogContent 由库自理 IME（见 MiuixDialog 的 KDoc）。
+                properties = DialogProperties(decorFitsSystemWindows = false),
+                modifier = Modifier.imePadding(),
                 title = { Text("批量修改存放位置") },
                 text = {
                     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
