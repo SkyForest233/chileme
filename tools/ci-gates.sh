@@ -9,9 +9,17 @@
 #   GATES_CACHE_DIR=/tmp/g bash tools/ci-gates.sh # 指定工具缓存目录
 #
 # 当前默认：ktlint = block（预检零违规，可直接拦），detekt = report
-#   —— detekt 1.23.8 内置的 Kotlin 编译器是 2.0.21（本工程 2.4.10），且规则噪声需要据实际
-#      报告收敛；先只报告，确认解析正常、噪声可控后再把 DETEKT_MODE 改成 block（一次改动，
-#      不需要改 workflow）。见 devlog/2026-09-15.md §14。
+#   —— 规则噪声需要据实际报告收敛；先只报告，确认噪声可控后再把 DETEKT_MODE 改成 block
+#      （一次改动，不需要改 workflow）。见 devlog/2026-09-15.md §14 与 2026-09-16.md §14。
+#
+# ⚠️ 2026-09-16 实测发现（此前 detekt 一直是**空转**的）：`--config detekt.yml` 单独用时，
+#   detekt **不会**把默认配置作为基线，未在本仓库配置里逐条列出的规则一律不激活 ——
+#   于是 `style: active: true` / `complexity: active: true` 这些**规则集**开关看着开了，
+#   底下的规则却一条都没跑（canary 文件里 4 处必然命中的违规报 0 条；去掉 --config 用默认
+#   配置跑同一个文件则 4 条全中、exit=2）。修法是加 `--build-upon-default-config`：
+#   默认配置作基线，本仓库的 detekt.yml 作为**覆盖层**。
+#   为免再静默失效，下面加了 `detekt_selftest`：每次跑门禁都先拿一个含已知违规的临时文件
+#   验一遍「规则确实在跑」，命中 0 条就 ::error:: 并判红（一个静默空转的门禁比没有门禁更糟）。
 #
 # 为什么是「脚本 + 独立二进制」，而不是 Gradle 插件
 # ------------------------------------------------
@@ -121,25 +129,25 @@ emit_annotations() {
             split($0, p, ":")
             path = p[1]; line = p[2]
             i = index(path, "app/src"); if (i > 1) path = substr(path, i)   # detekt 可能给绝对路径
+            line = $0; sub(/[ \t\r]+$/, "", line)
             rule = "unknown"
-            if (match($0, /\(([a-z-]+:)?[A-Za-z0-9_-]+\)/)) {          # ktlint plain: (standard:rule-id)
-                rule = substr($0, RSTART, RLENGTH); gsub(/[()]/, "", rule); sub(/^[a-z-]+:/, "", rule)
-            } else if (match($0, /\.kt:[0-9]+(:[0-9]+)?: [A-Za-z][A-Za-z0-9]* - /)) {   # detekt txt: Rule - msg
-                rule = substr($0, RSTART, RLENGTH)
-                sub(/^\.kt:[0-9]+(:[0-9]+)?: /, "", rule); sub(/ - $/, "", rule)
+            if (match(line, /\[[A-Za-z0-9]+\]$/)) {                    # detekt txt: 消息 [RuleId]
+                rule = substr(line, RSTART + 1, RLENGTH - 2)
+            } else if (match(line, /\(([a-z-]+:)?[A-Za-z0-9_-]+\)/)) {  # ktlint plain: (standard:rule-id)
+                rule = substr(line, RSTART, RLENGTH); gsub(/[()]/, "", rule); sub(/^[a-z-]+:/, "", rule)
             }
             cnt[rule]++; if (cnt[rule] == 1) nrules++; total++
             if (length(loc[rule]) < 800) loc[rule] = loc[rule] (loc[rule] == "" ? "" : "; ") path ":" line
         }
         END {
             if (!total) exit
-            printf "::notice title=%s 汇总::%d 条发现，涉及 %d 个规则（逐规则见后续 warning）\n", tool, total, nrules
+            summary = ""
+            for (r in cnt) summary = summary (summary == "" ? "" : ", ") r "=" cnt[r]
+            gsub(/%/, "%25", summary)
+            printf "::notice title=%s 汇总::%d 条发现 / %d 个规则 —— %s\n", tool, total, nrules, summary
             shown = 0
-            for (r in cnt) {
-                if (shown >= 8) {
-                    printf "::notice title=%s 其余规则::还有 %d 个规则未逐条列出，完整清单见 artifact\n", tool, nrules - 8
-                    break
-                }
+            for (r in cnt) {          # 每级别最多 10 条 annotation，故只列前 6 个规则的位点
+                if (shown >= 6) break
                 msg = loc[r]; gsub(/%/, "%25", msg)
                 printf "::warning file=tools/ci-gates.sh,line=1,title=%s %s (%d 处)::%s\n", tool, r, cnt[r], msg
                 shown++
@@ -180,6 +188,44 @@ run_ktlint() {
     return "$status"
 }
 
+# ---------------------------------------------------------------- detekt 自测
+# 门禁自身的健康检查：造一个含**必然命中**违规的临时文件（放在报告目录下，不在 app/src 里，
+# 因此不会被 ktlint 的主扫描收到），用与主运行完全相同的配置跑一遍。
+# 命中 0 条 = 规则没在跑（配置/版本/参数问题）→ 判红，因为空转的门禁会给人虚假的安全感。
+# 2026-09-16 就是这么发现「--config 不带 --build-upon-default-config 时 detekt 一条规则都不激活」的。
+detekt_selftest() {
+    local dir="$REPORT_DIR/selftest"
+    mkdir -p "$dir"
+    cat > "$dir/DetektSelfTest.kt" <<'KT'
+package gateselftest
+
+private fun unusedPrivate(): Int = 42
+
+fun eightParams(a: Int, b: Int, c: Int, d: Int, e: Int, f: Int, g: Int, h: Int): Int =
+    a + b + c + d + e + f + g + h
+
+fun emptyCatch() {
+    try {
+        eightParams(1, 2, 3, 4, 5, 6, 7, 8)
+    } catch (ignored: RuntimeException) {
+    }
+}
+KT
+    java -jar "$DETEKT_JAR" \
+        --input "$dir" \
+        --config detekt.yml \
+        --build-upon-default-config \
+        --report "txt:$dir/findings.txt" > "$dir/console.txt" 2>&1
+    local st=$? hits=0
+    [ -f "$dir/findings.txt" ] && hits=$(grep -c '\.kt:' "$dir/findings.txt")
+    if [ "$hits" -eq 0 ]; then
+        echo "::error title=detekt 自测失败（门禁空转）::自测文件含 3 类必然命中的违规（UnusedPrivateMember / LongParameterList / EmptyCatchBlock），detekt 却报 0 条（exit=$st）。多半是 --config 少了 --build-upon-default-config，或 detekt.yml 把对应规则集/规则关掉了。控制台尾部：$(tail -c 400 "$dir/console.txt" | tr '\n\r' '  ' | sed 's/%/%25/g')"
+        return 91
+    fi
+    echo "::notice title=detekt 自测::命中 $hits 条已知违规（exit=$st）—— 规则确实在跑"
+    return 0
+}
+
 # ---------------------------------------------------------------- detekt
 run_detekt() {
     # 同上：detekt.yml 缺失时 detekt CLI 会直接抛 ExistingPathConverter 异常（栈里看不出原因）。
@@ -188,10 +234,12 @@ run_detekt() {
         return 90
     fi
     prepare_detekt
-    log "detekt $DETEKT_VERSION（规则见 detekt.yml）"
+    detekt_selftest || return 91
+    log "detekt $DETEKT_VERSION（detekt.yml 作为默认配置之上的覆盖层）"
     java -jar "$DETEKT_JAR" \
         --input "$SRC_DIR/main/java,$SRC_DIR/test/java" \
         --config detekt.yml \
+        --build-upon-default-config \
         --parallel \
         --report "txt:$REPORT_DIR/detekt.txt" \
         --report "xml:$REPORT_DIR/detekt.xml" \
@@ -205,23 +253,6 @@ run_detekt() {
     fi
     emit_annotations "detekt" "$REPORT_DIR/detekt.txt"
 
-    # ---- 临时诊断（与 DetektCanary.kt 同批，判定完就删）----
-    # 现象：canary 文件里有 4 处必然命中的违规（UnusedPrivateMember / LongParameterList 8 形参 /
-    # EmptyCatchBlock + SwallowedException / LongMethod 70 行），detekt 仍报「0 code smells」，
-    # 但它统计出 76 files / 559 functions / 17,701 loc —— 说明**解析正常、规则没在跑**。
-    # 二分：用 detekt 内置默认配置（不带 --config）再跑一遍同一个目录。
-    #   · 默认配置有大量发现 → 问题在仓库的 detekt.yml（配置把所有规则关掉了）
-    #   · 默认配置也是 0     → 问题在 detekt 本身（jar / 版本 / 与 Kotlin 2.4 源码不兼容）
-    # 这一段**不影响门禁退出码**：单独跑、单独出 annotation。
-    log "诊断：detekt 内置默认配置对照跑（不计入门禁结果）"
-    echo "::notice title=detekt 版本::$(java -jar "$DETEKT_JAR" --version 2>&1 | tr '\n\r' '  ' | head -c 300)"
-    java -jar "$DETEKT_JAR" \
-        --input "$SRC_DIR/test/java/com/agon/app/DetektCanary.kt" \
-        --report "txt:$REPORT_DIR/detekt-defaults.txt" \
-        > "$REPORT_DIR/detekt-defaults-console.txt" 2>&1
-    echo "::notice title=诊断（默认配置，只跑 canary 文件）::exit=$? 报告 $(wc -l < "$REPORT_DIR/detekt-defaults.txt" 2>/dev/null | tr -d ' ') 行；控制台：$(tail -c 700 "$REPORT_DIR/detekt-defaults-console.txt" | tr '\n\r' '  ' | sed 's/%/%25/g')"
-    emit_annotations "detekt-defaults" "$REPORT_DIR/detekt-defaults.txt"
-    # ---- 临时诊断结束 ----
 
     emit_console_tail "detekt" "$REPORT_DIR/detekt-console.txt" "$status"
     if [ -f "$REPORT_DIR/detekt.txt" ]; then
@@ -243,16 +274,21 @@ echo "ktlint: exit=$ktlint_status（mode=$KTLINT_MODE）"
 echo "detekt: exit=$detekt_status（mode=$DETEKT_MODE）"
 echo "报告目录: $REPORT_DIR（ktlint.txt / ktlint-checkstyle.xml / detekt.txt / detekt.xml / detekt.html）"
 
+# exit=91 = detekt 自测未命中已知违规（门禁空转，见 detekt_selftest）—— **无视 report/block 一律判红**。
 # exit=90 = 本脚本自己的前置检查失败（缺配置文件）；exit=3 = detekt 配置无效（键名写错等）。
 # 这两种都不是「代码有问题」，日志里必须说清楚，否则会像 2026-09-15 那样误导排查方向。
 # 注意：**detekt 的 exit=2 是「发现问题数超过 maxIssues」**（正常的判红），不要当成配置错误。
 if [ "$ktlint_status" -eq 90 ] || [ "$detekt_status" -eq 90 ] || [ "$detekt_status" -eq 3 ]; then
     echo "::error::静态门禁自身的配置有问题（不是代码问题）：请检查 tools/ci-gates.sh / .editorconfig / detekt.yml 是否齐全且键名正确（见 docs/WORKFLOW.md §3）"
 fi
+if [ "$detekt_status" -eq 91 ]; then
+    echo "::error::detekt 自测未命中任何已知违规 —— 门禁在空转，本次判红（与 DETEKT_MODE 无关）"
+fi
 
 blocked=0
 if [ "$ktlint_status" -ne 0 ] && [ "$KTLINT_MODE" = "block" ]; then blocked=1; fi
 if [ "$detekt_status" -ne 0 ] && [ "$DETEKT_MODE" = "block" ]; then blocked=1; fi
+[ "$detekt_status" -eq 91 ] && blocked=1        # 门禁空转：不看模式，一律红
 
 if [ "$ktlint_status" -ne 0 ] || [ "$detekt_status" -ne 0 ]; then
     [ "$blocked" -eq 0 ] && echo "::warning::静态门禁发现问题，但当前模式为 report，本次不拦截"

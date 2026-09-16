@@ -17,6 +17,18 @@
 #
 # 迭代方式：门禁脚本支持 GATES_MODE=report（或 DETEKT_MODE=report）只报告不拦截，
 # 用来在不动 CI 状态的前提下收敛规则。详见 docs/WORKFLOW.md §3「CI 静态门禁」。
+#
+# ⚠️⚠️ 本文件是**覆盖层**，不是完整配置 —— 必须与 `--build-upon-default-config` 一起用
+# --------------------------------------------------------------------------
+# 2026-09-16 实测（此前 detekt 一直空转、报告恒为 0 条）：detekt CLI 只给 `--config detekt.yml`
+# 时**不会**拿默认配置当基线，于是「本文件没逐条列出的规则」一律不激活 —— 下面这些
+# `potential-bugs: active: true` / `style: active: true` 只开了**规则集**，集内规则一条都没跑。
+# 证据：一个含 4 处必然命中违规的 canary 文件，用本配置报 0 条；去掉 `--config` 用默认配置
+# 跑同一文件则 4 条全中（LongParameterList / LongMethod / FunctionOnlyReturningConstant /
+# UnusedPrivateMember）、exit=2。加上 `--build-upon-default-config` 后本文件才成为「默认之上的覆盖」。
+# 推论：**这里没写 ≠ 关闭**（没写 = 用 detekt 默认值）；要关必须显式 `active: false`。
+# `tools/ci-gates.sh` 里的 `detekt_selftest` 会在每次门禁前先验一遍「规则确实在跑」，
+# 命中 0 条直接判红 —— 别再让这个门静静失效一次。
 
 build:
   # 有任何一条 issue 就让 CI 失败（0 = 零容忍，不用权重打分）
@@ -119,7 +131,7 @@ style:
     active: false        # 需要类型推断上下文，易误报
   UnderscoresInNumericLiterals:
     active: false        # 主观
-  # 保留默认开启的高价值规则（此处不写 = 用默认）：
+  # 保留默认开启的高价值规则（此处不写 = 用 detekt 默认值，前提是 --build-upon-default-config）：
   #   UnusedImports        未使用的 import（ktlint 的同类规则已弃用，这里兜底）
   #   UnusedPrivateMember  私有函数/属性没人用 = 死代码
   #   UnusedPrivateProperty 同上

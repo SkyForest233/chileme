@@ -54,6 +54,8 @@
 
 - CI：`.github/workflows/build.yml` 的 `static-gates` job（PR 与 master 推送都会跑）。报告写 `build/reports/gates/`，CI 里同时上传为 `gate-reports` artifact 并打到日志。
 - 规则边界（为什么只开这几条）写在 `.editorconfig` 与 `detekt.yml` 的文件头，改规则前先读；**未开启 ≠ 遗漏**，多为「已有明确后续计划」或「对本项目属主观项」。
+- ⚠️ **`detekt.yml` 是覆盖层，必须与 `--build-upon-default-config` 同用**（2026-09-16 实测）：只给 `--config` 时 detekt 不拿默认配置当基线，**文件里没逐条列出的规则一律不激活** —— 规则集写着 `active: true` 也白搭，报告恒为 0 条，门禁静默空转。脚本已固化该参数，并加了 `detekt_selftest`：每次门禁先用一个含 3 类必然命中违规的临时文件（放在 `build/reports/gates/selftest/`，不进 `app/src`，故不被 ktlint 主扫描收到）验一遍，**命中 0 条即判红，与 `DETEKT_MODE` 无关**。
+- 发现清单怎么读：CI 日志与 artifact 都托管在 `results-receiver` / `*.blob.core.windows.net`，受限网络里下载不到；脚本已把 ktlint/detekt 的发现**按规则聚合**成 check-run annotation（`gh api repos/SkyForest233/chileme/check-runs/<job-id>/annotations`），另有「detekt 自测」「控制台尾部」「报告文件行数」三条 notice 作为门禁健康度探针。GitHub 每级别最多留 10 条 annotation，故聚合而非逐条，完整清单仍以 artifact 为准。
 - 升级工具版本：改 `tools/ci-gates.sh` 里的版本号 + sha256，并同步改 `build.yml` 里 `actions/cache` 的 key。
 - release 侧另有 `release-r8` job：每个 PR 都跑 `assembleRelease -PallowUnsignedRelease=true`（R8 + 资源压缩 + `lintRelease`），因为这类问题只在 release 构建出现。
 - 提交代码前建议先跑一次门禁，比等 CI 反馈快。
