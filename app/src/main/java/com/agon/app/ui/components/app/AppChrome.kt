@@ -175,7 +175,7 @@ fun AppTopBar(
     if (LocalThemeStyle.current == ThemeStyle.MIUIX) {
         MiuixTopAppBar(
             title = title,
-            subtitle = subtitle ?: ,
+            subtitle = subtitle ?: "",
             navigationIcon = {
                 if (onBack != null) {
                     MiuixIconButton(onClick = onBack) {
