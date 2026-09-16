@@ -36,7 +36,10 @@ class ScreenParityTest {
         val NoSharedStateScreens = setOf("EditFoodScreen.kt")
 
         /** 已完成双主题合并的屏幕：不许再出现 `Miuix<同名>.kt` 第二实现。逐对合并时往这里加。 */
-        val MergedScreens = setOf("ConsumptionLogScreen.kt")
+        val MergedScreens = setOf(
+            "ConsumptionLogScreen.kt",   // 第 1 对（2026-09-16）
+            "ArchiveScreen.kt",          // 第 2 对（2026-09-16）
+        )
     }
 
     /** Gradle 的测试工作目录是模块目录（app/），IDE 也可能用仓库根目录，两处都找一下。 */

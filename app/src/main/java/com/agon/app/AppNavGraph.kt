@@ -33,7 +33,6 @@ import com.agon.app.ui.screens.EditFoodScreen
 import com.agon.app.ui.screens.LocationManageScreen
 import com.agon.app.ui.screens.ThresholdManageScreen
 import com.agon.app.ui.screens.FoodDetailScreen
-import com.agon.app.ui.screens.MiuixArchiveScreen
 import com.agon.app.ui.screens.MiuixCategoryManageScreen
 import com.agon.app.ui.screens.MiuixFoodDetailScreen
 import com.agon.app.ui.screens.MiuixLocationManageScreen
@@ -134,11 +133,8 @@ internal fun AppNavHost(
                 )
             }
             entry<AppRoute.Archive> {
-                if (LocalThemeStyle.current == ThemeStyle.MIUIX) {
-                    MiuixArchiveScreen(viewModel = viewModel, onBack = { popRoute() })
-                } else {
-                    ArchiveScreen(viewModel = viewModel, onBack = { popRoute() })
-                }
+                // 双主题已合并为一份（外壳差异在 ui/components/app/ 的骨架组件里分流）
+                ArchiveScreen(viewModel = viewModel, onBack = { popRoute() })
             }
             entry<AppRoute.ManageThresholds> {
                 if (LocalThemeStyle.current == ThemeStyle.MIUIX) {

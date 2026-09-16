@@ -55,6 +55,24 @@ class ImeHandlingTest {
     private val navBarFiles = listOf("com/agon/app/NavChrome.kt")
 
     /**
+     * 含输入框的屏幕清单。
+     *
+     * 2026-09-16 起双主题逐对合并（第三批 #3）：**合并后一个条目就覆盖两套主题**，
+     * 因为 `imePadding()` 写在合并后那一份文件里。所以每合并一对，就把对应的 `Miuix*Screen.kt`
+     * 条目删掉（文件已不存在，留着会让 `read()` 返回 null 而误报「缺少 imePadding」）。
+     * 归档页已合并（`ArchiveScreen.kt` 一份含两主题）；`MiuixArchiveScreen.kt` 条目随之删除。
+     *
+     * 键盘避让仍由**屏幕自己**声明 `AppScaffold(modifier = Modifier.imePadding())`，
+     * 组件层不无条件加 —— 没有输入框的屏幕不需要，且这样「哪一屏要避让」在屏幕文件里看得见。
+     */
+    private val imeScreens = listOf(
+        "com/agon/app/ui/screens/EditFoodScreen.kt",        // 保存按钮在 bottomBar，最严重
+        "com/agon/app/ui/screens/FoodListScreen.kt",        // 搜索框 + 列表末尾
+        "com/agon/app/ui/screens/ArchiveScreen.kt",         // 已合并双主题：搜索框
+        "com/agon/app/ui/screens/MiuixFoodListScreen.kt",   // 食品列表合并后删掉这一条
+    )
+
+    /**
      * 只留代码、去掉注释再点数。
      *
      * 文件头与 KDoc 里写「本文件不得出现 .imePadding()」这类**说明**是好事，但按原始文本点数会把它
@@ -67,14 +85,7 @@ class ImeHandlingTest {
 
     @Test
     fun `含输入框的屏幕必须处理 IME inset`() {
-        val screens = listOf(
-            "com/agon/app/ui/screens/EditFoodScreen.kt",        // 保存按钮在 bottomBar，最严重
-            "com/agon/app/ui/screens/FoodListScreen.kt",        // 搜索框 + 列表末尾
-            "com/agon/app/ui/screens/ArchiveScreen.kt",
-            "com/agon/app/ui/screens/MiuixFoodListScreen.kt",
-            "com/agon/app/ui/screens/MiuixArchiveScreen.kt",
-        )
-        val contents = screens.associateWith(::read)
+        val contents = imeScreens.associateWith(::read)
         assumeTrue("找不到屏幕源码（非 Gradle 工作目录？），跳过", contents.values.any { it != null })
 
         val missing = contents.filterValues { it?.contains("imePadding()") != true }.keys
