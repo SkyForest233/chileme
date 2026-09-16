@@ -5,6 +5,7 @@ package com.agon.app.ui.components.app
 // AppActionRow = 头像槽位 + 两个图标操作（归档行，管理页的分类/位置行同构）。
 // 2026-09-16 由 ConsumptionRow + MiuixConsumptionRow 合并抽出，两版的排版参数逐项对齐。
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
@@ -13,7 +14,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ArrowForward
 import androidx.compose.material.icons.rounded.DeleteForever
 import androidx.compose.material.icons.rounded.RestartAlt
 import androidx.compose.material3.Icon
@@ -23,6 +26,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -34,6 +38,7 @@ import top.yukonga.miuix.kmp.basic.IconButton as MiuixIconButton
 import top.yukonga.miuix.kmp.basic.Text as MiuixText
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Delete
+import top.yukonga.miuix.kmp.icon.extended.Forward
 import top.yukonga.miuix.kmp.icon.extended.Refresh
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
@@ -210,6 +215,57 @@ private fun RowRestoreButton(onRestore: () -> Unit, contentDescription: String) 
                 contentDescription = contentDescription,
                 tint = MaterialTheme.colorScheme.primary,
             )
+        }
+    }
+}
+
+/**
+ * 分区标题 + 右侧文字链接（首页「需要处理 …… 全部食品 →」）。
+ *
+ * 两主题的箭头字形不同（MD3 `ArrowForward` / Miuix `Forward`），链接文字与箭头都用强调色，
+ * 点击区是圆角 50 的胶囊（`clip` 在 `clickable` 之前，涟漪才是胶囊形）。
+ * 标题走 [AppTextScale.SectionTitle]、链接走 [AppTextScale.Link] —— 合并前两版各自的取值。
+ *
+ * `modifier` 由调用方给：首页传 `fillMaxWidth().padding(top = 8.dp)`，与合并前逐字一致。
+ */
+@Composable
+fun AppSectionHeader(
+    title: String,
+    linkLabel: String,
+    onLink: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically) {
+        AppText(
+            title,
+            AppTextScale.SectionTitle,
+            modifier = Modifier.weight(1f),
+            fontWeight = FontWeight.Bold,
+        )
+        Row(
+            modifier = Modifier
+                .clip(RoundedCornerShape(50))
+                .clickable { onLink() }
+                .padding(horizontal = 10.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            AppText(linkLabel, AppTextScale.Link, color = appPrimaryColor())
+            Spacer(Modifier.width(4.dp))
+            if (LocalThemeStyle.current == ThemeStyle.MIUIX) {
+                MiuixIcon(
+                    MiuixIcons.Forward,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp),
+                    tint = appPrimaryColor(),
+                )
+            } else {
+                Icon(
+                    Icons.AutoMirrored.Rounded.ArrowForward,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp),
+                    tint = appPrimaryColor(),
+                )
+            }
         }
     }
 }

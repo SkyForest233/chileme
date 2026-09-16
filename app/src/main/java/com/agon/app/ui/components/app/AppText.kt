@@ -28,7 +28,14 @@ import com.agon.app.ui.theme.ThemeStyle
 import top.yukonga.miuix.kmp.basic.Text as MiuixText
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
-/** 屏幕层用的语义字号档位。每项后面是合并前两版各自的取值。 */
+/**
+ * 屏幕层用的语义字号档位。每项后面是合并前两版各自的取值。
+ *
+ * **这张表是登记表，不是换算表**：同一个 MD3 style 可以对应两个不同档位（`Heading` 与 `ItemTitle`
+ * 都是 `titleSmall`，`Emphasis` 与 `SectionTitle` 都是 `titleMedium`），同一个 Miuix style 也可以
+ * 被两个档位共用（`Emphasis` 与 `Body` 都是 `body1`，`Meta` 与 `Link` 都是 `body2`）。因为记的是
+ * 「合并前那一处两版各自写的什么」，交叉恰恰是原版差异所在 —— 按字号推导去统一它们才是改行为。
+ */
 enum class AppTextScale {
     /** 页面主标题（详情页的食品名）：MD3 `headlineSmall` / Miuix `title2` */
     Hero,
@@ -47,6 +54,21 @@ enum class AppTextScale {
 
     /** 弱化说明（列表副标题、卡片提示语）：MD3 `bodySmall` / Miuix `footnote2` */
     Hint,
+
+    /** 大数字（首页统计卡的数值）：MD3 `headlineMedium` / Miuix `title2`（比 [Hero] 在 MD3 侧大一级） */
+    Value,
+
+    /** 小标签（统计卡标签、卡片内小标题「今日提醒」）：MD3 `labelMedium` / Miuix `footnote2` */
+    Label,
+
+    /** 分区标题（首页「需要处理」）：MD3 `titleMedium` / Miuix `title4` */
+    SectionTitle,
+
+    /** 分区标题右侧的文字链接（首页「全部食品」）：MD3 `labelLarge` / Miuix `body2` */
+    Link,
+
+    /** 条目名称（首页「需要处理」列表里的食品名）：MD3 `titleSmall` / Miuix `body2` */
+    ItemTitle,
 }
 
 /**
@@ -80,6 +102,11 @@ fun AppText(
                 AppTextScale.Body -> MiuixTheme.textStyles.body1
                 AppTextScale.Meta -> MiuixTheme.textStyles.body2
                 AppTextScale.Hint -> MiuixTheme.textStyles.footnote2
+                AppTextScale.Value -> MiuixTheme.textStyles.title2
+                AppTextScale.Label -> MiuixTheme.textStyles.footnote2
+                AppTextScale.SectionTitle -> MiuixTheme.textStyles.title4
+                AppTextScale.Link -> MiuixTheme.textStyles.body2
+                AppTextScale.ItemTitle -> MiuixTheme.textStyles.body2
             },
         )
     } else {
@@ -98,6 +125,11 @@ fun AppText(
                 AppTextScale.Body -> MaterialTheme.typography.bodyLarge
                 AppTextScale.Meta -> MaterialTheme.typography.bodyMedium
                 AppTextScale.Hint -> MaterialTheme.typography.bodySmall
+                AppTextScale.Value -> MaterialTheme.typography.headlineMedium
+                AppTextScale.Label -> MaterialTheme.typography.labelMedium
+                AppTextScale.SectionTitle -> MaterialTheme.typography.titleMedium
+                AppTextScale.Link -> MaterialTheme.typography.labelLarge
+                AppTextScale.ItemTitle -> MaterialTheme.typography.titleSmall
             },
         )
     }
@@ -161,7 +193,27 @@ fun AppEmojiText(
     }
 }
 
-/** 强调色：MD3 `colorScheme.primary` / Miuix `colorScheme.primary`（行尾数量、恢复按钮用）。 */
+/**
+ * 主色容器底 / 其上的内容色：首页「今日提醒」那颗圆形图标在用（统计卡的配色走 [AppStatTone]，
+ * 不需要屏幕自己取色）。两主题同名，但取值各自来自自己的色板。
+ */
+@Composable
+internal fun appPrimaryContainerColor(): Color =
+    if (LocalThemeStyle.current == ThemeStyle.MIUIX) {
+        MiuixTheme.colorScheme.primaryContainer
+    } else {
+        MaterialTheme.colorScheme.primaryContainer
+    }
+
+@Composable
+internal fun appOnPrimaryContainerColor(): Color =
+    if (LocalThemeStyle.current == ThemeStyle.MIUIX) {
+        MiuixTheme.colorScheme.onPrimaryContainer
+    } else {
+        MaterialTheme.colorScheme.onPrimaryContainer
+    }
+
+/** 强调色：MD3 `colorScheme.primary` / Miuix `colorScheme.primary`（行尾数量、恢复按钮、文字链接用）。 */
 @Composable
 internal fun appPrimaryColor(): Color =
     if (LocalThemeStyle.current == ThemeStyle.MIUIX) {

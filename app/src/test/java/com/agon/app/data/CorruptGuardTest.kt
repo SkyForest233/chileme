@@ -84,21 +84,22 @@ class CorruptGuardTest {
     }
 
     @Test
-    fun `损坏数据有放弃入口且两个首页都接上`() {
+    fun `损坏数据有放弃入口且首页接上`() {
         val repo = read("com/agon/app/data/FoodRepository.kt")
         val vm = read("com/agon/app/viewmodel/AppViewModel.kt")
-        val md3 = read("com/agon/app/ui/screens/HomeScreen.kt")
-        val miuix = read("com/agon/app/ui/screens/MiuixHomeScreen.kt")
-        assumeTrue("找不到相关源码（非 Gradle 工作目录？），跳过", listOf(repo, vm, md3, miuix).all { it != null })
+        val home = read("com/agon/app/ui/screens/HomeScreen.kt")
+        assumeTrue("找不到相关源码（非 Gradle 工作目录？），跳过", listOf(repo, vm, home).all { it != null })
 
         assertTrue("FoodRepository 缺少 discardCorrupt()", repo!!.contains("suspend fun discardCorrupt(keys: Set<String>)"))
         assertTrue("discardCorrupt 必须同时解除损坏标记", repo.contains("_corruptedKeys.update { it - keys }"))
         assertTrue("AppViewModel 缺少 discardCorruptData()", vm!!.contains("fun discardCorruptData()"))
 
-        listOf("HomeScreen.kt" to md3!!, "MiuixHomeScreen.kt" to miuix!!).forEach { (name, src) ->
-            assertTrue("$name 的损坏横幅没有接上 onDiscard 入口", src.contains("onDiscard = {"))
-            assertTrue("$name 缺少放弃确认弹窗", src.contains("放弃损坏的数据？"))
-        }
+        // 首页已于 2026-09-16 合并为单文件双主题（第三批 #3 第 4 对）：一份源码覆盖两套主题，
+        // 所以不再逐主题点名（原来这里是 HomeScreen.kt + MiuixHomeScreen.kt 两份各断言一遍）。
+        // 万一哪天又冒出 MiuixHomeScreen.kt，ScreenParityTest 的 MergedScreens 会先红。
+        val src = home!!
+        assertTrue("HomeScreen.kt 的损坏横幅没有接上 onDiscard 入口", src.contains("onDiscard = {"))
+        assertTrue("HomeScreen.kt 缺少放弃确认弹窗", src.contains("放弃损坏的数据？"))
     }
 
     @Test

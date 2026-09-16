@@ -69,7 +69,6 @@ import androidx.compose.ui.unit.dp
 import com.agon.app.ui.screens.FoodListScreen
 import com.agon.app.ui.screens.HomeScreen
 import com.agon.app.ui.screens.MiuixFoodListScreen
-import com.agon.app.ui.screens.MiuixHomeScreen
 import com.agon.app.ui.screens.MiuixSettingsScreen
 import com.agon.app.ui.screens.MiuixStatsScreen
 import com.agon.app.ui.screens.SettingsScreen
@@ -133,19 +132,12 @@ internal fun MainTabsPager(
         modifier = Modifier.fillMaxSize(),
     ) { page ->
         when (page) {
-            0 -> if (isMiuix) {
-                MiuixHomeScreen(
-                    viewModel = viewModel,
-                    onOpenList = onOpenList,
-                    onOpenItem = onOpenItem,
-                )
-            } else {
-                HomeScreen(
-                    viewModel = viewModel,
-                    onOpenList = onOpenList,
-                    onOpenItem = onOpenItem,
-                )
-            }
+            // 首页已于 2026-09-16 合并为单文件双主题（第三批 #3 第 4 对），两套主题共用一次调用
+            0 -> HomeScreen(
+                viewModel = viewModel,
+                onOpenList = onOpenList,
+                onOpenItem = onOpenItem,
+            )
             1 -> if (isMiuix) {
                 MiuixFoodListScreen(
                     viewModel = viewModel,

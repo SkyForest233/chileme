@@ -28,6 +28,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LargeTopAppBar
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHostState
@@ -35,6 +36,7 @@ import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.remember
@@ -42,6 +44,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.agon.app.ui.components.SwipeDismissSnackbarHost
@@ -78,6 +81,14 @@ class AppSnackbarHostState internal constructor(private val isMiuix: Boolean) {
     internal val md3 = SnackbarHostState()
     internal val miuix = MiuixSnackbarHostState()
 
+    /**
+     * 只报信、不带撤销动作的提示条（自动同步完成、放弃损坏数据这类）。
+     * 两主题的 `showSnackbar` 签名一致，默认时长也同为库默认值，直接转发。
+     */
+    suspend fun showMessage(message: String) {
+        if (isMiuix) miuix.showSnackbar(message) else md3.showSnackbar(message)
+    }
+
     /** @return true = 用户点了「撤销」动作。 */
     suspend fun showUndoSnackbar(message: String): Boolean =
         if (isMiuix) {
@@ -94,13 +105,37 @@ fun rememberAppSnackbarHostState(): AppSnackbarHostState {
 }
 
 /**
- * 撤销条宿主：MD3 用可滑掉的自绘条（`SwipeDismissSnackbarHost`）并避开系统手势区，
- * Miuix 用官方 `SnackbarHost`。MD3 原有的 `navigationBarsPadding() + 24dp` 抬升封在这里。
+ * 撤销条落位。合并前两版的抬升值不是随手写的，两种各有各的道理，所以做成具名枚举而不是一个 Dp：
+ *
+ * - [SystemBars]：二级页（消耗记录 / 归档）。MD3 侧 `navigationBarsPadding() + 24dp` 避开系统手势区，
+ *   Miuix 侧不额外抬（原版就没抬）。
+ * - [FloatingNav]：带悬浮导航栏的 Tab 页（首页 / 设置）。两版都抬 `84dp` 到悬浮栏之上，且 MD3 侧
+ *   **不再**叠加 `navigationBarsPadding()` —— 原版本来就没叠，叠上去会把条推得更高。
+ *
+ * ⚠️ 留给设置页那一对（第 8 对）：MD3 `SettingsScreen` 用的是普通 `SnackbarHost` 而不是可滑掉的
+ * `SwipeDismissSnackbarHost`，届时要么给这里加一个「宿主形态」维度，要么接受「设置页的条也能滑掉」
+ * 这个行为变化并单独说明 —— 别默认套用 [FloatingNav] 就算完。
  */
+enum class AppSnackbarPlacement { SystemBars, FloatingNav }
+
+/** 撤销条宿主：MD3 用可滑掉的自绘条（`SwipeDismissSnackbarHost`），Miuix 用官方 `SnackbarHost`。抬升见 [AppSnackbarPlacement]。 */
 @Composable
-internal fun AppSnackbarHost(state: AppSnackbarHostState, modifier: Modifier = Modifier) {
+internal fun AppSnackbarHost(
+    state: AppSnackbarHostState,
+    modifier: Modifier = Modifier,
+    placement: AppSnackbarPlacement = AppSnackbarPlacement.SystemBars,
+) {
     if (LocalThemeStyle.current == ThemeStyle.MIUIX) {
-        MiuixSnackbarHost(state.miuix, modifier = modifier)
+        MiuixSnackbarHost(
+            state.miuix,
+            modifier = if (placement == AppSnackbarPlacement.FloatingNav) {
+                modifier.padding(bottom = 84.dp)
+            } else {
+                modifier
+            },
+        )
+    } else if (placement == AppSnackbarPlacement.FloatingNav) {
+        SwipeDismissSnackbarHost(state.md3, modifier = modifier.padding(bottom = 84.dp))
     } else {
         SwipeDismissSnackbarHost(
             state.md3,
@@ -119,19 +154,28 @@ internal fun AppSnackbarHost(state: AppSnackbarHostState, modifier: Modifier = M
  * `actions` 两主题同为 `@Composable RowScope.() -> Unit`（上游 v0.9.4-rc01 的
  * `TopAppBar` 签名已核对），可直传；动作里的图标请用 [AppDestructiveAction] 这类
  * 已分流的组件，别在屏幕里再写 `if (isMiuix)`。
- * Miuix 侧的 `subtitle`（首页在用）暂未开口子：MD3 `TopAppBar` 没有对应参数，
- * 等首页那一对合并时连 MD3 的第二行一起补，避免「一个主题静默忽略参数」。
+ * `subtitle` 两侧都吃得到，不存在「一个主题静默忽略参数」：Miuix 直接传（上游 v0.9.4-rc01
+ * `TopAppBar.kt:100` 已核对 `subtitle: String = ""`，所以传空串与不传逐字等价）；MD3 的 `TopAppBar`
+ * 没有这个参数，改用 `LargeTopAppBar` 把标题排成两行 —— 这正是合并前 MD3 首页的写法，
+ * 顺带带来折叠效果（见 [scrollBehavior]）。
+ *
+ * @param scrollBehavior 只由 [AppScaffold] 传，屏幕层别碰。非 null 时 MD3 侧走折叠式
+ *   `LargeTopAppBar`；Miuix 侧不传（上游 `TopAppBar` 也有 `largeTitle` + `scrollBehavior` 可做折叠，
+ *   但合并前的 Miuix 首页没用，替它开就是视觉改动）。
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AppTopBar(
     title: String,
     onBack: (() -> Unit)? = null,
+    subtitle: String? = null,
+    scrollBehavior: TopAppBarScrollBehavior? = null,
     actions: @Composable RowScope.() -> Unit = {},
 ) {
     if (LocalThemeStyle.current == ThemeStyle.MIUIX) {
         MiuixTopAppBar(
             title = title,
+            subtitle = subtitle ?: ,
             navigationIcon = {
                 if (onBack != null) {
                     MiuixIconButton(onClick = onBack) {
@@ -140,6 +184,24 @@ fun AppTopBar(
                 }
             },
             actions = actions,
+        )
+    } else if (subtitle != null) {
+        LargeTopAppBar(
+            title = {
+                Column {
+                    Text(title, fontWeight = FontWeight.Bold)
+                    Text(
+                        subtitle,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            },
+            colors = TopAppBarDefaults.largeTopAppBarColors(
+                containerColor = MaterialTheme.colorScheme.background,
+                scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainer,
+            ),
+            scrollBehavior = scrollBehavior,
         )
     } else {
         TopAppBar(
@@ -267,16 +329,24 @@ fun AppMessageScreen(message: String, actionLabel: String, onAction: () -> Unit)
  * 与 `docs/MIUIX_UPGRADE.md` §2.3）。MD3 的 `AlertDialog` 放里放外都是独立窗口，渲染无差别，
  * 所以统一放里面 —— 别按 MD3 的习惯写到 Scaffold 外面去。
  *
+ * **带副标题的顶栏（首页）在 MD3 侧是折叠式的**：`subtitle != null` 时 MD3 分支自建
+ * `exitUntilCollapsedScrollBehavior()`，并把 `fillMaxSize() + nestedScroll(...)` 加到 Scaffold 上
+ * （合并前只有 MD3 首页这么写；Miuix 首页的 Scaffold 没有 modifier，就不替它加）。折叠状态因此
+ * 与主题绑定：切主题会重建，和 [AppSnackbarHostState] 换宿主是同一类取舍。
+ *
  * **键盘避让由调用方决定**：`AppScaffold` 不无条件加 `imePadding()`（没有输入框的屏幕不需要），
  * 需要的屏幕自己传 `modifier = Modifier.imePadding()`，这样「哪一屏要避让」在屏幕文件里看得见，
  * `ImeHandlingTest` 第 1 条也仍能按屏幕文件点名（合并后一个条目就覆盖两套主题）。
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AppScaffold(
     title: String,
     onBack: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
+    subtitle: String? = null,
     snackbar: AppSnackbarHostState? = null,
+    snackbarPlacement: AppSnackbarPlacement = AppSnackbarPlacement.SystemBars,
     snackbarModifier: Modifier = Modifier,
     actions: @Composable RowScope.() -> Unit = {},
     content: @Composable (PaddingValues) -> Unit,
@@ -285,19 +355,38 @@ fun AppScaffold(
         MiuixScaffold(
             modifier = modifier,
             snackbarHost = {
-                if (snackbar != null) AppSnackbarHost(snackbar, snackbarModifier)
+                if (snackbar != null) AppSnackbarHost(snackbar, snackbarModifier, snackbarPlacement)
             },
-            topBar = { AppTopBar(title = title, onBack = onBack, actions = actions) },
+            topBar = { AppTopBar(title = title, onBack = onBack, subtitle = subtitle, actions = actions) },
             content = content,
         )
     } else {
+        val scrollBehavior = if (subtitle != null) {
+            TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+        } else {
+            null
+        }
         Scaffold(
-            modifier = modifier,
+            modifier = if (scrollBehavior != null) {
+                modifier
+                    .fillMaxSize()
+                    .nestedScroll(scrollBehavior.nestedScrollConnection)
+            } else {
+                modifier
+            },
             containerColor = MaterialTheme.colorScheme.background,
             snackbarHost = {
-                if (snackbar != null) AppSnackbarHost(snackbar, snackbarModifier)
+                if (snackbar != null) AppSnackbarHost(snackbar, snackbarModifier, snackbarPlacement)
             },
-            topBar = { AppTopBar(title = title, onBack = onBack, actions = actions) },
+            topBar = {
+                AppTopBar(
+                    title = title,
+                    onBack = onBack,
+                    subtitle = subtitle,
+                    scrollBehavior = scrollBehavior,
+                    actions = actions,
+                )
+            },
             content = content,
         )
     }

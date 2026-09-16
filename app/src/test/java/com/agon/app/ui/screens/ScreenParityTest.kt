@@ -40,6 +40,7 @@ class ScreenParityTest {
             "ConsumptionLogScreen.kt",   // 第 1 对（2026-09-16）
             "ArchiveScreen.kt",          // 第 2 对（2026-09-16）
             "FoodDetailScreen.kt",       // 第 3 对（2026-09-16）
+            "HomeScreen.kt",             // 第 4 对（2026-09-16）
         )
     }
 

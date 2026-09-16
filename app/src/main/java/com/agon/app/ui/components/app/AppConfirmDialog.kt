@@ -8,12 +8,14 @@ package com.agon.app.ui.components.app
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.agon.app.ui.components.MiuixDialog
 import com.agon.app.ui.theme.LocalThemeStyle
@@ -28,6 +30,9 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
  *   「调用方自己 if」；MD3 分支在内部 `if (show)`，因为 `AlertDialog` 一组合就是独立窗口。
  *   也因此：**本组件必须放在 `AppScaffold` 的 content lambda 里面调用**。
  * @param destructive 确认按钮是否用 error 色（彻底删除、清空这类不可撤销操作）。
+ * @param contentTopPadding 摘要与按钮行之间的额外间距。**只影响 Miuix 分支**（MD3 `AlertDialog`
+ *   的槽位间距由库决定，合并前几版也都没写）。合并前只有首页那个「放弃损坏的数据」弹窗写了
+ *   `padding(top = 8.dp)`，归档页/详情页的两个弹窗没有 —— 所以默认 0，谁原来有就谁传。
  *
  * IME：本组件不含输入框，所以不需要 `DialogProperties(decorFitsSystemWindows = false)`
  * （Miuix 的 `WindowDialog` 由库自理 IME）。将来若要加带输入框的弹窗，MD3 分支必须补这个属性，
@@ -43,6 +48,7 @@ fun AppConfirmDialog(
     onDismiss: () -> Unit,
     dismissText: String = "取消",
     destructive: Boolean = false,
+    contentTopPadding: Dp = 0.dp,
 ) {
     if (LocalThemeStyle.current == ThemeStyle.MIUIX) {
         MiuixDialog(
@@ -51,7 +57,10 @@ fun AppConfirmDialog(
             title = title,
             summary = message,
         ) {
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(
+                modifier = Modifier.padding(top = contentTopPadding),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
                 MiuixTextButton(
                     text = dismissText,
                     onClick = onDismiss,

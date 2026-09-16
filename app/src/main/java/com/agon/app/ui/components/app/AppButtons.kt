@@ -16,12 +16,14 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -116,6 +118,49 @@ fun AppEditButton(label: String, onClick: () -> Unit, modifier: Modifier = Modif
             Icon(Icons.Rounded.Edit, contentDescription = null, modifier = Modifier.size(18.dp))
             Spacer(Modifier.width(8.dp))
             Text(label)
+        }
+    }
+}
+
+/**
+ * 整宽的「图标 + 文案」按钮（首页「一键清理 N 件过期食品」）。
+ *
+ * MD3 = `FilledTonalButton` + 圆角 50 胶囊，图标继承按钮内容色；
+ * Miuix = 库 `buttonColorsPrimary()`，图标**必须**显式传 `onPrimary`（合并前就这么写 —— 不传会用
+ * 主题默认内容色，压在库的主色底上看不清）。文案两版都只给字重、不指定 style：
+ * 理由同 [AppEmojiText]，两主题「不传 style」时的默认正文样式不同，套任何一档都是改原样。
+ */
+@Composable
+fun AppWideButton(
+    icon: ImageVector,
+    label: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    if (LocalThemeStyle.current == ThemeStyle.MIUIX) {
+        MiuixButton(
+            onClick = onClick,
+            modifier = modifier,
+            colors = MiuixButtonDefaults.buttonColorsPrimary(),
+        ) {
+            Icon(
+                icon,
+                contentDescription = null,
+                modifier = Modifier.size(18.dp),
+                tint = MiuixTheme.colorScheme.onPrimary,
+            )
+            Spacer(Modifier.width(8.dp))
+            MiuixText(label, fontWeight = FontWeight.SemiBold)
+        }
+    } else {
+        FilledTonalButton(
+            onClick = onClick,
+            modifier = modifier,
+            shape = RoundedCornerShape(50),
+        ) {
+            Icon(icon, contentDescription = null, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(8.dp))
+            Text(label, fontWeight = FontWeight.SemiBold)
         }
     }
 }
