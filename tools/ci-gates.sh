@@ -123,21 +123,33 @@ emit_console_tail() {
 emit_annotations() {
     local tool="$1" report="$2"
     [ -s "$report" ] || return 0
+    # 两种报告格式（2026-09-16 实测取样）：
+    #   detekt txt   : <相对路径>.kt:<RuleId> - <实测/阈值> - [<实体>] at <绝对路径>.kt:<行>:<列> - Signature=…
+    #   ktlint plain : <相对路径>.kt:<行>:<列>: (standard:<rule-id>) <消息>
+    # 规则名与位点分别从各自的位置取；detekt 的行号在 " at " 之后那一段里。
     awk -v tool="$tool" '
         {
-            if ($0 !~ /\.kt:[0-9]+:/) next
-            split($0, p, ":")
-            path = p[1]; line = p[2]
-            i = index(path, "app/src"); if (i > 1) path = substr(path, i)   # detekt 可能给绝对路径
             line = $0; sub(/[ \t\r]+$/, "", line)
-            rule = "unknown"
-            if (match(line, /\[[A-Za-z0-9]+\]$/)) {                    # detekt txt: 消息 [RuleId]
-                rule = substr(line, RSTART + 1, RLENGTH - 2)
-            } else if (match(line, /\(([a-z-]+:)?[A-Za-z0-9_-]+\)/)) {  # ktlint plain: (standard:rule-id)
-                rule = substr(line, RSTART, RLENGTH); gsub(/[()]/, "", rule); sub(/^[a-z-]+:/, "", rule)
-            }
+            if (line !~ /\.kt:/) next
+            rule = "unknown"; where = ""
+            if (match(line, /^[^:]+\.kt:[A-Za-z][A-Za-z0-9]* - /)) {              # detekt
+                rule = substr(line, RSTART, RLENGTH)
+                sub(/^[^:]+\.kt:/, "", rule); sub(/ - $/, "", rule)
+                if (match(line, / at [^ ]*\.kt:[0-9]+(:[0-9]+)?/)) {
+                    where = substr(line, RSTART, RLENGTH); sub(/^ at /, "", where)
+                    k = index(where, "app/src"); if (k > 1) where = substr(where, k)
+                    sub(/:[0-9]+$/, "", where)                                     # 去掉列号
+                }
+            } else if (match(line, /\.kt:[0-9]+:/)) {                             # ktlint
+                split(line, q, ":")
+                where = q[1] ":" q[2]
+                k = index(where, "app/src"); if (k > 1) where = substr(where, k)
+                if (match(line, /\(([a-z-]+:)?[A-Za-z0-9_-]+\)/)) {
+                    rule = substr(line, RSTART, RLENGTH); gsub(/[()]/, "", rule); sub(/^[a-z-]+:/, "", rule)
+                }
+            } else next
             cnt[rule]++; if (cnt[rule] == 1) nrules++; total++
-            if (length(loc[rule]) < 800) loc[rule] = loc[rule] (loc[rule] == "" ? "" : "; ") path ":" line
+            if (length(loc[rule]) < 700) loc[rule] = loc[rule] (loc[rule] == "" ? "" : "; ") where
         }
         END {
             if (!total) exit
@@ -146,7 +158,7 @@ emit_annotations() {
             gsub(/%/, "%25", summary)
             printf "::notice title=%s 汇总::%d 条发现 / %d 个规则 —— %s\n", tool, total, nrules, summary
             shown = 0
-            for (r in cnt) {          # 每级别最多 10 条 annotation，故只列前 6 个规则的位点
+            for (r in cnt) {          # GitHub 每级别最多留 10 条 annotation，故位点明细只列前 6 个规则
                 if (shown >= 6) break
                 msg = loc[r]; gsub(/%/, "%25", msg)
                 printf "::warning file=tools/ci-gates.sh,line=1,title=%s %s (%d 处)::%s\n", tool, r, cnt[r], msg
