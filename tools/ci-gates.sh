@@ -204,6 +204,25 @@ run_detekt() {
         cat "$REPORT_DIR/detekt.txt"
     fi
     emit_annotations "detekt" "$REPORT_DIR/detekt.txt"
+
+    # ---- 临时诊断（与 DetektCanary.kt 同批，判定完就删）----
+    # 现象：canary 文件里有 4 处必然命中的违规（UnusedPrivateMember / LongParameterList 8 形参 /
+    # EmptyCatchBlock + SwallowedException / LongMethod 70 行），detekt 仍报「0 code smells」，
+    # 但它统计出 76 files / 559 functions / 17,701 loc —— 说明**解析正常、规则没在跑**。
+    # 二分：用 detekt 内置默认配置（不带 --config）再跑一遍同一个目录。
+    #   · 默认配置有大量发现 → 问题在仓库的 detekt.yml（配置把所有规则关掉了）
+    #   · 默认配置也是 0     → 问题在 detekt 本身（jar / 版本 / 与 Kotlin 2.4 源码不兼容）
+    # 这一段**不影响门禁退出码**：单独跑、单独出 annotation。
+    log "诊断：detekt 内置默认配置对照跑（不计入门禁结果）"
+    echo "::notice title=detekt 版本::$(java -jar "$DETEKT_JAR" --version 2>&1 | tr '\n\r' '  ' | head -c 300)"
+    java -jar "$DETEKT_JAR" \
+        --input "$SRC_DIR/test/java/com/agon/app/DetektCanary.kt" \
+        --report "txt:$REPORT_DIR/detekt-defaults.txt" \
+        > "$REPORT_DIR/detekt-defaults-console.txt" 2>&1
+    echo "::notice title=诊断（默认配置，只跑 canary 文件）::exit=$? 报告 $(wc -l < "$REPORT_DIR/detekt-defaults.txt" 2>/dev/null | tr -d ' ') 行；控制台：$(tail -c 700 "$REPORT_DIR/detekt-defaults-console.txt" | tr '\n\r' '  ' | sed 's/%/%25/g')"
+    emit_annotations "detekt-defaults" "$REPORT_DIR/detekt-defaults.txt"
+    # ---- 临时诊断结束 ----
+
     emit_console_tail "detekt" "$REPORT_DIR/detekt-console.txt" "$status"
     if [ -f "$REPORT_DIR/detekt.txt" ]; then
         echo "::notice title=detekt 报告文件::$(wc -l < "$REPORT_DIR/detekt.txt" | tr -d ' ') 行 / $(wc -c < "$REPORT_DIR/detekt.txt" | tr -d ' ') 字节"
