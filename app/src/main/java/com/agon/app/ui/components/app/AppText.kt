@@ -82,7 +82,6 @@ enum class AppTextScale {
     Tag,
 }
 
-
 /**
  * 双主题文字。字号档位查 [AppTextScale]，其余参数（颜色/字重/字号/行数/省略）默认值与两主题的
  * `Text` 一致，所以「不传 = 和合并前一样」。
