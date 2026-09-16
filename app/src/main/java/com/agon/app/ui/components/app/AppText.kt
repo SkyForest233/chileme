@@ -18,6 +18,7 @@ package com.agon.app.ui.components.app
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -210,8 +211,9 @@ fun AppEmojiText(
  * 主色容器底 / 其上的内容色：首页「今日提醒」那颗圆形图标在用（统计卡的配色走 [AppStatTone]，
  * 不需要屏幕自己取色）。两主题同名，但取值各自来自自己的色板。
  */
+/** 主色容器底：首页「今日提醒」的圆形图标、统计页排行榜的横条在用（自绘，理由同 [appPrimaryColor]）。 */
 @Composable
-internal fun appPrimaryContainerColor(): Color =
+fun appPrimaryContainerColor(): Color =
     if (LocalThemeStyle.current == ThemeStyle.MIUIX) {
         MiuixTheme.colorScheme.primaryContainer
     } else {
@@ -226,9 +228,15 @@ internal fun appOnPrimaryContainerColor(): Color =
         MaterialTheme.colorScheme.onPrimaryContainer
     }
 
-/** 强调色：MD3 `colorScheme.primary` / Miuix `colorScheme.primary`（行尾数量、恢复按钮、文字链接用）。 */
+/**
+ * 强调色：MD3 `colorScheme.primary` / Miuix `colorScheme.primary`。
+ * 组件层内部用（行尾数量、恢复按钮、文字链接、编辑按钮）；**统计页的自绘图表也要用**
+ * （柱体、排行榜的序号与「×N」、排行条），那是 [appSurfaceColor] 那条 KDoc 里说的
+ * 「屏幕层必须自己取色」的既定例外 —— 图表是 `Canvas` / `Modifier.background` 画的，
+ * 没有组件能替它拿色。
+ */
 @Composable
-internal fun appPrimaryColor(): Color =
+fun appPrimaryColor(): Color =
     if (LocalThemeStyle.current == ThemeStyle.MIUIX) {
         MiuixTheme.colorScheme.primary
     } else {
@@ -247,4 +255,83 @@ internal fun appFaintColor(): Color =
         MiuixTheme.colorScheme.dividerLine
     } else {
         MaterialTheme.colorScheme.outlineVariant
+    }
+
+/**
+ * 弱化文字（任意档位）：MD3 `onSurfaceVariant` / Miuix `onSurfaceVariantSummary`。
+ *
+ * [AppHintText] 是它的 Hint 档特例（第 1 对就有，保留以免动已真机验证的调用点）；
+ * 要别的档位就用这个 —— 统计页的图例走 Meta 档、环图中心的小字与柱状图的日期走 Tag 档。
+ * **别在屏幕里自己取色再拼一个 `Text`**，否则两主题的色板角色又要各写一遍。
+ */
+@Composable
+fun AppMutedText(
+    text: String,
+    scale: AppTextScale,
+    modifier: Modifier = Modifier,
+    fontWeight: FontWeight? = null,
+    maxLines: Int = Int.MAX_VALUE,
+    overflow: TextOverflow = TextOverflow.Clip,
+) {
+    AppText(
+        text,
+        scale,
+        modifier = modifier,
+        color = appMutedColor(),
+        fontWeight = fontWeight,
+        maxLines = maxLines,
+        overflow = overflow,
+    )
+}
+
+/**
+ * 最高一档容器色：MD3 / Miuix 同名角色 `surfaceContainerHighest`。
+ * 统计页柱状图里「当天没有消耗」那根空柱用它当底色（自绘，理由同 [appPrimaryColor]）；
+ * 组件层内部则用 `AppStepperPill` 的胶囊底。
+ */
+@Composable
+fun appHighestContainerColor(): Color =
+    if (LocalThemeStyle.current == ThemeStyle.MIUIX) {
+        MiuixTheme.colorScheme.surfaceContainerHighest
+    } else {
+        MaterialTheme.colorScheme.surfaceContainerHighest
+    }
+
+/**
+ * 图表调色板：8 个语义角色，随主题种子色 / 动态取色 / 深浅色自动适配，不硬编码 hex。
+ *
+ * **两版的角色清单不同，这是原样照抄而不是没对齐**：Miuix 色板没有 `tertiary` / `inversePrimary`，
+ * 合并前 Miuix 版就用容器色与容器前景色替代，原注释写着「用其容器色/前景色替代，保持图表多色可辨」。
+ * 若按 MD3 的角色名去"统一"，改的是 Miuix 侧的图表配色 —— 只有真机看得出来。
+ */
+@Composable
+fun appChartColors(): List<Color> =
+    if (LocalThemeStyle.current == ThemeStyle.MIUIX) {
+        val cs = MiuixTheme.colorScheme
+        remember(cs) {
+            listOf(
+                cs.primary,
+                cs.secondary,
+                cs.primaryContainer,
+                cs.secondaryContainer,
+                cs.tertiaryContainer,
+                cs.onPrimaryContainer,
+                cs.onSecondaryContainer,
+                cs.onTertiaryContainer,
+            )
+        }
+    } else {
+        val cs = MaterialTheme.colorScheme
+        remember(cs) {
+            listOf(
+                cs.primary,
+                cs.tertiary,
+                cs.secondary,
+                cs.inversePrimary,
+                cs.primaryContainer,
+                cs.tertiaryContainer,
+                cs.secondaryContainer,
+                cs.outline,
+            )
+        }
     }

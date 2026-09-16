@@ -157,11 +157,10 @@ fun AppFilterChip(
 /** 筛选面板的分组小标题（「状态」/「分类」/「位置」）：Tag 档 + 弱化色，左右 20dp、上下 2dp（两版一致）。 */
 @Composable
 fun AppFilterSectionLabel(text: String, modifier: Modifier = Modifier) {
-    AppText(
+    AppMutedText(
         text,
         AppTextScale.Tag,
         modifier = modifier.padding(horizontal = 20.dp, vertical = 2.dp),
-        color = appMutedColor(),
     )
 }
 

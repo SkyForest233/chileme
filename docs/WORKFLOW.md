@@ -28,7 +28,7 @@
 - 数据读写只走 `FoodRepository`；新增持久化字段时：模型加默认值（保证旧数据兼容，Json 已配 `ignoreUnknownKeys`）→ Repository 增方法 → ViewModel 暴露 → UI
 - 删除类操作走归档 `archiveItems()`，不得直接从库存 JSON 中移除（归档页除外）
 - 状态判定用 `item.statusFor(thresholds)`，禁止硬编码 7 天
-- 颜色不得在屏幕代码写死主题色值；状态色走 `rememberStatusUi()`；统计图表调色板例外（见 StatsScreen 的 chartColors）
+- 颜色不得在屏幕代码写死主题色值；状态色走 `rememberStatusUi()`；统计图表调色板例外（见 `ui/components/app/AppText.kt` 的 `appChartColors()`，两主题各一份 8 色清单）
 - 字符串目前直接写在代码中（中文单语言）；app_name 必须在 strings.xml 维护
 
 ### 新增依赖

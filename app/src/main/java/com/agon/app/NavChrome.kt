@@ -69,7 +69,6 @@ import androidx.compose.ui.unit.dp
 import com.agon.app.ui.screens.FoodListScreen
 import com.agon.app.ui.screens.HomeScreen
 import com.agon.app.ui.screens.MiuixSettingsScreen
-import com.agon.app.ui.screens.MiuixStatsScreen
 import com.agon.app.ui.screens.SettingsScreen
 import com.agon.app.ui.screens.StatsScreen
 import com.agon.app.ui.theme.LocalThemeStyle
@@ -144,19 +143,12 @@ internal fun MainTabsPager(
                 onOpenItem = onOpenItem,
                 onOpenArchive = onOpenArchive,
             )
-            2 -> if (isMiuix) {
-                MiuixStatsScreen(
-                    viewModel = viewModel,
-                    onOpenItem = onOpenItem,
-                    onOpenConsumption = onOpenConsumption,
-                )
-            } else {
-                StatsScreen(
-                    viewModel = viewModel,
-                    onOpenItem = onOpenItem,
-                    onOpenConsumption = onOpenConsumption,
-                )
-            }
+            // 统计页已于 2026-09-16 合并为单文件双主题（第三批 #3 第 7 对）
+            2 -> StatsScreen(
+                viewModel = viewModel,
+                onOpenItem = onOpenItem,
+                onOpenConsumption = onOpenConsumption,
+            )
             else -> if (isMiuix) {
                 MiuixSettingsScreen(
                     viewModel = viewModel,

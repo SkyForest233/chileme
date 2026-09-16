@@ -116,7 +116,7 @@ private fun RowTrailing(trailing: String) =
  * 这里改成委托；取值与委托前逐字相同。
  */
 @Composable
-private fun RowTag(tag: String) = AppText(tag, AppTextScale.Tag, color = appMutedColor())
+private fun RowTag(tag: String) = AppMutedText(tag, AppTextScale.Tag)
 
 /**
  * 卡片里的一行：**前导槽**（emoji 或图标）+ 标题 + 可选副标题 + **尾部槽**（步进器、操作按钮）。
