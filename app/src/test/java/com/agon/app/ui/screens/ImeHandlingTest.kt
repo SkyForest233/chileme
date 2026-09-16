@@ -123,12 +123,15 @@ class ImeHandlingTest {
         val files = listOf(
             "com/agon/app/ui/screens/SettingsScreen.kt",        // 坚果云账号 / 应用密码
             "com/agon/app/ui/screens/ManageScreens.kt",         // 分类名称 + Emoji、添加存放位置
-            "com/agon/app/MainActivity.kt",                     // 批量「移动存放位置」（2026-09-16 补入清单）
+            // 批量「移动存放位置」弹窗：2026-09-16 补入清单（当时在 MainActivity.kt），拆分后随 MainApp 走
+            "com/agon/app/MainApp.kt",
+            "com/agon/app/AppDialogs.kt",                       // 弹窗独立成文件后改到这里
         )
-        val contents = files.associateWith(::read)
-        assumeTrue("找不到设置/管理页源码（非 Gradle 工作目录？），跳过", contents.values.any { it != null })
+        val contents = files.mapNotNull { f -> read(f)?.let { f to it } }.toMap()
+        assumeTrue("找不到设置/管理页源码（非 Gradle 工作目录？），跳过", contents.isNotEmpty())
 
-        val missing = contents.filterValues { it?.contains("decorFitsSystemWindows = false") != true }.keys
+        // 清单里不存在的文件跳过（弹窗按路线图分步搬家，中间态只有一个宿主文件在）
+        val missing = contents.filterValues { !it.contains("decorFitsSystemWindows = false") }.keys
         assertTrue(
             "以下文件的 MD3 弹窗没有关闭 decorFitsSystemWindows，IME inset 传不进来、底部按钮会被键盘盖住：$missing",
             missing.isEmpty(),
