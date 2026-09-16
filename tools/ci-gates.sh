@@ -123,31 +123,28 @@ emit_console_tail() {
 emit_annotations() {
     local tool="$1" report="$2"
     [ -s "$report" ] || return 0
-    # 两种报告格式（2026-09-16 实测取样）：
-    #   detekt txt   : <相对路径>.kt:<RuleId> - <实测/阈值> - [<实体>] at <绝对路径>.kt:<行>:<列> - Signature=…
-    #   ktlint plain : <相对路径>.kt:<行>:<列>: (standard:<rule-id>) <消息>
-    # 规则名与位点分别从各自的位置取；detekt 的行号在 " at " 之后那一段里。
+    # 一律解析**控制台输出**（格式有实测样本，比 txt 报告稳）：
+    #   detekt : <绝对路径>.kt:<行>:<列>: <消息> [<RuleId>]        ← 规则名在行尾方括号里
+    #   ktlint : <相对路径>.kt:<行>:<列>: (standard:<rule-id>) <消息>
+    # 2026-09-16 踩过：先按 detekt 的 txt 报告（`path:RuleId - 实测/阈值 - [实体] at path:行:列 - Signature=…`）
+    # 写解析，本地 gawk 跑得通、CI 的 mawk 却把 Signature 里的 `(String)`/`(Int)` 当成了规则名 ——
+    # 换成「行尾 [RuleId]」这个唯一且稳定的锚点，两种 awk 都一致。
     awk -v tool="$tool" '
         {
             line = $0; sub(/[ \t\r]+$/, "", line)
-            if (line !~ /\.kt:/) next
-            rule = "unknown"; where = ""
-            if (match(line, /^[^:]+\.kt:[A-Za-z][A-Za-z0-9]* - /)) {              # detekt
-                rule = substr(line, RSTART, RLENGTH)
-                sub(/^[^:]+\.kt:/, "", rule); sub(/ - $/, "", rule)
-                if (match(line, / at [^ ]*\.kt:[0-9]+(:[0-9]+)?/)) {
-                    where = substr(line, RSTART, RLENGTH); sub(/^ at /, "", where)
-                    k = index(where, "app/src"); if (k > 1) where = substr(where, k)
-                    sub(/:[0-9]+$/, "", where)                                     # 去掉列号
-                }
-            } else if (match(line, /\.kt:[0-9]+:/)) {                             # ktlint
-                split(line, q, ":")
-                where = q[1] ":" q[2]
-                k = index(where, "app/src"); if (k > 1) where = substr(where, k)
-                if (match(line, /\(([a-z-]+:)?[A-Za-z0-9_-]+\)/)) {
-                    rule = substr(line, RSTART, RLENGTH); gsub(/[()]/, "", rule); sub(/^[a-z-]+:/, "", rule)
+            rule = ""; where = ""
+            if (match(line, /\[[A-Za-z0-9]+\]$/)) {                       # detekt 控制台
+                rule = substr(line, RSTART + 1, RLENGTH - 2)
+            } else if (match(line, /^[^ ]*\.kt:[0-9]+:[0-9]+: \(([a-z-]+:)?[A-Za-z0-9_-]+\)/)) {   # ktlint plain
+                seg = substr(line, RSTART, RLENGTH)
+                if (match(seg, /\(([a-z-]+:)?[A-Za-z0-9_-]+\)$/)) {
+                    rule = substr(seg, RSTART, RLENGTH); gsub(/[()]/, "", rule); sub(/^[a-z-]+:/, "", rule)
                 }
             } else next
+            if (match(line, /^[^ ]*\.kt:[0-9]+/)) {                       # 位点（去掉列号与绝对前缀）
+                where = substr(line, RSTART, RLENGTH)
+                k = index(where, "app/src"); if (k > 1) where = substr(where, k)
+            }
             cnt[rule]++; if (cnt[rule] == 1) nrules++; total++
             if (length(loc[rule]) < 700) loc[rule] = loc[rule] (loc[rule] == "" ? "" : "; ") where
         }
@@ -263,7 +260,7 @@ run_detekt() {
         echo "--- detekt 报告（txt）---"
         cat "$REPORT_DIR/detekt.txt"
     fi
-    emit_annotations "detekt" "$REPORT_DIR/detekt.txt"
+    emit_annotations "detekt" "$REPORT_DIR/detekt-console.txt"
 
 
     emit_console_tail "detekt" "$REPORT_DIR/detekt-console.txt" "$status"
