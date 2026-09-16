@@ -92,18 +92,23 @@ StatusUi 提供三个颜色槽位，按用途严格区分：
 - 标签/徽章：labelSmall~labelLarge + SemiBold/Bold
 - 中文日期格式统一用 `LocalDate.cn()`（yyyy年M月d日），不自行拼接
 
-## 4. 组件规范（优先复用 `ui/components/Common.kt`）
+## 4. 组件规范（优先复用 `ui/components/`）
 
-| 组件 | 用途 | 规则 |
-|---|---|---|
-| `StatusBadge` | 状态徽章 | 胶囊 + 图标 + 文字；颜色来自 StatusUi |
-| `FoodAvatar` | 食品头像 | 有照片显示圆角图，否则 emoji 圆形底 |
-| `FoodCard` | 列表主卡片 | 头像+名称+位置标签+日期+新鲜度条+数量步进器 |
-| `QuantityStepper` | 数量增减 | 胶囊容器；仅数字 AnimatedContent 竖直滑，单位固定 |
-| `EmptyState` | 空态 | 大 emoji + 标题 + 副标题，居中 |
-| `LocationTag` | 位置标签 | 📍 + 文字小胶囊；location 为空时不渲染 |
+| 组件 | 文件 | 用途 | 规则 |
+|---|---|---|---|
+| `StatusBadge` | `Badges.kt` | 状态徽章 | 胶囊 + 图标 + 文字；颜色来自 StatusUi |
+| `LocationTag` | `Badges.kt` | 位置标签 | 📍 + 文字小胶囊；location 为空时不渲染 |
+| `FoodAvatar` | `FoodAvatar.kt` | 食品头像 | 有照片显示圆角图，否则 emoji 圆形底 |
+| `FoodCard` | `FoodCard.kt` | 列表主卡片 | 头像+名称+位置标签+日期+新鲜度条+数量步进器 |
+| `QuantityStepper` | `QuantityStepper.kt` | 数量增减 | 胶囊容器；仅数字 AnimatedContent 竖直滑，单位固定 |
+| `SelectIndicator` | `Controls.kt` | 多选勾选指示 | 长按进入多选时列表项左侧的勾选圈 |
+| `CheckSwitch` | `Controls.kt` | 布尔开关 | 项目特色打勾/打叉样式；**全项目布尔开关一律用它，禁用 material3 Switch** |
+| `EmptyState` | `Controls.kt` | 空态 | 大 emoji + 标题 + 副标题，居中 |
+| `rememberStatusUi` / `urgencyDotColor` | `StatusUi.kt` | 状态色源 | 三态与四档紧急度的唯一取色入口，屏幕代码禁止写死状态色 |
+| `DataCorruptBanner` | `DataCorrupt.kt` | 数据损坏告警条 | 首页顶部；按 key 粒度说明影响 + 恢复/放弃入口 |
+| `MiuixDialog` | `MiuixDialog.kt` | Miuix 弹窗封装 | 基于 `WindowDialog`；**不要传 `defaultWindowInsetsPadding = false`**（库已处理 IME） |
 
-新建可复用 UI 时先查本表，避免重复实现；新组件加入 Common.kt 并更新本表。
+新建可复用 UI 时先查本表，避免重复实现。新组件按职责放进 `ui/components/` 下对应文件（状态色 → `StatusUi.kt`、小胶囊 → `Badges.kt`、通用控件 → `Controls.kt`……），**不要再新建大杂烩文件**（原 `Common.kt` 已于 2026-09-16 拆完），并同步更新本表。
 
 **悬浮胶囊导航（FloatingPillNav，MainActivity.kt，v2.6 规范）**：居中悬浮、primaryContainer 胶囊容器；内部 4 个等宽槽位（76dp × 48dp，满足最小触摸目标）；背后一枚 primary 胶囊指示器用 spring(dampingRatio=0.8) 滑到选中槽位；**所有 Tab 常显标签**（MD3 always show labels）：图标 20dp 上、labelSmall 标签下竖排，选中项加粗；颜色用 MotionEasing.Standard 250ms 渐变。FAB 为 primary 实心圆胶囊（仅图标）。
 
@@ -146,9 +151,9 @@ StatusUi 提供三个颜色槽位，按用途严格区分：
 - App 支持两套「主题风格」：**Material 3**（默认，现状）与 **MIUIX**（小米 HyperOS 风格）。
 - 状态：`ThemeStyle` 枚举（`ui/theme/ThemeStyle.kt`）+ DataStore key `theme_style`；`LocalThemeStyle` CompositionLocal 由 MainActivity 下发。
 - 切换入口：设置页「外观」分组的「主题风格」——MD3 侧用 SegmentedButton，Miuix 侧用 RadioButtonPreference。
-- **根级主题切换 + MaterialTheme 桥接（阶段二起）**：MainActivity 在 MIUIX 模式下包 `MiuixRootTheme`（`MiuixTheme` + 桥接 `MaterialTheme`），让未迁移的 MD3 页面与 Common.kt 复用组件仍可经 `MaterialTheme.colorScheme` 取到 Miuix 配色；桥接映射见 `ui/theme/MiuixRootTheme.kt`（缺失角色用最接近角色近似）。
+- **根级主题切换 + MaterialTheme 桥接（阶段二起）**：MainActivity 在 MIUIX 模式下包 `MiuixRootTheme`（`MiuixTheme` + 桥接 `MaterialTheme`），让未迁移的 MD3 页面与 `ui/components/` 复用组件仍可经 `MaterialTheme.colorScheme` 取到 Miuix 配色；桥接映射见 `ui/theme/MiuixRootTheme.kt`（缺失角色用最接近角色近似）。
 - 迁移进度（v2.8 起，2026-09-16 校正）：
-  - **已 Miuix 化（8 对，全部屏幕除编辑页）**：设置页、首页、食品列表、食品详情、归档页、管理三页（阈值/分类/位置）、**统计页**（`MiuixStatsScreen`）、**消耗记录页**（`MiuixConsumptionLogScreen`），以及底部导航（悬浮/全宽）、FAB、Common.kt 复用组件（StatusBadge/LocationTag/QuantityStepper/EmptyState/FoodCard/DataCorruptBanner）。统计页与消耗记录页的**图表仍是 Canvas 自绘**，但外壳与组件（Scaffold/TopAppBar/Card/Text/Icon/SmallTitle）走 Miuix。
+  - **已 Miuix 化（8 对，全部屏幕除编辑页）**：设置页、首页、食品列表、食品详情、归档页、管理三页（阈值/分类/位置）、**统计页**（`MiuixStatsScreen`）、**消耗记录页**（`MiuixConsumptionLogScreen`），以及底部导航（悬浮/全宽）、FAB、`ui/components/` 复用组件（StatusBadge/LocationTag/QuantityStepper/EmptyState/FoodCard/DataCorruptBanner）。统计页与消耗记录页的**图表仍是 Canvas 自绘**，但外壳与组件（Scaffold/TopAppBar/Card/Text/Icon/SmallTitle）走 Miuix。
   - **刻意保留 MD3+桥接**：编辑页（`DatePicker` 为 MD3 特有、无 Miuix 对应）、`CheckSwitch`（项目特色打勾/打叉，规范禁止 material3 Switch，自绘且颜色桥接）。
   - **双实现铁律**：`Miuix*Screen.kt` 必须调 `remember*UiState` 复用状态容器，**禁止在 UI 文件里重写聚合计算**（`MiuixParityTest` 静态拦截；此前 `MiuixStatsScreen` 手抄过一份统计逻辑，导致 `StatsStateTest` 测的是 MIUIX 下不执行的代码）。
   - **已知缺口**：MIUIX 风格下**没有配色方案入口**（`MiuixSettingsScreen` 只有深色模式/动态取色/悬浮导航），15 套 `AppPalette` 选不了，且 MD3 下选好的配色切到 Miuix 后无提示地失效——根因是 `MiuixRootTheme` 只消费 `darkMode` + `dynamicColor`，没有种子色通道。故 `MiuixSettingsScreen` 顶部 KDoc 的「与 SettingsScreen 功能对等」目前**不成立**（用户已指示暂缓，见 `devlog/INDEX.md`）。

@@ -79,7 +79,7 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
  *
  * 与 [HomeScreen]（Material 3 实现）逻辑对等。结构性组件（Scaffold/TopAppBar/Card/Button/
  * Snackbar）使用 Miuix 组件；复用组件（EmptyState/FoodAvatar/StatusBadge/rememberStatusUi）
- * 来自 Common.kt，由根级桥接的 MaterialTheme 提供 Miuix 配色。
+ * 来自 `ui/components/`（2026-09-16 由 Common.kt 拆分），由根级桥接的 MaterialTheme 提供 Miuix 配色。
  */
 @Composable
 fun MiuixHomeScreen(

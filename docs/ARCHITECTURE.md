@@ -40,7 +40,11 @@ app/src/main/java/com/agon/app/
 └─ ui/
     ├─ navigation/              # AppRoute（miuix-nav 二级页栈；转场用库预设 NavTransitions.MiuixDefault）
     ├─ theme/                   # Palettes.kt（15 套种子色方案）/ Color.kt（仅状态语义色）/ Theme.kt（MaterialKolor 生成 + animateColorScheme）/ ThemeStyle.kt（MATERIAL3/MIUIX 风格枚举 + LocalThemeStyle）/ MiuixRootTheme.kt（MiuixTheme + MaterialTheme 桥接，v2.8）/ Motion.kt（MD3 缓动与时长 token）/ TodayProvider.kt（LocalToday，跨零点刷新）
-    ├─ components/              # Common.kt（StatusBadge/FoodAvatar/FoodCard/QuantityStepper/EmptyState/LocationTag/DataCorruptBanner）+ UndoSnackbar.kt + ExpiryCalendar.kt
+    ├─ components/              # 复用组件（2026-09-16 由 Common.kt 拆成 8 个按职责命名的文件；同包、签名与实现未改）：
+    │                           #   StatusUi.kt（状态语义层：StatusUi/rememberStatusUi/ExpiryUrgency/urgencyForAt/urgencyDotColor）
+    │                           #   Badges.kt（StatusBadge/LocationTag）· FoodAvatar.kt（FoodAvatar/EmojiAvatar）· QuantityStepper.kt
+    │                           #   FoodCard.kt · Controls.kt（SelectIndicator/CheckSwitch/EmptyState）· DataCorrupt.kt（corruptKeyNames/DataCorruptBanner）
+    │                           #   MiuixDialog.kt（WindowDialog 封装）；另有原本就独立的 UndoSnackbar.kt · ExpiryCalendar.kt
     └─ screens/                 # 每屏一文件，自带 Scaffold。两层结构（2026-08-22 B-08 起）：
                                 # ① *State.kt 状态容器（8 个）：remember*UiState + 纯计算函数，双主题共用、单测覆盖
                                 # ② 渲染层：XxxScreen.kt（MD3）与 MiuixXxxScreen.kt（Miuix）成对存在，共 8 对 ——
@@ -107,7 +111,7 @@ app/src/main/java/com/agon/app/
   - 例外（允许在损坏态执行，因其本身就是恢复/丢弃手段）：`clearAll()` / `clearArchive()` / `importBackupJson()` / `discardCorrupt()`，执行后解除对应标记
   - **放弃损坏数据入口（2026-09-15）**：`discardCorrupt(keys)` 删除这些 key 的内容并解除损坏标记，让写入恢复；**不动 `filesDir/corrupt/` 里的留档**。UI 入口是首页横幅上的「放弃这部分数据」按钮（MD3 用 `AlertDialog`、Miuix 用 `MiuixDialog` 二次确认），文案由 `corruptKeyNames()` 复用生成
   - `buildBackupJson()` 在损坏态**抛异常**，避免生成残缺备份；调用方需捕获（两个设置页提示用户，自动同步/手动上传则放弃本次上传，防止残缺备份覆盖云端完好版本）
-  - 损坏原始串留档 `filesDir/corrupt/<key>-<时间戳>.json`；`corruptedKeys: StateFlow<Set<String>>` 暴露给 UI，首页顶部显示 `DataCorruptBanner`（`ui/components/Common.kt`，MD3 / Miuix 共用）
+  - 损坏原始串留档 `filesDir/corrupt/<key>-<时间戳>.json`；`corruptedKeys: StateFlow<Set<String>>` 暴露给 UI，首页顶部显示 `DataCorruptBanner`（`ui/components/DataCorrupt.kt`，MD3 / Miuix 共用）
   - 「配置型」key（thresholds / categories / locations）丢失可重设，维持回落默认值的旧行为，不阻断写入
 - **读流兜底（2026-09-15）**：所有 DataStore 读流统一经 `FoodRepository.resilientRead()` —— `IOException` 先退避重试 2 次（间隔 300ms），仍失败则记日志并回落默认值（`rawFlow` 解码 `null` = Empty、`lightFlow` 用传入的 fallback）。理由：19 个 `stateIn` 全是 `SharingStarted.Eagerly` 且 `viewModelScope` 未挂 `CoroutineExceptionHandler`，读异常会终止共享协程→交给默认处理器→**杀进程**。**新增读流一律走 `rawFlow()` / `lightFlow()`，禁止直接 `dataStore.data`**
 - **启动放行超时（2026-09-15）**：`MainActivity.READY_TIMEOUT_MS`（3s）。`ready`（DataStore 首发）在 3 秒内未达成也强制渲染首帧——否则「读阻塞/异常」会让启动画面永久停留，用户只能杀进程。`contentReady` 用 `mutableStateOf`，因为 composition 里读它
@@ -121,7 +125,7 @@ app/src/main/java/com/agon/app/
 - **归档恢复去重（v2.4）**：`restoreArchived()` —— 同 ID 只移除归档；同名+同生产日期合并数量（返回 merged 供 UI 提示）；否则新增，数量 0 恢复为 1
 - **主题渐变（v2.4）**：Theme.kt `animateColorScheme()` 对全部 **37** 个颜色角色 450ms tween（`animatedColor(target.*)` 逐角色调用，2026-09-16 实测计数）；新增颜色角色时需同步加入该函数
 - **图片存储**：封面统一通过 `copyImageToCovers()` 落盘到 `filesDir/covers/`，FoodItem 只存绝对路径；展示用 `FoodAvatar`，优先级：照片 > coverText > 分类 emoji
-  - **已知待办**：① `photoPath` 存**绝对路径**，换设备/清数据后必然悬空，应改存文件名（`covers/<uuid>.jpg` 的 basename）运行时用 `context.filesDir` 拼；② 存在性判断目前在**组合期**同步调 `File.exists()`（`Common.kt:258`、`EditFoodScreen.kt:284`），列表滚动每帧重算 syscall，应移到 VM/IO 侧或改由 Coil `onError` 回落 emoji。见 `docs/audits/chileme-review.md` P1-8
+  - **已知待办**：① `photoPath` 存**绝对路径**，换设备/清数据后必然悬空，应改存文件名（`covers/<uuid>.jpg` 的 basename）运行时用 `context.filesDir` 拼；② 存在性判断目前在**组合期**同步调 `File.exists()`（`FoodAvatar.kt:43`、`EditFoodScreen.kt:284`），列表滚动每帧重算 syscall，应移到 VM/IO 侧或改由 Coil `onError` 回落 emoji。见 `docs/audits/chileme-review.md` P1-8
 - **进度条语义**：一律用 `elapsedRatio`（正相关，时间过去多少走多少），禁止再用 freshness 直接作进度
 - **键盘避让（2026-09-15）**：Android 15+ 强制 edge-to-edge 后 manifest 的 `adjustResize` **不再缩窗口**，键盘只是叠在窗口上，必须自己消费 `WindowInsets.ime`。三条硬规则：① **含输入框的屏幕**一律 `Scaffold(modifier = Modifier.imePadding())`（整屏缩到键盘之上，滚动区同步变矮）；② **不在 Scaffold 内的 App 级浮层**用 `.navigationBarsPadding().imePadding()` 两段式（等价于旧的 `navigationBarsWithImePadding()`，内层只补差额，不会叠加成一条大空隙）——**底栏按产品决定不跟随抬升（A 方案）**，是全 App 唯一「键盘弹出时允许被遮挡」的元素；③ **MD3 弹窗**是独立浮动窗口，必须 `DialogProperties(decorFitsSystemWindows = false)` 才会把 IME inset 透给内容，否则底部按钮被键盘盖住。**Miuix `WindowDialog` 例外**：库内 `DialogContent` 根节点自带 `imePadding()`（窗口属性 `decorFitsSystemWindows = false` + `usePlatformDefaultWidth = false`），本项目**不要**传 `defaultWindowInsetsPadding = false`，也不要给 Miuix 弹窗再加 padding。回归守卫见 `ImeHandlingTest`
 - **统计口径（2026-09-15）**：「过期浪费」= `calculateWastedTotal(archived)`，按**件数**（`sumOf { item.quantity }`）而非归档条数，与同屏按件求和的「本周消耗」保持一致。注意该指标仍受归档上限 `take(200)` 影响，长期不失真需独立计数器（见 `docs/audits/2026-09-15-code-review.md` §1.8）

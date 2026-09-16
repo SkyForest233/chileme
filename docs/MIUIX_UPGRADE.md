@@ -155,6 +155,6 @@ grep -rn "top.yukonga.miuix.kmp" app/src/main/java | sed 's/.*import //' | sort 
 | `app/src/main/java/com/agon/app/ui/theme/MiuixRootTheme.kt` | 根主题 + 桥接 |
 | `app/src/main/java/com/agon/app/ui/theme/ThemeStyle.kt` | 主题风格枚举 |
 | `app/src/main/java/com/agon/app/ui/screens/Miuix*.kt` | 各页 Miuix 实现 |
-| `app/src/main/java/com/agon/app/ui/components/Common.kt` | 复用组件（双实现） |
+| `app/src/main/java/com/agon/app/ui/components/*.kt` | 复用组件（双实现）；2026-09-16 由 `Common.kt` 拆成 `StatusUi` / `Badges` / `FoodAvatar` / `QuantityStepper` / `FoodCard` / `Controls` / `DataCorrupt` / `MiuixDialog` 8 个文件 |
 | `.claude/skills/miuix/` | skill（组件 API 证据基线） |
 | `docs/audits/2026-08-20-miuix-review.md` | 设计审查报告 |
