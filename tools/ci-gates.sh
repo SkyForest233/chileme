@@ -95,6 +95,23 @@ prepare_detekt() {
 #
 # GitHub 每个级别最多保留 10 条 annotation，所以**按规则聚合**：一条 annotation = 一个规则 +
 # 计数 + 前若干个位点（截断到 800 字符），外加一条汇总 notice。要看完整清单仍得靠 artifact。
+# 把工具**控制台输出的尾部**也做成一条 annotation。
+# 2026-09-16 实测：detekt 开着 complexity 规则集却报 0 条发现（工程里明明有一个 863 行的函数），
+# 而判断「是真没问题，还是根本没在分析」只能看它自己打印了什么 —— 日志下载不到，
+# 于是把尾部 900 字节塞进 annotation。这条是**门禁自身健康度**的探针，比发现清单更要紧。
+emit_console_tail() {
+    local tool="$1" file="$2" exit_code="$3"
+    if [ ! -s "$file" ]; then
+        echo "::notice title=${tool} 控制台::（无输出；exit=${exit_code}）—— 工具可能没跑起来，检查上面的下载/前置步骤"
+        return 0
+    fi
+    local lines bytes tail_text
+    lines=$(wc -l < "$file" | tr -d ' ')
+    bytes=$(wc -c < "$file" | tr -d ' ')
+    tail_text=$(tail -c 900 "$file" | tr '\n\r' '  ' | sed 's/%/%25/g')
+    echo "::notice title=${tool} 控制台尾部（exit=${exit_code}，共 ${lines} 行 / ${bytes} 字节）::${tail_text}"
+}
+
 emit_annotations() {
     local tool="$1" report="$2"
     [ -s "$report" ] || return 0
@@ -159,6 +176,7 @@ run_ktlint() {
         echo "::error::ktlint 内部错误（exit=$status）—— 多半是源码解析失败或 .editorconfig 写错，见上面的输出"
     fi
     emit_annotations "ktlint" "$REPORT_DIR/ktlint.txt"
+    emit_console_tail "ktlint" "$REPORT_DIR/ktlint.txt" "$status"
     return "$status"
 }
 
@@ -186,6 +204,12 @@ run_detekt() {
         cat "$REPORT_DIR/detekt.txt"
     fi
     emit_annotations "detekt" "$REPORT_DIR/detekt.txt"
+    emit_console_tail "detekt" "$REPORT_DIR/detekt-console.txt" "$status"
+    if [ -f "$REPORT_DIR/detekt.txt" ]; then
+        echo "::notice title=detekt 报告文件::$(wc -l < "$REPORT_DIR/detekt.txt" | tr -d ' ') 行 / $(wc -c < "$REPORT_DIR/detekt.txt" | tr -d ' ') 字节"
+    else
+        echo "::notice title=detekt 报告文件::（未生成 detekt.txt）"
+    fi
     return "$status"
 }
 
