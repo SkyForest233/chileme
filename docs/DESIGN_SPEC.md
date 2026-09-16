@@ -110,7 +110,7 @@ StatusUi 提供三个颜色槽位，按用途严格区分：
 
 新建可复用 UI 时先查本表，避免重复实现。新组件按职责放进 `ui/components/` 下对应文件（状态色 → `StatusUi.kt`、小胶囊 → `Badges.kt`、通用控件 → `Controls.kt`……），**不要再新建大杂烩文件**（原 `Common.kt` 已于 2026-09-16 拆完），并同步更新本表。
 
-**悬浮胶囊导航（FloatingPillNav，MainActivity.kt，v2.6 规范）**：居中悬浮、primaryContainer 胶囊容器；内部 4 个等宽槽位（76dp × 48dp，满足最小触摸目标）；背后一枚 primary 胶囊指示器用 spring(dampingRatio=0.8) 滑到选中槽位；**所有 Tab 常显标签**（MD3 always show labels）：图标 20dp 上、labelSmall 标签下竖排，选中项加粗；颜色用 MotionEasing.Standard 250ms 渐变。FAB 为 primary 实心圆胶囊（仅图标）。
+**悬浮胶囊导航（FloatingPillNav，NavChrome.kt，v2.6 规范）**：居中悬浮、primaryContainer 胶囊容器；内部 4 个等宽槽位（76dp × 48dp，满足最小触摸目标）；背后一枚 primary 胶囊指示器用 spring(dampingRatio=0.8) 滑到选中槽位；**所有 Tab 常显标签**（MD3 always show labels）：图标 20dp 上、labelSmall 标签下竖排，选中项加粗；颜色用 MotionEasing.Standard 250ms 渐变。FAB 为 primary 实心圆胶囊（仅图标）。
 
 **动效缓动（v2.6 起强制）**：全项目 tween 一律引用 `ui/theme/Motion.kt` 的 MotionEasing token，禁止无缓动 tween 与散落 CubicBezierEasing 字面量。约定：进入 = EmphasizedDecelerate（250~400ms）、退出 = EmphasizedAccelerate（200ms）、屏内状态变化 = Standard；指示器/物理位移可用 spring。
 
@@ -142,7 +142,7 @@ StatusUi 提供三个颜色槽位，按用途严格区分：
 - 异步结果（OCR、导入导出）用 Snackbar 告知成功/失败
 - 所有数据屏必须处理空态；禁用态按钮置灰（如数量为 0 时的“吃掉一份”）
 - 页面主内容用 LazyColumn / verticalScroll，适配小屏与折叠屏
-- 大屏适配（v2.3 起）：NavHost 外层约束内容最大宽 840dp 居中（MainActivity），平板/折叠屏展开态不拉伸
+- 大屏适配（v2.3 起）：NavHost 外层约束内容最大宽 840dp 居中（`AppNavGraph.kt` 的 `AppNavHost` 外层 Box），平板/折叠屏展开态不拉伸
 - 触摸目标（v2.3 起强制）：所有可点击元素 ≥48dp——IconButton 不得用 Modifier.size 缩小容器（只缩小内部 Icon）；CheckSwitch 已内置 minimumInteractiveComponentSize
 - 无障碍语义：CheckSwitch 用 toggleable(Role.Switch)；底栏 Tab 用 selectable(Role.Tab)；批量操作按钮的 contentDescription 需含目标名称（如"增加 零食 阈值"）
 

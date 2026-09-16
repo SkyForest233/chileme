@@ -25,7 +25,14 @@
 
 ```
 app/src/main/java/com/agon/app/
-├─ MainActivity.kt              # 单 Activity；主题接入、miuix-nav NavDisplay、底栏、FAB
+├─ MainActivity.kt              # 单 Activity：深浅色/风格分流、启动放行超时（READY_TIMEOUT_MS）、splash、CompositionLocalProvider
+├─ MainApp.kt                   # App 外壳：backStack / pagerState / 多选 / Snackbar 收集 / nestedScroll + Scaffold（底栏槽位、FAB）+ Snackbar 覆盖层
+├─ AppNavGraph.kt               # 全 App 唯一的 NavDisplay + 8 个 entry<AppRoute.*>（外层 Box 限宽 840dp 居中）
+├─ AppDialogs.kt                # App 级弹窗：批量「移动存放位置」（MD3 AlertDialog / Miuix WindowDialog 双实现）
+├─ BatchBars.kt                 # 批量操作栏：悬浮 / 常驻两条（BatchActionBar + 3 个按钮）
+├─ NavChrome.kt                 # TabSpec / MainTabs + MainTabsPager + 4 套底栏（MD3/MIUIX × 常驻/悬浮）
+#   ↑ 以上 6 个文件同属包 com.agon.app，2026-09-16 由原 MainActivity.kt（1,123 行）按职责拆出；
+#     跨文件引用的顶层声明由 private 放宽为 internal（模块内可见，非公开 API；R8 照常裁剪）
 ├─ data/                        # 数据层（无 UI 依赖）
 │   ├─ FoodModels.kt            # 数据模型 + 派生属性（过期计算/状态判定）+ 纯函数（compactConsumptionAt 等）
 │   ├─ FoodRepository.kt        # 唯一持久化入口（DataStore）；含 Decoded 三态、写守卫、DecodeCache
@@ -90,7 +97,7 @@ app/src/main/java/com/agon/app/
 
 - 底栏 Tab：`AppRoute.Main` 内 HorizontalPager（home → list → stats → settings）；点击 Tab 用 `folmeSpring` 连滑，跨页会经过中间页。二级页走 miuix-nav `NavDisplay` + `NavTransitions.MiuixDefault`（全宽卡片滑 + 1/4 视差 + 圆角 dim），隐藏底栏与 FAB（`showChrome`）
 - FAB（添加食品）仅在 home 与 list（Pager 第 0/1 页）显示
-- 新增路由：在 `AppRoute` 加类型 + `NavDisplay` 注册 `entry` + 按需更新 `onTabs`/`showChrome`，并更新本表
+- 新增路由：在 `AppRoute` 加类型 + 在 `AppNavGraph.kt` 的 `NavDisplay` 里注册 `entry` + 按需更新 `onTabs`/`showChrome`（两者都在 `MainApp.kt`），并更新本表
 
 ## 5. 关键实现约定
 
@@ -138,6 +145,6 @@ app/src/main/java/com/agon/app/
 - **应用图标**：自适应图标 `mipmap-anydpi-v26/ic_launcher.xml`（前景 `drawable-*/ic_launcher_foreground.png` + 纯色背景 `#FBF6E9` + `monochrome` 供 Android 13+ 主题图标）；源图由用户 SVG 处理而来（已去黑边，主体缩放至 66dp 安全区）。**legacy `mipmap-*/ic_launcher.png` 已于 2026-08-22（B14）删除** —— minSdk 26 起没有设备会用到它们，`@mipmap/ic_launcher` 现只解析到 `anydpi-v26`
 - **Snackbar**：带悬浮导航栏的屏幕，SnackbarHost 必须加 `padding(bottom = 84.dp)` 避免遮挡
 - **撤销 Snackbar**：`ui/components/UndoSnackbar.kt` 的 `showUndoSnackbar`。MD3 自绘 Material History 圆环 path（去指针），变换到圆心后再叠粗数字。消耗记录撤销：`DeletedConsumption(record, index)`，`addConsumption(record, index)` 插回删除前在日期倒序列表中的位置，避免 `listOf(record)+records` 提到最前；LazyColumn `animateItem` 带 placementSpec。消耗记录页 MD3 宿主加 `navigationBarsPadding` + 24dp。覆盖层 Box 必须 `fillMaxWidth`。MIUIX 宿主保持库默认 `canSwipeToDismiss=true`
-- **批量操作（v2.3 起，取代早期「两段式滑动归档」）**：列表项**长按进入多选**（`MainActivity` 的 `BatchActionBar`），选中集合通过 `AppViewModel.selectedIds` 暴露；底部操作栏提供 归档 / 改存放位置 / 取消，归档时按 `ArchiveReason.DELETED` 记因。**不要**再按滑动归档实现新功能（`SwipeToDismissBox` 现在只用于 `UndoSnackbar` 的提示条滑动）
+- **批量操作（v2.3 起，取代早期「两段式滑动归档」）**：列表项**长按进入多选**（`BatchBars.kt` 的 `BatchActionBar`，由 `MainApp.kt` 的 `bottomBar` 槽位挂载），选中集合通过 `AppViewModel.selectedIds` 暴露；底部操作栏提供 归档 / 改存放位置 / 取消，归档时按 `ArchiveReason.DELETED` 记因。**不要**再按滑动归档实现新功能（`SwipeToDismissBox` 现在只用于 `UndoSnackbar` 的提示条滑动）
 - **FAB 与撤销**：Snackbar 展示“撤销”期间调 `viewModel.setFabSuppressed(true)` 隐藏 FAB（finally 复位），避免遮挡撤销按钮
-- **底栏自动隐藏**：MainApp 的 NestedScrollConnection 监听列表滚动，下滑隐藏底栏+FAB（slideOutVertically），上滑/切页恢复
+- **底栏自动隐藏**：`MainApp.kt` 定义的 NestedScrollConnection（±8f 阈值）由 `AppNavGraph.kt` 挂到 `NavDisplay` 的 modifier 上，监听列表滚动，下滑隐藏底栏+FAB（slideOutVertically），上滑/切页恢复

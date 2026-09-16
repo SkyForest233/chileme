@@ -22,7 +22,7 @@
 - 局部状态 `remember { mutableStateOf() }`；需进程重建保持用 `rememberSaveable`
 - 列表用 LazyColumn/LazyRow + `items(key = ...)`，不用 forEach 堆叠
 - 协程：组合内用 LaunchedEffect；事件回调里用 `rememberCoroutineScope().launch`；禁止在 onClick 中直接调 @Composable
-- 二级页栈：`rememberNavBackStack` + `NavDisplay` 只在 MainActivity 声明一次，向下传回调而非 backStack 本身。底栏 Tab 不走导航栈（HorizontalPager）
+- 二级页栈：`rememberNavBackStack` 只在 `MainApp.kt` 声明一次（导航状态源唯一）；全 App 唯一的 `NavDisplay` 在 `AppNavGraph.kt` 的 `AppNavHost` 里，由 `MainApp.kt` 的内容槽位调用一次。往下只传回调（`navigate`/`popRoute`），不传 backStack 本身。底栏 Tab 不走导航栈（HorizontalPager，在 `NavChrome.kt`）
 
 ### 项目约定
 - 数据读写只走 `FoodRepository`；新增持久化字段时：模型加默认值（保证旧数据兼容，Json 已配 `ignoreUnknownKeys`）→ Repository 增方法 → ViewModel 暴露 → UI

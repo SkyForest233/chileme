@@ -17,7 +17,7 @@
 > | P1-4 设置页主线程 IO | ✅ 快照/导入路径已下沉 IO |
 > | P1-8 组合期 `File.exists()` + `photoPath` 绝对路径 | ❌ **仍未做**（`FoodAvatar.kt:43`、`EditFoodScreen.kt:284`；原文的 `Common.kt` 已于 2026-09-16 拆分） |
 > | P1-11 状态容器重组粒度 | ✅ 已修（`SettingsUiState` 19×`State` 精确订阅 + `SettingsActions` 窄接口） |
-> | P1-2 / P1-5 / P1-6 / P1-7 / P1-9 / P1-10 | ❌ 仍未做（`beyondViewportPageCount = 3` 在 `MainActivity.kt:923`；`animateColorScheme` 37 个角色动画；无 `Application` 类/无 DI；双主题渲染层仍两套） |
+> | P1-2 / P1-5 / P1-6 / P1-7 / P1-9 / P1-10 | ❌ 仍未做（`beyondViewportPageCount = 3` 在 `NavChrome.kt:132`（原 `MainActivity.kt:923`，2026-09-16 拆分后改址）；`animateColorScheme` 37 个角色动画；无 `Application` 类/无 DI；双主题渲染层仍两套） |
 > | P2-1 静态检查缺位 | ✅ 报告提交当日即落地（`.editorconfig` + `detekt.yml` + `tools/ci-gates.sh` + `static-gates` job）。**注：本文建议的 `LongParameterList`/`TooManyFunctions`/`ReturnCount` 被有意关闭**（`complexity` 规则集 `active: false`，理由见 `detekt.yml` 文件头）；`SetTextI18n` 显式 disable 与 lint `baseline.xml` 仍未做 |
 > | P2-2 CI 提速与加固 | ✅ 合并 Gradle 调用 + `concurrency` + `permissions: contents: read` + `release-r8` job；❌ 仍未做：`paths-ignore`、供应链（`verification-metadata.xml` / `dependency-review-action` / `gitleaks` / `zizmor`）、APK 体积基线、`bundleRelease`(AAB) |
 > | P2-3 `versionCode = github.run_number` | ❌ 仍未改（`release.yml:112`） |
