@@ -16,7 +16,7 @@
 
 | 日期 | 主题 | 状态 |
 | --- | --- | --- |
-| [2026-09-17](2026-09-17.md) | 真机复测收尾：① MD3 输入弹窗粘性键盘避让（`stickyImePadding`）② Miuix 表单弹窗输入框与按钮零间距 ③ Miuix 弹窗主要动作按钮改蓝底白字；随后形参窄化、`ImeHandlingTest` 加固、`AppDialogs.kt` 搬进组件层 | ✅ 13 提交 / CI 10 绿 3 红（台账见日志末节）；单测 **121** 例 |
+| [2026-09-17](2026-09-17.md) | 真机复测收尾：① MD3 输入弹窗粘性键盘避让（`stickyImePadding`）② Miuix 表单弹窗输入框与按钮零间距 ③ Miuix 弹窗主要动作按钮改蓝底白字；随后形参窄化、`ImeHandlingTest` 加固、`AppDialogs.kt` 搬进组件层；**+ 文档审计轮 P0–P4**（INDEX 重写 -70%、6 份报告补批注、抽出 `docs/ROADMAP.md`、三份组件清单合一、新增 `tools/doc-metrics.sh` 口径脚本、删 1 个孤儿文件） | ✅ 23 提交 / 15 run：20 绿 3 红（台账见日志末节）；单测 **121** 例 |
 | [2026-09-16](2026-09-16.md) | 文档对账轮（12 份文档、30+ 处，不改运行时行为）+ `Common.kt` 拆 8 文件 + `MainActivity.kt`(1,123 行) 拆 6 文件 + 双主题 8 对全数合并（§15–§22）+ 写入拆分路线图 | ✅ CI 绿（中间红过一次，真因见日志 §13） |
 | [2026-09-15](2026-09-15.md) | 两轮审查交叉验证后的 5 项修复 + IME 键盘避让（A 方案）+ 写守卫按 key 粒度 + 性能批（`DecodeCache` / 精确订阅）+ CI 门禁上线（`tools/ci-gates.sh` + 两个新 job） | ✅ CI 绿（当时单测 116 例） |
 | [2026-08-22](2026-08-22.md) | 跨零点残留(B-01) / 封面压缩(B-04) / Version Catalog(B-02) / 依赖升级(B-03) / 双主题状态层抽离(B-08) / 批量改存放位置 / CSV 导出 / 本地滚动冷备 | ✅ CI 绿（含 lint 与单测） |
@@ -76,6 +76,7 @@
 - 恢复路径（导入 / 快照 / 云端）无集成测试
 - `ImeHandlingTest.codeOnly()` 改走词法状态机 —— 现用块注释正则，不认字符串字面量，
   `SettingsScreen.kt:379` 的 MIME 通配符会吞掉约 600 行真代码；`MiuixDialogContentTest` 里已有验证过的实现可抄
+- `FoodCard.kt:161/251` 自己分流了一份进度条，与组件层 `AppLinearProgress` **不同构**（6dp vs `LinearProgressHeight = 8.dp`、`weight(1f)` vs `fillMaxWidth()`）⇒ 收编是**视觉改动**而非纯重构，需两主题真机复测（2026-09-17 文档审计时发现）
 - ktlint 只开了 6 条规则（见 `.editorconfig`），全量规则集待评估
 - `ObsoleteSdkInt` 3 处 · README / 商店截图缺失
 
