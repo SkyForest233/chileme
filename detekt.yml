@@ -71,6 +71,17 @@ naming:
 #   - LongParameterList(24)：命中的多是 `*State.kt` 状态容器（`FoodDetailUiState` 13 个形参）与
 #     App 级组件（`AppNavHost` 9、`MainTabsPager` 11、`BatchMoveLocationDialog` 8）。前者是**刻意的
 #     设计**（精确订阅要求把字段摊平，见 SettingsState.kt 说明），后者由 #3 收窄成回调后再评估阈值。
+#     ⚠️ **2026-09-17 复评（本节所有数字是 09-16 的快照，此后未重测）**：`AppNavHost` 已 9 → **6** 参、
+#     `BatchMoveLocationDialog` 已 8 → **5** 参（且该文件已搬去 `ui/components/app/AppBatchMoveDialog.kt`），
+#     故「24 条」这个总数**已失效但没人重测**：沙箱无 JDK、detekt 二进制下载被墙，而本地近似脚本不可靠
+#     （尾随逗号会多算 1 个形参、`(() -> Unit)?` 这类嵌套括号会让扫描早停，两者都实测踩过）。
+#     重测的唯一可信办法是真跑一次 detekt（`GATES_MODE=report bash tools/ci-gates.sh` 可只取数不拦截）。
+#     `MainTabsPager` 与 `*State.kt` 状态容器（精确订阅要求把字段摊平，是刻意设计）仍在清单里 ⇒
+#     **维持关闭的结论不变**，但别再把「24 条」当现状引用。
+#     另注：本节「7,205 行 / 16 个渲染层文件」与 `docs/DESIGN_SPEC.md` 的「7,541 行 / 17 个文件」
+#     是 09-16 同日**两个不同文件集口径**的快照，彼此不可换算，也都不能再当现状基线用；
+#     现状实测（09-17）：屏幕本体 9 文件 4,209 行，`ui/components/app/` 12 文件 3,075 行。
+#     另：上面「7,205 行 → 4,500 量级」那个目标**未达成**，实测口径与根因见 devlog 2026-09-16 §22。
 #   - TooManyFunctions(7)：`AppViewModel` 53 个、`FoodRepository` 47 个 —— 正是路线图 #5（Repository
 #     拆分 + 轻量 DI）要拆的对象。规则没错，但现在开着的唯一效果是噪声。
 #   噪声的代价是具体的：71 条永远红的发现会让人不再读这份报告，剩下那 2 条真问题反而被埋掉。
