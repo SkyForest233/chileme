@@ -96,9 +96,16 @@ fun AppConfirmDialog(
 }
 
 /**
- * Miuix 侧的确认按钮：危险操作显式传 error 色，非危险操作**不传 colors**（用库默认值）。
- * 不写 `textButtonColors()` 去猜默认色 —— 合并前两版都只有危险操作这一种用法，
- * 非危险分支照库默认走最稳。
+ * Miuix 侧的确认按钮：危险操作传 error 色（本仓约定，上游示例没有危险动作先例），
+ * 非危险操作传 `textButtonColorsPrimary()` ⇒ 蓝底白字胶囊。
+ *
+ * 2026-09-17 真机复测**反转了本函数原先的决定**（原先写的是「非危险分支不传 colors、照库默认走最稳」）。
+ * 反转依据是源码而非观感：库的 `TextButton` 并不是 MD3 那种无底文字按钮 —— 它内部就是 `Button`，
+ * 而 `Button` 用 `.squircleSurface(color = containerColor)` 实心填充；默认 `textButtonColors()` 的容器色是
+ * `secondaryVariant`（浅灰），所以「不传 colors」= 主要动作与「取消」完全同色。上游
+ * `example/shared/src/commonMain/kotlin/component/DialogSection.kt` 的 7 个弹窗，主要动作一律
+ * `colors = ButtonDefaults.textButtonColorsPrimary()`（容器 `primary` + 文字 `onPrimary`）。
+ * 用户真机报告的「确定 / 保存 / 添加不应该是蓝底的吗」正是这处缺漏。
  */
 @Composable
 private fun MiuixConfirmButton(
@@ -117,6 +124,11 @@ private fun MiuixConfirmButton(
             ),
         )
     } else {
-        MiuixTextButton(text = text, onClick = onClick, modifier = modifier)
+        MiuixTextButton(
+            text = text,
+            onClick = onClick,
+            modifier = modifier,
+            colors = MiuixButtonDefaults.textButtonColorsPrimary(),
+        )
     }
 }

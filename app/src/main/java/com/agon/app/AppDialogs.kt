@@ -33,7 +33,6 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import top.yukonga.miuix.kmp.basic.Button as MiuixButton
 import top.yukonga.miuix.kmp.basic.ButtonDefaults as MiuixButtonDefaults
 import top.yukonga.miuix.kmp.basic.SnackbarHostState as MiuixSnackbarHostState
 import top.yukonga.miuix.kmp.basic.TextButton as MiuixTextButton
@@ -116,7 +115,13 @@ internal fun BatchMoveLocationDialog(
                             onClick = { onDismiss() },
                             modifier = Modifier.weight(1f),
                         )
-                        MiuixButton(
+                        // 弹窗动作一律用库的 TextButton（它本身就是填充胶囊，不是无底文字按钮），
+                        // 主要动作传 textButtonColorsPrimary()。原先这里是 Button + buttonColorsPrimary()
+                        // 再手写 Text(color = onPrimary, fontWeight = SemiBold)：颜色虽然对，但要自己补文字色
+                        // 与字重、拿不到 MiuixTheme.textStyles.button 与 disabled 角色，也不是上游
+                        // DialogSection.kt 里 7 个弹窗的统一写法。
+                        MiuixTextButton(
+                            text = "确定移动",
                             onClick = {
                                 val target = customLocation.trim().ifBlank { selectedLocation.trim() }
                                 val count = selectedIds.size
@@ -130,10 +135,8 @@ internal fun BatchMoveLocationDialog(
                                 }
                             },
                             modifier = Modifier.weight(1f),
-                            colors = MiuixButtonDefaults.buttonColorsPrimary(),
-                        ) {
-                            Text("确定移动", fontWeight = FontWeight.SemiBold, color = MiuixTheme.colorScheme.onPrimary)
-                        }
+                            colors = MiuixButtonDefaults.textButtonColorsPrimary(),
+                        )
                     }
                 }
             }

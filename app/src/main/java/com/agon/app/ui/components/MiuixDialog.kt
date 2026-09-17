@@ -6,7 +6,8 @@ package com.agon.app.ui.components
 // 否则不显示（历史踩坑，见 docs/MIUIX_UPGRADE.md §2.3）；把 WindowDialog 收口到一个函数，
 // 各屏就不会各写一份、也就不会漏掉这个约束。IME 由库内 DialogContent 自理，
 // **不要**传 defaultWindowInsetsPadding = false；content 也**必须是单一根节点**（库根 Column 无间距，
-// 两个平级节点之间会是 0dp）。两条约束详见下方 KDoc。
+// 两个平级节点之间会是 0dp）；动作按钮**一律用库的 TextButton，主要动作传 textButtonColorsPrimary()**
+// （不传 colors 时它和「取消」同为浅灰）。三条约束详见下方 KDoc。
 //
 // 2026-09-16 由 Common.kt 拆分而来（纯搬运，签名与实现未改）。
 
@@ -34,6 +35,17 @@ import top.yukonga.miuix.kmp.window.WindowDialog
  * 输入框下边与按钮上边重合。上游示例的标准写法是单一 `Column(verticalArrangement = Arrangement.spacedBy(12.dp))`
  * （`example/shared/.../component/DialogSection.kt:351`），本仓 `AppDialogs.kt`（批量移动位置）、
  * `AppFormDialog.kt`、`SettingsScreen.kt`（坚果云）均遵此，按钮区再额外留 4~8.dp。
+ *
+ * **动作按钮一律 `TextButton`，主要动作传 `ButtonDefaults.textButtonColorsPrimary()`**
+ * （2026-09-17 真机复测后补写，此前 4 处偏离）：Miuix 的 `TextButton` **不是** MD3 那种无底文字按钮 ——
+ * 它内部就是 `Button`，而 `Button` 用 `.squircleSurface(color = containerColor)` 实心填充
+ * （源码 `basic/Button.kt:76`）；默认 `textButtonColors()` 的容器色是 `secondaryVariant`（浅灰 #F0F0F0），
+ * 所以「不传 colors」的主要动作会和「取消」完全同色、看不出主次。`textButtonColorsPrimary()` 给的是
+ * 容器 `primary`（蓝）+ 文字 `onPrimary`（白）+ 对应 disabled 角色 ⇒ **蓝底白字胶囊**。
+ * 依据：上游 `example/shared/.../component/DialogSection.kt` 的 7 个弹窗，主要动作一律这么写；
+ * 弹窗里**不要**用实心 `Button` + `buttonColorsPrimary()`（颜色虽同，但要自己补文字色/字重，
+ * 也拿不到 `MiuixTheme.textStyles.button` 与 disabled 角色）。危险动作传 error 色是本仓约定。
+ * 静态守卫：`MiuixDialogContentTest.dialogActionsFollowMiuixButtonConvention`。
  */
 @Composable
 fun MiuixDialog(

@@ -547,6 +547,9 @@ fun SettingsScreen(
                             text = "保存",
                             onClick = saveNutstore,
                             modifier = Modifier.weight(1f),
+                            // 主要动作用蓝底白字胶囊：库的 TextButton 默认容器色是 secondaryVariant（浅灰），
+                            // 不传 colors 就和「取消」同色。写法依据见 AppConfirmDialog.MiuixConfirmButton 的 KDoc。
+                            colors = ButtonDefaults.textButtonColorsPrimary(),
                         )
                     }
                 }

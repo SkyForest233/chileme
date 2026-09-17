@@ -33,6 +33,14 @@ import java.io.File
  * 算法先用 Python 实现同一套状态机在真源码上验证过：当前 8 个调用点全部判为单一根节点；
  * 把 `AppFormDialog.kt` 换回修复前（`git show HEAD~1:`）的版本，被准确判为 2 个顶层节点（见 [parserFlagsTheRealBug]）。
  *
+ * 另有一组**按钮惯例**不变量（见 [dialogActionsFollowMiuixButtonConvention]）：弹窗动作不得用实心
+ * `Button` + `buttonColorsPrimary()`；content 里有 2 个及以上 `TextButton(` 时至少一个要显式传 `colors =`。
+ * 依据是上游 `example/shared/src/commonMain/kotlin/component/DialogSection.kt` 的 7 个弹窗一律
+ * `TextButton` + 主要动作 `textButtonColorsPrimary()`（蓝底白字胶囊），以及库源码 `basic/Button.kt`：
+ * `TextButton` 内部就是 `Button`，而 `Button` 用 `.squircleSurface(color = containerColor)` 实心填充，
+ * 默认 `textButtonColors()` 的容器色是 `secondaryVariant`（浅灰）—— 所以「不传 colors」的主要动作
+ * 会和「取消」完全同色（2026-09-17 真机复测发现 4 处这样的偏离）。
+ *
  * 实现上刻意让 [Walker] **只对外暴露 Int / Boolean**：`Frame` 是 private 类型，一旦出现在 public 成员的
  * 签名或推断类型里就会撞上「public 暴露 private 类型」的编译错误 —— 本仓 CI 为此红过一次
  * （`internal val MainTabs` 的推断类型暴露了 `private data class TabSpec`，见 `devlog/2026-09-16.md` §13）。
@@ -109,7 +117,74 @@ class MiuixDialogContentTest {
         assertEquals(2L, contentBodyOfFirstSite(bad)?.let { topLevelStatements(it).size }?.toLong() ?: -1L)
     }
 
+    /**
+     * 弹窗动作按钮的两条惯例。都是「偏离了也不报错、只有真机看得出来」的那一类，故一并做成静态守卫。
+     */
+    @Test
+    fun dialogActionsFollowMiuixButtonConvention() {
+        val root = sourceRoot()
+        assumeTrue("找不到主源码目录（工作目录既不是模块目录也不是仓库根目录）", root != null)
+        val violations = mutableListOf<String>()
+        val files = requireNotNull(root).walkTopDown()
+            .filter { it.isFile && it.extension == "kt" }
+            .sortedBy { it.path }
+            .toList()
+        for (file in files) {
+            scanButtons(file, violations)
+        }
+        assertTrue(
+            violations.joinToString("\n  ", "Miuix 弹窗的动作按钮不符合库惯例：\n  "),
+            violations.isEmpty(),
+        )
+    }
+
     // ------------------------------------------------------------------ 扫描
+
+    /**
+     * 剥掉注释、保留代码与字符串，供按钮惯例那类**原文匹配**的断言使用。
+     *
+     * 必须走 [Walker] 而不是正则：`ImeHandlingTest.codeOnly()` 用正则剥块注释，被 `SettingsScreen.kt`
+     * 里 MIME 通配符（星号斜杠星号那种写法）反咬一口 —— 约 600 行真实代码被当成注释吞掉
+     * （见 `devlog/2026-09-17.md`）。本守卫手上已经有词法器，没理由再踩一遍。
+     * 反过来，注释里写「原先这里是 Button + 那个实心配色工厂」这类说明也不该触发断言
+     * （第一版就是这么误报的），剥掉注释正好两头都解决。
+     */
+    private fun codeOnly(src: String): String {
+        val walker = Walker(src)
+        val out = StringBuilder(src.length)
+        while (walker.i < src.length) {
+            if (!walker.inComment()) out.append(src[walker.i])
+            walker.step()
+        }
+        return out.toString()
+    }
+
+    /**
+     * A. 不得用实心 `Button` + `buttonColorsPrimary()` 当弹窗动作（上游一律 `TextButton`）；
+     * B. content 里出现 2 个及以上 `TextButton(` 时，至少一个必须显式传 `colors =` ——
+     *    静态判不出「哪个是主要动作」，所以只约束「不许全是库默认色」：默认容器色是
+     *    `secondaryVariant` 浅灰，全默认时用户分不出主要动作与「取消」。
+     *    危险动作传 error 色同样满足 B（`SettingsScreen` 的「覆盖导入」就是这种）。
+     */
+    private fun scanButtons(file: File, violations: MutableList<String>) {
+        val src = file.readText()
+        if (!src.contains(CallName)) return
+        val name = file.name
+        for (pos in callSites(src)) {
+            val body = contentBody(src, pos) ?: continue
+            val code = codeOnly(body)
+            val line = src.substring(0, pos).count { it == '\n' } + 1
+            if (code.contains("buttonColorsPrimary(")) {
+                violations += "$name:$line 弹窗动作用了实心 Button(buttonColorsPrimary()) —— " +
+                    "上游 DialogSection.kt 的 7 个弹窗一律 TextButton + textButtonColorsPrimary()"
+            }
+            val buttons = code.split("TextButton(").size - 1
+            if (buttons >= 2 && !code.contains("colors =")) {
+                violations += "$name:$line 弹窗里有 $buttons 个 TextButton 却没有一个显式传 colors = —— " +
+                    "主要动作应是 textButtonColorsPrimary()（蓝底白字），库默认是 secondaryVariant 浅灰"
+            }
+        }
+    }
 
     /** 返回本文件里成功解析的调用点数；违规写进 [violations]。 */
     private fun scanFile(file: File, violations: MutableList<String>): Int {
@@ -208,6 +283,9 @@ class MiuixDialogContentTest {
 
         /** 语句边界只在「最外层代码 + 括号与花括号深度都为 0」处判定。 */
         fun atTopLevel(): Boolean = atRootCode() && frames[0].paren == 0 && frames[0].brace == 0
+
+        /** 当前是否处在注释里（行注释 / 块注释）。给 [codeOnly] 用；对外仍只暴露 Boolean。 */
+        fun inComment(): Boolean = top().kind == 'l' || top().kind == 'b'
 
         fun step() {
             val kind = top().kind

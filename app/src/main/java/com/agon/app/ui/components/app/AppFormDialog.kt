@@ -31,6 +31,7 @@ import androidx.compose.ui.window.DialogProperties
 import com.agon.app.ui.components.MiuixDialog
 import com.agon.app.ui.theme.LocalThemeStyle
 import com.agon.app.ui.theme.ThemeStyle
+import top.yukonga.miuix.kmp.basic.ButtonDefaults as MiuixButtonDefaults
 import top.yukonga.miuix.kmp.basic.TextButton as MiuixTextButton
 import top.yukonga.miuix.kmp.basic.TextField as MiuixTextField
 
@@ -122,6 +123,13 @@ fun AppFormDialog(
                         },
                         modifier = Modifier.weight(1f),
                         enabled = states.firstOrNull()?.text?.isNotBlank() == true,
+                        // Miuix 的 TextButton 不是 MD3 那种无底文字按钮：Button 内部是
+                        // .squircleSurface(color = containerColor) 实心填充，默认 textButtonColors() 的
+                        // 容器色是 secondaryVariant（浅灰）⇒ 不传 colors 时「添加」和「取消」长得一样。
+                        // 主要动作用 textButtonColorsPrimary()（容器 primary 蓝 + 文字 onPrimary 白），
+                        // 与上游 example/.../component/DialogSection.kt 里 7 个弹窗的写法一致；
+                        // 该工厂自带 disabledPrimaryButton / disabledOnPrimaryButton，故 enabled=false 时也对。
+                        colors = MiuixButtonDefaults.textButtonColorsPrimary(),
                     )
                 }
             }
