@@ -64,7 +64,9 @@ app/src/main/java/com/agon/app/
                                 # ② 渲染层（9 个屏幕文件 + 8 个 *State.kt）：ConsumptionLog / Archive / FoodDetail / Home /
                                 #    FoodList / Manage（阈值·分类·位置）/ Stats / Settings —— **八对已于 2026-09-16 全数合并为
                                 #    单文件双主题**，Miuix*Screen.kt 双胞胎全部删除（外壳差异走 ui/components/app/）；
-                                #    屏幕本体 7,541 → 4,204 行（-44%），加上组件层 2,746 行后渲染层合计 7,541 → 6,950 行（-8%）
+                                #    屏幕本体 17 文件 7,541 行（2026-09-16 前基线）→ 9 文件（-44%）；**行数账不在本文件维护**
+                                #    （此前这里手抄的 4,204 / 2,746 / 6,950 三个数已过期，且与本文件 §5 的「12 文件 / 3,075 行」自相矛盾），
+                                #    现值见 docs/DESIGN_SPEC.md §7 的「口径」行，复核跑 bash tools/doc-metrics.sh
                                 # 仅编辑页（EditFoodScreen）与 CheckSwitch 刻意保留 MD3+桥接：DatePicker 无 Miuix 对应；
                                 # CheckSwitch 是项目特色打勾/打叉样式（规范禁止 material3 Switch），自绘 + 颜色桥接。
                                 # 统计页与消耗记录页**已 Miuix 化**（图表仍为 Canvas 自绘，但外壳/组件走 Miuix）
@@ -102,7 +104,9 @@ app/src/main/java/com/agon/app/
 | `AppRoute.ManageCategories` | CategoryManageScreen | 分类管理（设置二级页） |
 | `AppRoute.ManageLocations` | LocationManageScreen | 存放位置管理（设置二级页） |
 
-> 表中「屏幕」列写的是实现文件名。**除编辑页外，每个路由都有 Miuix 实现**，运行时按 `LocalThemeStyle` 分流；**除编辑页外的 8 对屏幕已于 2026-09-16 全数合并为单文件双主题**（`ConsumptionLogScreen` / `ArchiveScreen` / `FoodDetailScreen` / `HomeScreen` / `FoodListScreen` / `ManageScreens` / `StatsScreen` / `SettingsScreen`，外壳差异走 `ui/components/app/` 的骨架组件；首页 / 列表页 / 统计页 / 设置页这四份由 `NavChrome.kt` 的 pager 直接调用，其余由 `AppNavGraph.kt` 直接调用 —— **这两个文件都已不含任何 `LocalThemeStyle` 分支**，`Miuix*Screen.kt` 双胞胎全部删除）。合并后主题分支只剩两处合法落点：`ui/components/app/` 的骨架组件，以及设置页那种「两版排版习语根本不同」的 body（`Md3SettingsBody` / `MiuixSettingsBody`，见 `devlog/2026-09-16.md` §15–§22）。无论一份还是两份，业务数据都必须来自同一份 `*State.kt` 状态容器，禁止在 UI 文件里重写业务计算（`ScreenParityTest` 静态拦截）。
+> 表中「屏幕」列写的是**屏幕组件名，不是文件名**：三个管理页（`ThresholdManageScreen` / `CategoryManageScreen` /
+> `LocationManageScreen`）同在 `ManageScreens.kt` 里，`AppRoute.Main` 那行列的是 pager 的四个页面（对应
+> `HomeScreen.kt` / `FoodListScreen.kt` / `StatsScreen.kt` / `SettingsScreen.kt`）。**除编辑页外，每个路由都有 Miuix 实现**，运行时按 `LocalThemeStyle` 分流；**除编辑页外的 8 对屏幕已于 2026-09-16 全数合并为单文件双主题**（`ConsumptionLogScreen` / `ArchiveScreen` / `FoodDetailScreen` / `HomeScreen` / `FoodListScreen` / `ManageScreens` / `StatsScreen` / `SettingsScreen`，外壳差异走 `ui/components/app/` 的骨架组件；首页 / 列表页 / 统计页 / 设置页这四份由 `NavChrome.kt` 的 pager 直接调用，其余由 `AppNavGraph.kt` 直接调用 —— **这两个文件都已不含任何 `LocalThemeStyle` 分支**，`Miuix*Screen.kt` 双胞胎全部删除）。合并后主题分支只剩两处合法落点：`ui/components/app/` 的骨架组件，以及设置页那种「两版排版习语根本不同」的 body（`Md3SettingsBody` / `MiuixSettingsBody`，见 `devlog/2026-09-16.md` §15–§22）。无论一份还是两份，业务数据都必须来自同一份 `*State.kt` 状态容器，禁止在 UI 文件里重写业务计算（`ScreenParityTest` 静态拦截）。
 
 - 底栏 Tab：`AppRoute.Main` 内 HorizontalPager（home → list → stats → settings）；点击 Tab 用 `folmeSpring` 连滑，跨页会经过中间页。二级页走 miuix-nav `NavDisplay` + `NavTransitions.MiuixDefault`（全宽卡片滑 + 1/4 视差 + 圆角 dim），隐藏底栏与 FAB（`showChrome`）
 - FAB（添加食品）仅在 home 与 list（Pager 第 0/1 页）显示
@@ -139,7 +143,8 @@ app/src/main/java/com/agon/app/
 - **备份排除规则（2026-08-21，2026-09-16 校正）**：`res/xml/backup_rules.xml`（API ≤30，`fullBackupContent`）排除 `datastore/` + `covers/` + `corrupt/`；`res/xml/data_extraction_rules.xml`（API 31+，`dataExtractionRules`）分两条通道——`cloud-backup` 排除 `datastore/` + `covers/` + `corrupt/`，`device-transfer` 排除 `datastore/` + `corrupt/`（**放行 `covers/`**）。坚果云密码是 Keystore AES-GCM 密文，**密钥不跨设备**，备份恢复后必然解不开，故两条通道都必须排除 `datastore/`；`nutstoreCredentialBrokenFlow` 检测该状态并在设置页提示重新填写
   - **已知不一致（待决策，见 `devlog/2026-09-16.md`）**：① `device-transfer` 放行 `covers/` 却排除 `datastore/` → 换机直传后封面图到了、引用它的库存 JSON 没到，新设备启动时 `cleanupOrphanCovers()` 会把它们当孤儿删掉（不致命，但白传一轮图片）；② `filesDir/snapshots/`（每日全量库存 JSON，最近 3 份）**两份规则都没排除** → 会随 Android 系统备份进入用户自己的 Google 账号，README「数据默认只存本机」的表述未覆盖这条通道
 - **归档恢复去重（v2.4）**：`restoreArchived()` —— 同 ID 只移除归档；同名+同生产日期合并数量（返回 merged 供 UI 提示）；否则新增，数量 0 恢复为 1
-- **主题渐变（v2.4）**：Theme.kt `animateColorScheme()` 对全部 **37** 个颜色角色 450ms tween（`animatedColor(target.*)` 逐角色调用，2026-09-16 实测计数）；新增颜色角色时需同步加入该函数
+- **主题渐变（v2.4）**：Theme.kt `animateColorScheme()` 对全部 **36** 个颜色角色 450ms tween（`animatedColor(target.*)` 逐角色调用，正好是 `ColorScheme` 的完整参数表；
+  2026-09-17 复核：此前写 37 是错的，重数跑 `grep -c "animatedColor(target\." app/src/main/java/com/agon/app/ui/theme/Theme.kt`）；新增颜色角色时需同步加入该函数
 - **图片存储**：封面统一通过 `copyImageToCovers()` 落盘到 `filesDir/covers/`，FoodItem 只存绝对路径；展示用 `FoodAvatar`，优先级：照片 > coverText > 分类 emoji
   - **已知待办**：① `photoPath` 存**绝对路径**，换设备/清数据后必然悬空，应改存文件名（`covers/<uuid>.jpg` 的 basename）运行时用 `context.filesDir` 拼；② 存在性判断目前在**组合期**同步调 `File.exists()`（`FoodAvatar.kt:43`、`EditFoodScreen.kt:284`），列表滚动每帧重算 syscall，应移到 VM/IO 侧或改由 Coil `onError` 回落 emoji。见 `docs/audits/chileme-review.md` P1-8
 - **进度条语义**：一律用 `elapsedRatio`（正相关，时间过去多少走多少），禁止再用 freshness 直接作进度
