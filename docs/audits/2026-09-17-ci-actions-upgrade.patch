@@ -1,0 +1,122 @@
+diff --git a/.github/workflows/build.yml b/.github/workflows/build.yml
+index f1cb81e..062a54f 100644
+--- a/.github/workflows/build.yml
++++ b/.github/workflows/build.yml
+@@ -30,7 +30,7 @@ jobs:
+           java-version: 21
+ 
+       - name: Setup Gradle
+-        uses: gradle/actions/setup-gradle@v4
++        uses: gradle/actions/setup-gradle@v6
+ 
+       - name: Make gradlew executable
+         run: chmod +x gradlew
+@@ -46,14 +46,14 @@ jobs:
+ 
+       - name: Upload test report
+         if: always()
+-        uses: actions/upload-artifact@v4
++        uses: actions/upload-artifact@v7
+         with:
+           name: test-report
+           path: app/build/reports/tests/testDebugUnitTest/
+ 
+       - name: Upload lint report
+         if: always()
+-        uses: actions/upload-artifact@v4
++        uses: actions/upload-artifact@v7
+         with:
+           name: lint-report
+           path: |
+@@ -61,7 +61,7 @@ jobs:
+             app/build/reports/lint-results-debug.txt
+ 
+       - name: Upload APK
+-        uses: actions/upload-artifact@v4
++        uses: actions/upload-artifact@v7
+         with:
+           name: app-debug
+           path: app/build/outputs/apk/debug/*.apk
+@@ -89,7 +89,7 @@ jobs:
+       # ktlint 68MB + detekt 67MB，缓存后每次运行省下约 30 秒下载。
+       # 注意：升级 tools/ci-gates.sh 里的工具版本时，必须同步改这个 key，否则会拿到旧二进制。
+       - name: Cache gate tools
+-        uses: actions/cache@v4
++        uses: actions/cache@v6
+         with:
+           path: ~/.cache/chileme-gates
+           key: chileme-gates-ktlint1.8.0-detekt1.23.8
+@@ -99,7 +99,7 @@ jobs:
+ 
+       - name: Upload gate reports
+         if: always()
+-        uses: actions/upload-artifact@v4
++        uses: actions/upload-artifact@v7
+         with:
+           name: gate-reports
+           path: build/reports/gates/
+@@ -124,7 +124,7 @@ jobs:
+           java-version: 21
+ 
+       - name: Setup Gradle
+-        uses: gradle/actions/setup-gradle@v4
++        uses: gradle/actions/setup-gradle@v6
+ 
+       - name: Make gradlew executable
+         run: chmod +x gradlew
+@@ -134,14 +134,14 @@ jobs:
+ 
+       - name: Upload release APK（debug 密钥签名，用于 R8 冒烟测试）
+         if: always()
+-        uses: actions/upload-artifact@v4
++        uses: actions/upload-artifact@v7
+         with:
+           name: app-release
+           path: app/build/outputs/apk/release/*.apk
+ 
+       - name: Upload release lint report
+         if: always()
+-        uses: actions/upload-artifact@v4
++        uses: actions/upload-artifact@v7
+         with:
+           name: lint-report-release
+           path: |
+@@ -151,7 +151,7 @@ jobs:
+       # R8 的 usage/seeds 报告：体积回归或「某个类被裁掉」时可以据此定位
+       - name: Upload R8 reports
+         if: always()
+-        uses: actions/upload-artifact@v4
++        uses: actions/upload-artifact@v7
+         with:
+           name: r8-reports
+           path: |
+diff --git a/.github/workflows/release.yml b/.github/workflows/release.yml
+index 17908c7..aafd21d 100644
+--- a/.github/workflows/release.yml
++++ b/.github/workflows/release.yml
+@@ -36,7 +36,7 @@ jobs:
+       # 此前 release 构建缺这一步，每次都全量下载依赖——既慢，
+       # 又更容易因网络抖动导致依赖解析失败。
+       - name: Setup Gradle
+-        uses: gradle/actions/setup-gradle@v4
++        uses: gradle/actions/setup-gradle@v6
+         with:
+           # tag 构建不写缓存，避免污染 master 的缓存条目；只读复用即可。
+           cache-read-only: true
+@@ -137,14 +137,14 @@ jobs:
+         run: rm -rf keystore
+ 
+       - name: Upload APK
+-        uses: actions/upload-artifact@v4
++        uses: actions/upload-artifact@v7
+         with:
+           name: app-release
+           path: app/build/outputs/apk/release/*.apk
+ 
+       - name: Create GitHub Release
+         if: startsWith(github.ref, 'refs/tags/v')
+-        uses: softprops/action-gh-release@v2
++        uses: softprops/action-gh-release@v3
+         with:
+           tag_name: ${{ github.ref_name }}
+           name: ${{ github.ref_name }}
