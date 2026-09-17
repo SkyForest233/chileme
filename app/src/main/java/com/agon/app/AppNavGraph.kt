@@ -7,12 +7,14 @@ package com.agon.app
 //   · 二级页一律走回调（navigate / popRoute），**不得**把 backStack 继续往下传给屏幕。
 //   · 外层 Box 把内容限宽 840dp 居中（MD3 大屏可读性）；手机上无变化。
 //
-// 形参 9 个、且名字与被捕获的 MainApp 局部**完全一致**（navigate / popRoute / openList / selectTab /
-// chromeScrollConnection …）是忠实搬运的刻意选择：搬过来的 101 行 entry 代码因此一个字都不用改，
-// 只整体反缩进 4 空格 —— 对这一段做 `git diff -w` 是空的。调用点用 `::局部函数` 传引用
-// （MainApp 里本来就有 `MiuixFloatingNav(selectedTabIndex, ::selectTab)`，同一手法，已被 CI 证明可编译）。
-// 把 navigate/popRoute 的定义也收进本文件、或压成 AppNavCallbacks 数据类，都会动到 MainApp 里
-// FAB / 底栏共用的那几个局部函数 —— 属于第三批「结构性」范围，本轮不做。
+// 形参曾一度是 9 个、且名字与被捕获的 MainApp 局部**完全一致**（navigate / popRoute / openList /
+// selectTab / chromeScrollConnection …），那是忠实搬运的刻意选择：搬过来的 101 行 entry 代码因此
+// 一个字都不用改，只整体反缩进 4 空格 —— 对这一段做 `git diff -w` 是空的。
+//
+// 2026-09-17 按本文件当时写下的计划做了窄化：4 个导航动作压成 [AppNavCallbacks] 数据类，**形参 9 → 6**。
+// 关键是函数体第一行用**解构声明**把它们还原成同名的 4 个局部值 —— 于是那 101 行 entry 代码到今天
+// 仍然一个字没改（`git diff -w` 对这一段依然是空的），MainApp 里 FAB / 底栏 / `MiuixFloatingNav`
+// 共用的那几个局部函数也一个没动，调用点只是多包一层 `AppNavCallbacks(…)`（仍用 `::局部函数` 传引用）。
 //
 // 2026-09-16 由 MainActivity.kt（拆分中途在 MainApp.kt）搬出；MainActivity.kt 的 1,123 行至此拆完。
 
@@ -43,6 +45,25 @@ import top.yukonga.miuix.kmp.nav.core.NavBackStack
 import androidx.compose.foundation.pager.PagerState
 
 /**
+ * [AppNavHost] 需要的 4 个导航动作。
+ *
+ * 2026-09-17 由 4 个平铺 lambda 收窄而来（形参 9 → 6，`docs/WORKFLOW.md` 记的 `LongParameterList`
+ * 24 条里就包含这个函数）。**声明顺序即解构顺序**：函数体第一行是
+ * `val (navigate, popRoute, openList, selectTab) = callbacks`，靠它把 101 行 entry 代码保持原样，
+ * 所以改这个类的形参顺序 = 改导航语义，务必同步改那行解构。
+ *
+ * 用 data class 而不是接口（仓库里 `SettingsActions` 是接口，那是为了让状态容器能在纯 JVM 单测里构造）：
+ * 这 4 个动作的实现是 MainApp 组合期间的**局部函数**，做成接口就得每次重组新建一个匿名对象，
+ * 而 data class 直接装 `::局部函数` 引用，与窄化前的分配行为一致。
+ */
+internal data class AppNavCallbacks(
+    val navigate: (AppRoute) -> Unit,
+    val popRoute: () -> Unit,
+    val openList: (String?) -> Unit,
+    val selectTab: (Int) -> Unit,
+)
+
+/**
  * 唯一的 NavDisplay：按 backStack 顶端路由渲染 8 个页面（主页 Pager + 7 个二级页）。
  *
  * **本文件已不含任何主题分支**（2026-09-16 第三批 #3 第 6 对合并管理页后达成）：8 个页面全是
@@ -57,11 +78,11 @@ internal fun AppNavHost(
     viewModel: AppViewModel,
     pagerState: PagerState,
     listFilter: String?,
-    navigate: (AppRoute) -> Unit,
-    popRoute: () -> Unit,
-    openList: (String?) -> Unit,
-    selectTab: (Int) -> Unit,
+    callbacks: AppNavCallbacks,
 ) {
+    // 解构成与 MainApp 局部函数同名的 4 个局部值：下面 101 行 entry 代码因此仍一个字不用改。
+    val (navigate, popRoute, openList, selectTab) = callbacks
+
     // 大屏/折叠屏适配：内容最大宽 840dp 居中（MD3 大屏可读性要求），
     // 手机上无变化；背景由外层 Scaffold 统一铺满。
     Box(

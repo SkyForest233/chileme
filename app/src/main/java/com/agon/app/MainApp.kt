@@ -295,10 +295,14 @@ fun MainApp(viewModel: AppViewModel) {
             viewModel = viewModel,
             pagerState = pagerState,
             listFilter = listFilter,
-            navigate = ::navigate,
-            popRoute = ::popRoute,
-            openList = ::openList,
-            selectTab = ::selectTab,
+            // 4 个导航动作压成一个持有者（AppNavHost 形参 9 → 6）；FAB / 底栏 / MiuixFloatingNav
+            // 仍直接用这几个局部函数，未受影响。
+            callbacks = AppNavCallbacks(
+                navigate = ::navigate,
+                popRoute = ::popRoute,
+                openList = ::openList,
+                selectTab = ::selectTab,
+            ),
         )
     }
 
@@ -322,14 +326,27 @@ fun MainApp(viewModel: AppViewModel) {
 
     // ---- 批量修改存放位置弹窗（实现在 AppDialogs.kt）----
     BatchMoveLocationDialog(
-        viewModel = viewModel,
-        selectedIds = selectedIds,
-        isMiuix = isMiuix,
-        scope = scope,
-        snackbarHostState = snackbarHostState,
-        miuixSnackbarHostState = miuixSnackbarHostState,
         show = showMoveLocationDialog,
+        locationsFlow = viewModel.locations,
+        selectedCount = selectedIds.size,
         onDismiss = { showMoveLocationDialog = false },
+        // VM 与 Snackbar 逻辑回到调用方（2026-09-17 按 AppDialogs.kt 文件头既定方案收窄，形参 8 → 5）。
+        // 顺序与收窄前逐句一致：先记住件数（clearSelection 之后 selectedIds 就空了）→ 改数据 → 清选择
+        // → 关弹窗 → 弹提示；提示文案两主题本来就相同，只有宿主不同。
+        onConfirm = { target ->
+            val count = selectedIds.size
+            viewModel.updateLocationBatch(selectedIds, target)
+            viewModel.clearSelection()
+            showMoveLocationDialog = false
+            scope.launch {
+                val message = "已将 $count 件食品移动到「$target」"
+                if (isMiuix) {
+                    miuixSnackbarHostState.showSnackbar(message)
+                } else {
+                    snackbarHostState.showSnackbar(message)
+                }
+            }
+        },
     )
     }
 }

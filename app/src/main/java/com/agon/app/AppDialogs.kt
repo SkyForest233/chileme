@@ -8,9 +8,15 @@ package com.agon.app
 // IME，**不要**给它传 defaultWindowInsetsPadding = false。ImeHandlingTest 第 3 条按文件清单守卫这一点，
 // 弹窗再搬家时同步改清单。
 //
-// 参数偏多（8 个）是**忠实搬运**的结果：这块原本是 MainApp 里的内联代码，直接引用了 viewModel /
-// selectedIds / isMiuix / scope / 两个 SnackbarHostState。把它收窄成 onConfirm(target) 回调（VM 与
-// Snackbar 逻辑回到调用方）留到第三批的 App 级组件层一起做，避免同一轮里既改结构又改行为。
+// 形参曾一度是 8 个，那是**忠实搬运**的结果：这块原本是 MainApp 里的内联代码，直接引用了 viewModel /
+// selectedIds / isMiuix / scope / 两个 SnackbarHostState。2026-09-17 按上一轮写下的方案收窄成
+// `onConfirm(target)` 回调，**形参 8 → 5**，本组件自此不含任何 ViewModel / CoroutineScope / Snackbar 依赖：
+//   · VM 调用、清选择、关弹窗、弹提示全部回到调用方（MainApp）；
+//   · `selectedIds` 只被用来显示「已选 N 件」，故收窄成 `selectedCount: Int`；
+//   · `isMiuix` 参数删掉，改成组件内部读 `LocalThemeStyle`（与 AppFormDialog / AppConfirmDialog /
+//     AppOptionDialog 等 App 级组件一致；MainApp 传的本来就是 `LocalThemeStyle.current == MIUIX`，值相同）；
+//   · 位置清单传 **`Flow`** 而不是 `List`：收集必须留在 `if (show)` 里面（原实现如此），
+//     若改成在调用方 collect，MainApp 这个壳就会因位置变化而重组 —— 那是行为改动，不是搬运。
 //
 // 2026-09-16 由 MainActivity.kt（拆分中途在 MainApp.kt）搬出：除「被捕获的 var showMoveLocationDialog
 // 换成 show + onDismiss 两个参数」这 8 行代码（6 处赋值 + show 实参 + if 条件）与 1 行段注释外，
@@ -30,14 +36,15 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import top.yukonga.miuix.kmp.basic.ButtonDefaults as MiuixButtonDefaults
-import top.yukonga.miuix.kmp.basic.SnackbarHostState as MiuixSnackbarHostState
 import top.yukonga.miuix.kmp.basic.TextButton as MiuixTextButton
 import com.agon.app.ui.components.MiuixDialog
 import com.agon.app.ui.components.app.stickyImePadding
+import com.agon.app.ui.theme.LocalThemeStyle
+import com.agon.app.ui.theme.ThemeStyle
+import kotlinx.coroutines.flow.Flow
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -49,31 +56,26 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.agon.app.viewmodel.AppViewModel
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.CoroutineScope
 
 @Composable
 internal fun BatchMoveLocationDialog(
-    viewModel: AppViewModel,
-    selectedIds: Set<String>,
-    isMiuix: Boolean,
-    scope: CoroutineScope,
-    snackbarHostState: SnackbarHostState,
-    miuixSnackbarHostState: MiuixSnackbarHostState,
     show: Boolean,
+    locationsFlow: Flow<List<String>>,
+    selectedCount: Int,
     onDismiss: () -> Unit,
+    onConfirm: (String) -> Unit,
 ) {
     // ---- 批量修改存放位置：MD3 AlertDialog / Miuix WindowDialog 双实现 ----
+    val isMiuix = LocalThemeStyle.current == ThemeStyle.MIUIX
     if (show) {
-        val locations by viewModel.locations.collectAsStateWithLifecycle()
+        val locations by locationsFlow.collectAsStateWithLifecycle()
         var selectedLocation by remember { mutableStateOf(locations.firstOrNull() ?: "零食柜") }
         var customLocation by remember { mutableStateOf("") }
 
         if (isMiuix) {
             MiuixDialog(
                 title = "批量修改存放位置",
-                summary = "已选 ${selectedIds.size} 件食品，请选择目标位置：",
+                summary = "已选 $selectedCount 件食品，请选择目标位置：",
                 show = show,
                 onDismissRequest = { onDismiss() },
             ) {
@@ -124,15 +126,7 @@ internal fun BatchMoveLocationDialog(
                             text = "确定移动",
                             onClick = {
                                 val target = customLocation.trim().ifBlank { selectedLocation.trim() }
-                                val count = selectedIds.size
-                                if (target.isNotBlank()) {
-                                    viewModel.updateLocationBatch(selectedIds, target)
-                                    viewModel.clearSelection()
-                                    onDismiss()
-                                    scope.launch {
-                                        miuixSnackbarHostState.showSnackbar("已将 $count 件食品移动到「$target」")
-                                    }
-                                }
+                                if (target.isNotBlank()) onConfirm(target)
                             },
                             modifier = Modifier.weight(1f),
                             colors = MiuixButtonDefaults.textButtonColorsPrimary(),
@@ -156,7 +150,7 @@ internal fun BatchMoveLocationDialog(
                 text = {
                     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         Text(
-                            "已选 ${selectedIds.size} 件食品，请选择目标位置：",
+                            "已选 $selectedCount 件食品，请选择目标位置：",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -191,15 +185,7 @@ internal fun BatchMoveLocationDialog(
                     TextButton(
                         onClick = {
                             val target = customLocation.trim().ifBlank { selectedLocation.trim() }
-                            val count = selectedIds.size
-                            if (target.isNotBlank()) {
-                                viewModel.updateLocationBatch(selectedIds, target)
-                                viewModel.clearSelection()
-                                onDismiss()
-                                scope.launch {
-                                    snackbarHostState.showSnackbar("已将 $count 件食品移动到「$target」")
-                                }
-                            }
+                            if (target.isNotBlank()) onConfirm(target)
                         },
                     ) {
                         Text("确定移动", fontWeight = FontWeight.SemiBold)
