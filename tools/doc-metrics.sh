@@ -182,6 +182,19 @@ for f in glob.glob('**/*.md', recursive=True):
 print('%d 处' % bad)
 PY
 )" '表格行不能跨物理行；跳过代码围栏内的 shell 管道'
+row '计数句自洽性（N run = X 绿 + Y 红）' "$(python3 - <<'PY' 2>/dev/null || echo '需 python3'
+import glob, io, re
+bad = tot = 0
+for f in glob.glob('**/*.md', recursive=True):
+    if f.startswith('.git/') or f.startswith('.claude/'):
+        continue
+    for m in re.finditer(r'(\d+)\s*run[：:]\s*(\d+)\s*绿\s*(\d+)\s*红', io.open(f, encoding='utf-8').read()):
+        r, g, b = map(int, m.groups()); tot += 1
+        if g + b != r:
+            bad += 1; print('     ✗ %s: %d run ≠ %d 绿 + %d 红' % (f, r, g, b))
+print('%d 处，不自洽 %d 处' % (tot, bad))
+PY
+)" '本日曾两次写出「14 绿 3 红 / 14 run」这类算不平的计数，故固化成检查'
 row 'devlog 文件数 / 总行数' "$(ls devlog/*.md | wc -l | tr -d ' ') 个 / $(wc -l devlog/*.md | tail -1 | awk '{print $1}') 行" '含 INDEX.md'
 row 'docs/audits 报告数' "$(ls docs/audits/*.md | wc -l | tr -d ' ') 份" '历史审计报告，只加批注不改写'
 row '含 2026-09-17 批注的报告' "$(grep -l '2026-09-17 状态批注\|2026-09-17 追加' docs/audits/*.md | wc -l | tr -d ' ') 份" '7 份新增顶部批注 + 3 份在既有批注上追加（md3-audit / chileme-review / fix-plan；fix-plan 两者都有 ⇒ 去重 9 份）'
