@@ -14,7 +14,8 @@ package com.agon.app
 //     目前只有 FAB 动画用 → 保持 private。
 //
 // 2026-09-16 由 MainActivity.kt 拆分而来（纯搬运：除 private→internal 外，签名与实现逐字节未改）。
-// 同日拆分 ④：路由表（NavDisplay + 8 个 entry）搬去 AppNavGraph.kt，弹窗搬去 AppDialogs.kt，
+// 同日拆分 ④：路由表（NavDisplay + 8 个 entry）搬去 AppNavGraph.kt，弹窗搬去 AppDialogs.kt
+// （2026-09-17 再搬去 ui/components/app/AppBatchMoveDialog.kt，故本文件多了那条 import），
 // 批量操作栏搬去 BatchBars.kt，底栏搬去 NavChrome.kt —— 本文件只剩 App 外壳本身。
 
 import androidx.compose.foundation.layout.imePadding
@@ -70,6 +71,7 @@ import com.agon.app.data.ArchiveReason
 import com.agon.app.ui.navigation.AppRoute
 import com.agon.app.ui.components.SwipeDismissSnackbarHost
 import com.agon.app.ui.components.showUndoSnackbar
+import com.agon.app.ui.components.app.BatchMoveLocationDialog
 import com.agon.app.ui.theme.LocalThemeStyle
 import com.agon.app.ui.theme.MotionEasing
 import com.agon.app.ui.theme.MotionSpring
@@ -324,13 +326,13 @@ fun MainApp(viewModel: AppViewModel) {
         }
     }
 
-    // ---- 批量修改存放位置弹窗（实现在 AppDialogs.kt）----
+    // ---- 批量修改存放位置弹窗（实现在 ui/components/app/AppBatchMoveDialog.kt）----
     BatchMoveLocationDialog(
         show = showMoveLocationDialog,
         locationsFlow = viewModel.locations,
         selectedCount = selectedIds.size,
         onDismiss = { showMoveLocationDialog = false },
-        // VM 与 Snackbar 逻辑回到调用方（2026-09-17 按 AppDialogs.kt 文件头既定方案收窄，形参 8 → 5）。
+        // VM 与 Snackbar 逻辑回到调用方（2026-09-17 按该组件文件头既定方案收窄，形参 8 → 5）。
         // 顺序与收窄前逐句一致：先记住件数（clearSelection 之后 selectedIds 就空了）→ 改数据 → 清选择
         // → 关弹窗 → 弹提示；提示文案两主题本来就相同，只有宿主不同。
         onConfirm = { target ->

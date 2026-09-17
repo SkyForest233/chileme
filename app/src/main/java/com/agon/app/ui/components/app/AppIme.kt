@@ -23,7 +23,7 @@ package com.agon.app.ui.components.app
 // `.claude/skills/miuix` 里也没有（release note 提到的 "search-bar inset timing" 明确标注为 Example-only、
 // 不是库的公开 API，且嘱咐不要照抄）。Miuix 侧要根治只能等上游，可考虑提 issue。
 //
-// 适用范围：**只有带输入框的 MD3 弹窗**（三处：`AppFormDialog` / `AppDialogs` 批量移动位置 /
+// 适用范围：**只有带输入框的 MD3 弹窗**（三处：`AppFormDialog` / `AppBatchMoveDialog` 批量移动位置 /
 // `SettingsScreen` 坚果云，正是 `ImeHandlingTest` 第 3 条点名那三个文件）。
 // 屏幕级的 `AppScaffold(modifier = Modifier.imePadding())` **刻意不改**：屏幕内容高、下坠幅度小得多，
 // 用户也没报；改它要动 `ImeHandlingTest` 第 1 条的整份屏幕清单，风险与收益不成比例。

@@ -5,7 +5,8 @@ package com.agon.app
 //
 // 原 MainActivity.kt 有 1,123 行，2026-09-16 起按职责拆到同包（com.agon.app）的兄弟文件：
 //   MainApp.kt（App 外壳：状态 + Scaffold + Snackbar 覆盖层）· AppNavGraph.kt（路由入口）
-//   AppDialogs.kt（弹窗）· BatchBars.kt（多选批量操作栏）· NavChrome.kt（底栏与 Tab Pager）
+//   BatchBars.kt（多选批量操作栏）· NavChrome.kt（底栏与 Tab Pager）
+//   （弹窗那一份 2026-09-17 又搬去 ui/components/app/AppBatchMoveDialog.kt）
 // 跨文件复用的顶层声明由 private 放宽为 internal —— Kotlin 顶层 private 是**文件级**作用域，不放宽
 // 就看不见；internal 只是模块内可见（app 模块没有第二个消费方，R8 照常裁剪），不是公开 API。
 // 代价：detekt 的 UnusedPrivateMember 从此不再覆盖它们。取舍见 devlog/2026-09-16.md「🧭 拆分路线图」。

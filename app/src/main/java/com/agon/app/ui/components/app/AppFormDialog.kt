@@ -93,8 +93,8 @@ fun AppFormDialog(
             // 所以 content 里**多个顶层节点之间不会有任何留白**。2026-09-17 真机复测发现：这里原本把
             // 「字段 Column」和「按钮 Row」写成两个兄弟节点 → 输入框下边与「取消 / 添加」上边重合。
             // 修法照上游示例（example/.../component/DialogSection.kt:351：单一 Column + spacedBy(12.dp)）
-            // 与本仓同形态弹窗（AppDialogs.kt 批量移动位置、SettingsScreen 坚果云）：合成一个 Column，
-            // 按钮区再额外留 8.dp（合计 20.dp，与 AppDialogs.kt 完全一致）。
+            // 与本仓同形态弹窗（AppBatchMoveDialog.kt 批量移动位置、SettingsScreen 坚果云）：合成一个 Column，
+            // 按钮区再额外留 8.dp（合计 20.dp，与 AppBatchMoveDialog.kt 完全一致）。
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 states.forEachIndexed { index, fieldState ->
                     MiuixTextField(

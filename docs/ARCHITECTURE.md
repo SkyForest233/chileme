@@ -28,10 +28,10 @@ app/src/main/java/com/agon/app/
 ├─ MainActivity.kt              # 单 Activity：深浅色/风格分流、启动放行超时（READY_TIMEOUT_MS）、splash、CompositionLocalProvider
 ├─ MainApp.kt                   # App 外壳：backStack / pagerState / 多选 / Snackbar 收集 / nestedScroll + Scaffold（底栏槽位、FAB）+ Snackbar 覆盖层
 ├─ AppNavGraph.kt               # 全 App 唯一的 NavDisplay + 8 个 entry<AppRoute.*>（外层 Box 限宽 840dp 居中）
-├─ AppDialogs.kt                # App 级弹窗：批量「移动存放位置」（MD3 AlertDialog / Miuix WindowDialog 双实现）
 ├─ BatchBars.kt                 # 批量操作栏：悬浮 / 常驻两条（BatchActionBar + 3 个按钮）
 ├─ NavChrome.kt                 # TabSpec / MainTabs + MainTabsPager + 4 套底栏（MD3/MIUIX × 常驻/悬浮）
-#   ↑ 以上 6 个文件同属包 com.agon.app，2026-09-16 由原 MainActivity.kt（1,123 行）按职责拆出；
+#   ↑ 以上 5 个文件同属包 com.agon.app（App 外壳），2026-09-16 由原 MainActivity.kt（1,123 行）按职责拆出；
+#     拆出的第 6 份是弹窗 AppDialogs.kt，2026-09-17 又搬去 ui/components/app/AppBatchMoveDialog.kt（见下）；
 #     跨文件引用的顶层声明由 private 放宽为 internal（模块内可见，非公开 API；R8 照常裁剪）
 ├─ data/                        # 数据层（无 UI 依赖）
 │   ├─ FoodModels.kt            # 数据模型 + 派生属性（过期计算/状态判定）+ 纯函数（compactConsumptionAt 等）
@@ -52,11 +52,13 @@ app/src/main/java/com/agon/app/
     │                           #   Badges.kt（StatusBadge/LocationTag）· FoodAvatar.kt（FoodAvatar/EmojiAvatar）· QuantityStepper.kt
     │                           #   FoodCard.kt · Controls.kt（SelectIndicator/CheckSwitch/EmptyState）· DataCorrupt.kt（corruptKeyNames/DataCorruptBanner）
     │                           #   MiuixDialog.kt（WindowDialog 封装）；另有原本就独立的 UndoSnackbar.kt · ExpiryCalendar.kt
-    │   └─ app/                 # App 级双主题骨架（2026-09-16 第三批 #3 新建；10 个文件 2,746 行）：
+    │   └─ app/                 # App 级双主题骨架（2026-09-16 第三批 #3 新建 10 个文件 2,746 行；2026-09-17 增至 12）：
     │                           #   AppChrome.kt（AppScaffold / AppTopBar / AppSnackbarHost + Placement + Form / AppMessageScreen / 顶栏动作）
     │                           #   AppText.kt（AppTextScale 13 档语义字号 + AppText / AppEmojiText / AppMutedText + 主题色访问器）
     │                           #   AppSurface.kt · AppListRow.kt · AppControls.kt · AppButtons.kt · AppInfo.kt
     │                           #   AppConfirmDialog.kt · AppFormDialog.kt · AppOptionDialog.kt（确认 / 带输入框 / 选项列表 三类弹窗）
+    │                           #   AppIme.kt（stickyImePadding()：MD3 输入弹窗的粘性键盘避让，2026-09-17 新增）
+    │                           #   AppBatchMoveDialog.kt（批量「移动存放位置」弹窗，2026-09-17 由包根 AppDialogs.kt 搬来）
     └─ screens/                 # 每屏一文件，自带 Scaffold。两层结构（2026-08-22 B-08 起）：
                                 # ① *State.kt 状态容器（8 个）：remember*UiState + 纯计算函数，双主题共用、单测覆盖
                                 # ② 渲染层（9 个屏幕文件 + 8 个 *State.kt）：ConsumptionLog / Archive / FoodDetail / Home /
@@ -141,7 +143,7 @@ app/src/main/java/com/agon/app/
 - **图片存储**：封面统一通过 `copyImageToCovers()` 落盘到 `filesDir/covers/`，FoodItem 只存绝对路径；展示用 `FoodAvatar`，优先级：照片 > coverText > 分类 emoji
   - **已知待办**：① `photoPath` 存**绝对路径**，换设备/清数据后必然悬空，应改存文件名（`covers/<uuid>.jpg` 的 basename）运行时用 `context.filesDir` 拼；② 存在性判断目前在**组合期**同步调 `File.exists()`（`FoodAvatar.kt:43`、`EditFoodScreen.kt:284`），列表滚动每帧重算 syscall，应移到 VM/IO 侧或改由 Coil `onError` 回落 emoji。见 `docs/audits/chileme-review.md` P1-8
 - **进度条语义**：一律用 `elapsedRatio`（正相关，时间过去多少走多少），禁止再用 freshness 直接作进度
-- **键盘避让（2026-09-15）**：Android 15+ 强制 edge-to-edge 后 manifest 的 `adjustResize` **不再缩窗口**，键盘只是叠在窗口上，必须自己消费 `WindowInsets.ime`。三条硬规则：① **含输入框的屏幕**一律 `Scaffold(modifier = Modifier.imePadding())`（整屏缩到键盘之上，滚动区同步变矮）；② **不在 Scaffold 内的 App 级浮层**用 `.navigationBarsPadding().imePadding()` 两段式（等价于旧的 `navigationBarsWithImePadding()`，内层只补差额，不会叠加成一条大空隙）——**底栏按产品决定不跟随抬升（A 方案）**，是全 App 唯一「键盘弹出时允许被遮挡」的元素；③ **MD3 弹窗**是独立浮动窗口，必须 `DialogProperties(decorFitsSystemWindows = false)` 才会把 IME inset 透给内容，否则底部按钮被键盘盖住。**Miuix `WindowDialog` 例外**：库内 `DialogContent` 根节点自带 `imePadding()`（窗口属性 `decorFitsSystemWindows = false` + `usePlatformDefaultWidth = false`），本项目**不要**传 `defaultWindowInsetsPadding = false`，也不要给 Miuix 弹窗再加 padding。**带输入框的 MD3 弹窗自 2026-09-17 起改用 `stickyImePadding()`**（`ui/components/app/AppIme.kt`，三处：`AppFormDialog` / `AppDialogs` 批量移动位置 / `SettingsScreen` 坚果云）：焦点在同一弹窗的两个输入框之间切换时平台会 restartInput、输入法窗口整个消失再出现，`WindowInsets.ime` 瞬时归零，居中弹窗随之上下坠一下（用户真机报告；类型相同的两个文本框也会，故与 `keyboardOptions` 无关）。粘性避让在 inset 变小时先按住 `holdMillis`（默认 300ms）再平滑落回，焦点切换因此零位移，代价是主动收起键盘时弹窗晚 300ms 才落回居中。**Miuix 侧无法同样处理**：库的 `imePadding()` 在 `DialogContentLayout.DialogContent` 内部，唯一开关 `defaultWindowInsetsPadding = false` 会连带关掉 `navigationBarsPadding` / `captionBarPadding`（弹窗底边掉到导航栏下、圆角被压），且已查证上游 pinned tag v0.9.4-rc01 全库只有两处用 ime（`.imePadding()` 与关闭弹窗时 `keyboardController.hide()`），无任何 IME 平滑能力 —— 按用户 2026-09-17 决定 Miuix 侧不动，要根治需上游支持。屏幕级 `AppScaffold(modifier = Modifier.imePadding())` 刻意不改（内容高、幅度小，且要动第 1 条整份屏幕清单）**content 必须是单一根节点**：库把 title / summary / `content()` 放进一个不带 `verticalArrangement` 的 Column，两个平级节点之间是 0dp（2026-09-17 真机复测踩到，`MiuixDialogContentTest` 静态拦截）。回归守卫见 `ImeHandlingTest`
+- **键盘避让（2026-09-15）**：Android 15+ 强制 edge-to-edge 后 manifest 的 `adjustResize` **不再缩窗口**，键盘只是叠在窗口上，必须自己消费 `WindowInsets.ime`。三条硬规则：① **含输入框的屏幕**一律 `Scaffold(modifier = Modifier.imePadding())`（整屏缩到键盘之上，滚动区同步变矮）；② **不在 Scaffold 内的 App 级浮层**用 `.navigationBarsPadding().imePadding()` 两段式（等价于旧的 `navigationBarsWithImePadding()`，内层只补差额，不会叠加成一条大空隙）——**底栏按产品决定不跟随抬升（A 方案）**，是全 App 唯一「键盘弹出时允许被遮挡」的元素；③ **MD3 弹窗**是独立浮动窗口，必须 `DialogProperties(decorFitsSystemWindows = false)` 才会把 IME inset 透给内容，否则底部按钮被键盘盖住。**Miuix `WindowDialog` 例外**：库内 `DialogContent` 根节点自带 `imePadding()`（窗口属性 `decorFitsSystemWindows = false` + `usePlatformDefaultWidth = false`），本项目**不要**传 `defaultWindowInsetsPadding = false`，也不要给 Miuix 弹窗再加 padding。**带输入框的 MD3 弹窗自 2026-09-17 起改用 `stickyImePadding()`**（`ui/components/app/AppIme.kt`，三处：`AppFormDialog` / `AppBatchMoveDialog` 批量移动位置 / `SettingsScreen` 坚果云）：焦点在同一弹窗的两个输入框之间切换时平台会 restartInput、输入法窗口整个消失再出现，`WindowInsets.ime` 瞬时归零，居中弹窗随之上下坠一下（用户真机报告；类型相同的两个文本框也会，故与 `keyboardOptions` 无关）。粘性避让在 inset 变小时先按住 `holdMillis`（默认 300ms）再平滑落回，焦点切换因此零位移，代价是主动收起键盘时弹窗晚 300ms 才落回居中。**Miuix 侧无法同样处理**：库的 `imePadding()` 在 `DialogContentLayout.DialogContent` 内部，唯一开关 `defaultWindowInsetsPadding = false` 会连带关掉 `navigationBarsPadding` / `captionBarPadding`（弹窗底边掉到导航栏下、圆角被压），且已查证上游 pinned tag v0.9.4-rc01 全库只有两处用 ime（`.imePadding()` 与关闭弹窗时 `keyboardController.hide()`），无任何 IME 平滑能力 —— 按用户 2026-09-17 决定 Miuix 侧不动，要根治需上游支持。屏幕级 `AppScaffold(modifier = Modifier.imePadding())` 刻意不改（内容高、幅度小，且要动第 1 条整份屏幕清单）**content 必须是单一根节点**：库把 title / summary / `content()` 放进一个不带 `verticalArrangement` 的 Column，两个平级节点之间是 0dp（2026-09-17 真机复测踩到，`MiuixDialogContentTest` 静态拦截）。回归守卫见 `ImeHandlingTest`
 - **统计口径（2026-09-15）**：「过期浪费」= `calculateWastedTotal(archived)`，按**件数**（`sumOf { item.quantity }`）而非归档条数，与同屏按件求和的「本周消耗」保持一致。注意该指标仍受归档上限 `take(200)` 影响，长期不失真需独立计数器（见 `docs/audits/2026-09-15-code-review.md` §1.8）
 - **「件」与「条」的用词规则（2026-09-15）**：写给用户的**带「件」的文案必须是 `quantity` 求和**（`BackupData.itemQuantity` / `HomeScreenState.quantityOfStatus` / `StatsState` 的按件字段），`items.size` 只能出现在「条/记录」语境或**不带单位**的筛选计数里（首页三张统计卡不带单位、点进去是记录列表）。归档/消耗/历史一律「条」。已按此修正：首页新鲜度横幅、一键清理按钮及其撤销提示、导入预览的库存位数
 - **屏幕只换外壳（2026-09-15 立规，2026-09-16 扩大范围）**：屏幕文件（`*Screen.kt` / `*Screens.kt`）必须调用 `remember*UiState` 复用已测状态容器，**禁止在 UI 文件里重写聚合计算**；`ScreenParityTest`（原名 `MiuixParityTest`，因双主题合并后文件名不再带 `Miuix` 前缀，按前缀枚举会漏掉刚合并的屏幕，故改为覆盖全部屏幕文件）会静态拦截（此前 `MiuixStatsScreen` 手抄了一份统计逻辑，导致 `StatsStateTest` 测的是 MIUIX 下不执行的代码）

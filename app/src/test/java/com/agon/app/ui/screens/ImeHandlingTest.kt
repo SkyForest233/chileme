@@ -32,7 +32,8 @@ import java.io.File
  *
  * 第 3 条的清单是**按文件点名**的，所以「带输入框的 MD3 弹窗」新出现在哪个文件，就必须把那个文件加进来：
  * 2026-09-16 就是这样漏掉了 `MainActivity.kt` 的批量「移动存放位置」弹窗（有 `OutlinedTextField`，
- * 却两个属性都没写），键盘会盖住「确定移动」按钮。该弹窗同日拆分后落在 `AppDialogs.kt`。
+ * 却两个属性都没写），键盘会盖住「确定移动」按钮。该弹窗同日拆分后落在 `AppDialogs.kt`，
+ * 2026-09-17 又搬去 `ui/components/app/AppBatchMoveDialog.kt`（两处清单同步改；漏改会直接红，见下）。
  *
  * **2026-09-17 起清单里的文件不存在 = 直接红**（见 [assertAllListedFilesExist]）。此前 `read()` 对不存在的
  * 文件返回 null、各条断言再用 `mapNotNull` 悄悄丢掉，于是「文件搬走了而清单没跟着改」的后果是守卫**静默少覆盖**
@@ -89,7 +90,8 @@ class ImeHandlingTest {
         "com/agon/app/MainActivity.kt",   // 拆分前：Snackbar + 批量栏 + 弹窗 + 底栏全在这里；拆分后只剩 Activity 本体
         "com/agon/app/MainApp.kt",        // Snackbar 覆盖层
         "com/agon/app/BatchBars.kt",      // 悬浮 / 常驻两条批量操作栏
-        "com/agon/app/AppDialogs.kt",     // 批量「移动存放位置」弹窗（MD3 分支）
+        // 批量「移动存放位置」弹窗（MD3 分支）：2026-09-17 由包根 AppDialogs.kt 搬进 App 级组件层
+        "com/agon/app/ui/components/app/AppBatchMoveDialog.kt",
         "com/agon/app/NavChrome.kt",      // 4 套底栏：只有 navigationBarsPadding，**没有** imePadding
     )
 
@@ -193,8 +195,9 @@ class ImeHandlingTest {
         "com/agon/app/ui/screens/SettingsScreen.kt",        // 坚果云账号 / 应用密码
         // 分类名称 + Emoji、添加存放位置：2026-09-16 第 6 对把这两个弹窗搬进了组件层，条目跟着搬
         "com/agon/app/ui/components/app/AppFormDialog.kt",
-        // 批量「移动存放位置」弹窗：2026-09-16 补入清单时它在 MainActivity.kt，同日拆分后落在 AppDialogs.kt。
-        "com/agon/app/AppDialogs.kt",
+        // 批量「移动存放位置」弹窗：2026-09-16 补入清单时它在 MainActivity.kt，同日拆分后落在 AppDialogs.kt，
+        // 2026-09-17 搬去 ui/components/app/ 并改名 AppBatchMoveDialog.kt（本行与 chromeFiles 里那行同步改的）。
+        "com/agon/app/ui/components/app/AppBatchMoveDialog.kt",
     )
 
     /** 第 3 条前半：MD3 弹窗是独立浮动窗口，不关这个开关 IME inset 根本传不进内容。 */

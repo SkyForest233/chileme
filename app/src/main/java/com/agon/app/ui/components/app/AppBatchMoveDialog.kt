@@ -1,12 +1,19 @@
-package com.agon.app
+package com.agon.app.ui.components.app
 
-// App 级弹窗。目前只有一个：批量「移动存放位置」（MD3 AlertDialog / Miuix WindowDialog 双实现）。
+// App 级弹窗组件。目前只有一个：批量「移动存放位置」（MD3 AlertDialog / Miuix WindowDialog 双实现）。
+//
+// 位置沿革：2026-09-16 从 MainActivity.kt 拆出时落在包根 `com/agon/app/AppDialogs.kt`（那会儿 `ui/components/app/`
+// 这层还没建）；2026-09-17 形参收窄到 5 个、不再含任何 ViewModel / CoroutineScope / Snackbar 依赖之后，
+// 它就是一个纯展示组件了（而且早就在消费这一层：`MiuixDialog` / `stickyImePadding`），于是搬来 App 级组件层
+// 并改名 `AppBatchMoveDialog.kt`，与 AppConfirmDialog / AppFormDialog / AppOptionDialog 同列。
+// 搬家只动 package 行与一条变成同包的 import（`stickyImePadding` 现在同包，无需导入），实现逐字节未改。
 //
 // ⚠️ MD3 分支必须保留 properties = DialogProperties(decorFitsSystemWindows = false) + stickyImePadding()：
 // MD3 弹窗是独立浮动窗口，不关这个开关 IME inset 传不进内容，键盘会盖住「确定移动」按钮
 // （2026-09-16 修，用户真机复测通过）。Miuix 分支不需要 —— WindowDialog 的 DialogContent 由库自理
 // IME，**不要**给它传 defaultWindowInsetsPadding = false。ImeHandlingTest 第 3 条按文件清单守卫这一点，
-// 弹窗再搬家时同步改清单。
+// 弹窗再搬家时同步改清单 —— 2026-09-17 起漏改会**直接红**（该测试补了「清单里的文件必须存在」断言），
+// 不再像从前那样静默少覆盖：`read()` 对不存在的文件返回 null、断言在更小的集合上照常全绿。
 //
 // 形参曾一度是 8 个，那是**忠实搬运**的结果：这块原本是 MainApp 里的内联代码，直接引用了 viewModel /
 // selectedIds / isMiuix / scope / 两个 SnackbarHostState。2026-09-17 按上一轮写下的方案收窄成
@@ -44,7 +51,6 @@ import androidx.compose.material3.TextButton
 import top.yukonga.miuix.kmp.basic.ButtonDefaults as MiuixButtonDefaults
 import top.yukonga.miuix.kmp.basic.TextButton as MiuixTextButton
 import com.agon.app.ui.components.MiuixDialog
-import com.agon.app.ui.components.app.stickyImePadding
 import com.agon.app.ui.theme.LocalThemeStyle
 import com.agon.app.ui.theme.ThemeStyle
 import kotlinx.coroutines.flow.StateFlow

@@ -22,7 +22,7 @@ import java.io.File
  *
  * **守卫口径**：
  * 1. 每个能解析出尾随 lambda 的 `MiuixDialog(…)` 调用点，其 content 的顶层语句必须**恰好 1 条**；
- * 2. 成功解析的调用点数不得少于 [ExpectedParsedSites]（2026-09-17 实测 8 个：`AppDialogs` 1 +
+ * 2. 成功解析的调用点数不得少于 [ExpectedParsedSites]（2026-09-17 实测 8 个：`AppBatchMoveDialog` 1 +
  *    `AppConfirmDialog` 1 + `AppFormDialog` 1 + `AppOptionDialog` 1 + `SettingsScreen` 4）。
  *    解析不出来的调用点**不算违规**，但会让这个计数掉下来 —— 于是「解析器失效」与「弹窗被删」
  *    都会在这一条上响，守卫不会静默空转（与 `tools/ci-gates.sh` 的 `detekt_selftest` 同思路）。

@@ -33,7 +33,7 @@ import top.yukonga.miuix.kmp.window.WindowDialog
  * （间距靠 title、summary 各自的 `padding(bottom = 12.dp)` 提供，`content()` 后面没有任何补白）。
  * 所以 content 里若写两个平级节点（如「字段 Column」+「按钮 Row」），它们之间是 **0dp**，真机上表现为
  * 输入框下边与按钮上边重合。上游示例的标准写法是单一 `Column(verticalArrangement = Arrangement.spacedBy(12.dp))`
- * （`example/shared/.../component/DialogSection.kt:351`），本仓 `AppDialogs.kt`（批量移动位置）、
+ * （`example/shared/.../component/DialogSection.kt:351`），本仓 `app/AppBatchMoveDialog.kt`（批量移动位置）、
  * `AppFormDialog.kt`、`SettingsScreen.kt`（坚果云）均遵此，按钮区再额外留 4~8.dp。
  *
  * **动作按钮一律 `TextButton`，主要动作传 `ButtonDefaults.textButtonColorsPrimary()`**
