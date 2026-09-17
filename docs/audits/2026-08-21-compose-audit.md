@@ -1,5 +1,27 @@
 # Jetpack Compose Audit Report
 
+> ## ⚠️ 2026-09-17 状态批注（读本文前必看）
+>
+> 本文是 skill 自动打分产物，自评 Confidence **Medium**（沙箱无 Android 工具链、无 Compose compiler reports，
+> 稳定性结论为源码推断）。正文与分数原样保留，但 **Scorecard 的分数不可再引用**：打分基线是「MD3/Miuix 双实现」
+> 时代的代码，2026-09-16 已把 8 对双胞胎屏幕合并为单文件双主题，`Common.kt`(983 行) 与 `MainActivity.kt`(1,123 行)
+> 也已拆分。本文引用的 **5 个文件已不存在**：`Common.kt`、`MiuixFoodDetailScreen.kt`、`MiuixFoodListScreen.kt`、
+> `MiuixStatsScreen.kt`、`MiuixSettingsScreen.kt`。
+>
+> **本文的发现当时已分流到另外两份文件，那两份有逐项校订，要查现状请优先读它们**：
+> - 构建 / 兼容 / 数据安全 / 性能 / 测试 / 门面 → `docs/audits/2026-08-21-fix-plan.md`
+>   （**7 个阶段全部已执行完毕**，见该文件顶部批注）
+> - 待办与 lint 清单 → `docs/audits/2026-08-21-backlog.md`（顶部有 2026-09-16 逐项校订表）
+>
+> 与本文直接相关、**至今仍未做**的部分（登记在 `devlog/INDEX.md`「当前待办」，那是唯一事实源）：
+> - Performance：组合期计算已从 09-15 的 6 处收敛到 **4** 处（全在 `EditFoodScreen`）；`stateIn(` **20** 处但
+>   `WhileSubscribed` **0** 处（后台仍在算）；`photoPath` 存绝对路径 + 组合期 `File.exists()`
+>   （`FoodAvatar.kt:43`、`EditFoodScreen.kt:284`）
+> - Testing：**仍然 0 个 UI 测试**（仓库连 `app/src/androidTest/` 目录都没有）；现有 **121** 例全是纯 JVM 单测
+> - State Management：无 `Application` 子类、无 DI 容器（`FoodRepository.kt` 950 行，`LocalDate.now()` 34 处不可注入）
+>   ⇒ 即路线图 #5
+
+
 Target: `/home/user/chileme` (`app` 单模块)
 Date: 2026-08-21
 Skill: [hamen/compose_skill](https://github.com/hamen/compose_skill) `jetpack-compose-audit` 4.3.2

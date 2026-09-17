@@ -1,5 +1,29 @@
 # 第三方审查报告《chileme-review.md》独立复核（2026-09-15）
 
+> ## ⚠️ 2026-09-17 状态批注（读本文前必看）
+>
+> 本文是对第三方报告 `chileme-review.md` 的独立复核。**本文的判定已被吸收进被复核对象顶部的
+> 「2026-09-16 复核批注」表**（那张表逐条给了现状，并采纳了本文的修正）。
+> ⇒ 要查「某一条现在怎么样了」，请直接读 `docs/audits/chileme-review.md` 顶部；
+> 本文保留的价值是**取证过程**（`file:line` + 可复现命令 + 两条外部技术前提的核实）。
+>
+> 本文最重要的两条结论，现状如下：
+> - **§1.1 ❌ P0-6 的核心断言不成立**（`device-transfer` 确实排除了 DataStore，凭据不会随换机直传外泄）
+>   ⇒ **已被采纳**，并连带把两个「次要但成立」的点如实登记进 `docs/ARCHITECTURE.md`「备份排除规则」+ README：
+>   ① `filesDir/snapshots/` 两份规则都没排除 ⇒ 每日快照会进 Android 系统云备份；
+>   ② `device-transfer` 放行 `covers/` 却排除 `datastore/` ⇒ 换机后产生一批孤儿封面。
+>   **行为未改**（改备份规则会影响老用户既有备份），仍挂在 `devlog/INDEX.md`「需用户决策」。
+> - **§1.2 ⚠️ P0-1 的 A/B 修法都不对症**（`contentWindowInsets` 抬不起 `bottomBar` 里的保存按钮）
+>   ⇒ **已被采纳**，最终修法改为作用于 `Scaffold` 的 modifier；2026-09-17 又补了弹窗侧的 `stickyImePadding()`
+>   （`ui/components/app/AppIme.kt`，粘性避让：inset 变小时先按住 `holdMillis` 再平滑落回），
+>   由 `ImeHandlingTest` 守卫，用户真机复测通过。**Miuix 侧刻意不动**（上游 v0.9.4-rc01 无任何 IME 平滑能力，
+>   唯一开关会连带关掉 `navigationBarsPadding`）—— 详见 `devlog/2026-09-17.md` §2–§6。
+>
+> ⚠️ 本文引用的 **4 个文件此后已变动**：`Common.kt`（09-16 拆成 8 个文件，已不存在）、
+> `MiuixConsumptionLogScreen.kt` / `MiuixSettingsScreen.kt` / `MiuixStatsScreen.kt`（09-16 合并时删除）。
+> 文中所有 `file:line` 一律按当时基线（`41a728f` 前后）读，**不要拿今天的行号去对**。
+
+
 > 被复核对象：`docs/audits/chileme-review.md`（master 分支，审查基线 commit `41a728f`）
 > 复核方式：逐条回到源码取证（`file:line` + 可复现命令），另对两条外部技术前提做了核实（`material-icons-extended` 弃用状态、targetSdk 35+ 的 IME inset 行为）
 > 复核范围：其全部 P0/P1/P2/P3 条目共 **39 条**（P0×6 + P1×11 + P2×8 + P3×14），逐条判定为 ✅成立 / ⚠️需修正 / ❌不成立 / ❓未验证
