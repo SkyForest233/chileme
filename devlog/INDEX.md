@@ -1,115 +1,139 @@
 # 开发日志索引（devlog/INDEX.md）
 
-> 维护规则见 `CLAUDE.md` 第 3 节：每轮开发完成（构建成功）后写当日日志并更新本索引。
+> 维护规则见 `CLAUDE.md` 第 3 节：每轮开发完成（构建成功）后写当日日志，并在本索引更新一行。
+>
+> **本文件是索引，不是副本**（2026-09-17 起严格执行）：日志列表一天一行，细节留在当日日志；
+> 待办只在本文件维护一份。此前 09-15 / 09-16 / 09-17 三行被写成了日志的浓缩副本
+> （09-17 那格 37 行 ≈ 当日日志篇幅的 24%，07-31 那格 ≈ 50%），单元格里还嵌了换行，
+> 导致 markdown 表格从第 10 行起断裂（那些行不以 `|` 开头，GitHub 上渲染是乱的）；
+> 同一件事又在「待办总览」散文和「优先级表」两处各写一遍，单测数就因此在
+> 91 → 116 → 117 → 119 → 120 之间被反复加注修正。
+>
+> 压缩前做过**信息保全核对**：原先只存在于本文件、当日日志里没有的 5 个 CI run 号与 6 个提交哈希，
+> 已先补进 [2026-09-17 日志](2026-09-17.md) 末节「本日提交与 CI 台账」，本文件此后只留指针。
 
 ## 日志列表（新 → 旧）
 
-| 日期 | 主题 | 构建状态 |
-|---|---|---|
-| [2026-09-17](2026-09-17.md) | **真机复测收尾轮**：登记用户对第三批 #3（双主题 8 对合并）的实机复测结论 —— 主体通过、**三键导航 IME 复测通过（关闭 09-15 起的待办）**；处理复测发现的 2 个问题：② **Miuix 表单弹窗「输入框与取消/添加按钮零间距」已修** —— 根因用上游 pinned 源码逐行指认（`layout/DialogContentLayout.kt` 的 `DialogContent` 根 Column **不带 `verticalArrangement`**，留白只由 title/summary 各自的 `padding(bottom = 12.dp)` 提供，故 content 里两个平级节点之间是 0dp），修法照上游示例 `DialogSection.kt:351` 与本仓 `AppDialogs.kt`（单一 `Column(spacedBy(12.dp))` + 按钮 Row `padding(top = 8.dp)` = 20dp）；全仓扫描确认**仅此一处**违反，约束同步写进 `MiuixDialog.kt` KDoc + `MIUIX_UPGRADE.md` §2 第 8 条 / §3 坑表，并新增静态守卫 **`MiuixDialogContentTest`**（2 例：词法状态机数 content 顶层节点 + 解析器自检 canary；带「扫到调用点数 ≥ 8」的空转哨兵；算法先用 Python 在真源码上验证过 —— 当前 8 处全绿、修复前的 `AppFormDialog.kt` 被判 2 个顶层节点）；① **切换输入框时「键盘 + 弹窗弹一下」（两主题）本轮未改代码** —— 机制已析（弹窗位置是 IME inset 的函数，焦点切换触发 `restartInput` → inset 瞬时归零；MD3 居中弹窗与 Miuix 底部贴合弹窗同一下游原因），已否决「去掉 `KeyboardType.Password`」（隐私回退）与「Miuix 侧 `defaultWindowInsetsPadding = false` 自行接管 insets」（会连带丢掉 `navigationBarsPadding`/`captionBarPadding`，弹窗底边压到导航栏下，视觉回退），用户答复（**类型相同的两个文本框也会弹** + **键盘整个消失再出现** ⇒ 诱因是焦点切换触发 restartInput，与 `keyboardOptions` 无关）后，"
-"已查证上游 v0.9.4-rc01 与 `.claude/skills/miuix` **均无任何 IME 平滑能力**（全库只有 `.imePadding()` 与关弹窗时 `keyboardController.hide()`；唯一开关 `defaultWindowInsetsPadding` 是三件套一起关，会让所有 Miuix 弹窗底边掉到导航栏下）→ 按用户决定 **Miuix 侧不动，只修 MD3**：新增 `ui/components/app/AppIme.kt` 的 **`stickyImePadding()`**（inset 变大逐帧跟随；归零先按住 `holdMillis`=300ms 再 `releaseMillis`=220ms 平滑落回 ⇒ 焦点切换时弹窗**零位移**），接入 `ImeHandlingTest` 第 3 条点名的三处 MD3 输入弹窗，`ImeHandlingTest` 第 2 条（按字样点数会把正确修复判成违规）与第 3 条（补「拿到 inset 之后必须真的避让」）**同轮改**；屏幕级 `imePadding()` 刻意不动。另**新发现**：`ImeHandlingTest.codeOnly()` 的块注释正则不认字符串字面量，`SettingsScreen.kt:379` 的 MIME 通配符 `"*/*"` 会让它把 379–976 约 600 行真实代码当注释吞掉（已量清：现有断言无一正在空转；新断言改用赋值形态匹配绕开，正解登记为待办）。③ **Miuix 弹窗「确定/保存/添加」不是蓝底（用户第二次真机反馈）已修** —— 查证上游 `basic/Button.kt`：库的 `TextButton` 内部就是 `Button`、用 `.squircleSurface(color = containerColor)`（:76）**实心填充**，默认 `textButtonColors()` 容器色是 `secondaryVariant` 浅灰 ⇒ 不传 `colors` 时主要动作与「取消」完全同色；上游示例 `DialogSection.kt` 的 **7 个弹窗主要动作一律 `textButtonColorsPrimary()`**（容器 `primary` 蓝 + 文字 `onPrimary` 白 = 蓝底白字胶囊）⇒ 全仓 8 个调用点查出 **4 处偏离**并统一（3 处补 `colors`、1 处把实心 `Button`+手写 `Text(onPrimary, SemiBold)` 换回 `TextButton`），**反转** `AppConfirmDialog.MiuixConfirmButton` 原先「非危险分支不传 colors、照库默认走最稳」的决定（KDoc 已改写并记依据）；顺带发现技能库 `color-lookup.md:76` 把该 API 描述成「蓝色文字按钮 / primary text」与源码不符（`TextButtonColors.color`→容器、`textColor`→文字），一律以源码为准。守卫同轮新增 `dialogActionsFollowMiuixButtonConvention`（A 不得用实心配色工厂 / B 2 个以上 `TextButton(` 至少一个显式传 `colors =`），**第一版被自己的注释误报** ⇒ 给 `Walker` 加 `inComment()`（仍只暴露 Boolean）+ `codeOnly()` 逐字符剥注释、保留字符串，让断言对注释免疫；三次反向验证（种回实心配色 ⇒ A 响 / 删掉 colors ⇒ B 响 / 只在注释提字样 ⇒ 不响）+ 原有单一根节点规则仍 0 违规。④ 用户第二次反馈「**弹窗是不会弹了**」⇒ 问题 ① 达成；「输入法还是会弹」查到 Compose 源码级定论：`AndroidPlatformTextInputSession.startInputMethod` 用 `withSessionCancellingPrevious` ⇒ 焦点切换必然重建输入会话，但 `TextInputServiceAndroid` 把 start/stop 命令进 `textInputCommandQueue` **按帧合并**（注释原文「may be overruled by a subsequent call」），净效果只有 `InputMethodManager.restartInput()`、**从不主动 `hideSoftInput()`**；影响派发时机的 flag 默认已是 `true`，无余量 ⇒ 键盘整个消失再出现是**输入法 App 对 restartInput 的响应**，应用层无干净杠杆（我们侧三条可疑路径也已排除：无任何键盘/焦点代码、两框 EditorInfo 完全相同、`remember(show, fields)` 用 data class 不会重建状态）⇒ 一度以为定论，但用户第二次反馈「**我就是用 Gboard，还是会弹**」⇒ 撤回「Gboard 通常看不到」那句，重读源码补上两处漏读：`StopInput.applyToState()` **同时置 `showKeyboard = false`**（注释明说与 View 默认行为不同），命令按批结算 ⇒ 同批 `[Stop, Start]` 净效果不收键盘、但 **StopInput 单独成批就会真 `hideSoftInput()`**，而 `SessionMutex` 的 `cancelAndJoin()` 虽保证 stop 先入队，新字段侧要经协程恢复、**错过该帧回调即分批**（竞态）；另查明 `decorFitsSystemWindows = false` 会让弹窗窗口在 **API 31+ 变成 `SOFT_INPUT_ADJUST_NOTHING` + `isFloating = false`**（`AndroidDialog.android.kt` KDoc），而 `DialogWindowProvider` 是 **public** ⇒ 一度以为能改 softInputMode 修掉。**20 秒 A/B 否决了它**：`EditFoodScreen`（非弹窗、Activity 窗口、屏幕级 `imePadding()`）里切换输入框**键盘同样弹** ⇒ 与弹窗窗口配置无关，是 Compose 文本输入的通用行为；`SoftwareKeyboardController.show()` 补一发也不成立（`ShowKeyboard.applyToState()` 有 `if (startInput != false)` 守卫，与 StopInput 同批会被忽略）。用户决定**结案接受**（弹窗已不坠），不出实验包、不再改代码。⑤ 用户第二次复测「**其他没问题**」⇒ 问题 ②③ 真机通过，`wait_retest` 条件满足 ⇒ `AppNavHost` 9 参 / `BatchMoveLocationDialog` 8 参窄化解锁，**并当轮做完**：两个文件的文件头 09-16 就写好了方案（连 `AppNavCallbacks` 这名字都是那时定的），照做不自创 —— `AppNavHost` **9 → 6**（4 个导航动作压成 data class，函数体第一行用**解构**还原同名局部值 ⇒ 09-16 搬来的 101 行 entry 代码到今天仍一字未改、`git diff -w` 对那段依然为空；用 data class 而非 `SettingsActions` 那种接口，因为这 4 个动作是 MainApp 组合期间的局部函数，做接口就得每次重组新建匿名对象）；`BatchMoveLocationDialog` **8 → 5**（VM/清选择/关弹窗/弹提示全部回到 MainApp 且顺序逐句一致，`selectedIds`→`selectedCount: Int`，`isMiuix` 参数删掉改读 `LocalThemeStyle`（与其它 App 级组件一致、值相同非行为改动），位置清单传 **`Flow`** 而非 `List` 以保住「只在 show 时收集」的时序 —— 若在调用方 collect，MainApp 这个壳会因位置变化而重组，那就是行为改动了）。`LongParameterList` 阈值**复评后维持关闭**（`MainTabsPager` 11 参与 `*State.kt` 状态容器仍在清单里）。本地把三个守卫的规则全部复刻复算通过 + 形参实测 6 与 5；**这一轮 CI 红过一次**（run [35179586612](https://github.com/SkyForest233/chileme/actions/runs/35179586612)，三个 job 全红）：① `collectAsStateWithLifecycle()` 的**无参重载只给 `StateFlow`**，我写成 `Flow<List<String>>` ⇒ debug/release 两个 job 编译失败（annotations 里 lint 报告、单测报告、APK、mapping 全部缺席 ⇒ 靠「报告缺席」夹逼到编译阶段），修法是把类型改回 `StateFlow`，**没有**退而传 `initialValue = emptyList()`（那会让第一帧 chips 空一下，与原实现不同）；② detekt `DestructuringDeclarationWithTooManyEntries` 默认上限 **3 项**，我那行 4 项解构被静态门禁拦下 ⇒ 改成 4 行显式 `val` 取值（效果相同，entry 代码照样一字不改，也不必为一条规则动 `detekt.yml`）。两条都只有真编译器/真 detekt 判得出来，但都属于「多问一句就能避免」：抽象成父类型前先查扩展函数重载；用 4 项解构前先看仓库里有没有先例。移植用的 Python 词法器随工作区重置丢了，从仓库里已验证的 Kotlin `Walker` 重新移植并用 4 个 canary 自检（其中一个 canary 我第一版构造错了，按历史事故真实形状重做才验对）。
-⑥ 搬家待办用户选「**先加固守卫，再挪**」⇒ 本轮先做加固（§8，单测 **120 → 121**）：`ImeHandlingTest` 的
-`read()` 对不存在的文件返回 null、三条守卫用 `mapNotNull` 接住 ⇒ 逐条盘点后**只有第 3 条真静默**
-（集合变小、`missing`/`noAvoidance` 仍空 ⇒ CI 全绿而守卫少覆盖一个弹窗；第 1 条 null 进 `missing` 会响、
-第 2 条 `imeCount` 4→3 会响但报错指向「避让不足」而真因是清单漂移）⇒ 新增 `assertAllListedFilesExist()`
-（缺文件直接红；只有「整棵源码树都找不到」才 `assumeTrue` 跳过），第 3 条两个判定串抽成具名谓词
-`closesDecorFits()`/`avoidsIme()`（内容一字未改，为的是 canary 能直接测它们），并加第 4 个测试
-`canary 点数与谓词逻辑本身没坏`（好例三种避让各数到 1 / 坏例纯注释数到 0 / 谓词对坏弹窗判违规、
-对好弹窗放过两种写法）—— 对标 `ci-gates.sh` 的 `detekt_selftest`，让「守卫还能区分对错」本身成为被测对象；
-顺手改掉两处已过时注释。**又踩一次「KDoc 配不平」**：把「为什么不用 `codeOnly()`」那段解释从行内注释搬进 KDoc 时
-保留了 `arrayOf(…, "*/*")` 字面量，块注释可嵌套 ⇒ KDoc 自己的结尾只关掉内层、外层把 `avoidsIme()` 整段真代码吞掉；
-**花括号配平检查抓不到**（状态到 EOF 又自己配平），靠 canary 的 **`@Test` 计数 2 ≠ 4** 才暴露 ⇒
-已把「`@Test` 数量」加进机械预检（对测试文件比配平灵敏）。工作区这轮**又被重置成新克隆**（HEAD 退回 `fbab91a`），
-按既定流程 fetch + `reset --mixed` 恢复到 `8bfa924`，词法器重建并用 6 个 canary 自检；无 JDK 故全部断言用 Python 复刻复算：
-存在性断言对现状 4 份清单全过 **且对「模拟搬家未同步」能抓到**、`imeCount=4`/`navCount=4`/底栏无 `imePadding`、
-谓词对 3 个真实文件判合规、canary 8 项全对。
-⑦ 加固绿了（run [35183795880](https://github.com/SkyForest233/chileme/actions/runs/35183795880) 三 job 全绿，单测 **120 → 121**）
-才做搬家第 2 步（§9）：`AppDialogs.kt` → **`ui/components/app/AppBatchMoveDialog.kt`**（改名与 `AppConfirmDialog`/
-`AppFormDialog`/`AppOptionDialog` 同构），10 个文件 16 处，**rename 配对后非注释改动只有 `package` 行 +
-删掉变成同包的 `stickyImePadding` 导入 + `MainApp.kt` 加一条 import**（相似度 91%，弹窗实现逐字节未改）；
-守卫两处路径清单同步、`MiuixDialogContentTest` 是全树 `walkTopDown` 无需改路径、`ScreenParityTest` 只扫 `ui/screens/` 不受影响；
-8 处按名字提到它的注释 + `ARCHITECTURE.md` 目录树（包根「以上 6 个文件」→ **5**，组件层 10 → **12**，
-顺手补记 09-17 新增却漏登的 `AppIme.kt`）+ `MIUIX_UPGRADE.md` §2 第 8 条。**刻意不改写**带日期的审计快照与 09-16 日志，
-源码里保留的 7 处旧名全是沿革说明。验证：把根包 18 个顶层声明逐个查是否被搬后文件引用 ⇒ **0**（不会未解析）；
-同包冗余 import 0 / 未用 import 0；**活引用清零**（判据=带引号的功能路径串或现在时指针；第一版判据太粗、
-把沿革提及也算违规而自我 assert 失败 —— 判据要区分「指向现在」与「记录过去」）；守卫用新路径复算 4 份清单存在性 +
-三条规则全过；8 个 `.kt` 机械预检全过（`@Test` 计数 4 与 2）。**§8 的网当场兑现**：搬之前先用假路径验证断言会响，
-再真搬 —— 否则这一步的失败模式是 CI 全绿而那个弹窗从此没人守。 | ✅ 问题 ② 修复：run [35164722113](https://github.com/SkyForest233/chileme/actions/runs/35164722113) **三 job 全绿**。✅ 守卫 `MiuixDialogContentTest`（单测 **117 → 119**）：`baa7968` / `cd302e8` 连红两次 —— 第一次 detekt 2 条（`NestedBlockDepth` / `LoopWithTooManyJumpStatements`，已修），第二次靠 annotations + job steps 夹逼（release 绿 / debug 红 ⇒ 问题在 `src/test`）定位到 **`matchBrace` 的 off-by-one**（配对花括号正好是最后一个字符时误判「没找到」，真源码不发作、canary 才逼得出来），`39294fe` 修好后 run [35168165049](https://github.com/SkyForest233/chileme/actions/runs/35168165049) **三 job 全绿**。✅ 问题 ① 的 MD3 粘性避让（`18c9382` + devlog 补记 `8e9ac05`）：run [35168959972](https://github.com/SkyForest233/chileme/actions/runs/35168959972) / [35169211689](https://github.com/SkyForest233/chileme/actions/runs/35169211689) **各三 job 全绿**，用户真机复测「**弹窗是不会弹了**」⇒ 达成；输入法自身仍会重启，已读到 Compose 源码级定论（焦点切换必然重建输入会话，但 Compose 只发 `restartInput()`、从不主动 `hideSoftInput()`；命令按帧合并 ⇒ 键盘消失再出现是**输入法 App 的响应**，应用层无干净杠杆），**结案不再改代码**，仅建议换输入法验证。✅ 问题 ③（蓝底白字按钮，4 处偏离已统一 + 守卫新增 1 例 **119 → 120**）：`b51ac7f`，run
-[35171695942](https://github.com/SkyForest233/chileme/actions/runs/35171695942) **三 job 全绿**，用户真机复测通过 ⇒ 结案。
-✅ 形参窄化（`AppNavHost` 9→6 / `BatchMoveLocationDialog` 8→5）：`df2f61c` **CI 红**（run
-[35179586612](https://github.com/SkyForest233/chileme/actions/runs/35179586612)，三 job 全红：`StateFlow` 重载 + detekt
-4 项解构上限 3）⇒ `8bfa924` 修好，run [35179996491](https://github.com/SkyForest233/chileme/actions/runs/35179996491)
-**三 job 全绿**。✅ 守卫加固（§8，单测 **120 → 121**）：`8b2f302`，run
-[35183795880](https://github.com/SkyForest233/chileme/actions/runs/35183795880) **三 job 全绿**。
-✅ 搬家第 2 步（§9，`AppDialogs.kt` → `ui/components/app/AppBatchMoveDialog.kt`）：`0549eb7`，run
-[35184356458](https://github.com/SkyForest233/chileme/actions/runs/35184356458) **三 job 全绿** ⇒ 这条待办关闭。 |
-| [2026-09-16](2026-09-16.md) | **文档对账轮（不改运行时行为）+ `Common.kt` 拆分轮**：先 `git fetch` + 快进到最新 master（上一轮核查因落后 6 个提交而误报）→ 修 `ARCHITECTURE.md` 11 处（分层树缺 5 个文件、统计页 Miuix 化、备份排除规则精确化、37 个颜色角色、**FileProvider authority 硬编码是错的**、legacy 图标已删、release 2.4 MB）→ `DESIGN_SPEC.md` 2 处（**7 套配色实为 15 套**、§7 迁移进度补统计页/消耗记录页 + 双实现铁律 + 已知缺口）→ `CLAUDE.md` 3 处（删「统计页保留 MD3」错误约束、守卫升级为 key 粒度语义、文档索引补 MIUIX_UPGRADE）→ **`REQUIREMENTS.md` 补登记 F22–F43 共 22 项已上线未登记功能 + 修 §4「❌ 云同步」与 F20 自相矛盾** → `MIUIX_UPGRADE.md` 5 处（Gradle 9.7.1 / minSdk 26 / 依赖改走 Version Catalog 单一位点）→ `README.md` 4 处（「智能临期提醒」改口径并说明无系统推送、补齐已上线特性、隐私段落如实说明系统备份通道、JDK/门禁说明）→ 三份历史审查报告加**状态批注**（不改写原文：`chileme-review.md` 逐条现状 + **P0-6 主体论点不成立** + P3-1 Widget 撞需求红线 + 4 处计数订正；`project-review.md` §1.1–1.4 与 B5/B6/B7/B9 状态订正；`backlog.md` 校订对照表；`2026-09-15-code-review.md` §5 路线图逐条状态）→ `devlog/2026-09-15.md` 门禁分档更新（**ktlint 已恢复 block**、detekt 仍 report）+ 本 INDEX 两处自相矛盾修正 → 代码改动：`MiuixSettingsScreen.kt` KDoc 去掉不成立的「功能对等（含配色）」声明 → **同日第二轮：`ui/components/Common.kt`（983 行）拆成 8 个按职责命名的文件**（`StatusUi` / `Badges` / `FoodAvatar` / `QuantityStepper` / `FoodCard` / `Controls` / `DataCorrupt` / `MiuixDialog`；**同包纯搬运**，18 个声明逐字节校验通过，27 个调用方 import 零改动，顺手清掉 7 处死 import，并记录「机械拆分必漏 `getValue` 委托操作符 import」这一陷阱）→ **新发现并已修**：批量「移动存放位置」弹窗 MD3 分支缺 `DialogProperties(decorFitsSystemWindows = false)` + `imePadding()`（`MainActivity.kt:650`，`ImeHandlingTest` 第 3 条清单未覆盖故漏网；已补并把该文件纳入清单，**真机复测待做**）；连带把 `ImeHandlingTest` 第 2 条「imePadding 数 < navigationBarsPadding 数」这个会误判的代理指标换成直接检查导航栏段→ **写入路线图**：第二批 `MainActivity.kt` 拆分与第三批结构性 9 项（含双主题 7,205 行去重的分步与两个静态守卫的迁移）→ **同日第四轮：第二批拆分执行完毕（详见 §13）** —— `MainActivity.kt`（1,123 行）→ 6 个文件（`MainActivity` 118 / `MainApp` 335 / `AppNavGraph` 170 / `AppDialogs` 211 / `BatchBars` 213 / `NavChrome` 324，合计 1,371 行；同包 `com.agon.app`、消费方 import 零改动、`private→internal` 实测只需 8 处而非计划的 11 处；四步各一个提交，`ImeHandlingTest` 的文件清单与期望计数在**同一提交**内跟着搬，中间态不留红）；**CI 曾红一次**（run 35062328443），两处根因都不是手误而是「本地无 JDK + 用脚本搬代码」这个方式的必然产物：① `internal val MainTabs = listOf(TabSpec(...))` 的**推断类型**暴露了 `private data class TabSpec`（Kotlin 拒绝；且只有编 main 源集的 release job 撞得到，debug 的报错被 ② 盖住）② 拆分脚本用 Python 写出的 `Regex("/\*.*?\*/")` 在 Kotlin 里是**非法转义**（反斜杠没加倍）。ktlint/detekt 这类静态门**不编译**，两类都拦不住 → 已由 `2a71bc6` 修掉，并补了一条「`private` 顶层类型是否被 `internal`/`public` 声明暴露」的全量审计（本轮结果：0 处） | ✅ **CI 通过**（run [35060113017](https://github.com/SkyForest233/chileme/actions/runs/35060113017)：静态门禁 / debug APK+单测+lintDebug / release+R8+lintRelease 三个 job 全绿）—— 拆分后的 8 个文件编译通过、ktlint 零违规、单测全绿。✅ 弹窗键盘避让已由**用户真机复测通过**（2026-09-16）。✅ 第二批拆分后 run [35063573632](https://github.com/SkyForest233/chileme/actions/runs/35063573632)（①②③+修复）与 [35064714882](https://github.com/SkyForest233/chileme/actions/runs/35064714882)（④）三 job 全绿；中间的 [35062328443](https://github.com/SkyForest233/chileme/actions/runs/35062328443) 曾红（见左，已修）。⚠️ 沙箱无 JDK/SDK，逐条 CI 日志下载不到，只以 job 结论为准 |
-| [2026-09-15](2026-09-15.md) | **两轮审查交叉验证后的 5 项修复**：读流兜底（异常不再杀进程）/ 启动放行超时 / 损坏态不再删封面图（P0）/ 过期浪费改按件数 / `MiuixStatsScreen` 接回状态层（消除静默分叉）+ 导入备份二次确认与导入前自动快照 + `MiuixParityTest` 静态守卫；另入库两份审查报告（自查 + 第三方复核）；**IME 键盘避让修复（A 方案 + 弹窗；真机实测通过）**；**写守卫按 key 粒度降级 + 放弃损坏数据入口 + 三条恢复路径前置快照 + 凭据加密失败不再静默 + 本地快照 IO 下沉与按件口径（含 `CorruptGuardTest` 守卫）**；**建议批：消耗记录「月度聚合」不可单删 + 归档单条删除二次确认 + CSV 公式注入防护 + `corrupt/` 留档上限 + 相机临时文件清理 + 导出文件名时间戳 + 文档漂移 10 处（含删除 `docs/audits/ci/*`）**；**性能批（用户选定）：同一份 JSON 只解一次（`DecodeCache`）+ `SettingsUiState` 重组粒度（19×`State` 精确订阅 + 本屏 UI 状态内置 + `SettingsActions` 窄接口）+ 仓储写守卫集成测试（注入临时 DataStore 的 8 例，纯 JVM、未用 Robolectric）**；**CI 门禁批：`tools/ci-gates.sh`（ktlint 6 条规则 + detekt 四个缺陷规则集，sha256 校验、无 Android SDK 也能跑）+ `.editorconfig`/`detekt.yml` 规则边界 + `build.yml` 新增 `static-gates` 与 `release-r8`（R8 / 资源压缩 / release lint）job，并清掉 11 处未使用 import** | ✅ CI 通过（含 lint 与单测，**116 例**；5 项修复 run 34917992215 → IME 轮 34922807620 → ①②③ 轮 34925050661 → 建议批 34927070965 → 性能批 **34930559493**；CI 门禁批的 workflow 与三件套均已入库 master 并跑通（PR #7 已 squash 合并为 `58534fd`；门禁收尾四处改动见 §14.10） |
-| [2026-08-22](2026-08-22.md) | 修复跨零点 LocalToday 残留 (B-01) + 封面压缩 (B-04) + 引入 Version Catalog (B-02) + 升级过期依赖 (B-03) + 双主题状态层抽离与去重 (B-08) + README/LICENSE (B-05) + 状态层单测补全 (B-07) + 卡片紧凑布局与日期 (yyyy.MM.dd) + 首页清理撤销与触感振动 + 全局动效补齐 + **批量修改存放位置 + CSV 导出 + 本地内部滚动冷备 + 设置页排版精简 + MIUIX 独立 Window 弹窗** | ✅ CI 通过（含 lint 与单测） |
-| [2026-08-21](2026-08-21.md) | Tab 连滑 → miuix-nav 卡片滑 → 撤销 6 秒 → History 圆环去指针 → 清冗余依赖与过时文档 → **构建/兼容/数据安全四阶段修复（release 签名失效 / minSdk→26 / 解码失败不再清空数据 / flow 去重+移出主线程）** | ✅ CI 通过（含 lint） |
-| [2026-08-20](2026-08-20.md) | v2.8 引入 Miuix（HyperOS 风格）：安装 miuix-skill + 工具链升级（Kotlin 2.4.10/AGP 9.3.1/Gradle 9.6.1）+ ThemeStyle 枚举/持久化/LocalThemeStyle + 设置页双实现（MD3 + Miuix 组件）+ 文档同步 | ⚠️ 当时未验证（沙箱无 Android 工具链）→ ✅ **此后已由 CI 多轮 `assembleDebug` + 单测 + lint 验证**，Gradle 亦已升到 9.7.1 |
-| [2026-08-01](2026-08-01.md) | v2.4 修复 7 项：孤儿图片清理 / 密码 Keystore 加密 / 消耗记录聚合 / 归档恢复去重 / 自动同步间隔 / 主题渐变 / 到期日历 → 日历并入统计页（紧急度彩点+滑动换月）/ R8 无混淆体积优化（release 2.6MB）→ 日历圆点高饱和 dot 色修复 → release 正式签名（keystore.properties 分离凭据）→ 修复 CI debug.keystore 缺失 → **v2.7 坚果云多版本备份轮转（云端保留 3 份+恢复选版本）** | ✅ 成功 |
-| [2026-07-31](2026-07-31.md) | v1.0 基础版 → 需求沟通 → v2.0 功能增量 → 文档体系 → v2.1 薄荷绿改版/更名"吃了么" → v2.2 多主题/导航动画/CheckSwitch → v2.3 MD3 审计修复（62→91） → v2.3.1 用户反馈 7 项 → v2.3.2 用户反馈 8 项 → v2.4 吃完自动归档/OCR 增强/坚果云同步/标题简化 → v2.5 移除 OCR/长按批量归档/自定义矢量图标 → v2.5.1 图标留白/历史录入完整匹配 → v2.5.2 联想覆盖全部食品（含归档） | ✅ 成功 |
+| 日期 | 主题 | 状态 |
+| --- | --- | --- |
+| [2026-09-17](2026-09-17.md) | 真机复测收尾：① MD3 输入弹窗粘性键盘避让（`stickyImePadding`）② Miuix 表单弹窗输入框与按钮零间距 ③ Miuix 弹窗主要动作按钮改蓝底白字；随后形参窄化、`ImeHandlingTest` 加固、`AppDialogs.kt` 搬进组件层 | ✅ 13 提交 / CI 10 绿 3 红（台账见日志末节）；单测 **121** 例 |
+| [2026-09-16](2026-09-16.md) | 文档对账轮（12 份文档、30+ 处，不改运行时行为）+ `Common.kt` 拆 8 文件 + `MainActivity.kt`(1,123 行) 拆 6 文件 + 双主题 8 对全数合并（§15–§22）+ 写入拆分路线图 | ✅ CI 绿（中间红过一次，真因见日志 §13） |
+| [2026-09-15](2026-09-15.md) | 两轮审查交叉验证后的 5 项修复 + IME 键盘避让（A 方案）+ 写守卫按 key 粒度 + 性能批（`DecodeCache` / 精确订阅）+ CI 门禁上线（`tools/ci-gates.sh` + 两个新 job） | ✅ CI 绿（当时单测 116 例） |
+| [2026-08-22](2026-08-22.md) | 跨零点残留(B-01) / 封面压缩(B-04) / Version Catalog(B-02) / 依赖升级(B-03) / 双主题状态层抽离(B-08) / 批量改存放位置 / CSV 导出 / 本地滚动冷备 | ✅ CI 绿（含 lint 与单测） |
+| [2026-08-21](2026-08-21.md) | Tab 连滑 → miuix-nav 卡片滑 / 撤销 6 秒 / 构建·兼容·数据安全四阶段修复（release 签名失效、minSdk→26、解码失败不再清空数据） | ✅ CI 绿（含 lint） |
+| [2026-08-20](2026-08-20.md) | v2.8 引入 Miuix（HyperOS 风格）：技能库 + 工具链升级（Kotlin 2.4.10 / AGP 9.3.1）+ `ThemeStyle` 枚举与持久化 + 设置页双实现 | ⚠️ 当时未验证（沙箱无工具链）→ ✅ 此后 CI 多轮验证 |
+| [2026-08-01](2026-08-01.md) | v2.4→v2.7：孤儿图片清理 / 密码 Keystore 加密 / 消耗记录聚合 / 归档恢复去重 / 到期日历并入统计页 / R8 体积优化 / release 正式签名 / 坚果云多版本备份轮转 | ✅ 成功 |
+| [2026-07-31](2026-07-31.md) | v1.0 → v2.5.2：需求沟通、功能增量、文档体系、薄荷绿改版更名「吃了么」、MD3 审计修复（62→91）、用户反馈两批 | ✅ 成功 |
 
-## 当前待办总览
+## 当前待办（2026-09-17 校准）
 
-> **2026-09-16 文档对账轮（现行待办以此段为准）**：本轮不改运行时行为，只把文档与代码对齐，详见 [2026-09-16 日志](2026-09-16.md)。
-> - **已完成/已关闭**：~~`Common.kt`（983 行）拆分~~（2026-09-16 拆成 8 个按职责命名的文件，同包纯搬运、签名与实现未改）；~~`build.yml` 手动入库~~（`fbeb5dc` 已入库，且**顺带把 ktlint 恢复为 block 模式**）；~~`material-icons-extended` 迁移~~（已决策**保留** + 注释记录理由，实测 34 个图标而非 40）；~~文档漂移~~（本轮再修 12 份文档共 30+ 处，含 `REQUIREMENTS.md` 补登记 F22–F43、`ARCHITECTURE.md` 的 FileProvider authority 硬编码错误、`DESIGN_SPEC.md` 的「7 套配色」实为 15 套、三处「统计页保留 MD3」的错误约束）。
-> - **已完成/已关闭（追加）**：~~批量「移动存放位置」弹窗的键盘避让~~（`MainActivity.kt:650` 补 `decorFitsSystemWindows = false` + `imePadding()`，**用户 2026-09-16 真机复测通过**）。
-> - **仍待做（中）**：`photoPath` 绝对路径 + `File.exists()` 组合期调用（**行号已漂移：`FoodAvatar.kt:43`、`EditFoodScreen.kt:284`**）；`nutstorePasswordFlow` 明文常驻内存。
-> - **仍待做（低 / 一行改动）**：**detekt 由 report 切 block**（`tools/ci-gates.sh:43`，基线已双零）；ktlint 全量规则集；详情页「吃掉一份」无撤销（`FoodDetailState.kt:48-50`）；归档 `take(200)` 独立计数器；恢复路径集成测试；~~三键导航 IME 复测~~（✅ 2026-09-17 关闭）；`ObsoleteSdkInt` 3 处；README 截图。
-> - **结构性（部分已动）**：~~`Common.kt` 拆分~~ ✅ 09-16 已完成；~~第二批 `MainActivity` 拆分（1,123 行）~~ ✅ 09-16 已完成（→ 6 个文件，见 [09-16 日志](2026-09-16.md) §13）；**只剩第三批 9 项，完整方案见 [09-16 日志](2026-09-16.md)「🧭 拆分路线图」**（含每项的前置、实测证据与验收）；✅ **已完成：第三批 #3 双主题去重 + App 级组件层（八对全数合并，§15–§22）** —— 消耗记录 §15 / 归档 §16 / 详情 §17 / 首页 §18 / 列表 §19 / 管理 §20 / 统计 §21 / **设置 §22（收官）**：`Miuix*Screen.kt` 双胞胎 **8 → 0**，屏幕本体（不含 `*State.kt`）17 文件 7,541 → 9 文件 **4,204 行（-44%）**，组件层 `ui/components/app/` 0 → 10 文件 2,746 行，渲染层合计 7,541 → **6,950 行（-8%）**，八对累计净 **-979**（提交区间实测口径；§15–§21 记的 -652 是「本对主提交」口径），`AppNavGraph` 与 `NavChrome` **都已零主题分支**。⚠️ 原验收写的「4,500 量级 / ≈-24%」**未达成**，偏差几乎全来自设置页那一对（两版排版习语分叉、287 行逐字相同为八对最低，故 body 保留 `Md3SettingsBody` / `MiuixSettingsBody` 两套，去重只发生在弹窗与骨架），根因与实测口径见 §22；✅ **「一次性真机复测」（两套主题 × 8 屏）已完成**（用户 2026-09-16 实机，结论登记于 [09-17 日志](2026-09-17.md) §1）：主体通过、三键导航 IME 亦通过；发现 2 个问题 —— Miuix 表单弹窗「输入框与按钮零间距」（根因为库弹窗根 Column 无 `verticalArrangement`，**已修**，见 [09-17 日志](2026-09-17.md) §2，待真机复测）与切换输入框时「键盘 + 弹窗弹一下」（两主题都有，机制已析、修法待 2 个诊断问题确认，见 §3）；逐对清单仍在 §15–§22 各节末尾；仍未动：错误模型统一（`Channel<UiEvent>` 全项目 0 处）、凭据拆库 + 备份规则调整、字符串资源化 + 无障碍（`contentDescription = null` 61 处 / `semantics` 7 处）、CI 供应链加固与 `versionCode` 改用仓库内版本文件。
-> - **需用户决策**：`targetSdk 36→37`；Miuix `0.9.4-rc01`→稳定版；**备份规则的两面决策**（新发现：`device-transfer` 放行 `covers/` 会产生孤儿封面；`filesDir/snapshots/` 未被排除会随系统云备份走）；Splash 图标发糊；统计图表 semantics；对比度档位等 4 项体验增强。
-> - **已按用户指示暂缓**：MIUIX 配色入口（合并前写在 `MiuixSettingsScreen` 的 KDoc 里、2026-09-16 第 8 对合并后收进 `SettingsScreen.kt` 文件头「已知非对等」段；「功能对等」声明本轮已改正，功能仍缺）、剩余统计口径（「本周」文案 / TOP5 按单位 / 分类占比）。
-> - ⛔ **不要当待办推进**：`chileme-review.md` P3-1 建议的 Glance 桌面小组件 —— `REQUIREMENTS.md` §4「明确不做」第 3 条就是 Widget，需先由用户推翻边界。
+> **本节是唯一事实源。** 路线图全文在 [2026-09-16 日志](2026-09-16.md)「🧭 拆分路线图」；
+> 历史 backlog 见 `docs/audits/2026-08-21-backlog.md`（该文件顶部有 09-16 的状态校订表）。
+> 括号里的数字是 2026-09-17 在沙箱实测（`git grep -c` / 按行统计），可复核。
 
-> 2026-09-15 新增：审查报告 `docs/audits/2026-09-15-code-review.md`（自查）与 `docs/audits/2026-09-15-third-party-review-verification.md`（第三方复核）列出的待办，详见 [2026-09-15 日志](2026-09-15.md) 的「待办」表。已完成：~~IME 未处理~~、~~守卫粒度过粗~~、~~消耗记录月度聚合标记~~、~~文档漂移与 `docs/audits/ci/*` 清理~~、~~同一冷流 3 处收集~~、~~`SettingsState` 28-key 整体重组~~、~~仓储层守卫缺集成测试~~；当前最靠前的候选：`File.exists()` 组合期调用（`Common.kt:262`、`EditFoodScreen.kt:263`）+ `photoPath` 绝对路径、详情页「吃掉一份」无撤销、ktlint 全量规则集与 detekt 切拦截模式（见 [2026-09-15 日志](2026-09-15.md) §14.3/§14.4）、`build.yml` 手动入库（GitHub App 缺 `workflows` 权限）、`material-icons-extended` 迁移（约 40 个图标）；已按用户指示暂缓：MIUIX 配色入口、剩余统计口径（「本周」文案 / TOP5 按单位 / 分类占比）。
-> *（上行是 09-15 当时的记录，其中行号、`build.yml` 入库状态与图标数已被上面 2026-09-16 段订正，保留仅为追溯。）*
+### 结构性（第三批 9 项；#1–#3 已完成，详见文末「已完成里程碑」）
 
-> 2026-07-31 补充：日历圆点问题已修复（四档紧急度 + luminance 判深浅），详见当日日志第 7 轮。
+- ⏳ **#4 错误模型统一** —— `Channel<UiEvent>` 全项目 **0** 处，错误提示目前靠 `MutableStateFlow<String?>`，
+  多个订阅方会重复消费同一条。是 #5 的前置（Repository 拆分时顺带定型）。
+- ⏳ **#5 Repository 拆分 + `Clock` 注入 + 轻量 DI** —— `FoodRepository.kt` **950 行**；`Application` 子类 **0** 个
+  （DI 靠 `remember { … }` 现场构造）；`LocalDate.now()` **34** 处（时间不可注入 ⇒ 跨零点逻辑无法单测）。
+  ⚠️ 会撞 `CorruptGuardTest`（它按缩进截函数体），**拆分与测试改动必须同一提交**。
+- ⏳ **#6 派生数据下沉 VM + `WhileSubscribed`** —— `stateIn(` **20** 处但 `WhileSubscribed` **0** 处
+  （后台仍在算）；组合期计算已从 09-15 的 6 处收敛到 **4** 处，全在 `EditFoodScreen`。
+- ⏳ **#7 字符串资源化 + 无障碍** —— `strings.xml` **1** 条 vs 源码中文字面量 **583** 处；
+  `contentDescription = null` **50** 处、`semantics` **1** 处。
+  （09-16 记的 61 / 7 已随双主题去重下降，本行为 09-17 实测值。）
+- ⏳ **#8 数据健康检查页 + 诊断包 + 许可清单** —— `corruptedKeys` 已被 **32** 处引用，但没有任何页面消费它，
+  用户看不到「哪些数据坏了」。
+- 🔶 **#9 CI 加固** —— 2026-09-17 用户指定只做「零件过期」与「依赖/密钥检查」两类：
+  13 处 action 升级已改好、patch 已验证可用（`git apply --check` + `git diff` 核对），
+  但沙箱的 GitHub App 令牌缺 `workflows` 权限 ⇒ **推不上去**，存为
+  `docs/audits/2026-09-17-ci-actions-upgrade.patch` 待用户自己应用（详见 09-17 §10）。
+  密钥泄漏已本地全历史扫描（207 提交）**确认干净**，故 gitleaks / zizmor / 依赖校验清单
+  经成本收益复评**建议不做**（理由见 09-17 §10）。
+  仍挂着未做：`paths-ignore`、APK 体积基线、`bundleRelease`(AAB)、
+  `versionCode` 改用仓库内版本文件（现为 `github.run_number`，`release.yml:112`）。
 
-| 优先级 | 事项 | 来源 | 状态 |
-|---|---|---|---|
-| ~~高~~ | ~~下个 Release 必须在说明中注明「签名已变更，请先导出备份、卸载旧版后再安装」~~ | 2026-08-21 阶段 1 | ✅ 已确认（发布时随附） |
-| ~~中~~ | ~~fix-plan 阶段 5：纯函数单测基线~~（statusFor / compactConsumption / restoreArchived→planRestore / parsePropfind / BackupData v1→v2 兼容 / Decoded 三态） | 2026-08-21 | ✅ 已完成（新增 25 例，第 30 轮） |
-| ~~中~~ | ~~fix-plan 阶段 6：跨零点刷新~~（可注入 today 的 `*At` + `LocalToday` CompositionLocal） | 2026-08-21 | ✅ 已完成（第 30 轮） |
-| ~~中~~ | ~~fix-plan 阶段 6 其余：README / LICENSE 补充 (B-05)~~ | 2026-08-22 | ✅ 已完成（Apache-2.0） |
-| ~~中~~ | ~~状态容器纯逻辑单测补全 (B-07)~~（Stats / FoodList / Archive / Home 纯函数单测） | 2026-08-22 | ✅ 已完成（当时新增 16 例；**2026-09-16 校正：仓库现有单测 116 例**，`grep -rh '@Test' app/src/test \| wc -l`，此前本行写的 91 例是 09-15 中途的数字；**2026-09-17 再校正：09-16 那行写的 116 实为 117，新增 `MiuixDialogContentTest` 2 例后为 119 例；同日又加 `dialogActionsFollowMiuixButtonConvention` 1 例，现为 120 例**） |
-| 中 | fix-plan 阶段 6 其余：统计图表 semantics、Splash 图标发糊 | 2026-08-21 | 待讨论 |
-| ~~中~~ | ~~fix-plan 阶段 7：MD3 / Miuix 双实现去重~~（8 对文件状态容器抽离，消除 ~1200 行重复代码） | 2026-08-21 | ✅ 已完成（2026-08-22） |
-| ~~高~~ | ~~本地构建验证 v2.8~~（工具链升级 Kotlin 2.4.10/AGP 9.3.1/Gradle 9.6.1 + Miuix 0.9.4-rc01 依赖） | 2026-08-20 | ✅ 已由 CI 验证（此后每轮 PR 都跑 `assembleDebug` + 单测 + lint） |
-| ~~低~~ | ~~归档恢复同名/同 ID 冲突策略~~ | 2026-07-31 | ✅ 已修复（v2.4，同批次合并数量/同 ID 防重复） |
-| ~~低~~ | ~~移除封面时旧图片文件未清理~~ | 2026-07-31 | ✅ 已修复（v2.4，启动时 cleanupOrphanCovers） |
-| ~~低~~ | ~~消耗记录上限 1000 条裁剪失真~~ | 2026-07-31 | ✅ 已修复（v2.4，90 天明细 + 月度聚合） |
-| ~~低~~ | ~~主题切换颜色瞬切~~ | 2026-07-31 | ✅ 已修复（v2.4，animateColorScheme 全角色 450ms 渐变） |
-| ~~低~~ | ~~WindowSizeClass API 未引入~~ | 2026-07-31 审计 | ❌ 不做（v2.6 用户确认无折叠屏，840dp widthIn 保留） |
-| ~~低~~ | ~~折叠屏铰链姿态（tabletop/book）未适配~~ | 2026-07-31 审计 | ❌ 不做（v2.6 用户确认） |
-| ~~低~~ | ~~归档搜索结果的恢复操作无撤销提示~~ | 2026-07-31 v2.3.2 | ✅ 已修复（全链路支持 6 秒撤销） |
-| 低 | 高对比度模式（MD3 3 级对比度）未提供 | 2026-07-31 审计 | 待评估 |
-| ~~高~~ | ~~【审计】CheckSwitch 缺 Role.Switch 语义~~ | MD3审计 | ✅ 已修复（v2.3，toggleable + Role.Switch） |
-| ~~高~~ | ~~【审计】<48dp 触摸目标（QuantityStepper/设置步进器）~~ | MD3审计 | ✅ 已修复（v2.3，IconButton 恢复默认 48dp + minimumInteractiveComponentSize） |
-| ~~中~~ | ~~【审计】shapes 未 token 化~~ | MD3审计 | ✅ 已修复（v2.3，自定义半径注册进 MaterialTheme.shapes） |
-| ~~低~~ | ~~【审计】图表色不随主题变化~~ | MD3审计 | ✅ 已修复（v2.3，rememberChartColors 基于主题生成） |
-| ~~中~~ | ~~【审计】悬浮导航未选中项仅图标无标签~~ | MD3审计 | ✅ 已修复（v2.6，图标+labelSmall 常显竖排） |
-| ~~中~~ | ~~【审计】无窗口尺寸类适配：列表页 Medium+ 未切双栏 list-detail~~ | MD3审计 | ❌ 不做（v2.6 用户确认无折叠屏） |
-| ~~低~~ | ~~【审计】悬浮导航槽位高 44dp~~ | MD3审计 | ✅ 已修复（v2.6，48dp） |
-| 低 | 【审计】统计图表无 semantics，屏幕阅读器无法读取数据 | MD3审计 | 待评估 |
-| ~~低~~ | ~~【审计】部分转场仍用线性 tween~~ | MD3审计 | ✅ 已修复（v2.6，Motion.kt 统一 MD3 缓动，无缓动 tween 清零） |
-| 低 | 【审计】无 medium/high 对比度档位 | MD3审计 | 待评估 |
-| 低 | 删除分类后孤儿记录回退显示“其他”，可考虑提供批量重新归类入口 | 2026-07-31 v2.3.1 | 待评估 |
-| ~~低~~ | ~~坚果云同步无自动定时~~ | 2026-07-31 v2.4 | ✅ 已修复（2026-08-01，启动时按间隔自动上传，关/每天/3天/每周） |
-| ~~低~~ | ~~坚果云应用密码明文存储~~ | 2026-07-31 v2.4 | ✅ 已修复（2026-08-01，Keystore AES-GCM 加密 + 旧数据自动迁移） |
-| 低 | 日历视图可考虑增加周视图密度选项 | 2026-08-01 v2.4 | 待评估 |
-| 低 | 自动同步可增加“仅 Wi-Fi”开关（当前备份体积小，暂不必要） | 2026-08-01 v2.4 | 待评估 |
-| ~~低~~ | ~~上架前需配置正式 release 签名~~ | 2026-08-01 第2轮 | ✅ 已完成（第4轮，release.keystore + keystore.properties） |
-| 中 | `photoPath` 存绝对路径（换机/清数据后悬空）+ `File.exists()` 在组合期同步调用 | 2026-09-16 复核 | 待做（`FoodAvatar.kt:43`、`EditFoodScreen.kt:284`） |
-| 中 | `nutstorePasswordFlow` 把明文推进 StateFlow 常驻内存 | 2026-09-15 | 待做（09-15 只修了「加密失败不再静默」） |
-| 低 | **detekt 由 report 切 block**（基线已双零，一行改动 + 一轮 CI 确认） | 2026-09-15 §14.4 | 待做（`tools/ci-gates.sh:43`）；ktlint 已于 `fbeb5dc` 恢复 block |
-| 低 | 详情页「吃掉一份」无撤销（列表页减号反而有） | 2026-09-16 复核 | 待做（`FoodDetailState.kt:48-50`） |
-| 低 | 归档 `take(200)` 静默丢最老记录 → 需独立计数器 + UI 提示 | 2026-09-15 | 待做（`FoodRepository.kt:487`、`:630`；09-15 只修了口径） |
-| 低 | 恢复路径（导入/快照/云端）无集成测试，仍是静态断言 + 真机确认 | 2026-09-15 | 待做 |
-| ~~低~~ | ~~三键导航下 IME 未单独复测（双重 padding 最易暴露）~~ | 2026-09-15 | ✅ 已通过（用户 2026-09-16 实机复测，登记于 [2026-09-17 日志](2026-09-17.md) §1） |
-| 低 | README / 商店截图缺失（B6/B7 的遗留部分） | 2026-09-16 复核 | 待做 |
-| 需决策 | **备份规则的两面决策**：① `device-transfer` 放行 `covers/` 却排除 `datastore/` → 换机后产生孤儿封面；② `filesDir/snapshots/` 未被任何规则排除 → 每日快照随系统云备份走 | 2026-09-16 新发现 | 已登记进 `ARCHITECTURE.md` + README 如实说明，**行为未改**（等用户定方向） |
-| 需决策 | CI 加固：`paths-ignore`、供应链（`verification-metadata.xml` / `dependency-review-action` / `gitleaks` / `zizmor`）、APK 体积基线、`bundleRelease`(AAB)、`versionCode` 改用仓库内版本文件（现为 `github.run_number`，`release.yml:112`） | 2026-09-16 复核 | 待做 |
-| ⛔ | Glance 桌面小组件（`chileme-review.md` P3-1 的建议） | 2026-09-16 复核 | **不做**：撞 `REQUIREMENTS.md` §4「明确不做」第 3 条，需用户先推翻边界 |
+### 代码级（中）
+
+- `photoPath` 存绝对路径 + `File.exists()` 在组合期同步调用（`FoodAvatar.kt:43`、`EditFoodScreen.kt:284`）
+  —— 主线程磁盘 IO，且换机/改包名后路径全废。
+- `nutstorePasswordFlow` 把明文密码推进 `StateFlow` 常驻内存（Keystore 加密只覆盖了落盘，没覆盖内存）。
+
+### 代码级（低）
+
+- 详情页「吃掉一份」无撤销（`FoodDetailState.kt:48-49`；列表页的减号反而有 6 秒撤销）
+- 归档 `take(200)` 静默丢最老记录（`FoodRepository.kt:487` / `:630`）→ 需独立计数器 + UI 提示
+- 恢复路径（导入 / 快照 / 云端）无集成测试
+- `ImeHandlingTest.codeOnly()` 改走词法状态机 —— 现用块注释正则，不认字符串字面量，
+  `SettingsScreen.kt:379` 的 MIME 通配符会吞掉约 600 行真代码；`MiuixDialogContentTest` 里已有验证过的实现可抄
+- ktlint 只开了 6 条规则（见 `.editorconfig`），全量规则集待评估
+- `ObsoleteSdkInt` 3 处 · README / 商店截图缺失
+
+### 体验（待评估）
+
+- 统计图表无 semantics（屏幕阅读器读不出数据；MD3 审计遗留）
+- Splash 图标 108dp 用低分辨率 drawable，深色模式下发糊
+- MD3 对比度档位：medium / high（现只 hardcode 1 档）
+- 日历周视图密度 · 自动同步「仅 Wi-Fi」开关 · 删除分类后孤儿记录的批量重新归类入口
+
+### 需用户决策
+
+- **备份规则两面**：① `device-transfer` 放行 `covers/` 却排除 `datastore/` ⇒ 换机后封面变孤儿；
+  ② `filesDir/snapshots/` 未被排除 ⇒ 每日快照随系统云备份一起走（占空间）。
+  已如实登记进 `ARCHITECTURE.md` + README，**行为未改**，等用户定调。
+- `targetSdk 36 → 37`（detekt `OldTargetApi`）· Miuix `0.9.4-rc01` → 稳定版（等上游发版）
+
+### 已决策不做（别再提）
+
+- **Glance 桌面小组件** —— 撞 `REQUIREMENTS.md` §4「明确不做」第 3 条，需用户先推翻边界才能做
+- **`WindowSizeClass` / 折叠屏铰链姿态 / 列表页 Medium+ 双栏** —— v2.6 用户确认无折叠屏
+  （`840dp` 的 `widthIn` 保留，作为平板上的最大宽度约束）
+
+### 已按用户指示暂缓
+
+- MIUIX 配色入口：`MiuixRootTheme` 已打通种子色通道，但设置页还没给入口
+- 剩余统计口径：「本周」文案与实际 7 天窗口不一致 / TOP5 按单位混排 / 分类占比分母
+
+---
+
+## 已完成里程碑（一行一条，细节见对应日志）
+
+**2026-09-17**：`AppNavHost` 形参 9→6、`BatchMoveLocationDialog` 8→5（`df2f61c` 红一次，真因见 §7）·
+`ImeHandlingTest` / `MiuixParityTest` 加固为「清单存在性 + canary」（单测 120→121）·
+`AppDialogs.kt` → `ui/components/app/AppBatchMoveDialog.kt` · 三键导航下 IME 用户实机复测通过
+
+**2026-09-16（第三批 #1–#3）**：detekt 由 `report` 切 **block**（`tools/ci-gates.sh:52`）+ `detekt_selftest` 防空转 ·
+复杂度规则开启：首跑 73 条发现，其中 2 条（`ComplexCondition` / `LoopWithTooManyJumpStatements` 各 1 处）
+**改代码修掉、规则保留**，前 4 条体量规则共 71 处**显式关闭**（`LongMethod` 33 / `LongParameterList` 24 /
+`TooManyFunctions` 7 / `CyclomaticComplexMethod` 7），理由与命中清单见 `detekt.yml` 文件头· 双主题去重 + App 级组件层：`Miuix*Screen.kt` 双胞胎 **8 对 → 0**
+（⚠️ 原验收「4,500 量级 / −24%」**未达成**，根因见 09-16 §22）
+
+**2026-09-15**：`MiuixParityTest` 静态守卫上线 · CI 门禁（ktlint 6 条 + detekt 四规则集 + sha256 校验）
+
+**2026-08-22（无障碍与备份批）**：`contentDescription = null` 112 处补齐（⚠️ 09-17 实测仍余 **50** 处，未清零）·
+坚果云备份漏 `covers/` → `nutstore-backup` 加目录 + 恢复校验/迁移 · 导出 JSON 被系统媒体库收录 → 移入应用专属目录 +
+清孤儿旧文件 · 坚果云同步失败静默 → 错误分类/诊断/失败留档 · 备份/导出文件不可见 → SAF 导出 + FileProvider 分享 ·
+`device-transfer` 无二次确认 → 风险说明弹窗 · 备份无校验和 → `manifest.json` + SHA-256 + 损坏标记 ·
+状态容器纯逻辑单测补全（B-07，+16 例）· fix-plan 阶段 6 其余：README / LICENSE（Apache-2.0）·
+fix-plan 阶段 7：8 对双实现状态容器抽离（−~1,200 行）
+
+**2026-08-21**：fix-plan 阶段 5 纯函数单测基线（+25 例）· 阶段 6 跨零点刷新（可注入 `today` + `LocalToday`）·
+release 签名失效 → 正式签名 + `keystore.properties` 分离凭据，并约定发布说明须注明
+「签名已变更，请先导出备份、卸载旧版后再安装」
+
+**2026-08-20**：v2.8 工具链升级本地无法验证 → 改由 CI 每轮 `assembleDebug` + 单测 + lint 验证
+
+**v2.3 – v2.6（MD3 审计与用户反馈）**：归档恢复同名/同 ID 冲突策略（合并数量/防重复）· 移除封面时旧图片未清理
+（启动 `cleanupOrphanCovers`）· 消耗记录上限 1000 条裁剪失真（90 天明细 + 月度聚合）· 主题切换颜色瞬切
+（`animateColorScheme` 全角色 450ms）· 归档搜索结果的恢复操作无撤销（全链路 6 秒撤销）·
+`CheckSwitch` 缺 `Role.Switch` · <48dp 触摸目标 · shapes 未 token 化 · 图表色不随主题 ·
+悬浮导航未选中项无标签 · 槽位 44dp→48dp · 转场线性 tween → `Motion.kt` 统一 MD3 缓动
+
+**坚果云**：同步无自动定时 → 启动时按间隔自动上传（关/每天/3 天/每周）· 应用密码明文存储 →
+Keystore AES-GCM 加密 + 旧数据自动迁移
+
+---
+
+**单测数演变**：91（09-15 中途）→ 116 → 117 → 119 → 120（09-16/09-17）→ **121**（09-17，现值）。
+此前这几个数字在本文件里被逐层加注修正过三次，现已收敛为一行；各时点的口径见对应日志。
