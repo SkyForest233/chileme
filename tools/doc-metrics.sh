@@ -231,17 +231,22 @@ PY
 )" '替换/追加段落时最容易留下的残留（本日「单测数变化」就曾因此出现 2 份）。**现存的 1 组是刻意的、不要清**：`devlog/2026-09-16.md` §13 的「实际结果表」（`MainActivity.kt` 118 行）与路线图的「计划表」（同文件 ~120 行）用了同一句内容描述，是计划 vs 实际的对照 ⇒ 目标值是 1 组，多于 1 组才需要查'
 row '计数句自洽性（N run = X 绿 + Y 红）' "$(python3 - <<'PY' 2>/dev/null || echo '需 python3'
 import glob, io, re
+# 认两种写法：「N run：X 绿 Y 红」与「N run —— X 绿 · Y 红 · Z 被( concurrency )取消」
+PAT = re.compile(r'(\d+)\s*run\s*[：:—-]+\s*(\d+)\s*绿\s*[·、,，]?\s*(\d+)\s*红'
+                 r'(?:\s*[·、,，]?\s*(\d+)\s*被[^。\n]{0,24}取消)?')
 bad = tot = 0
-for f in glob.glob('**/*.md', recursive=True):
+for f in sorted(glob.glob('**/*.md', recursive=True)):
     if f.startswith('.git/') or f.startswith('.claude/'):
         continue
-    for m in re.finditer(r'(\d+)\s*run[：:]\s*(\d+)\s*绿\s*(\d+)\s*红', io.open(f, encoding='utf-8').read()):
-        r, g, b = map(int, m.groups()); tot += 1
-        if g + b != r:
-            bad += 1; print('     ✗ %s: %d run ≠ %d 绿 + %d 红' % (f, r, g, b))
+    for m in PAT.finditer(io.open(f, encoding='utf-8').read()):
+        r, g, b, cx = int(m.group(1)), int(m.group(2)), int(m.group(3)), int(m.group(4) or 0)
+        tot += 1
+        if g + b + cx != r:
+            bad += 1
+            print('     ✗ %s: %d run ≠ %d 绿 + %d 红 + %d 取消' % (f, r, g, b, cx))
 print('%d 处，不自洽 %d 处' % (tot, bad))
 PY
-)" '本日曾两次写出「14 绿 3 红 / 14 run」这类算不平的计数，故固化成检查'
+)" '本日曾两次写出「14 绿 3 红 / 14 run」这类算不平的计数，故固化成检查。也认「N run —— X 绿 · Y 红 · Z 被取消」这种三段写法（concurrency 取消是第三类结局，漏了它会误报）'
 row 'devlog 文件数 / 总行数' "$(ls devlog/*.md | wc -l | tr -d ' ') 个 / $(wc -l devlog/*.md | tail -1 | awk '{print $1}') 行" '含 INDEX.md'
 row 'docs/audits 报告数' "$(ls docs/audits/*.md | wc -l | tr -d ' ') 份" '历史审计报告，只加批注不改写'
 row '含 2026-09-17 批注的报告' "$(grep -l '2026-09-17 状态批注\|2026-09-17 追加' docs/audits/*.md | wc -l | tr -d ' ') 份" '7 份新增顶部批注 + 3 份在既有批注上追加（md3-audit / chileme-review / fix-plan；fix-plan 两者都有 ⇒ 去重 9 份）'
