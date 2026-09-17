@@ -158,7 +158,20 @@ grep -rn "top.yukonga.miuix.kmp" app/src/main/java | sed 's/.*import //' | sort 
 | `gradle/wrapper/gradle-wrapper.properties` | Gradle 版本 |
 | `app/src/main/java/com/agon/app/ui/theme/MiuixRootTheme.kt` | 根主题 + 桥接 |
 | `app/src/main/java/com/agon/app/ui/theme/ThemeStyle.kt` | 主题风格枚举 |
-| `app/src/main/java/com/agon/app/ui/screens/Miuix*.kt` | 各页 Miuix 实现 |
-| `app/src/main/java/com/agon/app/ui/components/*.kt` | 复用组件（双实现）；2026-09-16 由 `Common.kt` 拆成 `StatusUi` / `Badges` / `FoodAvatar` / `QuantityStepper` / `FoodCard` / `Controls` / `DataCorrupt` / `MiuixDialog` 8 个文件 |
+| `app/src/main/java/com/agon/app/ui/components/app/` | **App 级双主题外壳 —— Miuix API 调用最集中的一层**（`AppScaffold` / `AppTopBar` / 确认·表单·选项三类弹窗 / `AppText` / `AppButtons` / `AppIme` …）。组件清单与每个组件的关键约定见 [`docs/DESIGN_SPEC.md`](DESIGN_SPEC.md) **§4.1（由源码生成，本表不复述）** |
+| `app/src/main/java/com/agon/app/ui/components/*.kt` | 复用组件（10 个文件，**单文件双主题** —— 分流在组件内部走 `LocalThemeStyle`，不是两份实现）；2026-09-16 由**已删除**的 `Common.kt` 拆出 8 个，另有原本就独立的 `UndoSnackbar.kt` / `ExpiryCalendar.kt` |
+| `app/src/main/java/com/agon/app/ui/screens/*.kt` | 屏幕：9 个渲染文件 + 8 个 `*State.kt`。⚠️ **`Miuix*Screen.kt` 双胞胎已于 2026-09-16 全部删除**，别照旧清单去找「各页 Miuix 实现」—— Miuix 分支现在就写在同一个屏幕文件里 |
+| 包根 `app/src/main/java/com/agon/app/*.kt` | `MainActivity` / `MainApp` / `AppNavGraph` / `NavChrome` / `BatchBars` —— 底栏四套形态、`NavDisplay` 转场与系统圆角、Snackbar / FAB / 批量栏都在这层调 Miuix API |
 | `.claude/skills/miuix/` | skill（组件 API 证据基线） |
 | `docs/audits/2026-08-20-miuix-review.md` | 设计审查报告 |
+
+> ⚠️ **本表刻意不写「各层有多少处 Miuix 调用」** —— 这类数字会随重构悄悄过期（本表此前就指着
+> `ui/screens/Miuix*.kt`「各页 Miuix 实现」，而那批文件 2026-09-16 已全部删除；当时 Miuix 调用最集中的
+> `ui/components/app/` 反而整层没被列进来）。要知道当下的确切分布，跑第 4 步那条命令并按目录聚合：
+>
+> ```bash
+> grep -rn "top.yukonga.miuix.kmp" app/src/main/java \
+>   | sed 's|app/src/main/java/com/agon/app/||; s|/[^/]*\.kt:.*|/|' | sort | uniq -c | sort -rn
+> ```
+>
+> 升级前**务必跑一次**：它列出的是「今天真正在调 Miuix API 的目录」，比任何文档里的清单都可信。
