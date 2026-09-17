@@ -184,7 +184,7 @@ PY
 )" '表格行不能跨物理行；跳过代码围栏内的 shell 管道'
 row 'devlog 文件数 / 总行数' "$(ls devlog/*.md | wc -l | tr -d ' ') 个 / $(wc -l devlog/*.md | tail -1 | awk '{print $1}') 行" '含 INDEX.md'
 row 'docs/audits 报告数' "$(ls docs/audits/*.md | wc -l | tr -d ' ') 份" '历史审计报告，只加批注不改写'
-row '含 2026-09-17 批注的报告' "$(grep -l '2026-09-17 状态批注\|2026-09-17 追加' docs/audits/*.md | wc -l | tr -d ' ') 份" '5 份新增状态批注 + 3 份在既有批注上追加（md3-audit / chileme-review / fix-plan）'
+row '含 2026-09-17 批注的报告' "$(grep -l '2026-09-17 状态批注\|2026-09-17 追加' docs/audits/*.md | wc -l | tr -d ' ') 份" '7 份新增顶部批注 + 3 份在既有批注上追加（md3-audit / chileme-review / fix-plan；fix-plan 两者都有 ⇒ 去重 9 份）'
 row '顶部无任何状态批注的报告' "$(for f in docs/audits/*.md; do sed -n '2,12p' "$f" | grep -q '状态批注\|修复状态\|校订\|复核批注\|2026-09-17 追加' || echo "$f"; done | wc -l | tr -d ' ') 份" '目标是 0：读者应能一眼判断「这条还成立吗」'
 
 echo
