@@ -182,6 +182,33 @@ for f in glob.glob('**/*.md', recursive=True):
 print('%d 处' % bad)
 PY
 )" '表格行不能跨物理行；跳过代码围栏内的 shell 管道'
+row '文档点名的文件通配符指向空集' "$(python3 - <<'PY' 2>/dev/null || echo '需 python3'
+import glob, io, re
+DOCS = ['CLAUDE.md', 'README.md', 'docs/ARCHITECTURE.md', 'docs/DESIGN_SPEC.md',
+        'docs/REQUIREMENTS.md', 'docs/WORKFLOW.md', 'docs/MIUIX_UPGRADE.md',
+        'docs/ROADMAP.md', 'devlog/INDEX.md']
+EXT = r'(?:kt|kts|xml|yml|yaml|toml|sh|md|pro|properties|json)'
+HIST = re.compile(r'已删除|已全部删除|此前|原名|不要再|别照|取代|已于|作废|历史|快照|拆成|删除|双胞胎|已合并|→ 0|8 对')
+tot = dead = exempt = 0
+for d in DOCS:
+    try:
+        lines = io.open(d, encoding='utf-8').read().split('\n')
+    except OSError:
+        continue
+    for i, line in enumerate(lines, 1):
+        for pat in re.findall(r'`([A-Za-z0-9_./\-*]*\*[A-Za-z0-9_./\-*]*\.%s)`' % EXT, line):
+            hits = glob.glob(pat, recursive=True) or glob.glob('**/' + pat, recursive=True)
+            tot += 1
+            if hits:
+                continue
+            if HIST.search(line):      # 明说是历史/已删除 ⇒ 豁免，但计数
+                exempt += 1
+                continue
+            dead += 1
+            print('     ✗ %s:%d  `%s` 匹配 0 个文件' % (d, i, pat))
+print('%d 个通配符：指向空集 %d 处，历史提及豁免 %d 处' % (tot, dead, exempt))
+PY
+)" '目标「指向空集 0 处」。2026-09-17 核查发现 `MIUIX_UPGRADE.md` 的文件索引表指着 `ui/screens/Miuix*.kt`「各页 Miuix 实现」，而那批文件 09-16 已全删 ⇒ 升级手册会让人系统性漏改 77% 的调用点。行内出现「已删除/此前/取代/原名」等字样视为**历史提及**并豁免（只计数不报警），否则报 ✗'
 row '同文件内重复的长句（>=40 字符）' "$(python3 - <<'PY' 2>/dev/null || echo '需 python3'
 import glob, io, re
 from collections import Counter
