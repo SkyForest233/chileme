@@ -59,17 +59,42 @@
 
 ## 5. 关键约束（速查）
 
-- 代码包名（namespace）固定 `com.agon.app`，所有 Kotlin 文件必须在此包或子包下；applicationId 为 `com.chileme.pantry`，不要混淆
-- FileProvider authority 一律用 `${applicationId}.fileprovider`（Manifest）/ `${context.packageName}.fileprovider`（代码），禁止硬编码
-- 只用 material3 + Miuix 两套 UI 体系（v2.8 起），禁止混用 material2 导入；主题风格由 `ui/theme/ThemeStyle.kt` 的 `ThemeStyle` 枚举（MATERIAL3 / MIUIX）控制，经 `LocalThemeStyle` 下发，设置页据此切换两套实现
-- 数据持久化统一走 `FoodRepository`（DataStore + kotlinx-serialization），UI 不直接碰 DataStore
-- 删除类操作一律走归档（Archive），不直接物理删除库存记录
-- 主题为 MD3 种子色方案（MaterialKolor 生成），配色方案定义在 `ui/theme/Palettes.kt`（AppPalette 枚举）；`Color.kt` 仅保留状态语义色；状态色（安全/临期/过期）通过 `rememberStatusUi()` 获取
-- 渐进 Miuix 迁移（v2.8）：已 Miuix 化的页面见 `docs/DESIGN_SPEC.md` §7 —— **除编辑页外的 8 个屏幕全部已 Miuix 化**（统计页图表仍 `Canvas` 自绘但外壳走 Miuix）；只有**编辑页**与 `CheckSwitch` 刻意保留 MD3+桥接（DatePicker 无 Miuix 对应 / 项目特色打勾打叉样式），勿擅自迁移。**八对屏幕已于 2026-09-16 全数合并为单文件双主题**（`ConsumptionLogScreen` / `ArchiveScreen` / `FoodDetailScreen` / `HomeScreen` / `FoodListScreen` / `ManageScreens` / `StatsScreen` / `SettingsScreen`，主题外壳走 `ui/components/app/`，`Miuix*Screen.kt` 双胞胎已全部删除；`AppNavGraph.kt` 与 `NavChrome.kt` 都已零主题分支），过程与验收口径见 `devlog/2026-09-16.md` §15–§22。**唯一的例外是设置页的 body**：两版排版习语根本不同（MD3 滚动 `Column` + `Surface` 分组卡片 / Miuix `LazyColumn` + 库的 Preference 组件，287 行逐字相同是八对最低），故 `SettingsScreen.kt` 里保留 `Md3SettingsBody` / `MiuixSettingsBody` 两个私有函数，弹窗与骨架才共用一份。统计页的图表是 `Canvas` + `layout` 自绘、与主题无关（合并后只有一份，留在屏幕文件里 —— 只此一屏用，不进通用组件层）；图表调色板 `appChartColors()` 是「屏幕侧取色」唯一被承认的例外，两主题各一份 8 色清单（Miuix 无 `tertiary` / `inversePrimary`）。**动屏幕文件前先 `grep -rn "<屏幕名>" app/src/test/`**：点名屏幕文件的静态守卫不止 ImeHandlingTest / ScreenParityTest 两个，第 4 对就撞上 `CorruptGuardTest`（它按两份首页各断言一遍「放弃损坏数据」入口）；`ScreenParityTest.MergedScreens` 现列 8 个屏幕，既拦「双胞胎被加回来」也拦「合并后把屏幕本体删掉」。屏幕文件（`*Screen.kt` / `*Screens.kt`）必须调 `remember*UiState` 复用状态容器，禁止在 UI 文件里重写业务计算（`ScreenParityTest` 会拦；2026-09-16 起不再只查 `Miuix*` 前缀，合并后的屏幕同样在管辖内）。新增「悬浮导航」开关（`floating_nav`）；Miuix 组件 API 一律以 `.claude/skills/miuix` 的 pinned source（v0.9.4-rc01）为准，不得凭记忆臆造
-- 所有布尔开关一律使用 `ui/components/Controls.kt` 的 `CheckSwitch`（打勾/打叉样式），禁止使用 material3 Switch
-- 构建前确认 `strings.xml` 的 app_name 为“吃了么”，不得回退为占位名
-- **版本号锁定**：设置页“关于”中的版本号固定为 **v1.0**，未经用户明确指示不得更改（用户 2026-07-31 明确要求，此后新增功能不再自行递增版本号）。**注意**：该约束仅针对设置页展示的硬编码字符串；`build.gradle.kts` 的 `versionCode` / `versionName` 由 CI 注入（2026-08-21 起），两者互不影响，不要因为这条约束把 versionCode 改回恒定值
-- **提交前跑静态门禁**：`bash tools/ci-gates.sh`（ktlint 拦截 / detekt 报告；`GATES_MODE=report` 只看报告）。规则边界与理由见 `.editorconfig` 与 `detekt.yml` 文件头，流程见 `docs/WORKFLOW.md` §3；CI 在每个 PR 上跑同一脚本，外加 `assembleRelease` 的 R8 验证
-- **数据写入守卫（2026-09-15 起按 key 粒度）**：`FoodRepository` 中任何写「用户资产型」key（items / archived / consumption / history）的方法，**必须先 `isCorrupt(...)` 判断**，但守卫只覆盖**本次写入真正会覆盖的 key**，且主数据先判、辅助数据按需判（例：`upsert` 在 `history_entries` 损坏时跳过历史、库存照常保存）。**禁止退回 `isCorrupt(a, b, c)` 式一起判**——辅助数据损坏会连带锁死核心功能（`CorruptGuardTest` 静态拦截）。新增读 flow 一律走 `rawFlow()` / `lightFlow()`（内含 `resilientRead()` 兜底），禁止直接 `dataStore.data`。详见 `docs/ARCHITECTURE.md` §5「数据完整性守卫」「读流兜底」与「Flow 读取规约」
-- **双主题铁律**：屏幕文件（`*Screen.kt` / `*Screens.kt`）必须调 `remember*UiState` 复用状态容器，**禁止在 UI 文件里重写业务/聚合计算**（`ScreenParityTest` 静态拦截；表单类本地编辑态的豁免位见该测试的 `NoSharedStateScreens`）；含输入框的屏幕必须消费 IME inset（`ImeHandlingTest` 拦截）。**新屏幕一律写单文件双主题**：外壳用 `ui/components/app/` 的骨架组件（文字 `AppText`+`AppTextScale`/`AppHintText`/`AppEmojiText`，容器 `AppCard`/`AppPaddedCard`/`AppStatusCard`，页面 `AppScaffold`/`AppTopBar`/`AppMessageScreen`（顶栏 `subtitle` 在 MD3 侧即折叠式 LargeTopAppBar），行 `AppListRow`/`AppActionRow`/`AppDetailRow`/`AppDivider`，控件 `AppSearchField`/`AppFilterChip`(+`AppChipTone`)/`AppFilterToggle`/`AppFilterSectionLabel`/`AppBigButton`/`AppEditButton`/`AppWideButton`/`AppLinearProgress`/`AppConfirmDialog`，卡片 `AppStatCard`+`AppStatTone`/`AppSectionHeader`/`AppPaddedCard(tone: AppCardTone)`，信息 `AppDetailRow`/`AppDivider`/`AppHistoryNote`，行 `AppCardRow`/`AppLocationIcon`/`AppEditRowAction`/`AppDeleteRowAction`，控件 `AppStepperPill`，弹窗 `AppFormDialog`+`AppFormFieldSpec`（带输入框；两主题截断时机不同，刻意不桥接；**Miuix 侧 content 必须单一根节点**，否则平级节点之间是 0dp；**Miuix 弹窗动作按钮一律 `TextButton`，主要动作传 `textButtonColorsPrimary()`**（蓝底白字胶囊；不传 colors 会和「取消」同为浅灰）—— 两条都由 `MiuixDialogContentTest` 拦截），顶栏动作 `AppEditAction`/`AppDeleteAction`/`AppDestructiveAction`/`AppSelectAllAction`/`AppArchiveAction`，顶栏多选态 `AppTopBar(onClose, selectionMode)`），不要再新建 `Miuix*Screen.kt`；缺哪块就按同一套分流样板补，**别在屏幕里写 `if (isMiuix)`**；已合并的屏幕由 `ScreenParityTest.MergedScreens` 守着，不许把第二实现加回来。详见 `docs/ARCHITECTURE.md` §5「屏幕只换外壳」与「键盘避让」
-- **release 签名**：凭据缺失时构建应当**失败**而非回退 debug 签名。若看到 `Release 签名凭据缺失` 报错，那是预期行为，不要通过恢复静默回退来"修复"它
+> **本节每条一行、可扫读**；需要理由与细节的跟着指针去 `docs/` 对应章节读。
+> **数字一律以 `bash tools/doc-metrics.sh` 的输出为准**（该脚本是全部文档数字的唯一测量口径）。
+
+### 5.1 包名与标识
+
+- namespace 固定 `com.agon.app`（所有 Kotlin 文件必须在此包或子包下）；applicationId 是 `com.chileme.pantry` —— **两者不同，不要混淆**
+- FileProvider authority 一律用占位符：Manifest 写 `${applicationId}.fileprovider`、代码写 `${context.packageName}.fileprovider`，**禁止硬编码**
+- `strings.xml` 的 `app_name` 必须是「吃了么」，构建前确认，不得回退为占位名
+- **版本号锁定**：设置页「关于」里显示的版本号固定为 **v1.0**，未经用户明确指示不得更改（用户 2026-07-31 要求，此后新增功能不自行递增）。⚠️ 该约束**只**针对那个硬编码字符串；`build.gradle.kts` 的 `versionCode` / `versionName` 由 CI 注入（2026-08-21 起），两者互不影响，**不要因此把 versionCode 改回恒定值**
+
+### 5.2 数据层
+
+- 持久化统一走 `FoodRepository`（DataStore + kotlinx-serialization），**UI 不直接碰 DataStore**
+- 删除类操作一律走归档（Archive），**不直接物理删除**库存记录
+- **写守卫按 key 粒度**（2026-09-15 起）：写「用户资产型」key（items / archived / consumption / history）前**必须先 `isCorrupt(...)`**，但守卫**只覆盖本次写入真正会覆盖的 key**，主数据先判、辅助数据按需判（例：`upsert` 在 `history_entries` 损坏时跳过历史、库存照常保存）。**禁止退回 `isCorrupt(a, b, c)` 式一起判** —— 辅助数据损坏会连带锁死核心功能（`CorruptGuardTest` 静态拦截）
+- **新增读 flow 一律走 `rawFlow()` / `lightFlow()`**（内含 `resilientRead()` 兜底），**禁止直接 `dataStore.data`**。理由与细则见 `docs/ARCHITECTURE.md` §5「数据完整性守卫」「读流兜底」「Flow 读取规约」
+
+### 5.3 UI 与双主题
+
+- 只用 **material3 + Miuix** 两套 UI 体系（v2.8 起），**禁止混入 material2 导入**；风格由 `ui/theme/ThemeStyle.kt` 的 `ThemeStyle` 枚举（MATERIAL3 / MIUIX）控制、经 `LocalThemeStyle` 下发，设置页据此切换两套实现
+- 配色是 MD3 种子色方案（MaterialKolor 生成）：方案定义在 `ui/theme/Palettes.kt`（`AppPalette` 枚举）；`Color.kt` **仅**保留状态语义色；状态色（安全/临期/过期）通过 `rememberStatusUi()` 获取
+- 所有布尔开关一律用 `ui/components/Controls.kt` 的 `CheckSwitch`（打勾/打叉样式），**禁用 material3 `Switch`**
+- **新屏幕一律写单文件双主题**：外壳用 `ui/components/app/` 的组件 —— **清单与每个组件的关键约定见 `docs/DESIGN_SPEC.md` §4.1（唯一事实源，本节不再复述）**；**不要再新建 `Miuix*Screen.kt`**；**别在屏幕里写 `if (isMiuix)`**，缺哪块就按同一套分流样板补进组件层
+- 屏幕文件（`*Screen.kt` / `*Screens.kt`）**必须调 `remember*UiState`** 复用状态容器，**禁止在 UI 文件里重写业务/聚合计算**（`ScreenParityTest` 静态拦截，原名 `MiuixParityTest`、已扩围到全部屏幕文件；表单类本地编辑态的豁免位是该测试里的 **`NoSharedStateScreens`**，现只有 `EditFoodScreen.kt`）
+- 已合并的 8 个屏幕由 `ScreenParityTest.MergedScreens` 守着：既拦「双胞胎被加回来」，也拦「合并后把屏幕本体删掉」
+- 含输入框的屏幕**必须消费 IME inset**（`ImeHandlingTest` 拦）：屏幕级用 `Scaffold(modifier = Modifier.imePadding())`；**MD3 输入弹窗用 `stickyImePadding()`**（`ui/components/app/AppIme.kt`）；**Miuix 弹窗不要传 `defaultWindowInsetsPadding = false`**（库已处理 IME，传了会连带关掉 `navigationBarsPadding`）。细则见 `docs/ARCHITECTURE.md` §5「键盘避让」
+- Miuix 弹窗两条铁律（`MiuixDialogContentTest` 拦）：`content` **必须单一根节点**（库把 title/summary/content 放进不带 `verticalArrangement` 的 Column，平级节点之间是 **0dp**）；动作按钮一律 `TextButton`，**主要动作传 `textButtonColorsPrimary()`**（不传就和「取消」同为浅灰）
+- **动屏幕文件前先 `grep -rn "<屏幕名>" app/src/test/`** —— 点名屏幕文件的静态守卫不止 `ScreenParityTest` / `ImeHandlingTest`，还有 `CorruptGuardTest`、`CompactConsumptionTest`（2026-09-16 第 4 对合并就撞上过；`CorruptGuardTest` 是**按 4 空格缩进截函数体**的，函数一搬家就红）
+- **刻意保留 MD3 的只有三处，勿擅自迁移**：编辑页（`DatePicker` 无 Miuix 对应）、`CheckSwitch`（项目特色打勾/打叉）、设置页 body（`Md3SettingsBody` / `MiuixSettingsBody`，两版排版习语根本不同）
+- 统计页图表是 `Canvas` + `layout` 自绘、与主题无关，只此一屏用 ⇒ **不进组件层**；`appChartColors()` 是「屏幕侧取色」**唯一**被承认的例外
+- Miuix 组件 API 一律以 `.claude/skills/miuix` 的 pinned source（**v0.9.4-rc01**）为准，**不得凭 MD3 记忆臆造**参数或颜色 token
+- 迁移进度、已知缺口（MIUIX 侧无配色入口，用户已指示暂缓）与导航双形态见 `docs/DESIGN_SPEC.md` §7
+
+### 5.4 构建、门禁与签名
+
+- **提交前跑静态门禁**：`bash tools/ci-gates.sh`（ktlint 与 detekt **都是 block**；`GATES_MODE=report` 只看报告不拦）。规则边界与理由见 `.editorconfig` 与 `detekt.yml` 文件头，流程见 `docs/WORKFLOW.md` §3
+- CI 在每个 PR 上跑同一脚本，外加 `assembleDebug` / `assembleRelease`（R8 验证）/ 单测 / lint。**沙箱无 JDK/SDK 时，CI 是唯一的编译裁判** —— ktlint 绿 ≠ 能编译
+- **release 签名**：凭据缺失时构建应当**失败**而非回退 debug 签名。看到 `Release 签名凭据缺失` 报错是**预期行为**，不要通过恢复静默回退来「修复」它
+- **写数字进文档前先跑 `bash tools/doc-metrics.sh`**，并注明「实测 N（口径见该脚本）」；**禁止在多处手抄同一个数字** —— 本仓曾因此让单测数在 91→116→117→119→120→121 之间被反复加注修正
