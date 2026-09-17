@@ -43,6 +43,9 @@ class MiuixDialogContentTest {
         const val ExpectedCallSites = 8
 
         const val TripleQuote = "\"\"\""
+
+        /** 违规信息里多个顶层节点之间的分隔符（单独提出来，免得在字符串模板里再嵌一个字符串字面量）。 */
+        const val SEP = " + "
     }
 
     /** Gradle 的测试工作目录是模块目录（app/），IDE 也可能用仓库根目录，两处都找一下。 */
@@ -76,25 +79,27 @@ class MiuixDialogContentTest {
         val src = file.readText()
         if (!src.contains(CallName)) return 0
         var sites = 0
+        val fileName = file.name
         for (pos in callSites(src)) {
             val line = src.substring(0, pos).count { it == '\n' } + 1
             val closeParen = matchParen(src, pos + CallName.length - 1)
             assertTrue(
-                "${file.name}:$line 解析器没能配对 MiuixDialog 的参数表 —— 这是守卫自身失效，不是代码问题",
+                "$fileName:$line 解析器没能配对 MiuixDialog 的参数表 —— 这是守卫自身失效，不是代码问题",
                 closeParen >= 0,
             )
             val brace = trailingLambdaBrace(src, closeParen)
             if (brace < 0) {
-                violations += "${file.name}:$line 没找到尾随 lambda（content 若改用具名参数，守卫要跟着改扫描位置）"
+                violations += "$fileName:$line 没找到尾随 lambda（content 若改用具名参数，守卫要跟着改扫描位置）"
                 continue
             }
             val end = matchBrace(src, brace)
-            assertTrue("${file.name}:$line 解析器没能配对 content 的花括号", end > brace)
+            assertTrue("$fileName:$line 解析器没能配对 content 的花括号", end > brace)
             val statements = topLevelStatements(src.substring(brace + 1, end))
             sites++
             if (statements.size != 1) {
-                violations += "${file.name}:$line content 有 ${statements.size} 个顶层节点" +
-                    "（${statements.joinToString(" + ") { firstLine(it) }}）" +
+                val heads = statements.joinToString(SEP) { firstLine(it) }
+                val count = statements.size
+                violations += "$fileName:$line content 有 $count 个顶层节点（$heads）" +
                     " —— 库的弹窗根 Column 不带间距，平级节点之间会是 0dp；" +
                     "请合成单一 Column(verticalArrangement = Arrangement.spacedBy(12.dp))"
             }
@@ -247,10 +252,14 @@ class MiuixDialogContentTest {
          */
         private fun charLiteralLength(): Int {
             var j = i + 1
-            while (j < src.length) {
-                if (src[j] == '\\') { j += 2; continue }
-                if (src[j] == '\'') break
-                j++
+            var closed = false
+            while (j < src.length && !closed) {
+                if (src[j] == '\\') {
+                    j += 2
+                } else {
+                    closed = src[j] == '\''
+                    if (!closed) j++
+                }
             }
             return j + 1 - i
         }
@@ -292,22 +301,29 @@ class MiuixDialogContentTest {
         val out = mutableListOf<String>()
         var cur = -1
         while (w.i < body.length) {
-            val c = body[w.i]
-            if (w.atTopLevel()) {
-                if (cur < 0 && !c.isWhitespace()) cur = w.i
-                if (c == '\n' && cur >= 0) {
-                    val text = body.substring(cur, w.i).trim()
-                    if (text.isNotEmpty()) out += text
-                    cur = -1
-                }
-            }
+            cur = stepStatementChar(body, w, cur, out)
             w.step()
         }
-        if (cur >= 0) {
-            val text = body.substring(cur).trim()
-            if (text.isNotEmpty()) out += text
-        }
+        if (cur >= 0) addStatement(body.substring(cur), out)
         return out
+    }
+
+    /** 喂一个字符给「当前语句」：返回更新后的语句起点（-1 = 当前不在语句中）。 */
+    private fun stepStatementChar(body: String, w: Walker, cur: Int, out: MutableList<String>): Int {
+        if (!w.atTopLevel()) return cur
+        val c = body[w.i]
+        var next = cur
+        if (next < 0 && !c.isWhitespace()) next = w.i
+        if (c == '\n' && next >= 0) {
+            addStatement(body.substring(next, w.i), out)
+            next = -1
+        }
+        return next
+    }
+
+    private fun addStatement(text: String, out: MutableList<String>) {
+        val trimmed = text.trim()
+        if (trimmed.isNotEmpty()) out += trimmed
     }
 
     private fun statementsOfFirstSite(src: String): List<String> {
