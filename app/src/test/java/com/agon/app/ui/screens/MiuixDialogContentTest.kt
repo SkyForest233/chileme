@@ -16,36 +16,41 @@ import java.io.File
  * 留白只由 title、summary 各自的 `padding(bottom = 12.dp)` 提供，`content()` 之后没有任何补白 ——
  * 所以 content 里两个平级节点之间是 **0dp**。
  *
- * 这类问题**编译期完全静默**（间距为 0 不是错误，lint 与 detekt 都不会响），只有真机能发现，
+ * 这类问题**编译期完全静默**（间距为 0 不是错误，ktlint / detekt / lint 都不会响），只有真机能发现，
  * 和 `ImeHandlingTest` 拦的「键盘盖住按钮」是同一档：所以用一条读源码的 JVM 单测兜住。
  * 标准写法与依据见 `ui/components/MiuixDialog.kt` 的 KDoc 与 `docs/MIUIX_UPGRADE.md` §2 第 8 条。
  *
- * 守卫口径：
- * 1. 每个 `MiuixDialog(…)` 调用点的尾随 lambda 里，顶层语句必须**恰好 1 条**；
- * 2. 扫到的调用点数不得少于 [ExpectedCallSites] —— 解析器或源码布局变了会让守卫**空转**
- *    （比「没有守卫」更糟），所以宁可在这里响一次（与 `tools/ci-gates.sh` 的 `detekt_selftest` 同思路）。
+ * **守卫口径**：
+ * 1. 每个能解析出尾随 lambda 的 `MiuixDialog(…)` 调用点，其 content 的顶层语句必须**恰好 1 条**；
+ * 2. 成功解析的调用点数不得少于 [ExpectedParsedSites]（2026-09-17 实测 8 个：`AppDialogs` 1 +
+ *    `AppConfirmDialog` 1 + `AppFormDialog` 1 + `AppOptionDialog` 1 + `SettingsScreen` 4）。
+ *    解析不出来的调用点**不算违规**，但会让这个计数掉下来 —— 于是「解析器失效」与「弹窗被删」
+ *    都会在这一条上响，守卫不会静默空转（与 `tools/ci-gates.sh` 的 `detekt_selftest` 同思路）。
  *
- * 顶层语句的判定用一个小型 Kotlin 词法状态机（[Walker]）：字符串 / 原始字符串 / 字符串模板 `${…}` /
- * 字符字面量（`'"'`、`'{'`）/ 行注释 / **可嵌套的**块注释都要正确跳过，否则模板里的 `${ids.size}`
- * 会被当成花括号深度、注释里的 `MiuixDialog(` 会被当成调用点。算法先在真源码上验证过：当前 8 个调用点
- * 全部通过，而修复前的 `AppFormDialog.kt` 被准确判为 2 个顶层节点（见 [parserFlagsTheRealBug]）。
+ * **顶层语句的判定**用一个小型 Kotlin 词法状态机（[Walker]）：字符串、原始字符串、字符串模板 `${…}`、
+ * 字符字面量（`'"'`、`'{'`）、行注释、**可嵌套的**块注释都要正确跳过 —— 否则模板里的 `${ids.size}`
+ * 会被当成花括号深度，注释里的 `MiuixDialog(` 会被当成调用点，一个 `'"'` 会让状态机以为字符串从那里开始。
+ * 算法先用 Python 实现同一套状态机在真源码上验证过：当前 8 个调用点全部判为单一根节点；
+ * 把 `AppFormDialog.kt` 换回修复前（`git show HEAD~1:`）的版本，被准确判为 2 个顶层节点（见 [parserFlagsTheRealBug]）。
+ *
+ * 实现上刻意让 [Walker] **只对外暴露 Int / Boolean**：`Frame` 是 private 类型，一旦出现在 public 成员的
+ * 签名或推断类型里就会撞上「public 暴露 private 类型」的编译错误 —— 本仓 CI 为此红过一次
+ * （`internal val MainTabs` 的推断类型暴露了 `private data class TabSpec`，见 `devlog/2026-09-16.md` §13）。
  */
 class MiuixDialogContentTest {
 
     private companion object {
         const val CallName = "MiuixDialog("
 
-        /**
-         * 已知调用点数下限（2026-09-17 实测 8 个）：`AppDialogs.kt` 1 + `AppConfirmDialog.kt` 1 +
-         * `AppFormDialog.kt` 1 + `AppOptionDialog.kt` 1 + `SettingsScreen.kt` 4。
-         * 新增弹窗时这个数会自然变大（断言是 `>=`）；**删除**弹窗导致低于此数，说明清单该更新了。
-         */
-        const val ExpectedCallSites = 8
+        /** 成功解析的调用点数下限，见类 KDoc 第 2 条。新增弹窗时它自然变大（断言是 `>=`）。 */
+        const val ExpectedParsedSites = 8
+
+        /** 违规信息里多个顶层节点之间的分隔符（提出来，免得在字符串模板里再嵌字符串字面量）。 */
+        const val Sep = " + "
 
         const val TripleQuote = "\"\"\""
 
-        /** 违规信息里多个顶层节点之间的分隔符（单独提出来，免得在字符串模板里再嵌一个字符串字面量）。 */
-        const val SEP = " + "
+        const val DollarBrace = "\${"
     }
 
     /** Gradle 的测试工作目录是模块目录（app/），IDE 也可能用仓库根目录，两处都找一下。 */
@@ -55,60 +60,29 @@ class MiuixDialogContentTest {
     @Test
     fun everyMiuixDialogContentHasSingleRoot() {
         val root = sourceRoot()
-        assumeTrue("找不到 app/src/main/java（工作目录既不是模块目录也不是仓库根目录）", root != null)
+        assumeTrue("找不到主源码目录（工作目录既不是模块目录也不是仓库根目录）", root != null)
+        val violations = mutableListOf<String>()
+        var parsed = 0
         val files = requireNotNull(root).walkTopDown()
             .filter { it.isFile && it.extension == "kt" }
             .sortedBy { it.path }
             .toList()
-
-        val violations = mutableListOf<String>()
-        var sites = 0
         for (file in files) {
-            sites += checkFile(file, violations)
+            parsed += scanFile(file, violations)
         }
         assertTrue(
-            "只扫到 $sites 个 MiuixDialog 调用点，少于已知的 $ExpectedCallSites 个 —— " +
-                "源码布局或解析器变了，这条守卫已经在空转，请修正后同步更新 ExpectedCallSites",
-            sites >= ExpectedCallSites,
+            "只解析出 $parsed 个 MiuixDialog 调用点，少于已知的 $ExpectedParsedSites 个 —— " +
+                "要么解析器失效（守卫已在空转），要么弹窗被删/改写成了具名参数 content，请核对后同步更新下限",
+            parsed >= ExpectedParsedSites,
         )
-        assertTrue(violations.joinToString("\n  ", "Miuix 弹窗 content 必须是单一根节点：\n  "), violations.isEmpty())
-    }
-
-    /** 扫描单个文件里的所有 `MiuixDialog(…)` 调用点：返回扫到的数量，违规项写进 [violations]。 */
-    private fun checkFile(file: File, violations: MutableList<String>): Int {
-        val src = file.readText()
-        if (!src.contains(CallName)) return 0
-        var sites = 0
-        val fileName = file.name
-        for (pos in callSites(src)) {
-            val line = src.substring(0, pos).count { it == '\n' } + 1
-            val closeParen = matchParen(src, pos + CallName.length - 1)
-            assertTrue(
-                "$fileName:$line 解析器没能配对 MiuixDialog 的参数表 —— 这是守卫自身失效，不是代码问题",
-                closeParen >= 0,
-            )
-            val brace = trailingLambdaBrace(src, closeParen)
-            if (brace < 0) {
-                violations += "$fileName:$line 没找到尾随 lambda（content 若改用具名参数，守卫要跟着改扫描位置）"
-                continue
-            }
-            val end = matchBrace(src, brace)
-            assertTrue("$fileName:$line 解析器没能配对 content 的花括号", end > brace)
-            val statements = topLevelStatements(src.substring(brace + 1, end))
-            sites++
-            if (statements.size != 1) {
-                val heads = statements.joinToString(SEP) { firstLine(it) }
-                val count = statements.size
-                violations += "$fileName:$line content 有 $count 个顶层节点（$heads）" +
-                    " —— 库的弹窗根 Column 不带间距，平级节点之间会是 0dp；" +
-                    "请合成单一 Column(verticalArrangement = Arrangement.spacedBy(12.dp))"
-            }
-        }
-        return sites
+        assertTrue(
+            violations.joinToString("\n  ", "Miuix 弹窗 content 必须是单一根节点：\n  "),
+            violations.isEmpty(),
+        )
     }
 
     /**
-     * 解析器自检：既要认得字符串模板 / 注释 / 嵌套 lambda（不误报），
+     * 解析器自检：既要认得字符串模板 / 注释 / 字符字面量 / 嵌套 lambda（不误报），
      * 也要抓得住真机上出现过的那个写法（不漏报）。
      */
     @Test
@@ -118,12 +92,12 @@ class MiuixDialogContentTest {
                 // 这一行注释不是节点
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text("共 ${'$'}{items.size} 项 /* 在字符串里，不是注释 */")
-                    Text(names.joinToString("") { it.trim('"', ',') })   // 字符字面量里的引号不参与配对
+                    Text(names.joinToString("") { it.trim('"', ',') })
                     Row { TextButton(onClick = { dismiss() }) { Text("确定") } }
                 }
             }
         """.trimIndent()
-        assertEquals(1, statementsOfFirstSite(ok).size)
+        assertEquals(1L, contentBodyOfFirstSite(ok)?.let { topLevelStatements(it).size }?.toLong() ?: -1L)
 
         // 2026-09-17 真机上发现的写法：字段 Column 与按钮 Row 平级 → 两者之间 0dp
         val bad = """
@@ -132,10 +106,33 @@ class MiuixDialogContentTest {
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) { MiuixTextButton(text = "取消") }
             }
         """.trimIndent()
-        assertEquals(2, statementsOfFirstSite(bad).size)
+        assertEquals(2L, contentBodyOfFirstSite(bad)?.let { topLevelStatements(it).size }?.toLong() ?: -1L)
     }
 
-    // ------------------------------------------------------------------ 调用点定位
+    // ------------------------------------------------------------------ 扫描
+
+    /** 返回本文件里成功解析的调用点数；违规写进 [violations]。 */
+    private fun scanFile(file: File, violations: MutableList<String>): Int {
+        val src = file.readText()
+        if (!src.contains(CallName)) return 0
+        val name = file.name
+        var parsed = 0
+        for (pos in callSites(src)) {
+            val body = contentBody(src, pos)
+            if (body == null) continue
+            parsed++
+            val statements = topLevelStatements(body)
+            if (statements.size != 1) {
+                val line = src.substring(0, pos).count { it == '\n' } + 1
+                val heads = statements.joinToString(Sep) { firstLine(it) }
+                val count = statements.size
+                violations += "$name:$line content 有 $count 个顶层节点（$heads）" +
+                    " —— 库的弹窗根 Column 不带间距，平级节点之间会是 0dp；" +
+                    "请合成单一 Column(verticalArrangement = Arrangement.spacedBy(12.dp))"
+            }
+        }
+        return parsed
+    }
 
     private fun callSites(src: String): List<Int> {
         val out = mutableListOf<Int>()
@@ -147,7 +144,7 @@ class MiuixDialogContentTest {
         return out
     }
 
-    /** 排除声明本身（`fun MiuixDialog(`）与注释/KDoc 里的提及。 */
+    /** 排除声明本身（`fun MiuixDialog(`）与注释 / KDoc 里的提及。 */
     private fun isRealCallSite(src: String, pos: Int): Boolean {
         val lineStart = src.lastIndexOf('\n', pos)
         val prefix = src.substring(lineStart + 1, pos)
@@ -156,11 +153,24 @@ class MiuixDialogContentTest {
         return !trimmed.startsWith("*") && !trimmed.startsWith("//") && !trimmed.startsWith("/*")
     }
 
+    /** 某个调用点的尾随 lambda body；结构不符（具名参数 content、括号配不上）时返回 null。 */
+    private fun contentBody(src: String, pos: Int): String? {
+        val closeParen = matchParen(src, pos + CallName.length - 1)
+        val brace = if (closeParen < 0) -1 else trailingLambdaBrace(src, closeParen)
+        val end = if (brace < 0) -1 else matchBrace(src, brace)
+        return if (end > brace) src.substring(brace + 1, end) else null
+    }
+
     /** 参数表的右括号之后、跳过空白，是不是 `{`（尾随 lambda）。 */
     private fun trailingLambdaBrace(src: String, closeParen: Int): Int {
         var k = closeParen + 1
         while (k < src.length && src[k].isWhitespace()) k++
         return if (k < src.length && src[k] == '{') k else -1
+    }
+
+    private fun contentBodyOfFirstSite(src: String): String? {
+        val sites = callSites(src)
+        return if (sites.isEmpty()) null else contentBody(src, sites.first())
     }
 
     // ------------------------------------------------------------------ 词法状态机
@@ -172,78 +182,129 @@ class MiuixDialogContentTest {
         var blockDepth = 1
     }
 
+    /** 逐字符推进的词法状态机；对外只暴露 Int / Boolean，见类 KDoc 最后一段。 */
     private class Walker(val src: String) {
-        val stack = ArrayDeque<Frame>()
+        private val frames = ArrayList<Frame>()
         var i = 0
 
         init {
-            stack.addLast(Frame('c'))
+            frames.add(Frame('c'))
         }
 
-        /** 最外层的代码帧；处在字符串/注释/模板里时返回 null —— 语句边界只在最外层代码里判定。 */
-        fun rootCode(): Frame? {
-            val t = stack.last()
-            return if (stack.size == 1 && t.kind == 'c') t else null
+        private fun top(): Frame = frames[frames.size - 1]
+
+        private fun pop() {
+            frames.removeAt(frames.size - 1)
         }
 
-        fun atTopLevel(): Boolean {
-            val t = rootCode()
-            return t != null && t.paren == 0 && t.brace == 0
-        }
+        /** 是否处在最外层代码语境（不在字符串 / 注释 / 模板里）。 */
+        fun atRootCode(): Boolean = frames.size == 1 && frames[0].kind == 'c'
+
+        /** 最外层的括号深度；不在最外层代码里时返回 -1（调用方据此继续推进而不是误判配对完成）。 */
+        fun rootParen(): Int = if (atRootCode()) frames[0].paren else -1
+
+        /** 最外层的花括号深度；同上。 */
+        fun rootBrace(): Int = if (atRootCode()) frames[0].brace else -1
+
+        /** 语句边界只在「最外层代码 + 括号与花括号深度都为 0」处判定。 */
+        fun atTopLevel(): Boolean = atRootCode() && frames[0].paren == 0 && frames[0].brace == 0
 
         fun step() {
-            when (stack.last().kind) {
-                'l' -> stepLineComment()
-                'b' -> stepBlockComment()
-                's' -> stepString()
-                else -> stepCode()
+            val kind = top().kind
+            if (kind == 'l') {
+                stepLine()
+            } else if (kind == 'b') {
+                stepBlock()
+            } else if (kind == 's') {
+                stepStr()
+            } else {
+                stepCode()
             }
         }
 
-        private fun stepLineComment() {
-            if (src[i] == '\n') stack.removeLast()
+        private fun stepLine() {
+            if (src[i] == '\n') pop()
             i++
         }
 
-        private fun stepBlockComment() {
-            val t = stack.last()
-            when (twoChars()) {
-                "/*" -> { t.blockDepth++; i += 2 }
-                "*/" -> { t.blockDepth--; i += 2; if (t.blockDepth == 0) stack.removeLast() }
-                else -> i++
+        private fun stepBlock() {
+            val t = top()
+            val two = twoChars()
+            if (two == "/*") {
+                t.blockDepth++
+                i += 2
+            } else if (two == "*/") {
+                t.blockDepth--
+                i += 2
+                if (t.blockDepth == 0) pop()
+            } else {
+                i++
             }
         }
 
-        private fun stepString() {
-            val t = stack.last()
-            when {
-                !t.raw && src[i] == '\\' -> i += 2
-                twoChars() == "\${" -> { stack.addLast(Frame('c', template = true)); i += 2 }
-                t.raw && threeChars() == TripleQuote -> { stack.removeLast(); i += 3 }
-                !t.raw && src[i] == '"' -> { stack.removeLast(); i++ }
-                else -> i++
+        private fun stepStr() {
+            val t = top()
+            val c = src[i]
+            if (!t.raw && c == '\\') {
+                i += 2
+            } else if (twoChars() == DollarBrace) {
+                frames.add(Frame('c', template = true))
+                i += 2
+            } else if (t.raw && threeChars() == TripleQuote) {
+                pop()
+                i += 3
+            } else if (!t.raw && c == '"') {
+                pop()
+                i++
+            } else {
+                i++
             }
         }
 
         private fun stepCode() {
-            val t = stack.last()
-            when {
-                src[i] == '\'' -> i += charLiteralLength()
-                twoChars() == "//" -> { stack.addLast(Frame('l')); i += 2 }
-                twoChars() == "/*" -> { stack.addLast(Frame('b')); i += 2 }
-                threeChars() == TripleQuote -> { stack.addLast(Frame('s', raw = true)); i += 3 }
-                src[i] == '"' -> { stack.addLast(Frame('s')); i++ }
-                src[i] == '{' -> { t.brace++; i++ }
-                src[i] == '}' -> closeBrace(t)
-                src[i] == '(' || src[i] == '[' -> { t.paren++; i++ }
-                src[i] == ')' || src[i] == ']' -> { t.paren--; i++ }
-                else -> i++
+            val t = top()
+            val c = src[i]
+            val two = twoChars()
+            val three = threeChars()
+            if (c == '\'') {
+                i += charLiteralLength()
+            } else if (two == "//") {
+                frames.add(Frame('l'))
+                i += 2
+            } else if (two == "/*") {
+                frames.add(Frame('b'))
+                i += 2
+            } else if (three == TripleQuote) {
+                frames.add(Frame('s', raw = true))
+                i += 3
+            } else if (c == '"') {
+                frames.add(Frame('s'))
+                i++
+            } else if (c == '{') {
+                t.brace++
+                i++
+            } else if (c == '}') {
+                closeBrace(t)
+            } else if (c == '(' || c == '[') {
+                t.paren++
+                i++
+            } else if (c == ')' || c == ']') {
+                t.paren--
+                i++
+            } else {
+                i++
             }
         }
 
         /** 字符串模板 `${…}` 的收尾花括号属于字符串，不计入代码块深度。 */
         private fun closeBrace(t: Frame) {
-            if (t.template && t.brace == 0) { stack.removeLast(); i++ } else { t.brace--; i++ }
+            if (t.template && t.brace == 0) {
+                pop()
+                i++
+            } else {
+                t.brace--
+                i++
+            }
         }
 
         /**
@@ -269,30 +330,32 @@ class MiuixDialogContentTest {
         private fun threeChars(): String = if (i + 2 < src.length) src.substring(i, i + 3) else ""
     }
 
-    /** [openPos] 指向 `(`，返回配对 `)` 的下标；解析不出来返回 -1（守卫会就此报错，不静默）。 */
+    /**
+     * [openPos] 指向 `(`，返回配对 `)` 的下标；解析不出来返回 -1。
+     *
+     * 退出循环后要**再判一次深度**而不是判 `w.i < src.length`：配对字符正好是最后一个字符时
+     * `w.i == src.length`，按位置判会误报「没找到」（真源码里弹窗后面总还有代码，所以扫描 8 处时
+     * 这个 off-by-one 不发作，是 canary 把它逼出来的）。
+     */
     private fun matchParen(src: String, openPos: Int): Int {
         val w = Walker(src)
         w.i = openPos
         w.step()
-        while (w.i < src.length) {
-            val t = w.rootCode()
-            if (t != null && t.paren == 0) return w.i - 1
+        while (w.i < src.length && w.rootParen() != 0) {
             w.step()
         }
-        return -1
+        return if (w.rootParen() == 0) w.i - 1 else -1
     }
 
-    /** [openPos] 指向 `{`，返回配对 `}` 的下标。 */
+    /** [openPos] 指向 `{`，返回配对 `}` 的下标；解析不出来返回 -1。off-by-one 说明见 [matchParen]。 */
     private fun matchBrace(src: String, openPos: Int): Int {
         val w = Walker(src)
         w.i = openPos
         w.step()
-        while (w.i < src.length) {
-            val t = w.rootCode()
-            if (t != null && t.brace == 0) return w.i - 1
+        while (w.i < src.length && w.rootBrace() != 0) {
             w.step()
         }
-        return -1
+        return if (w.rootBrace() == 0) w.i - 1 else -1
     }
 
     /** 顶层语句：最外层代码语境下、括号与花括号深度均为 0 时，从一个非空白字符起到行尾。 */
@@ -326,14 +389,7 @@ class MiuixDialogContentTest {
         if (trimmed.isNotEmpty()) out += trimmed
     }
 
-    private fun statementsOfFirstSite(src: String): List<String> {
-        val pos = callSites(src).first()
-        val closeParen = matchParen(src, pos + CallName.length - 1)
-        val brace = trailingLambdaBrace(src, closeParen)
-        return topLevelStatements(src.substring(brace + 1, matchBrace(src, brace)))
-    }
-
-    /** 失败信息里用：跳过前导注释行，给出这条语句真正的首个节点（截断到 40 字符）。 */
+    /** 违规信息里用：跳过前导注释行，给出这条语句真正的首个节点（截断到 40 字符）。 */
     private fun firstLine(statement: String): String =
         statement.lineSequence()
             .map { it.trim() }
