@@ -30,7 +30,9 @@
 - `.claude/skills/miuix/`：Miuix（HyperOS）Compose UI skill（limczhh/miuix-skill，证据基线 v0.9.4-rc01 @ 4a6b750b）。做「主题风格切换 / Miuix 组件」相关任务时参考其 SKILL.md 与 references/（组件 API 一律以 pinned source 为准，禁止凭 MD3 记忆臆造 Miuix 参数）。
 - 审计报告存放于 `docs/audits/`（10 份，如 `2026-07-31-md3-audit.md`）。修复审计问题时对照报告的 file:line 引用与优先级列表。
   ⚠️ **这些是历史快照，`file:line` 一律按当时基线读**（`Common.kt` 与 8 个 `Miuix*Screen.kt` 等文件此后已删除）。
-  10 份全部已在标题下加「状态批注」（2026-09-16 那轮 4 份 + 2026-09-17 那轮 6 份）；
+  10 份全部已在标题下加「状态批注」——**覆盖率不在此处手抄份数**，由 `bash tools/doc-metrics.sh` 的
+  「顶部无任何状态批注的报告 = **0** 份」这条守着（上一版写「09-17 那轮 6 份」，实际是 **9 份**、横跨 3 个提交，
+  写下它的下一个提交就让这个数字过期了 —— 这正是本仓禁止手抄计数的原因）；
   按本仓约定**只加批注、不改写原文**，故正文里的过期数字是刻意保留的，别当现状引用。
 
 ## 3. 开发日志（devlog/）
