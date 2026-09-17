@@ -29,14 +29,16 @@
 
 > **本节是唯一事实源。** 路线图全文在 [2026-09-16 日志](2026-09-16.md)「🧭 拆分路线图」；
 > 历史 backlog 见 `docs/audits/2026-08-21-backlog.md`（该文件顶部有 09-16 的状态校订表）。
-> 括号里的数字是 2026-09-17 在沙箱实测（`git grep -c` / 按行统计），可复核。
+> 括号里的数字是 2026-09-17 实测。**口径统一在一处**：`bash tools/doc-metrics.sh` 可一键复跑全部指标
+> （作用域、出现次数 vs 命中行数、行数按 `wc -l`、零结果的阳性对照都写在脚本里）。
+> 本文件与 docs/ 里的数字都应以该脚本为准 —— 此前正因手抄三份而漂移过（单测数、`corruptedKeys`、`now()` 三例）。
 
 ### 结构性（第三批 9 项；#1–#3 已完成，详见文末「已完成里程碑」）
 
 - ⏳ **#4 错误模型统一** —— `Channel<UiEvent>` 全项目 **0** 处，错误提示目前靠 `MutableStateFlow<String?>`，
   多个订阅方会重复消费同一条。是 #5 的前置（Repository 拆分时顺带定型）。
 - ⏳ **#5 Repository 拆分 + `Clock` 注入 + 轻量 DI** —— `FoodRepository.kt` **950 行**；`Application` 子类 **0** 个
-  （DI 靠 `remember { … }` 现场构造）；`LocalDate.now()` **34** 处（时间不可注入 ⇒ 跨零点逻辑无法单测）。
+  （DI 靠 `remember { … }` 现场构造）；java.time 的 `now()` 直接调用 **34** 处（其中 `LocalDate.now()` 26 处；时间不可注入 ⇒ 跨零点逻辑无法单测）。
   ⚠️ 会撞 `CorruptGuardTest`（它按缩进截函数体），**拆分与测试改动必须同一提交**。
 - ⏳ **#6 派生数据下沉 VM + `WhileSubscribed`** —— `stateIn(` **20** 处但 `WhileSubscribed` **0** 处
   （后台仍在算）；组合期计算已从 09-15 的 6 处收敛到 **4** 处，全在 `EditFoodScreen`。

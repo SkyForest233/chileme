@@ -18,7 +18,7 @@
 >   `WhileSubscribed` **0** 处（后台仍在算）；`photoPath` 存绝对路径 + 组合期 `File.exists()`
 >   （`FoodAvatar.kt:43`、`EditFoodScreen.kt:284`）
 > - Testing：**仍然 0 个 UI 测试**（仓库连 `app/src/androidTest/` 目录都没有）；现有 **121** 例全是纯 JVM 单测
-> - State Management：无 `Application` 子类、无 DI 容器（`FoodRepository.kt` 950 行，`LocalDate.now()` 34 处不可注入）
+> - State Management：无 `Application` 子类、无 DI 容器（`FoodRepository.kt` 950 行，java.time 的 `now()` 直接调用 **34** 处不可注入（其中 `LocalDate.now()` 26 处））
 >   ⇒ 即路线图 #5
 
 

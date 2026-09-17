@@ -16,6 +16,13 @@
 > | P1-3 冷流收集 3 次 | ✅ 已修（`DecodeCache` + 复用 `stateIn` 流） |
 > | P1-4 设置页主线程 IO | ✅ 快照/导入路径已下沉 IO |
 > | P1-8 组合期 `File.exists()` + `photoPath` 绝对路径 | ❌ **仍未做**（`FoodAvatar.kt:43`、`EditFoodScreen.kt:284`；原文的 `Common.kt` 已于 2026-09-16 拆分） |
+>
+> **⚠️ 2026-09-17 追加：本文的无障碍数字有一处口径错误，别引用。**
+> 本文「统计：61 处 `contentDescription = null`、55 处有文字描述、**全项目仅 7 处 `semantics`**」——
+> 那个 **7 处是把 6 行 `import androidx.compose.ui.semantics.*` 一起数进去了**；真正的 `Modifier.semantics { }`
+> 调用今日实测只有 **1** 处（`ui/components/UndoSnackbar.kt:174`）。`contentDescription = null` 今日实测 **50** 处
+> （09-16 双主题合并后下降）。口径统一在 `tools/doc-metrics.sh`（该脚本对这一项专门写了警告：
+> 别用 `\bsemantics\b` 数）。结论不变且更糟：**语义树几乎完全没有**，屏幕阅读器读不出图表数据。
 > | P1-11 状态容器重组粒度 | ✅ 已修（`SettingsUiState` 19×`State` 精确订阅 + `SettingsActions` 窄接口） |
 > | P1-2 / P1-5 / P1-6 / P1-7 / P1-9 | ❌ 仍未做（`beyondViewportPageCount = 3` 在 `NavChrome.kt:125`（原 `MainActivity.kt:923`，2026-09-16 拆分后改址）；`animateColorScheme` 37 个角色动画；无 `Application` 类/无 DI；双主题一致性仍靠人工复测，无自动比对） |
 > | **P1-10 双主题渲染层收敛到组件级 style kit** | ✅ **已做完（2026-09-16 第三批 #3，八对收官）**：`Miuix*Screen.kt` 双胞胎 8 → 0，屏幕本体 17 文件 7,541 行 → 9 文件 4,204 行（**-44%**），style kit 落在 `ui/components/app/`（10 文件 2,746 行：`AppScaffold` / `AppTopBar` / `AppSnackbarHost` 骨架 + `AppConfirmDialog` / `AppFormDialog` / `AppOptionDialog` 三类弹窗 + 语义字号档位表 `AppTextScale` 13 档）；`AppNavGraph.kt` 与 `NavChrome.kt` 都已零主题分支。**唯一保留双套 body 的是设置页**（两版排版习语根本不同：MD3 滚动 `Column` + `Surface` 分组卡片 / Miuix `LazyColumn` + 库 Preference 组件；287 行逐字相同，八对最低），其 9 个弹窗里文案与动作逐字相同的 5 个（10 份实现）已收进组件层。逐对过程、验收口径与行数如实记账见 `devlog/2026-09-16.md` §15–§22 |

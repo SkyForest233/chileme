@@ -24,7 +24,7 @@
 > **④ 本文的量化基线不可再引用**：「UI 代码约 5448 行」「`MaterialTheme.*` 约 390 处」「10 个 UI 文件」都是
 > 双实现之前、且 `Common.kt`（983 行）尚未拆分时的口径。今日实测：包根 + `ui/` 合计 **11,978** 行，
 > 其中屏幕本体 9 文件 **4,209** 行、`ui/components/app/` 12 文件 **3,075** 行；`Common.kt` 已于 09-16 拆成 8 个
-> 按职责命名的文件（**该文件已不存在**）。`MaterialTheme.colorScheme` 现 **181** 处、`MiuixTheme.colorScheme` **72** 处。
+> 按职责命名的文件（**该文件已不存在**）。`MaterialTheme.colorScheme` 现 **184** 处、`MiuixTheme.colorScheme` **75** 处。
 >
 > **⑤ §3.3 引的三条规范冲突已由用户决策解除**：`CLAUDE.md`「只用 material3、禁止混用」已改为
 > 「只用 material3 + Miuix 两套 UI 体系（v2.8 起）」；工具链升级经用户同意后执行；`DESIGN_SPEC.md` 仍以 MD3 语义为主，
