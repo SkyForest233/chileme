@@ -5,7 +5,8 @@ package com.agon.app.ui.components
 // 存在理由：弹窗必须在 Miuix Scaffold 的 content lambda 内无条件调用、用 show 参数控制，
 // 否则不显示（历史踩坑，见 docs/MIUIX_UPGRADE.md §2.3）；把 WindowDialog 收口到一个函数，
 // 各屏就不会各写一份、也就不会漏掉这个约束。IME 由库内 DialogContent 自理，
-// **不要**传 defaultWindowInsetsPadding = false（详见下方 KDoc）。
+// **不要**传 defaultWindowInsetsPadding = false；content 也**必须是单一根节点**（库根 Column 无间距，
+// 两个平级节点之间会是 0dp）。两条约束详见下方 KDoc。
 //
 // 2026-09-16 由 Common.kt 拆分而来（纯搬运，签名与实现未改）。
 
@@ -25,6 +26,14 @@ import top.yukonga.miuix.kmp.window.WindowDialog
  *   `platformDialogProperties()`（`decorFitsSystemWindows = false`、`usePlatformDefaultWidth = false`），
  *   所以 IME inset 能一路传到弹窗内容、键盘弹出时弹窗整体上移。
  *   **不要传 `defaultWindowInsetsPadding = false`**：那会让键盘盖住弹窗按钮（Miuix 侧弹窗因此无需在本项目里加任何 imePadding）。
+ *
+ * **content 必须是单一根节点**（2026-09-17 真机复测后补写，此前踩过）：库的 `DialogContent` 把
+ * `title` / `summary` / `content()` 依次塞进一个**不带 `verticalArrangement` 的 Column**
+ * （间距靠 title、summary 各自的 `padding(bottom = 12.dp)` 提供，`content()` 后面没有任何补白）。
+ * 所以 content 里若写两个平级节点（如「字段 Column」+「按钮 Row」），它们之间是 **0dp**，真机上表现为
+ * 输入框下边与按钮上边重合。上游示例的标准写法是单一 `Column(verticalArrangement = Arrangement.spacedBy(12.dp))`
+ * （`example/shared/.../component/DialogSection.kt:351`），本仓 `AppDialogs.kt`（批量移动位置）、
+ * `AppFormDialog.kt`、`SettingsScreen.kt`（坚果云）均遵此，按钮区再额外留 4~8.dp。
  */
 @Composable
 fun MiuixDialog(

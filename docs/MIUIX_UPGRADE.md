@@ -111,6 +111,7 @@ grep -rn "top.yukonga.miuix.kmp" app/src/main/java | sed 's/.*import //' | sort 
 5. **桥接层**：`MiuixRootTheme.kt` 的 `miuixColorsToMd3ColorScheme` 是「MD3 页面取色」的过渡层，升级时若 Miuix `Colors` 字段变化，需同步修正映射。
 6. **状态色**：安全/临期/过期是硬编码语义色（`Color.kt`），不随主题/版本变。
 7. **minSdk 26 不变**（2026-08-21 由 24 提升：全项目 28 处 `java.time` 未开脱糖，API 24/25 会 `NoClassDefFoundError`。除非新 Miuix 强制要求更高，需评估）。
+8. **Miuix 弹窗的 `content` 必须是单一根节点**（2026-09-17 真机复测踩坑）：库 `DialogContent` 把 `title` / `summary` / `content()` 依次放进一个**不带 `verticalArrangement` 的 Column**（间距只由 title、summary 各自的 `padding(bottom = 12.dp)` 提供），所以 content 里两个平级节点之间是 **0dp**。标准写法：单一 `Column(verticalArrangement = Arrangement.spacedBy(12.dp))`，按钮区再额外留 4~8.dp（上游示例 `example/shared/.../component/DialogSection.kt:351`；本仓 `AppDialogs.kt` / `AppFormDialog.kt` / `SettingsScreen.kt` 坚果云弹窗）。
 
 ---
 
@@ -122,6 +123,7 @@ grep -rn "top.yukonga.miuix.kmp" app/src/main/java | sed 's/.*import //' | sort 
 | `Unresolved reference 'kotlin.android'` 或内置 Kotlin 冲突 | AGP 9 内置 Kotlin | 移除 `org.jetbrains.kotlin.android` 插件 |
 | Maven Central 403 | CI 共享 IP 被限流 | gradle.properties 已加重试，若仍失败重跑 |
 | OverlayDialog 不显示 | 弹窗在 Scaffold content 外 | 移入 content lambda |
+| 弹窗里输入框与「取消/确定」上下边重合（零间距） | `content` 写了两个平级节点（字段 Column + 按钮 Row），而库的弹窗根 Column 不带 `verticalArrangement` | 合成单一 `Column(spacedBy(12.dp))`，按钮 Row 再加 `padding(top = 8.dp)`（见 §2 第 8 条） |
 | `Key was already used` 闪退 | LazyColumn key 冲突 | 用 `itemsIndexed` + index 兜底 |
 | 注释里 `*/` 导致编译错误 | 块注释被 `*/` 提前闭合 | 避免在注释里写 `inverse*/` 这类 |
 | 同包同名枚举 Redeclaration | MD3/MIUIX 文件重名 | 用 `MiuixXxx` 前缀区分 |

@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
@@ -86,6 +87,13 @@ fun AppFormDialog(
             onDismissRequest = onDismiss,
             title = title,
         ) {
+            // 库的弹窗内容根节点是「不带间距的 Column」（上游 layout/DialogContentLayout.kt 的
+            // DialogContent：title / summary 各自 padding(bottom = 12.dp)，content() 直接接在后面），
+            // 所以 content 里**多个顶层节点之间不会有任何留白**。2026-09-17 真机复测发现：这里原本把
+            // 「字段 Column」和「按钮 Row」写成两个兄弟节点 → 输入框下边与「取消 / 添加」上边重合。
+            // 修法照上游示例（example/.../component/DialogSection.kt:351：单一 Column + spacedBy(12.dp)）
+            // 与本仓同形态弹窗（AppDialogs.kt 批量移动位置、SettingsScreen 坚果云）：合成一个 Column，
+            // 按钮区再额外留 8.dp（合计 20.dp，与 AppDialogs.kt 完全一致）。
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 states.forEachIndexed { index, fieldState ->
                     MiuixTextField(
@@ -94,25 +102,28 @@ fun AppFormDialog(
                         useLabelAsPlaceholder = true,
                     )
                 }
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                MiuixTextButton(
-                    text = dismissText,
-                    onClick = onDismiss,
-                    modifier = Modifier.weight(1f),
-                )
-                MiuixTextButton(
-                    text = confirmText,
-                    onClick = {
-                        onConfirm(
-                            states.mapIndexed { index, fieldState ->
-                                fieldState.text.toString().take(fields[index].maxLength)
-                            },
-                        )
-                    },
-                    modifier = Modifier.weight(1f),
-                    enabled = states.firstOrNull()?.text?.isNotBlank() == true,
-                )
+                Row(
+                    modifier = Modifier.padding(top = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    MiuixTextButton(
+                        text = dismissText,
+                        onClick = onDismiss,
+                        modifier = Modifier.weight(1f),
+                    )
+                    MiuixTextButton(
+                        text = confirmText,
+                        onClick = {
+                            onConfirm(
+                                states.mapIndexed { index, fieldState ->
+                                    fieldState.text.toString().take(fields[index].maxLength)
+                                },
+                            )
+                        },
+                        modifier = Modifier.weight(1f),
+                        enabled = states.firstOrNull()?.text?.isNotBlank() == true,
+                    )
+                }
             }
         }
     } else if (show) {
