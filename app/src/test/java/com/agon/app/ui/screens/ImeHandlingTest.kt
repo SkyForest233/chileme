@@ -1,5 +1,6 @@
 package com.agon.app.ui.screens
 
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeTrue
@@ -31,7 +32,14 @@ import java.io.File
  *
  * 第 3 条的清单是**按文件点名**的，所以「带输入框的 MD3 弹窗」新出现在哪个文件，就必须把那个文件加进来：
  * 2026-09-16 就是这样漏掉了 `MainActivity.kt` 的批量「移动存放位置」弹窗（有 `OutlinedTextField`，
- * 却两个属性都没写），键盘会盖住「确定移动」按钮。若该弹窗按路线图搬去 `AppDialogs.kt`，清单同步改。
+ * 却两个属性都没写），键盘会盖住「确定移动」按钮。该弹窗同日拆分后落在 `AppDialogs.kt`。
+ *
+ * **2026-09-17 起清单里的文件不存在 = 直接红**（见 [assertAllListedFilesExist]）。此前 `read()` 对不存在的
+ * 文件返回 null、各条断言再用 `mapNotNull` 悄悄丢掉，于是「文件搬走了而清单没跟着改」的后果是守卫**静默少覆盖**
+ * —— 第 3 条尤其危险：文件少了，`missing` / `noAvoidance` 在更小的集合上算，断言照常全绿。这与本仓 detekt 曾经
+ * 「`--config` 没配 `--build-upon-default-config`、报告恒为 0 条」是同一类失效（那次之后 `tools/ci-gates.sh`
+ * 加了 `detekt_selftest`：每次门禁先验「规则确实在跑」，命中 0 条直接判红）。所以本文件也补两道网：
+ * 清单存在性断言 + [canary 点数与谓词逻辑本身没坏]。
  *
  * 若确实有屏幕不需要（例如页面内没有输入框、或弹窗走 Miuix 实现），
  * 请在下方列表里改，并说明理由——不要为了过测试而加无意义的 `imePadding()`。
@@ -39,17 +47,43 @@ import java.io.File
 class ImeHandlingTest {
 
     /** Gradle 的测试工作目录是模块目录（app/），IDE 也可能用仓库根目录，两处都找一下。 */
+    private val sourcePrefixes = listOf("src/main/java/", "app/src/main/java/")
+
     private fun read(relativePath: String): String? =
-        listOf("src/main/java/", "app/src/main/java/")
+        sourcePrefixes
             .map { File(it + relativePath) }
             .firstOrNull { it.exists() }
             ?.readText()
+
+    private fun fileExists(relativePath: String): Boolean = sourcePrefixes.any { File(it + relativePath).exists() }
+
+    /**
+     * 清单里的文件**必须存在**，缺一个就红。
+     *
+     * 为什么需要这条：[read] 对不存在的文件返回 null，三条守卫都用 `mapNotNull` / `associateWith` 接住，
+     * 于是「文件搬走了而清单没同步」不会报错，只会让守卫**静默少覆盖**那个文件。第 1 条会把 null 算进
+     * `missing`（响）、第 2 条会让 `imeCount` 从 4 掉到 3（响），但**第 3 条完全静默**：集合变小，
+     * `missing` / `noAvoidance` 仍是空，断言全绿。
+     *
+     * 唯一放行的是「整棵源码树都找不到」（工作目录既不是 `app/` 也不是仓库根）—— 那是环境问题不是代码漂移，
+     * 用 `assumeTrue` 跳过；只要清单里**任一**文件在，就说明环境是对的，缺的那个就是真漂移。
+     */
+    private fun assertAllListedFilesExist(paths: List<String>, what: String) {
+        assumeTrue("找不到源码树（工作目录既不是 app/ 也不是仓库根？），跳过", paths.any(::fileExists))
+        val gone = paths.filterNot(::fileExists)
+        assertTrue(
+            "$what 清单里有文件不存在：$gone —— 文件搬走了而清单没同步改？" +
+                "请同步更新清单：漏改的后果是守卫静默少覆盖这些文件（第 3 条甚至照常全绿）。",
+            gone.isEmpty(),
+        )
+    }
 
     /**
      * App 外壳（浮层 + 底栏）分散在哪几个文件里 —— 第 2 条守卫按这份清单**跨文件求和**。
      *
      * 2026-09-16 起 `MainActivity.kt` 按职责拆分，守卫从「读一个文件点数」改成「读一组文件求和」；
-     * 搬动浮层时必须同步改这份清单。清单里不存在的文件会被跳过（拆分分步做，中间态只有部分文件在）。
+     * 搬动浮层时必须同步改这份清单 —— 2026-09-17 起清单里文件不存在会**直接红**
+     * （见 [assertAllListedFilesExist]），不再像拆分中间态那样静默跳过。
      */
     private val chromeFiles = listOf(
         "com/agon/app/MainActivity.kt",   // 拆分前：Snackbar + 批量栏 + 弹窗 + 底栏全在这里；拆分后只剩 Activity 本体
@@ -105,8 +139,8 @@ class ImeHandlingTest {
 
     @Test
     fun `含输入框的屏幕必须处理 IME inset`() {
+        assertAllListedFilesExist(imeScreens, "含输入框的屏幕")
         val contents = imeScreens.associateWith(::read)
-        assumeTrue("找不到屏幕源码（非 Gradle 工作目录？），跳过", contents.values.any { it != null })
 
         val missing = contents.filterValues { it?.contains("imePadding()") != true }.keys
         assertTrue(
@@ -117,8 +151,8 @@ class ImeHandlingTest {
 
     @Test
     fun `App 级浮层必须同时避让导航栏与键盘`() {
+        assertAllListedFilesExist(chromeFiles, "App 外壳（浮层 + 底栏）")
         val chrome = chromeFiles.mapNotNull(::read)
-        assumeTrue("找不到任何 App 外壳源码（非 Gradle 工作目录？），跳过", chrome.isNotEmpty())
         val text = chrome.joinToString("\n").codeOnly()
 
         val imeCount = Regex("\\.imePadding\\(\\)").findAll(text).count() +
@@ -141,51 +175,99 @@ class ImeHandlingTest {
         // 2026-09-16 之前这里用「imePadding 数 < navigationBarsPadding 数」间接表达，但那个代理指标会被
         // 任何一处新增浮层推翻（给 MD3 弹窗补键盘避让后两边都是 4，一次正确的修复反被判成违规）。
         // 现在直接对着「底栏实现所在的文件」断言，约束与被约束物一一对应。
+        assertAllListedFilesExist(navBarFiles, "底栏实现")
         val navBars = navBarFiles.mapNotNull(::read)
-        assertTrue(
-            "找不到底栏实现 $navBarFiles —— 又被搬走了？请同步更新 navBarFiles",
-            navBars.isNotEmpty(),
-        )
         assertFalse(
             "底栏不应跟随键盘抬升（A 方案）：底栏实现里出现了 .imePadding()",
             navBars.any { it.codeOnly().contains(".imePadding()") },
         )
     }
 
+    /**
+     * 带输入框的 MD3 弹窗在哪些文件里 —— 第 3 条守卫按这份清单逐个点名。
+     *
+     * 清单外的文件不会被检查，这正是 2026-09-16 那个弹窗当初漏网的原因；反过来，清单里的文件搬走了
+     * 而这里没同步，2026-09-17 起会**直接红**（见 [assertAllListedFilesExist]），不再静默少覆盖。
+     */
+    private val dialogFiles = listOf(
+        "com/agon/app/ui/screens/SettingsScreen.kt",        // 坚果云账号 / 应用密码
+        // 分类名称 + Emoji、添加存放位置：2026-09-16 第 6 对把这两个弹窗搬进了组件层，条目跟着搬
+        "com/agon/app/ui/components/app/AppFormDialog.kt",
+        // 批量「移动存放位置」弹窗：2026-09-16 补入清单时它在 MainActivity.kt，同日拆分后落在 AppDialogs.kt。
+        "com/agon/app/AppDialogs.kt",
+    )
+
+    /** 第 3 条前半：MD3 弹窗是独立浮动窗口，不关这个开关 IME inset 根本传不进内容。 */
+    private fun closesDecorFits(code: String): Boolean = code.contains("decorFitsSystemWindows = false")
+
+    /**
+     * 第 3 条后半：关掉 decorFits 只是「拿得到 inset」，还得**真的避让**。两种写法都认。
+     *
+     * 这里**刻意不用 codeOnly()**，而是匹配完整的赋值形态：`SettingsScreen.kt:379` 那个 MIME 数组里有一项
+     * 是「星号斜杠星号」写法的全通配符，其中「斜杠星号」两字符会被 codeOnly() 的块注释正则当成注释起点，
+     * 一路吞到 976 行 KDoc 的注释结尾为止 —— 600 行真实代码（含坚果云弹窗那处避让）在「只剩代码」的视图里
+     * 根本不存在，断言就会假失败。赋值形态不会出现在散文里，所以直接匹配原文既精确又不依赖注释剥离
+     * （该坑已记在 codeOnly() 的 KDoc 与 devlog 2026-09-17）。
+     *
+     * ⚠️ 本段也**刻意用中文描述那两个符号、不写出来**，理由与 codeOnly() 的 KDoc 同一条：Kotlin 块注释可嵌套，
+     * 在 KDoc 里写出「斜杠星号」会让本注释自己配不平、把后面的真实代码整段吞掉。2026-09-17 把这段说明从
+     * 行内注释搬进 KDoc 时**真的踩了一回**（搬进来时顺手保留了那个 MIME 数组字面量）；而且花括号配平检查
+     * **抓不到**它 —— 词法状态到文件末尾又自己配平了，靠 canary 的 `@Test` 计数对不上（2 ≠ 4）才暴露。
+     */
+    private fun avoidsIme(code: String): Boolean =
+        code.contains("modifier = stickyImePadding()") || code.contains("modifier = Modifier.imePadding()")
+
     @Test
     fun `带输入框的 MD3 弹窗必须关闭 decorFitsSystemWindows`() {
-        val files = listOf(
-            "com/agon/app/ui/screens/SettingsScreen.kt",        // 坚果云账号 / 应用密码
-            // 分类名称 + Emoji、添加存放位置：2026-09-16 第 6 对把这两个弹窗搬进了组件层，条目跟着搬
-            "com/agon/app/ui/components/app/AppFormDialog.kt",
-            // 批量「移动存放位置」弹窗：2026-09-16 补入清单时它在 MainActivity.kt，同日拆分后落在 AppDialogs.kt。
-            // 弹窗再搬家就改这一行 —— 清单外的文件不会被检查，这正是它当初漏网的原因。
-            "com/agon/app/AppDialogs.kt",
-        )
-        val contents = files.mapNotNull { f -> read(f)?.let { f to it } }.toMap()
-        assumeTrue("找不到设置/管理页源码（非 Gradle 工作目录？），跳过", contents.isNotEmpty())
+        assertAllListedFilesExist(dialogFiles, "带输入框的 MD3 弹窗")
+        val contents = dialogFiles.mapNotNull { f -> read(f)?.let { f to it } }.toMap()
 
-        // 清单里不存在的文件跳过（弹窗按路线图分步搬家，中间态只有一个宿主文件在）
-        val missing = contents.filterValues { !it.contains("decorFitsSystemWindows = false") }.keys
+        val missing = contents.filterValues { !closesDecorFits(it) }.keys
         assertTrue(
             "以下文件的 MD3 弹窗没有关闭 decorFitsSystemWindows，IME inset 传不进来、底部按钮会被键盘盖住：$missing",
             missing.isEmpty(),
         )
 
-        // 关掉 decorFits 只是「拿得到 inset」，还得真的避让。两种写法都认。
-        //
-        // 这里**刻意不用 codeOnly()**，而是匹配完整的赋值形态：`SettingsScreen.kt:379` 有
-        // `arrayOf("application/json", "text/plain", "*/*")`，MIME 通配符里的 `/*` 会被 codeOnly()
-        // 的块注释正则当成注释开头，一路吞到 976 行 KDoc 的 `*/` 为止 —— 600 行真实代码（含坚果云
-        // 弹窗那处避让）在「只剩代码」的视图里根本不存在，断言就会假失败。赋值形态不会出现在散文里，
-        // 所以直接匹配原文既精确又不依赖注释剥离（该坑已记在 codeOnly() 的 KDoc 与 devlog 2026-09-17）。
-        val noAvoidance = contents.filterValues { code ->
-            !code.contains("modifier = stickyImePadding()") && !code.contains("modifier = Modifier.imePadding()")
-        }.keys
+        val noAvoidance = contents.filterValues { !avoidsIme(it) }.keys
         assertTrue(
             "以下文件的 MD3 弹窗拿到了 IME inset 却没做避让（.imePadding() 与 stickyImePadding() 都没有），" +
                 "底部按钮仍会被键盘盖住：$noAvoidance",
             noAvoidance.isEmpty(),
         )
+    }
+
+    /**
+     * canary：证明上面那些「点数 / 字符串匹配」的逻辑本身没坏。
+     *
+     * 这类静态守卫的失效方式不是报错，而是**静默**：计数正则少写一个转义、[codeOnly] 把真实代码当注释吞掉、
+     * 或者判定串写得宽到什么都匹配 —— 断言就退化成永远为真的空转。本仓在 detekt 上吃过一次同样的亏
+     * （配置没生效、报告恒为 0 条、门禁看着在跑其实没管），之后 `tools/ci-gates.sh` 才加了 `detekt_selftest`。
+     * 所以这里对**合成的**好例/坏例各跑一遍，让「守卫还能区分对错」本身成为被测对象。
+     */
+    @Test
+    fun `canary 点数与谓词逻辑本身没坏`() {
+        // 好例：真实代码里的三种避让写法都必须被数到，各 1 次
+        val code = "Box(Modifier.navigationBarsPadding().imePadding()) { Text(\"底栏\") }\n" +
+            "Dialog { Column(modifier = stickyImePadding()) { OutlinedTextField(value = v) } }\n"
+        assertEquals(1, Regex("\\.imePadding\\(\\)").findAll(code.codeOnly()).count())
+        assertEquals(1, Regex("stickyImePadding\\(").findAll(code.codeOnly()).count())
+        assertEquals(1, Regex("\\.navigationBarsPadding\\(\\)").findAll(code.codeOnly()).count())
+
+        // 坏例：说明性注释里提到这些字样**不得**被算成一处实现
+        //（2026-09-16 拆分当天就踩到：文件头注释让计数从 4 变 5，还让底栏那条 assertFalse 直接误报）
+        val prose = "// 底栏不得出现 .imePadding()，也不得出现 stickyImePadding()\nval x = 1\n"
+        assertEquals(0, Regex("\\.imePadding\\(\\)").findAll(prose.codeOnly()).count())
+        assertEquals(0, Regex("stickyImePadding\\(").findAll(prose.codeOnly()).count())
+
+        // 第 3 条的两个谓词：坏例必须判违规、好例必须放过（否则断言就是空转）
+        val badDialog = "AlertDialog(properties = DialogProperties()) { OutlinedTextField(value = v) }"
+        assertFalse(closesDecorFits(badDialog))
+        assertFalse(avoidsIme(badDialog))
+        val goodDialog = "AlertDialog(properties = DialogProperties(decorFitsSystemWindows = false)) {\n" +
+            "    OutlinedTextField(value = v, onValueChange = {}, modifier = stickyImePadding())\n}"
+        assertTrue(closesDecorFits(goodDialog))
+        assertTrue(avoidsIme(goodDialog))
+        // 另一种合规写法（MD3 的 imePadding）也要认，别只认粘性那种
+        assertTrue(avoidsIme("OutlinedTextField(value = v, modifier = Modifier.imePadding())"))
     }
 }
