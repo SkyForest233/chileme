@@ -48,9 +48,8 @@ import androidx.compose.foundation.pager.PagerState
  * [AppNavHost] 需要的 4 个导航动作。
  *
  * 2026-09-17 由 4 个平铺 lambda 收窄而来（形参 9 → 6，`docs/WORKFLOW.md` 记的 `LongParameterList`
- * 24 条里就包含这个函数）。**声明顺序即解构顺序**：函数体第一行是
- * `val (navigate, popRoute, openList, selectTab) = callbacks`，靠它把 101 行 entry 代码保持原样，
- * 所以改这个类的形参顺序 = 改导航语义，务必同步改那行解构。
+ * 24 条里就包含这个函数）。函数体开头把这 4 个动作取成**与 MainApp 局部函数同名**的局部值，
+ * 靠它把 101 行 entry 代码保持原样（那段至今 `git diff -w` 为空）。
  *
  * 用 data class 而不是接口（仓库里 `SettingsActions` 是接口，那是为了让状态容器能在纯 JVM 单测里构造）：
  * 这 4 个动作的实现是 MainApp 组合期间的**局部函数**，做成接口就得每次重组新建一个匿名对象，
@@ -80,8 +79,14 @@ internal fun AppNavHost(
     listFilter: String?,
     callbacks: AppNavCallbacks,
 ) {
-    // 解构成与 MainApp 局部函数同名的 4 个局部值：下面 101 行 entry 代码因此仍一个字不用改。
-    val (navigate, popRoute, openList, selectTab) = callbacks
+    // 取出与 MainApp 局部函数**同名**的 4 个局部值：下面 101 行 entry 代码因此仍一个字不用改。
+    // 这里刻意不用解构声明 `val (navigate, popRoute, openList, selectTab) = callbacks`：detekt 的
+    // DestructuringDeclarationWithTooManyEntries 默认上限是 3 项，4 项会被静态门禁拦下
+    // （2026-09-17 CI run 35179586612 实测）。写成 4 行取值效果完全相同。
+    val navigate = callbacks.navigate
+    val popRoute = callbacks.popRoute
+    val openList = callbacks.openList
+    val selectTab = callbacks.selectTab
 
     // 大屏/折叠屏适配：内容最大宽 840dp 居中（MD3 大屏可读性要求），
     // 手机上无变化；背景由外层 Scaffold 统一铺满。

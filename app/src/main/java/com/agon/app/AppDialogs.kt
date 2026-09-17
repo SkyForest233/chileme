@@ -15,8 +15,11 @@ package com.agon.app
 //   · `selectedIds` 只被用来显示「已选 N 件」，故收窄成 `selectedCount: Int`；
 //   · `isMiuix` 参数删掉，改成组件内部读 `LocalThemeStyle`（与 AppFormDialog / AppConfirmDialog /
 //     AppOptionDialog 等 App 级组件一致；MainApp 传的本来就是 `LocalThemeStyle.current == MIUIX`，值相同）；
-//   · 位置清单传 **`Flow`** 而不是 `List`：收集必须留在 `if (show)` 里面（原实现如此），
+//   · 位置清单传 **`StateFlow`** 而不是 `List`：收集必须留在 `if (show)` 里面（原实现如此），
 //     若改成在调用方 collect，MainApp 这个壳就会因位置变化而重组 —— 那是行为改动，不是搬运。
+//     类型必须写 `StateFlow` 而非 `Flow`：`collectAsStateWithLifecycle()` 的**无参重载只给 StateFlow**，
+//     收 `Flow` 时 `initialValue` 是必填的（写 `Flow` 会编译失败，2026-09-17 CI run 35179586612 实测）；
+//     而传 `emptyList()` 当初始值会让第一帧的 chips 空一下，与原实现（StateFlow 恒有值）不同。
 //
 // 2026-09-16 由 MainActivity.kt（拆分中途在 MainApp.kt）搬出：除「被捕获的 var showMoveLocationDialog
 // 换成 show + onDismiss 两个参数」这 8 行代码（6 处赋值 + show 实参 + if 条件）与 1 行段注释外，
@@ -44,7 +47,7 @@ import com.agon.app.ui.components.MiuixDialog
 import com.agon.app.ui.components.app.stickyImePadding
 import com.agon.app.ui.theme.LocalThemeStyle
 import com.agon.app.ui.theme.ThemeStyle
-import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.StateFlow
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -60,7 +63,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 @Composable
 internal fun BatchMoveLocationDialog(
     show: Boolean,
-    locationsFlow: Flow<List<String>>,
+    locationsFlow: StateFlow<List<String>>,
     selectedCount: Int,
     onDismiss: () -> Unit,
     onConfirm: (String) -> Unit,
