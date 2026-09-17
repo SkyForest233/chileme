@@ -7,14 +7,14 @@ package com.agon.app.ui.components.app
 // 口径，硬套要改字段所有权，还要新增密码遮蔽与说明文槽位 —— 为一个弹窗动三个在用的调用方，不划算。
 // 那个弹窗留在 `SettingsScreen.kt` 里按 `isMiuix` 分支（`ImeHandlingTest` 第 3 条仍点名该文件）。
 //
-// ⚠️ MD3 分支的 `DialogProperties(decorFitsSystemWindows = false)` + `Modifier.imePadding()` 是
+// ⚠️ MD3 分支的 `DialogProperties(decorFitsSystemWindows = false)` + `stickyImePadding()` 是
 // `ImeHandlingTest` 第 3 条**按文件点名**的位置：这个弹窗再搬家，测试清单要跟着改
 // （本文件就是 2026-09-16 从 `ManageScreens.kt` 搬来的，同批已把清单里那一行改到这里）。
+// 粘性避让的理由见 `AppIme.kt` 文件头（2026-09-17 真机复测问题 ①：切换输入框时弹窗会坠一下）。
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.material3.AlertDialog
@@ -132,8 +132,10 @@ fun AppFormDialog(
             onDismissRequest = onDismiss,
             // 键盘避让（2026-09-15 起）：MD3 弹窗是独立浮动窗口，必须关掉 decorFitsSystemWindows
             // IME inset 才传得进来，否则底部「确定 / 取消」会被键盘盖住。见 SettingsScreen 坚果云弹窗处的说明。
+            // 2026-09-17 起用 stickyImePadding() 代替 imePadding()：本弹窗有两个输入框（分类名 + Emoji），
+            // 焦点在两框之间切换时 IME inset 会瞬时归零，居中弹窗跟着上下坠一下（见 AppIme.kt）。
             properties = DialogProperties(decorFitsSystemWindows = false),
-            modifier = Modifier.imePadding(),
+            modifier = stickyImePadding(),
             title = { Text(title) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {

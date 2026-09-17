@@ -2,7 +2,7 @@ package com.agon.app
 
 // App 级弹窗。目前只有一个：批量「移动存放位置」（MD3 AlertDialog / Miuix WindowDialog 双实现）。
 //
-// ⚠️ MD3 分支必须保留 properties = DialogProperties(decorFitsSystemWindows = false) + imePadding()：
+// ⚠️ MD3 分支必须保留 properties = DialogProperties(decorFitsSystemWindows = false) + stickyImePadding()：
 // MD3 弹窗是独立浮动窗口，不关这个开关 IME inset 传不进内容，键盘会盖住「确定移动」按钮
 // （2026-09-16 修，用户真机复测通过）。Miuix 分支不需要 —— WindowDialog 的 DialogContent 由库自理
 // IME，**不要**给它传 defaultWindowInsetsPadding = false。ImeHandlingTest 第 3 条按文件清单守卫这一点，
@@ -16,7 +16,6 @@ package com.agon.app
 // 换成 show + onDismiss 两个参数」这 8 行代码（6 处赋值 + show 实参 + if 条件）与 1 行段注释外，
 // 弹窗内部实现逐字节未改。
 
-import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -39,6 +38,7 @@ import top.yukonga.miuix.kmp.basic.ButtonDefaults as MiuixButtonDefaults
 import top.yukonga.miuix.kmp.basic.SnackbarHostState as MiuixSnackbarHostState
 import top.yukonga.miuix.kmp.basic.TextButton as MiuixTextButton
 import com.agon.app.ui.components.MiuixDialog
+import com.agon.app.ui.components.app.stickyImePadding
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -143,10 +143,12 @@ internal fun BatchMoveLocationDialog(
                 // 键盘避让（2026-09-16 补，与 SettingsScreen 坚果云弹窗 / ManageScreens 两处一致）：
                 // MD3 弹窗是独立浮动窗口，默认 DialogProperties（decorFitsSystemWindows = true）不会把
                 // IME inset 透给内容 —— 下面「或输入新位置」这个输入框弹出键盘时，「确定移动」按钮会被盖住。
-                // 关掉 decorFits 拿到 inset，再由 imePadding 把弹窗整体上移到键盘之上。
+                // 关掉 decorFits 拿到 inset，再由粘性避让把弹窗整体上移到键盘之上。
+                // 用 stickyImePadding() 而非 imePadding()：2026-09-17 真机复测发现焦点在输入框之间切换时
+                // IME inset 会瞬时归零、居中弹窗跟着坠一下（见 ui/components/app/AppIme.kt）。
                 // Miuix 分支不需要：WindowDialog 的 DialogContent 由库自理 IME（见 MiuixDialog 的 KDoc）。
                 properties = DialogProperties(decorFitsSystemWindows = false),
-                modifier = Modifier.imePadding(),
+                modifier = stickyImePadding(),
                 title = { Text("批量修改存放位置") },
                 text = {
                     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {

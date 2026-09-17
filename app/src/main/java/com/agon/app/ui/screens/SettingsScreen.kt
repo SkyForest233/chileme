@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -89,6 +88,7 @@ import com.agon.app.ui.components.app.AppScaffold
 import com.agon.app.ui.components.app.AppSnackbarForm
 import com.agon.app.ui.components.app.AppSnackbarPlacement
 import com.agon.app.ui.components.app.rememberAppSnackbarHostState
+import com.agon.app.ui.components.app.stickyImePadding
 import com.agon.app.ui.theme.AppPalette
 import com.agon.app.ui.theme.LocalThemeStyle
 import com.agon.app.ui.theme.ThemeStyle
@@ -141,7 +141,7 @@ import java.time.LocalDateTime
  *
  * 照抄而非统一的地方：
  * - **坚果云账号弹窗**：MD3 是 `AlertDialog` 的 title/text/confirmButton 槽位 + `DialogProperties(decorFitsSystemWindows = false)`
- *   + `imePadding`（2026-09-15 的键盘避让修复，`ImeHandlingTest` 第 3 条按文件点名），Miuix 是 `MiuixDialog` +
+ *   + `stickyImePadding`（2026-09-15 的键盘避让修复 + 2026-09-17 改粘性避让，`ImeHandlingTest` 第 3 条按文件点名），Miuix 是 `MiuixDialog` +
  *   `Column(spacedBy 12.dp)` + 自己排一行两个等宽按钮。**两版的输入框都是 MD3 `OutlinedTextField`**
  *   （Miuix 的 `TextField` 没有 `visualTransformation` 参数，做不了密码遮蔽，合并前就是刻意妥协），
  *   且值直接读写 `state.accountInput` / `state.passwordInput`。`AppFormDialog` 是「本地字段 + `onConfirm(values)`」
@@ -556,9 +556,11 @@ fun SettingsScreen(
                 onDismissRequest = { state.setShowNutstoreDialog(false) },
                 // 键盘避让（2026-09-15）：MD3 弹窗是独立浮动窗口，默认 DialogProperties
                 // （decorFitsSystemWindows = true）不会把 IME inset 透给内容，底部按钮会被键盘盖住。
-                // 关掉 decorFits 拿到 inset，再由 imePadding 让弹窗整体上移到键盘之上。
+                // 关掉 decorFits 拿到 inset，再由粘性避让让弹窗整体上移到键盘之上。
+                // 2026-09-17 起用 stickyImePadding()：账号 → 密码切换时输入法会重启、IME inset 瞬时归零，
+                // 居中弹窗跟着上下坠一下（用户实机报告的问题 ①，机制与取舍见 ui/components/app/AppIme.kt）。
                 properties = DialogProperties(decorFitsSystemWindows = false),
-                modifier = Modifier.imePadding(),
+                modifier = stickyImePadding(),
                 title = { Text("坚果云账号") },
                 text = {
                     Column {
