@@ -111,7 +111,7 @@ grep -rn "top.yukonga.miuix.kmp" app/src/main/java | sed 's/.*import //' | sort 
 5. **桥接层**：`MiuixRootTheme.kt` 的 `miuixColorsToMd3ColorScheme` 是「MD3 页面取色」的过渡层，升级时若 Miuix `Colors` 字段变化，需同步修正映射。
 6. **状态色**：安全/临期/过期是硬编码语义色（`Color.kt`），不随主题/版本变。
 7. **minSdk 26 不变**（2026-08-21 由 24 提升：全项目 28 处 `java.time` 未开脱糖，API 24/25 会 `NoClassDefFoundError`。除非新 Miuix 强制要求更高，需评估）。
-8. **Miuix 弹窗的 `content` 必须是单一根节点**（2026-09-17 真机复测踩坑）：库 `DialogContent` 把 `title` / `summary` / `content()` 依次放进一个**不带 `verticalArrangement` 的 Column**（间距只由 title、summary 各自的 `padding(bottom = 12.dp)` 提供），所以 content 里两个平级节点之间是 **0dp**。标准写法：单一 `Column(verticalArrangement = Arrangement.spacedBy(12.dp))`，按钮区再额外留 4~8.dp（上游示例 `example/shared/.../component/DialogSection.kt:351`；本仓 `AppDialogs.kt` / `AppFormDialog.kt` / `SettingsScreen.kt` 坚果云弹窗）。
+8. **Miuix 弹窗的 `content` 必须是单一根节点**（2026-09-17 真机复测踩坑）：库 `DialogContent` 把 `title` / `summary` / `content()` 依次放进一个**不带 `verticalArrangement` 的 Column**（间距只由 title、summary 各自的 `padding(bottom = 12.dp)` 提供），所以 content 里两个平级节点之间是 **0dp**。标准写法：单一 `Column(verticalArrangement = Arrangement.spacedBy(12.dp))`，按钮区再额外留 4~8.dp（上游示例 `example/shared/.../component/DialogSection.kt:351`；本仓 `AppDialogs.kt` / `AppFormDialog.kt` / `SettingsScreen.kt` 坚果云弹窗）。静态守卫：`MiuixDialogContentTest`。
 
 ---
 
@@ -137,7 +137,7 @@ grep -rn "top.yukonga.miuix.kmp" app/src/main/java | sed 's/.*import //' | sort 
 - [ ] 依赖版本已改，工具链（Kotlin/AGP/Gradle/compileSdk）已对齐目标版本基线
 - [ ] `./gradlew assembleDebug`（或 CI）通过
 - [ ] `bash tools/ci-gates.sh` 通过（ktlint 为拦截模式，见 `docs/WORKFLOW.md` §3）
-- [ ] `./gradlew testDebugUnitTest` 通过 —— 尤其 `ScreenParityTest`（原名 `MiuixParityTest`，拦「屏幕文件重写业务计算」）与 `ImeHandlingTest`（拦「弹窗/输入屏丢失 IME 处理」）
+- [ ] `./gradlew testDebugUnitTest` 通过 —— 尤其 `ScreenParityTest`（原名 `MiuixParityTest`，拦「屏幕文件重写业务计算」）与 `ImeHandlingTest`（拦「弹窗/输入屏丢失 IME 处理」）、`MiuixDialogContentTest`（拦「Miuix 弹窗 content 写了多个平级节点 → 零间距」）
 - [ ] 所有 Miuix API 调用已对照新版本 source 核对，无臆造签名
 - [ ] MD3 主题未受影响（未改 MD3 页面代码）
 - [ ] 双主题切换、弹窗、图标、squircle 等关键路径回归正常

@@ -63,7 +63,7 @@
 
 ### 运行单元测试
 ```bash
-./gradlew testDebugUnitTest     # 116 例纯 JVM 单测，无需模拟器
+./gradlew testDebugUnitTest     # 119 例纯 JVM 单测，无需模拟器
 ```
 
 ### 静态门禁（ktlint + detekt，不需要 Android SDK）
