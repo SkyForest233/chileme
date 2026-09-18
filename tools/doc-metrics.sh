@@ -247,6 +247,84 @@ for f in sorted(glob.glob('**/*.md', recursive=True)):
 print('%d 处，不自洽 %d 处' % (tot, bad))
 PY
 )" '本日曾两次写出「14 绿 3 红 / 14 run」这类算不平的计数，故固化成检查。也认「N run —— X 绿 · Y 红 · Z 被取消」这种三段写法（concurrency 取消是第三类结局，漏了它会误报）'
+row '一次性事件的 consume 配对（#4 临时守卫）' "$(python3 - <<'PY' 2>/dev/null || echo '需 python3'
+import glob, io, re
+VM = 'app/src/main/java/com/agon/app/viewmodel/AppViewModel.kt'
+src = io.open(VM, encoding='utf-8').read()
+events = re.findall(r'private val (_\w+) = MutableStateFlow<[^>]*\?>\(null\)', src)
+others = ''
+for f in glob.glob('app/src/main/**/*.kt', recursive=True):
+    if not f.endswith('AppViewModel.kt'):
+        others += io.open(f, encoding='utf-8').read()
+nofn = nocall = ok = 0
+for e in events:
+    n = e[1:]
+    fn = 'consume' + n[0].upper() + n[1:]
+    if not re.search(r'fun %s\(\)' % fn, src):
+        nofn += 1
+        print('     ✗ %s 是「可空 StateFlow」型一次性事件，但 VM 里没有 %s()' % (e, fn))
+    elif not re.search(r'\.%s\(\)' % fn, others):
+        nocall += 1
+        print('     ✗ %s 的 %s() 全仓无人调用 ⇒ 旋屏/重组后同一条提示会重放' % (e, fn))
+    else:
+        ok += 1
+print('%d 个可空事件状态：配对齐全 %d，缺 consume 函数 %d，有函数但无人调用 %d' % (len(events), ok, nofn, nocall))
+PY
+)" '目标「配对齐全 = 全部」。2026-09-17 核查发现：本仓用「可空 StateFlow + 手工 consume」建模一次性事件（撤销×3 + 自动同步提示），**4/4 都记得清空 ⇒ 没有正在发生的重放 bug，但靠的是纪律不是机制**。这条守卫先把纪律钉住；#4a 把它们迁到 `Channel<UiEvent>` 后，本行应改成「禁止再出现可空 StateFlow 型一次性事件」（守卫随重构交接，不留两套）。⚠️ 已知盲区：只查「有没有调用点」，查不出「调用点自己是否也被调用」'
+row '文档写死的关键数 vs 实测（不符即 ✗）' "$(python3 - <<'PY' 2>/dev/null || echo '需 python3'
+import glob, io, re
+MAIN = 'app/src/main'
+DOCS = ['CLAUDE.md', 'README.md', 'docs/ARCHITECTURE.md', 'docs/DESIGN_SPEC.md',
+        'docs/REQUIREMENTS.md', 'docs/WORKFLOW.md', 'docs/MIUIX_UPGRADE.md',
+        'docs/ROADMAP.md', 'devlog/INDEX.md']
+kt = {}
+for f in glob.glob(MAIN + '/**/*.kt', recursive=True):
+    kt[f] = io.open(f, encoding='utf-8').read()
+def occ(pat):
+    n = 0
+    for t in kt.values():
+        n += len(re.findall(pat, t))
+    return n
+def wcl(p):
+    return sum(1 for _ in io.open(p, encoding='utf-8'))
+REPO = MAIN + '/java/com/agon/app/data/FoodRepository.kt'
+VMF = MAIN + '/java/com/agon/app/viewmodel/AppViewModel.kt'
+# (指标, 文档里提取数值的正则, 实测值)
+ITEMS = [
+    ('FoodRepository.kt 行数', r'`FoodRepository\.kt`\s*\*{0,2}([\d,]+)\s*行', wcl(REPO)),
+    ('FoodRepository 类级函数', r'\*\*(\d+)\*\*\s*个类级函数',
+     len(re.findall(r'^    (?:private |internal |suspend |override )*fun ', io.open(REPO, encoding='utf-8').read(), re.M))),
+    ('corruptedKeys 出现次数', r'`corruptedKeys`\s*被引用\s*\*\*(\d+)\*\*\s*处', occ(r'corruptedKeys')),
+    ('stateIn( 出现次数', r'`stateIn\(`\s*\*\*(\d+)\*\*\s*处', occ(r'stateIn\(')),
+    ('WhileSubscribed 出现次数', r'`WhileSubscribed`\s*\*\*(\d+)\*\*\s*处', occ(r'WhileSubscribed')),
+    ('Channel< 出现次数', r'`Channel<`\s*\*\*(\d+)\*\*\s*处', occ(r'Channel<')),
+    ('Result< 出现次数', r'`Result<`\s*\*{0,2}仅?\s*\*{0,2}(\d+)\*\*\s*处', occ(r'Result<')),
+    ('now() 直接调用', r'`now\(\)`\s*\*\*(\d+)\*\*\s*处',
+     occ(r'LocalDate\.now|LocalDateTime\.now|LocalTime\.now')),
+    ('contentDescription = null', r'`contentDescription = null`\s*\*\*(\d+)\*\*\s*处',
+     occ(r'contentDescription\s*=\s*null')),
+    ('strings.xml 条目', r'`strings\.xml`\s*\*\*(\d+)\*\*\s*条',
+     len(re.findall(r'<string', io.open(MAIN + '/res/values/strings.xml', encoding='utf-8').read()))),
+    ('Application 子类', r'`Application`\s*子类\s*\*\*(\d+)\*\*\s*个',
+     occ(r'class\s+[A-Za-z]*\s*:\s*Application\b')),
+]
+bad = hits = 0
+for d in DOCS:
+    try:
+        ls = io.open(d, encoding='utf-8').read().split('\n')
+    except OSError:
+        continue
+    for i, line in enumerate(ls, 1):
+        for label, pat, real in ITEMS:
+            for m in re.finditer(pat, line):
+                hits += 1
+                doc = int(m.group(1).replace(',', ''))
+                if doc != real:
+                    bad += 1
+                    print('     ✗ %s:%d %s 文档写 %d，实测 %d ⇒ 改文档或改成指针' % (d, i, label, doc, real))
+print('%d 处写死的数被比对，不符 %d 处' % (hits, bad))
+PY
+)" '2026-09-17 核查的第 11/12/13 处都是这一类：**文档里的数或论述与代码不符，而没有任何东西会报警**（`4,204` 行、`37` 个角色、`6` 份批注、`没有任何页面消费它`、`跨零点无法单测`）。本行把「写死的关键数」逐个拿去和实测比。⚠️ 它**刻意与「指针优于数字」的原则相反**：不是鼓励写数字，而是让还留着的数字烂不掉 —— 报警的正确修法通常是**把数字换成指针**，而不是改数字。⚠️ **验收目标值要用散文写**（别写成 `**N** 个/处/行`），否则会被当成现状断言而误报 —— 本行上线当天就踩了一次（ROADMAP 5a 的「`Application` 子类 **1** 个」是目标不是现状）'
 row 'devlog 文件数 / 总行数' "$(ls devlog/*.md | wc -l | tr -d ' ') 个 / $(wc -l devlog/*.md | tail -1 | awk '{print $1}') 行" '含 INDEX.md'
 row 'docs/audits 报告数' "$(ls docs/audits/*.md | wc -l | tr -d ' ') 份" '历史审计报告，只加批注不改写'
 row '含 2026-09-17 批注的报告' "$(grep -l '2026-09-17 状态批注\|2026-09-17 追加' docs/audits/*.md | wc -l | tr -d ' ') 份" '7 份新增顶部批注 + 3 份在既有批注上追加（md3-audit / chileme-review / fix-plan；fix-plan 两者都有 ⇒ 去重 9 份）'
