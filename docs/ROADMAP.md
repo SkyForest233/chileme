@@ -23,8 +23,8 @@
 | 2 | 开启 detekt 复杂度规则，按实测清单收敛（4 条体量规则显式关闭） | ✅ 2026-09-16 | 09-16 §14 + `detekt.yml` 文件头 |
 | 3 | 双主题去重 + App 级组件层（最大的一项） | ✅ 2026-09-16 ⚠️ 原验收未达成 | 09-16 §15–§22；口径见下方「#3 收官」 |
 | **4** | **错误模型统一**（⚠️ 证据行 09-18 **两次**复核修正：不是「正在重复消费」，是 4 个手工 `consume` + **5 个回调**；回调数原写「3 个 `(Boolean, String)`」，实测 **4 个 `(Boolean, String)` + 1 个 `(Boolean, Boolean)`** ⇒ 核查第 15 处） | ✅ **4a / 4b / 4c 全部落地（2026-09-18）** · **真机复测已通过**；单测 121→127→135→**143** | 本节「4a/4b/4c 落地结果」 |
-| 5 | Repository 拆分 + `Clock` 注入 + 轻量 DI（⚠️ 证据行 09-18 **两次**复核修正：跨零点**早已可注入且已被测**；该接时钟的是**数据层 9 + VM 5 = 14 处**，原写 12，见核查第 17 处） | 🔶 **5a ✅ + 5b ✅（2026-09-18）** · 5c 未做（前置 #4 已收官） | 本节「5a 落地结果」+「5b 落地结果」 |
-| 6 | 派生数据下沉 VM + `WhileSubscribed` | ⏳ 未开始（前置 #5）；**范围已缩小**，见下 | — |
+| 5 | Repository 拆分 + `Clock` 注入 + 轻量 DI（⚠️ 证据行 09-18 **两次**复核修正：跨零点**早已可注入且已被测**；该接时钟的是**数据层 9 + VM 5 = 14 处**，原写 12，见核查第 17 处） | ✅ **5a + 5b + 5c 全部落地（2026-09-18）** · 只剩「行为不变」的真机复测这一道 | 本节「5a 落地结果」+「5b 落地结果」+「#5c 收官后的现值」（含 8 个文件的行数表）|
+| 6 | 派生数据下沉 VM + `WhileSubscribed` | ⏳ 未开始（前置 #5 **已收官** ⇒ 随时可开工）；**范围已缩小**，见下 | — |
 | 7 | 字符串资源化 + 无障碍补全 | ⏳ 未开始（前置 #3 已满足 ⇒ **随时可插队做**） | — |
 | 8 | 诊断包 + 许可清单（⚠️ 09-18 复核：健康告警条**自 09-15 已在首页运行**，原「没有任何页面消费它」是错的） | ⏳ 未开始（**无前置**，可随时做）；**范围已缩小** | — |
 | 9 | CI 加固 | 🔶 用户已否掉大半，剩 4 个小项 | 09-17 §10 |
@@ -189,7 +189,7 @@
   ⚠️ 网络类失败仍会显示 OkHttp 的**英文技术串**（如 `Unable to resolve host …`）—— 改造前就这样、本轮刻意未改，
   真机看到它**不算回归**；要不要换成中文 ⇒ **用户已决（2026-09-18）：保持英文不改**（见 `devlog/2026-09-18.md` §11）。
 
-## #5 Repository 拆分 + `Clock` 注入 + 轻量 DI —— 🔶 5a+5b 已落地，5c 进行中（2026-09-18）
+## #5 Repository 拆分 + `Clock` 注入 + 轻量 DI —— ✅ 5a+5b+5c 全部落地（2026-09-18）；「行为不变」待用户真机复测
 
 > ⚠️ **2026-09-18 复核修正（核查第 13 处）**：本节原证据行写「`now()` 直接调用 **34** 处 ⇒ **时间不可注入，
 > 跨零点逻辑无法单测**」。后半句**是错的，而且写下来那天就错** —— 跨零点逻辑在 08-21 那轮（fix-plan 阶段 6）
@@ -198,11 +198,26 @@
 - **前置**：#4（错误模型会改 Repository 的返回类型；先改签名再搬文件，避免同一批代码搬两次）。
 - **证据（2026-09-18 逐条实测）**：
   - `FoodRepository.kt` 在 **#5 开工时是 965 行 / 47 个类级函数**（#5b 结束时实测；这是**历史快照**，
-    不是现值 —— 5c 正在按领域拆，行数每个提交都在变，现值一律看 `tools/doc-metrics.sh` 的「规模与结构」段。
-    早先这里写的是被守卫比对的"现值"，拆分一开始就每次提交都要改一遍文档，而它描述的其实是**拆分前**的证据）。
-    另有 1 个局部函数（种子数据里的 `id()`）；47 与 detekt 09-16
+    说的是"为什么非拆不可"，不是现值）。另有 1 个局部函数（种子数据里的 `id()`）；47 与 detekt 09-16
     `TooManyFunctions` 快照一致。当时一个类管着库存、归档、消耗、录入历史、阈值分类位置、
     全部设置项、坚果云凭据、备份导入导出 —— 改任一领域都要先读懂其余六个。
+  - **#5c 收官后的现值（2026-09-18）**：`FoodRepository.kt` **252** 行、**9** 个类级函数
+    （7 个 `decode*` 包装 + `nutstoreCredentialKeysFlow` + `discardCorrupt`），外加 19 个 key 与 19 条对外读取流；
+    搬出去的是 **38 个类级函数**（47 → 9），加上原本就是文件级顶层函数的 `pruneCorruptDir`，共 **39 个顶层函数**分在 7 个领域文件里；`data/` 下 15 个文件**最大 293 行、无一超 400**：
+
+    | 文件 | 行数 | 管什么 |
+    |---|---|---|
+    | `FoodRepository.kt` | 252 | 核心：key、对外读取流、解码包装、放弃损坏数据的入口 |
+    | `RepositoryCore.kt` | 244 | 共用底座：三态解码、损坏留档、读取兜底、损坏目录清理 |
+    | `FoodConsumption.kt` | 177 | 消耗与库存变动（改数量含临期自动归档、增删消耗、撤销、补 id、90 天外聚合） |
+    | `FoodBackup.kt` | 124 | 备份、CSV 导出、导入预览与写入、整体清空（都要一次性读写全部 key） |
+    | `FoodItems.kt` | 106 | 库存：首次示例数据、新增/编辑、批量改存放位置 |
+    | `FoodArchive.kt` | 100 | 归档、单条与批量恢复、删除归档条目、清空归档 |
+    | `FoodSettings.kt` | 65 | 设置写入：外观 5 个、同步节奏 3 个、分类与位置 3 个（都只写自己那一两个 key） |
+    | `FoodCredentials.kt` | 49 | 坚果云凭据的加密写入与旧版明文密码迁移 |
+
+    这两个数（252 / 9）在 `tools/doc-metrics.sh` 的「文档写死的关键数 vs 实测」比对清单里；
+    全部文件的行数与「`data/` 最大文件 < 400 行」判据在同脚本的「规模与结构」段实测。
   - `Application` 子类 **1** 个（`ChiliMeApp`，#5a 起）。改造前是 0 个，仓库在 `AppViewModel` 里
     现场 `FoodRepository(application)` 构造 ⇒ 现已归零：构造点只剩容器里那 1 处，
     由 `tools/doc-metrics.sh` 的「依赖构造点」守卫看着（含"Manifest 必须挂同名 `android:name`"这一条，
@@ -225,18 +240,26 @@
     `FoodModelsTest` 传固定日期断言剩余天数（含过期负数）、`CompactConsumptionTest` 用固定 `today = 2026-08-21`
     测 90 天压缩与跨月聚合、`CsvExportTest` 同理；界面侧有 `LocalToday` CompositionLocal + `MainActivity` 在
     `ON_RESUME` 刷新。⇒ **本项的时间部分只剩「把 12 处硬调接到同一个可注入时钟上」。**
-- **⚠️ 最大的风险：会撞三个读源码/真跑仓库的测试，且清单已随 09-16 合并变过**（原路线图点名的
-  `MiuixHomeScreen.kt` / `MiuixConsumptionLogScreen.kt` **已被删除**，别照抄旧清单）。2026-09-18 实测清单：
-  - `CorruptGuardTest` 读 4 个文件（`data/FoodRepository.kt`、`data/SecureStore.kt`、`ui/screens/HomeScreen.kt`、
-    `viewmodel/AppViewModel.kt`），对 `FoodRepository.kt` **逐字断言** `upsert` / `changeQuantity` / `discardCorrupt`
-    的函数体内容，还断言 `if (enc != null)` 在该文件里**恰好 2 处**；
-  - `CompactConsumptionTest` 读 2 个（`data/FoodRepository.kt` 断言含 `if (!record.isDeletable())`、
-    `ui/screens/ConsumptionLogScreen.kt`）；
-  - `FoodRepositoryGuardTest` 是**真跑** DataStore 的集成测试（8 例），走 `FoodRepository(dataStore, corruptDir)`
-    这个 `internal` 主构造 ⇒ 拆分后构造方式一变，这里必须同批改；
-  - 且 `CorruptGuardTest.functionBody()` 是**按 4 空格缩进截函数体**的 ⇒ 函数签名一搬家就会
-    `assertTrue("源码里找不到 …")` 直接失败。
-  - ⇒ **拆分与测试改动必须在同一个提交里**，否则 CI 必红且红得莫名其妙。
+- **⚠️ 开工前判定的最大风险：会撞三个读源码/真跑仓库的测试** —— ✅ **这条风险真的兑现了，而且红了两次**
+  （都在 5c-4，两个根因都写在提交信息里：一个是搬运脚本漏改声明行、一个是守卫仍指着旧文件）。
+  开工前的清单（原路线图点名的 `MiuixHomeScreen.kt` / `MiuixConsumptionLogScreen.kt` **已被删除**，别照抄旧清单）
+  与收官后的实际落点：
+  - `CorruptGuardTest`：开工前读 4 个文件，**收官后读 7 个**（`data/FoodRepository.kt`、`data/FoodItems.kt`、
+    `data/FoodConsumption.kt`、`data/FoodCredentials.kt`、`data/SecureStore.kt`、`ui/screens/HomeScreen.kt`、
+    `viewmodel/AppViewModel.kt`）—— 逐字断言的 `upsert` / `changeQuantity` 与计数断言
+    `if (enc != null)` **恰好 2 处**都跟着搬到了各自的新文件，`discardCorrupt` 与
+    `nutstorePlaintextFallbackFlow` 仍读核心文件；
+  - `CompactConsumptionTest`：`if (!record.isDeletable())` 那条改读 `data/FoodConsumption.kt`
+    （**这就是 5c-4 第二次红的真因**：搬了代码没搬守卫）；
+  - `FoodRepositoryGuardTest` / `FoodRepositoryClockTest`：真跑 DataStore 的集成测试，走
+    `FoodRepository(dataStore, corruptDir)` 这个 `internal` 主构造 —— 构造方式 5a 起就没再变，
+    而领域函数变成**同包 internal 扩展函数**后，同包测试**无需 import 即可调用** ⇒ 这两个文件一行未改；
+  - `CorruptGuardTest.functionBody()` 原本**按 4 空格缩进截函数体**，而搬出去的函数是顶层的（缩进 0）
+    ⇒ 已加 `indent` 参数（成员 4 / 顶层 0）。实测：截断点会落在函数体里第一个内部 `}` 上，
+    正向断言假红、`!contains(...)` 反向断言假绿；`upsert` 差 1 行（30 vs 31）、`changeQuantity` 差 2 行（50 vs 52），
+    这两个函数**碰巧**不至于假绿，但内部块靠前一点的函数会被截掉大半 ⇒ 参数是原则上必要，不是摆设。
+  - ⇒ **拆分与测试改动必须在同一个提交里**（已遵守）；并且每搬一个领域都先跑
+    `tools/guard-mirror.py`（#5c-4 之后入库的工具，本地几毫秒查出"守卫指着旧文件"）。
 
 ### 做法：分三阶段（顺序与旧路线图不同 —— DI 先做，否则 VM 拿不到注入的时钟）
 
@@ -244,10 +267,22 @@
 |---|---|---|---|
 | **5a** ✅ 已做（2026-09-18） | `Application` 子类 + 轻量容器：`ChiliMeApp`（`AndroidManifest.xml` 挂 `android:name`）持有 `AppContainer`（`clock` / `repo`）；`AppViewModel` 从 `application` 取容器，**构造签名保持 `(Application)` 不变** | `Application` 子类由 0 变 1（容器挂在它上面）；`FoodRepository(application)` 现场构造归零；**不引入 Hilt/Koin** | ⚠️ **不能给 `AppViewModel` 加带默认值的第二参数**：`ViewModelProvider` 的默认工厂用反射找 `(Application)` 构造器，而 Kotlin 的默认参数只生成带 `DefaultConstructorMarker` 的合成构造器 ⇒ 反射找不到、运行时崩。时钟从容器取，不从构造参数取 ⇒ **实施时已遵守**（VM 构造签名一字未动；容器里先放好 `clock`，#5b 再接线） |
 | **5b** ✅ 已做（2026-09-18） | 时钟注入：`FoodRepository` 的 `internal` 主构造加 `clock: Clock = Clock.systemDefaultZone()`，生产用的次构造由 `(context)` 改成 `(context, clock)`（容器传入）；替换**数据层 9 处 + VM 5 处**硬调（⚠️ 原计划写「数据层 7 处」，实测 `CloudSync`/`LocalSnapshotStore` 还各有 1 处，见上方核查第 17 处）；VM 里的自动同步间隔判定抽成纯函数 `isAutoSyncDue`（`data/CloudSync.kt`）才测得到；新增 `FoodRepositoryClockTest` 6 例 + `AutoSyncDueTest` 4 例 | ✅ 数据层与 VM 的**函数体硬调 0 处**、14 处已注入时钟（UI/主壳 7 处刻意保留；另有默认参数 3 + 便捷属性委托 5，逐条登记在脚本的豁免清单里并写明理由）；✅ 新单测用固定时钟断言跨零点行为；✅ 单测 143 → **153** | 行为逐位不变：默认值就是系统时钟 ⇒ 生产路径零改动。⚠️ 固定时钟刻意选在**离当天半年远**的 2026-03-05 —— 若有人把时钟改回系统时钟，按「固定的今天」摆好的数据会落到完全不同的相对位置 ⇒ 断言必红；选个等于真实日期的值，这种回归会静默通过 |
-| **5c** | 按领域拆分（**纯搬运**，签名与实现不改）：核心读写与损坏三态（`Decoded` / `DecodeCache` / `rawFlow` / `markCorrupt`）留作共用底座；其余按库存、归档、消耗、备份导入导出、设置与凭据分文件 | `FoodRepository.kt` 不再是 950 行单文件；每个新文件 < 400 行；`git diff --stat` 里**新增行数 ≈ 删除行数**（纯搬运的判据）；三个测试同批改完、CI 绿 | 本项最险：一次要搬 48 个函数。建议**一个领域一个提交**（库存 → 归档 → 消耗 → 备份 → 设置），每个提交自带守卫改动；每搬完一个领域立刻 `git diff -w --stat` 确认没顺手改实现 |
+| **5c** ✅ 已做（2026-09-18，7 个提交） | 按领域拆分（**纯搬运**，签名与实现不改）：核心读写与损坏三态（`Decoded` / `DecodeCache` / `rawFlow` / `markCorrupt`）搬去 `RepositoryCore.kt` 作共用底座；其余按库存、归档、消耗、备份导入导出、设置、凭据分 6 个文件。形状 = **同包 `internal` 扩展函数**（`internal suspend fun FoodRepository.upsert(…)`），对外调用写法一字未变，只有跨包的 `AppViewModel` 为搬走的函数逐个加 import（本仓禁通配导入） | ✅ 965 → **252** 行、47 → **9** 个类级函数；✅ 8 个文件**全部 < 400 行**（最大 293 是原有的 `FoodModels.kt`）；✅ 纯搬运判据：每笔 `git diff -w --stat` 的**新增行数恰好等于放宽可见性的行数**（5c-2 = 7、5c-3 = 2、5c-4 = 2、5c-5 = 5、5c-6 = 8、5c-7 = 3），其余全是删除；✅ 守卫同批改完（`CorruptGuardTest` 3 条 + `CompactConsumptionTest` 1 条 + `functionBody` 加 `indent` 参数）；✅ 5c-1/2/3/5/6/7 六轮 CI 三项全绿，5c-4 红两次后修绿 | 本项最险（要搬 48 个函数），实际也**红了两次**：① 搬运脚本认声明行的正则容不下 `private ` ⇒ 一个辅助函数搬成了**没有接收者**的顶层函数，体内却用着仓库成员（编译错，ktlint/detekt 看不出语义错）；② `CompactConsumptionTest` 仍读旧文件 ⇒ 断言失败。两次都因**自校验豁免了出错的那一行**而没被本地拦住 ⇒ 改成按行号定位改写 + 加"无接收者却用成员"断言 + 守卫镜像工具入库。**否决过的方案**：类里留一行转发（成员遮蔽扩展 ⇒ 无限递归且编译期不报）、把流搬成扩展属性（`get() =` 每次访问新建 Flow 实例 ⇒ 行为差异）、包级共享 `TAG`（本包已有多个文件级 private TAG，本地无编译器验证不了撞名）⇒ 每个文件一份 TAG 副本 |
 
-- **全项验收**：① 跨零点相关逻辑有**用固定时钟**跑的单测；② 依赖只有一个构造点；③ 单文件不再超过 400 行；
-  ④ 全程行为不变（`git diff` 里除 `package` / `import` / 构造注入外没有逻辑改动）；⑤ 单测数只增不减；⑥ ktlint / detekt 0。
+- **全项验收（2026-09-18 收官逐条对账）**：
+  ① ✅ 跨零点逻辑有用**固定时钟**跑的单测（5b：`FoodRepositoryClockTest` 6 例 + `AutoSyncDueTest` 4 例，
+  固定时钟刻意选在离当天半年远的 2026-03-05）；
+  ② ✅ 依赖只有一个构造点（`ChiliMeApp` → `AppContainer`，由 `tools/doc-metrics.sh` 的「依赖构造点」守卫看着，
+  含"Manifest 必须挂同名 `android:name`"）；
+  ③ 🔶 **在 #5 范围内达成**：`data/` 下 15 个文件最大 **293** 行、无一超 400（已加进 doc-metrics 当判据）。
+  ⚠️ 但**全仓还有 6 个文件超 400 行**，都在 UI/VM 层、不属于 #5 的范围：`SettingsScreen` 1,705、
+  `AppViewModel` 668、`EditFoodScreen` 659、`AppChrome` 479、`StatsScreen` 409、`AppListRow` 406（09-18 实测）
+  ⇒ 这条按原样留着当待办，别因为 #5 收官就当成全仓达成；
+  ④ 🔶 代码层面是纯搬运（每笔 `git diff -w` 核对过：新增行只有可见性放宽与 import），
+  但"装上手机还能正常用"只有真机能答 ⇒ **待用户复测一轮**（冷启动 + 各页正常 + 新增/编辑/消耗/归档/备份导入导出）；
+  ⑤ ✅ 单测数只增不减：143 →（5b）**153** →（5c）**153**（拆分不新增测试，但 4 条源码守卫跟着搬了家；
+  原始 `grep @Test` 会数出 154，多的那处在 `ImeHandlingTest.kt:218` 的 KDoc 里，doc-metrics 剥注释后是 153）；
+  ⑥ ✅ ktlint / detekt 0（每轮 CI 的「静态门禁」job 全绿；detekt 仍是 block 模式）。
 - **顺带**：`ImeHandlingTest` 点名 10 个文件（`MainActivity.kt` / `MainApp.kt` / `BatchBars.kt` / `NavChrome.kt`
   + 4 个屏幕 + `AppFormDialog.kt` / `AppBatchMoveDialog.kt`）。拆 Repository 正常碰不到它，5a 也不需要动
   `MainActivity.kt`（容器挂在 `Application` 上，从 VM 里取）⇒ **清单不动**。
@@ -345,11 +380,14 @@
      ⚠️ 这几行刻意**不原样引用**那串被追踪的写法（文件名、加粗数字、"行"字连在一起写）：本脚本的口径**含散文**，
      举例引一次就等于自己造一个过期数字给守卫抓 —— 写这段的当场就撞上了（守卫把这句举例当成 ROADMAP 里
      真的写死的旧行数，报了 ✗）。与 5a 那两处 KDoc 改写是**同一个教训的第三次出现**。
-- **5b 结束时的现值**：`FoodRepository.kt` 是 965 行 / 47 个类级函数（5c 拆分对象未动）；数据层 + VM 函数体硬调
+- **5b 结束时的快照（⚠️ 不是现值）**：`FoodRepository.kt` 当时是 965 行 / 47 个类级函数（5c 的拆分对象还没动），
+  5c 收官后已拆到 **252** 行 / **9** 个类级函数（见上方「#5c 收官后的现值」那张表）；数据层 + VM 函数体硬调
   **0** 处、已注入 **14** 处、豁免 **7** 处；`now()` 直接调用总数仍 **34** 处（该指标的正则不含实参，
   注入不减计数；其中空括号的 `LocalDate.now()` 由 26 → **18**）；单测 **153** 例。
-- **待真机复测**：本阶段同样理论上零行为变化（默认值就是系统时钟，且生产的每条调用链都显式传了同一个时钟），
-  与 5a/5c 一起在 #5 收官时复测一轮。
+- **待真机复测**：本阶段同样理论上零行为变化（默认值就是系统时钟，且生产的每条调用链都显式传了同一个时钟）。
+  🔶 **#5 三阶段已全部落地，这道复测就是唯一未勾掉的验收项**（5c 是纯搬运，风险面比 5b 更小，
+  但"装上手机还能正常用"只有真机能答）：冷启动 + 各页正常 + 新增/编辑/消耗/撤销/归档与恢复 +
+  备份导出导入 + 设置页各项开关 + 坚果云凭据保存。
 
 ## #6 派生数据下沉 VM + `WhileSubscribed`（**范围比原路线图小**）
 

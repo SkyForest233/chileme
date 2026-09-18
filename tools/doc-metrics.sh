@@ -49,7 +49,26 @@ row() { printf '  %-34s %10s   %s\n' "$1" "$2" "$3"; }
 echo '════ 规模与结构（行数一律 wc -l）════'
 row '屏幕本体（不含 *State.kt）' "$(nfiles "$SCREENS" -not -name '*State.kt') 文件 / $(find "$SCREENS" -name '*.kt' -not -name '*State.kt' | xargs wc -l | tail -1 | awk '{print $1}') 行" 'ui/screens/*.kt 排除 *State.kt'
 row 'App 级组件层' "$(nfiles "$APPLAYER") 文件 / $(lines "$APPLAYER") 行" 'ui/components/app/*.kt'
-row 'FoodRepository.kt' "$(wc -l < app/src/main/java/com/agon/app/data/FoodRepository.kt | tr -d ' ') 行" '路线图 #5 的拆分对象'
+DATADIR=app/src/main/java/com/agon/app/data
+row 'FoodRepository.kt（#5c 后的核心）' "$(wc -l < $DATADIR/FoodRepository.kt | tr -d ' ') 行" '只剩 19 个 key + 19 条对外读取流 + 7 个解码包装 + 放弃损坏数据入口 = 9 个类级函数'
+row '#5c 拆出的领域文件' "$(python3 - <<'PY'
+import io, os
+D = 'app/src/main/java/com/agon/app/data'
+NEW = ['RepositoryCore.kt', 'FoodItems.kt', 'FoodArchive.kt', 'FoodConsumption.kt',
+       'FoodBackup.kt', 'FoodSettings.kt', 'FoodCredentials.kt']
+have = [f for f in NEW if os.path.exists(os.path.join(D, f))]
+print('%d 个 / %d 行' % (len(have), sum(sum(1 for _ in io.open(os.path.join(D, f), encoding='utf-8')) for f in have)))
+PY
+)" '底座 + 库存 + 归档 + 消耗 + 备份 + 设置 + 凭据（少一个就是被误删或误改名）'
+row 'data/ 最大文件（判据 < 400 行）' "$(python3 - <<'PY'
+import glob, io, os
+sizes = sorted(((sum(1 for _ in io.open(f, encoding='utf-8')), os.path.basename(f))
+                for f in glob.glob('app/src/main/java/com/agon/app/data/*.kt')), reverse=True)
+over = ['%s %d' % (n, c) for c, n in sizes if c > 400]
+print('%s %d 行%s' % (sizes[0][1], sizes[0][0],
+                      (' => X 超 400 的有 ' + ', '.join(over)) if over else ' OK 全部 < 400'))
+PY
+)" '#5 验收③在 data 层的落点；⚠️ UI/VM 层仍有 6 个文件超 400 行，不属 #5 范围（见 ROADMAP 全项验收③）'
 row '*State.kt 状态容器' "$(ls "$SCREENS"/*State.kt | wc -l | tr -d ' ') 个" '路线图 #6 的基础'
 row 'Application 子类' "$(occ 'class[[:space:]]+[A-Za-z]*[[:space:]]*:[[:space:]]*Application\b' "$MAIN") 个" '#5a 起 = 1（`ChiliMeApp` 持有 `AppContainer`）；0 = 无 DI 容器'
 row '依赖构造点（目标：只在容器里 1 处）' "$(python3 - <<'PY' 2>/dev/null || echo '需 python3'
