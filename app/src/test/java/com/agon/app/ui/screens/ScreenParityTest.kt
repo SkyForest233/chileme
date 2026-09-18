@@ -51,6 +51,12 @@ class ScreenParityTest {
             // #10a-1（2026-09-18）：弹窗区 635 行搬到同包 SettingsBackupDialogs / SettingsCloudDialogs /
             // SettingsSnapshotDialogs 三个文件（逐字搬、非屏幕文件，故不进 screenFiles()）；本条文件名不动 ——
             // 屏幕入口还在原地，且 rememberSettingsUiState( 也还在里面（规则 1 靠它通过）。
+            // #10a-2（2026-09-18）：两套 body 与两个 MD3 专用小组件也搬出去了（SettingsBodyMd3 /
+            // SettingsBackupMd3 / SettingsBodyMiuix / SettingsMd3Widgets），入口只剩装配。规则 1 仍靠
+            // 入口里的 rememberSettingsUiState( 通过；规则 2 的扫描面 uiFiles() **自动**覆盖这 4 个新文件
+            // （它们不是 *State.kt），搬家当天实测 4 个禁用模式在里面 0 命中 ⇒ 只补覆盖、不改判定。
+            // ⚠️ 文件名刻意用「主题在后」的写法（SettingsBodyMiuix.kt）：规则 4 禁的是 Miuix<屏幕名>.kt
+            // 这种**前缀式**第二实现（MiuixSettingsScreen.kt），后缀式不触雷。
             "SettingsScreen.kt",
         )
     }

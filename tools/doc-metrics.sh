@@ -68,7 +68,7 @@ over = ['%s %d' % (n, c) for c, n in sizes if c > 400]
 print((('%s %d 行%s' % (sizes[0][1], sizes[0][0],
                        (' => X 超 400 的有 ' + ', '.join(over)) if over else ' OK 全部 < 400')) if sizes else 'X 找不到源码（glob 空集）—— 本脚本会 cd 到自己所在目录的上一级，请在仓库根目录跑'))
 PY
-)" '#5 验收③在 data 层的落点；⚠️ UI/VM 层仍有 6 个文件超 400 行，不属 #5 范围（见 ROADMAP 全项验收③ 与 #10）'
+)" '#5 验收③在 data 层的落点；⚠️ UI/VM 层仍有文件超 400 行（个数与清单刻意不写死在这里，见下方「全清单」那行），不属 #5 范围（见 ROADMAP 全项验收③ 与 #10）'
 row '屏幕目录最大文件（#10 判据 < 400 行）' "$(python3 - <<'PY'
 import glob, io, os
 sizes = sorted(((sum(1 for _ in io.open(f, encoding='utf-8')), os.path.basename(f))

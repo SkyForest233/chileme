@@ -101,7 +101,7 @@
   仍挂着未做：`paths-ignore`、APK 体积基线、`bundleRelease`(AAB)、
   `versionCode` 改用仓库内版本文件（现为 `github.run_number`，`release.yml:112`）。
 
-- 🔨 **#10 UI/VM 层拆分收尾（`SettingsScreen.kt` 1,705 → **1,079** 行 + `AppViewModel.kt` 700 行）** —— **10a-1 已落地（2026-09-18）**：弹窗区（352–986，跨 635 行）逐字搬到同包 `SettingsBackupDialogs.kt`(233) / `SettingsCloudDialogs.kt`(368) / `SettingsSnapshotDialogs.kt`(207)，行为零改动 ⇒ 不占用复测；10a-2（两套 body）起未开工。
+- 🔨 **#10 UI/VM 层拆分收尾（`SettingsScreen.kt` 1,705 → **295** 行 + `AppViewModel.kt` 700 行）** —— **10a 已落地（2026-09-18，10a-1 + 10a-2）**：弹窗区（352–986，跨 635 行）逐字搬到同包 `SettingsBackupDialogs.kt`(233) / `SettingsCloudDialogs.kt`(368) / `SettingsSnapshotDialogs.kt`(207)；**10a-2** 再把两套 body 与两个 MD3 专用小组件搬到 `SettingsBodyMd3.kt`(251) / `SettingsBackupMd3.kt`(210) / `SettingsBodyMiuix.kt`(213) / `SettingsMd3Widgets.kt`(172)，入口只剩装配（295 行）。两轮都是行为零改动 ⇒ 都不占用复测；10b（`AppViewModel` 50 个函数按 7 领域搬成同包 internal 扩展）起未开工。
   **含 #6 的执行**（10c = 加 `WhileSubscribed`），因为两者动同一片代码、共用一轮真机复测。
   10a（设置页：645 行弹窗区抽出 + 两个 body 抽出）与 10b（VM 的 50 个函数按领域搬成同包 `internal` 扩展函数，与 #5c 同形）
   是**结构搬运、不改行为 ⇒ 不单独占用用户复测时间**；10c 是行为改动（后台不再预热、冷进页面首帧可能等一次解码）

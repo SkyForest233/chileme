@@ -28,7 +28,7 @@
 | 7 | 字符串资源化 + 无障碍补全 | ⏳ 未开始（前置 #3 已满足 ⇒ **随时可插队做**） | — |
 | 8 | 诊断包 + 许可清单（⚠️ 09-18 复核：健康告警条**自 09-15 已在首页运行**，原「没有任何页面消费它」是错的） | ⏳ 未开始（**无前置**，可随时做）；**范围已缩小** | — |
 | 9 | CI 加固 | 🔶 用户已否掉大半，剩 4 个小项 | 09-17 §10 |
-| **10** | **UI/VM 层拆分收尾**（设置页 1,705 行 + `AppViewModel` 700 行；**含 #6 的执行**） | 🔨 **10a-1 已落地**（2026-09-18）：弹窗区（352–986，跨 635 行）搬到同包 3 个文件，设置页 1,705 → **1,079** 行；10a-2 起未开工 | 本节「#10」+「10a-1 落地结果」+ 09-18 §13 |
+| **10** | **UI/VM 层拆分收尾**（设置页 1,705 行（规划时）+ `AppViewModel` 700 行；**含 #6 的执行**） | 🔨 **10a 已落地**（2026-09-18）：10a-1 弹窗区（352–986，跨 635 行）搬到同包 3 个文件、10a-2 两套 body 与两个 MD3 专用小组件搬到 4 个文件，设置页入口 1,705 → **295** 行；10b 起未开工 | 本节「#10」+「10a-1 / 10a-2 落地结果」+ 09-18 §13.7–§13.9 |
 
 **排序原则（原文照录，对剩余项仍适用）**：**先能拦、再去重、后补体验**。
 **为什么是这个顺序**：#1/#2 先把「已经为零的基线」变成拦截，之后任何一步的回归都会被 CI 当场抓住
@@ -481,7 +481,7 @@
   | `bundleRelease`(AAB) | **0** 处 | 上架 Google Play 需要 AAB，现在只出 APK |
   | `versionCode` 改用仓库内版本文件 | 现为 `github.run_number`（`release.yml` 里 2 处引用） | run number 与语义版本脱钩，回滚/重跑会产生奇怪的 versionCode |
 
-## #10 UI/VM 层拆分收尾（`SettingsScreen.kt` + `AppViewModel.kt`）—— 🔨 **10a-1 已落地（首轮 CI 红一次、已修：别名 import 漏带 9 条，见 devlog §13.8）**（2026-09-18）；10a-2 起未开工
+## #10 UI/VM 层拆分收尾（`SettingsScreen.kt` + `AppViewModel.kt`）—— 🔨 **10a 已落地（10a-1 + 10a-2；10a-1 首轮 CI 红一次、已修：别名 import 漏带 9 条，见 devlog §13.8；10a-2 见 §13.9）**（2026-09-18）；10b 起未开工
 
 > **为什么新开一项、而不是并进 #6**：#6 剩下的两件事（加 `WhileSubscribed`、少量派生下沉）是**行为改动**，
 > 本项的 10a/10b 是**结构搬运**（不改行为、不需真机复测）。混在一个提交里，坏了的时候无法判断是"搬错了"还是
@@ -491,8 +491,8 @@
 - **证据（2026-09-18 实测；行数判据落在 `tools/doc-metrics.sh` 的三行新指标里，一键复跑）**：
   - 主代码超 400 行的文件 **6** 个，全在 UI/VM 层。**清单与行数刻意不抄进本文件** ——
     跑 `bash tools/doc-metrics.sh` 看「主代码超 400 行的文件（全清单）」那行；抄过的下场见下方「核查第 18 处」。
-    最大的两个是 `SettingsScreen.kt`（规划时 1,705 行；**10a-1 后 1,079 行**，仍超 400 ⇒ 见 10a-2）与
-    `AppViewModel.kt`（700 行）⇒ 本项就是冲这两个去的。
+    最大的两个是 `SettingsScreen.kt`（规划时 1,705 行；10a-1 后 1,079 行；**10a-2 后 295 行** ⇒ 已达标，
+    超 400 行清单从 6 个减到 5 个）与 `AppViewModel.kt`（700 行）⇒ 本项就是冲这两个去的。
     `ExpiryCalendar.kt` 正好 400 行，卡线不计入。
   - `SettingsScreen.kt` 内部（**行号是 10a-1 搬运前的**，搬后弹窗区已在同包三个新文件里）：
     入口 `SettingsScreen` 176–994 = **819 行**，其中
@@ -540,8 +540,8 @@
 
 | 步 | 做什么 | 验收 | 风险与必须同批改的守卫 |
 |---|---|---|---|
-| **10a-1** ✅ 已做（2026-09-18） | 弹窗区 **352–986（跨 635 行，git 记为删 632 行；差额见「10a-1 落地结果」）**按领域抽到同包 3 个文件：备份与导入 352–520 → `SettingsBackupDialogs.kt`；坚果云账号 + 云端备份选择 + 恢复二次确认 522–828 → `SettingsCloudDialogs.kt`；本地快照列表 830–986 → `SettingsSnapshotDialogs.kt`。3 个 SAF 启动器**留在入口**（它们的结果回调要用 `scope` / `snackbar` / `pendingImport`，搬走反而要多传三样），以 `ActivityResultLauncher<String>` / `<Array<String>>` 传参 | 三个新文件 234 / 372 / 211 行（⚠️ 首轮 CI 红：别名 import 漏带 9 条 ⇒ 已修，行数含补进的 import），全部 < 400 ✓；`SettingsScreen.kt` 1,705 → **1,079** 行（⚠️ 不是规划时预计的 ~350 —— 两套 body 还在里面，那是 10a-2）；逐字校验 0 缺失；`kt-lexcheck` 96 份 0 问题 | 已同批改的守卫：`ImeHandlingTest.dialogFiles`（`SettingsScreen.kt` → `SettingsCloudDialogs.kt`）+ 它两处 KDoc 的 MIME 行号；`MiuixDialogContentTest` 的调用点分布（总数仍 **8**）与「覆盖导入」引用；`ScreenParityTest` 第 8 对注释 **+ 规则 2 的扫描面加宽**（新增 `uiFiles()`：目录内除 `*State.kt` 的所有 `.kt`；原 `screenFiles()` 只收 `*Screen.kt` / `*Screens.kt`，三个 `*Dialogs.kt` 搬出后会让「禁止内联聚合」**静默失覆盖** —— 加宽前实测那 4 个禁用模式在目录内的命中全在 `*State.kt`，故只补覆盖、不改判定）。⚠️ 规划里「`SettingsActions` 可直接当参数包」被实测推翻：弹窗区用的是入口的局部回调与启动器，实测参数面 10 个（三块各 7 / 4 / 3） |
-| **10a-2** | `Md3SettingsBody` + `SettingsNavRow` + `PaletteSwatch`（合计 522 行）与 `MiuixSettingsBody`（185 行）分别抽到两个新文件；MD3 侧 522 行 + 文件头必然超 400 ⇒ **还得按分区再切一刀** | 每个文件 < 400 行；入口文件仍含 `rememberSettingsUiState(`（`ScreenParityTest` 规则 1） | `ScreenParityTest` 禁的是 `Miuix` + 屏幕名这种**前缀式**文件名（`MiuixSettingsScreen.kt`），`SettingsBodyMiuix.kt` 不触雷；⚠️ 抽子 Composable 会让 `remember` 跨组合边界搬家 ⇒ **不是零风险**，纳入 10c 那轮复测顺带过一遍设置页两主题 |
+| **10a-1** ✅ 已做（2026-09-18） | 弹窗区 **352–986（跨 635 行，git 记为删 632 行；差额见「10a-1 落地结果」）**按领域抽到同包 3 个文件：备份与导入 352–520 → `SettingsBackupDialogs.kt`；坚果云账号 + 云端备份选择 + 恢复二次确认 522–828 → `SettingsCloudDialogs.kt`；本地快照列表 830–986 → `SettingsSnapshotDialogs.kt`。3 个 SAF 启动器**留在入口**（它们的结果回调要用 `scope` / `snackbar` / `pendingImport`，搬走反而要多传三样），以 `ActivityResultLauncher<String>` / `<Array<String>>` 传参 | 三个新文件 234 / 372 / 211 行（⚠️ 首轮 CI 红：别名 import 漏带 9 条 ⇒ 已修，行数含补进的 import），全部 < 400 ✓；`SettingsScreen.kt` 1,705 → **1,079** 行（⚠️ 不是规划时预计的 ~350 —— 两套 body 还在里面，那是 10a-2 ⇒ 已做完，入口现 **295** 行）；逐字校验 0 缺失；`kt-lexcheck` 96 份 0 问题 | 已同批改的守卫：`ImeHandlingTest.dialogFiles`（`SettingsScreen.kt` → `SettingsCloudDialogs.kt`）+ 它两处 KDoc 的 MIME 行号；`MiuixDialogContentTest` 的调用点分布（总数仍 **8**）与「覆盖导入」引用；`ScreenParityTest` 第 8 对注释 **+ 规则 2 的扫描面加宽**（新增 `uiFiles()`：目录内除 `*State.kt` 的所有 `.kt`；原 `screenFiles()` 只收 `*Screen.kt` / `*Screens.kt`，三个 `*Dialogs.kt` 搬出后会让「禁止内联聚合」**静默失覆盖** —— 加宽前实测那 4 个禁用模式在目录内的命中全在 `*State.kt`，故只补覆盖、不改判定）。⚠️ 规划里「`SettingsActions` 可直接当参数包」被实测推翻：弹窗区用的是入口的局部回调与启动器，实测参数面 10 个（三块各 7 / 4 / 3） |
+| **10a-2** ✅ 已做（2026-09-18） | 两套 body + 两个 MD3 专用小组件抽到同包 **4** 个文件（规划写的是 2 个；MD3 侧 522 行 + 文件头必然超 400，规划已预见「还得按分区再切一刀」，实做切的是四节里最大的「备份与数据」171 行 ⇒ 抽成新函数 `Md3BackupSection`，那是本次**唯一**新增的组合边界）：`SettingsBodyMd3.kt`(251) / `SettingsBackupMd3.kt`(210) / `SettingsBodyMiuix.kt`(213) / `SettingsMd3Widgets.kt`(172)；搬走 717 行，4 个函数 `private` → `internal`（名字一个没改） | 5 个文件全部 < 400 行 ✓（入口 1,079 → **295**，import 96 → **20** 条）；入口仍含 `rememberSettingsUiState(`（规则 1）✓；逐字校验 **703** 行 0 缺失 ✓；超 400 行主代码 **6 → 5** 个；`kt-lexcheck` 100 份 0 问题 | `ScreenParityTest` 禁的是 `Miuix` + 屏幕名这种**前缀式**文件名（`MiuixSettingsScreen.kt`），`SettingsBodyMiuix.kt` 不触雷（已写进注释）；⚠️ 规划担心的「`remember` 跨组合边界搬家」实测**没有发生**（去注释口径：抽出的备份节 0 处、Miuix body 0 处、MD3 body 那 1 处 `rememberScrollState()` 留在 body）⇒ 风险从「必测」降为「顺带过一眼」，仍纳入 10c 那轮复测；**本次没有任何守卫判定需要改**（只给 `ScreenParityTest` 加注释，规则 2 的 `uiFiles()` 自动覆盖 4 个新文件、当天实测 4 个禁用模式在里面 0 命中）；⚠️ 新踩的 2 个自坑都在 import 计算里，10b 沿用同一套算法 ⇒ 见「10a-2 落地结果」 |
 | **10b** | `AppViewModel` 的 50 个函数按领域搬成**同包 `internal` 扩展函数**（与 #5c 完全同形），一个领域一个提交：备份导入导出 9 / 云端同步 4 / 归档与消耗撤销 6 / 食物 CRUD 与批量 11 / 分类与位置 7 / 设置 6 / UI 状态与事件 5（余 2 个按实际归类） | 类本体 < 400 行；10 个调用方文件只加 import、**调用写法一字不变** | ① 20 处 `stateIn(` 属性**留在类里**（搬成扩展属性 = `get() =` 每次新建 Flow ⇒ #5c 已否决）；② 类里**不留同名转发**（成员遮蔽扩展 ⇒ 无限递归且编译期不报，#5c 已否决）；③ ⚠️ **`CorruptGuardTest` 会红**：它用 `functionBody(src, "fun syncDownload(")` 这类**按 4 空格缩进签名**抽函数体、还断言字面量 `private suspend fun snapshotBeforeRestore()` 与 `vm.contains("fun discardCorruptData()")` ⇒ 函数一旦变成 0 缩进的扩展函数，这几处全失配，必须同批改**读取路径 + 缩进参数 + 签名字面量**；④ `SnackbarCopyTest` 按**全仓递归**统计文案片段落在哪些文件（期望 map 逐键相等）⇒ 带文案的函数搬家后要改期望 map 的**键**；⑤ `tools/guard-mirror.py` **查不到 ③④**（它把这类断言归入「作用域受限跳过」，今日 18 处里有 11 处正是它们）⇒ 必须人工核 |
 | **10c** | = **#6**：20 处 `stateIn(` 加 `WhileSubscribed(5_000)`，**一屏一个提交** | `WhileSubscribed` 由 **0** 处 → 20 处；用户真机复测一轮（两主题，含设置页） | **行为改动**：后台不再预热，冷进页面首帧可能等一次解码（#6 原风险条目照旧）；逐屏提交 ⇒ 逐屏可回滚 |
 | **10d** | **延后、不排期**：① 真·一屏一 VM（KernelSU 那套）；② 把两版 body 的分区抽成 App 级「设置行」组件；③ 那 4 对手写弹窗收敛进组件层 | — | 三条都是**行为可见的架构改动**：① 要动 10 个调用方 + 导航作用域（批量选择、撤销、snackbar 通道是跨屏共享的，拆错了会丢状态）；②③ 与 09-16「不硬并」同类（两套设计语言：MD3 用 `Text`/`Surface`/`SegmentedButton`，Miuix 用 `ArrowPreference`/`SwitchPreference`/`OverlayDropdownPreference`）。等 10a/10b 落地后重新量收益再定 |
@@ -549,15 +549,21 @@
 | — | **明确不动**：`AppChrome.kt` 479 / `AppListRow.kt` 406 / `StatsScreen.kt` 409 / `ExpiryCalendar.kt` 400 / `AppControls.kt` 376 / `AppText.kt` 349 / `AppSurface.kt` 353 | — | 后三个是 **App 级组件层**（各含 12–35 处主题分支），吸收主题差异正是它们的职责，消灭它等于把差异推回屏幕；前四个已各只剩 0–1 处主题分支，只是长 ⇒ 等真要改它们时顺手拆 |
 
 - **全项验收**：
-  ① `ui/screens/` 屏幕本体与 `viewmodel/` **无一文件超 400 行**（doc-metrics 两行新判据；两行都要做阳性对照 ——
-  把阈值临时收紧到 100 行必须点名超限文件，否则判据是摆设）；
+  ① **靶子文件**无一超 400 行 —— 判据是 `bash tools/doc-metrics.sh` 的「屏幕目录最大文件」与「viewmodel/ 最大文件」
+  两行（两行都要做阳性对照：把阈值临时收紧到 100 行必须点名超限文件，否则判据是摆设）。
+  ⚠️ **本条口径在 10a-2 落地时改正**（原文是「`ui/screens/` 屏幕本体与 `viewmodel/` 无一文件超 400 行」）：
+  那个写法与下方「明确不动」表**自相矛盾** —— `StatsScreen.kt` 409 行既在 `ui/screens/` 里、又被判定不拆
+  （它已只剩 1 处主题分支，只是长），`EditFoodScreen.kt` 659 行则属**可选**的 10e ⇒ 照原文口径，本项永远无法收官。
+  现口径 = 只认两块靶子（设置页入口与 `AppViewModel`），并把两个已知例外显式记在这里：
+  **`StatsScreen.kt` 409（不拆，超 9 行，理由见「明确不动」表）**、**`EditFoodScreen.kt` 659（10e，未排期）**；
+  主代码超 400 行的**全清单**仍由 doc-metrics 那行给出（10a-2 后是 5 个），不写死在本文件；
   ② 10a/10b **不改行为**：10b 沿用 #5c 的判据（`git diff -w --stat` 的新增行数 == 放宽可见性 + 新增 import 的行数，
   其余全为删除）；10a 因为是**抽子 Composable**（必然新增签名与参数传递行），判据改成「被搬走的每一行都能在新文件里
   逐字找到（缩进除外）+ 新增的只有签名/参数/调用行」，由搬运脚本自校验（反推比对，同 #5c）；
   ③ 守卫不静默少覆盖：`ImeHandlingTest` 清单存在性断言通过、`MiuixDialogContentTest` 解析点数仍 ≥ **8**、
   `ScreenParityTest` 三条全绿、`CorruptGuardTest` 与 `SnackbarCopyTest` 同批镜像；
   ④ 单测数只增不减（现 **153** 例，词法计数：粗 `grep @Test` 会数出 154，多的那处在 KDoc 里）；CI 三 job 全绿；
-  ⑤ 10c 完成后用户真机复测**一轮**（两主题；顺带覆盖 10a-2 的 `remember` 搬家）。
+  ⑤ 10c 完成后用户真机复测**一轮**（两主题；顺带覆盖 10a-2 新增的那**一个**组合边界 —— 见「10a-2 落地结果」，实测没有 `remember` 跨边界搬家，所以这一项从「必测」降为「顺带过一眼」）。
 - **风险汇总**：10a/10b 的主要风险不是编译（本地无 JDK，CI 是唯一编译神谕）⚠️ **这半句已被 10a-1 证伪**：
   它红的那轮正是编译错（别名 import），而本地三项检查全绿 ⇒ 编译风险真实存在、且能被本地工具兜住一部分（见下条），
   但**守卫漏改**仍是另一半风险 ⇒
@@ -587,8 +593,9 @@
   ⚠️ 三块跨度 169 / 307 / 157（合计 633）比 git 记的 632 多 1：区域里 3 行单独的 `)`（旧行 409 / 828 / 986）
   被最小 diff 配成了「未变上下文」，不是留在原地的代码 ⇒ **搬走的量按跨度说、删掉的量按 git 说**。失效 import 是 `tools/kt-lexcheck.py` 查出来的
   （其中 3 行是带别名的 `… as MiuixSurface/MiuixText/MiuixTextButton`）。
-  ⚠️ 中途一度按「搬完就 1,070」记账，那是 KDoc 批注**之前**的数；`bash tools/doc-metrics.sh`
-  的「屏幕目录最大文件」行现报 1,079 —— 现值一律以那行为准。
+  ⚠️ 中途一度按「搬完就 1,070」记账，那是 KDoc 批注**之前**的数；10a-1 收官时 `bash tools/doc-metrics.sh`
+  的「屏幕目录最大文件」行报 1,079 —— 现值一律以那行为准。（⚠️ **10a-2 之后那行报的已不是设置页**：
+  入口降到 295 行、不再是屏幕目录里最大的，那行现在报 `EditFoodScreen.kt` 659。）
 - **唯一一处非逐字改动（2 行）**：`pendingImport` 在弹窗区里被赋值 4 次（导入预览的关闭/取消），
   故入口的 `var pendingImport by remember { mutableStateOf<PendingImport?>(null) }` 拆成「显式 `pendingImportState`
   + 同一行委托」，把 State 对象传给弹窗 —— 读写的是同一个 `MutableState`，语义不变；
@@ -602,6 +609,7 @@
   的所有 `.kt`）只给规则 2 用；加宽前实测那 4 个禁用模式在目录内的命中全在 `*State.kt` ⇒ 判定结果不变。
 - **行为面**：零改动（弹窗的文案、排版、主题分支、按钮色一律逐字未动）⇒ **不占用真机复测**；
   与 10a-2 的 `remember` 搬家一起，留到 10c 那一轮复测顺带过设置页两主题。
+  （⚠️ 后半句的预判已被 10a-2 实做时的实测修正：并没有 `remember` 跨边界搬家 —— 见「10a-2 落地结果」的「风险比规划小」。）
 - **⚠️ 落地后 CI 红了一轮（已修，全过程见 `devlog/2026-09-18.md` §13.8）**：搬运脚本按
   「简单名 = import 路径最后一段」算依赖，对**别名 import** 是瞎的（`…basic.Text as MiuixText`，全仓 25 条）
   ⇒ 三个新文件少了 9 条别名 import，`:app:compileDebugKotlin` 报 24 处 `Unresolved reference`
@@ -610,6 +618,46 @@
   同批给 `tools/kt-lexcheck.py` 加**判据 4「用了别名却没 import」**（别名表扫全仓建、自检对照 12 → 15），
   并用修复前的文件做端到端阴性对照（点名 9 处、次数 2/15/7 与 CI 逐条对上）。
   **10a-2 与 10b 开工前必读**：搬文件时别名要当「第三个名字」一起收（路径名 / 别名 / 项目自己的同名声明）。
+  （10a-2 已照此做 ⇒ 别名 import 一条没漏；但同一片代码上又踩出 2 个**新的**自坑，都在 import 计算里，见下方。）
+
+### 10a-2 落地结果（2026-09-18，提交见台账）
+
+| 文件 | 行数 | import | 原行号 | 装了什么 |
+|---|---|---|---|---|
+| `SettingsScreen.kt`（入口，改写） | **295** | 96 → **20** 条 | 1–362 | 状态容器、3 个 SAF 启动器、事件收集、共用动作、9 个弹窗与两套 body 的调用 |
+| `SettingsBodyMd3.kt`（新） | 251 | 25 条 | 364–545 + 717–747 | MD3 body：根 `Column`（滚动）+ 外观 / 物品管理 / 关于 三节 + 备份节的调用 |
+| `SettingsBackupMd3.kt`（新） | 210 | 20 条 | 546–716 | MD3 body 的「备份与数据」一节（含坚果云云同步、自动同步间隔两个子块）⇒ 新函数 `Md3BackupSection(state, onUpload, onCloudRestore)` |
+| `SettingsBodyMiuix.kt`（新） | 213 | 17 条 | 749–938 | Miuix body：`LazyColumn` + 库的 Preference 组件 |
+| `SettingsMd3Widgets.kt`（新） | 172 | 19 条 | 940–980 + 982–1079 | `SettingsNavRow` + `PaletteSwatch`（两者都只被 MD3 body 调用） |
+
+- **规划与实况的差**：规划写的是「抽到两个新文件」，实做是 **4 个** —— 规划已预见「MD3 侧 522 行 + 文件头必然超 400，
+  还得按分区再切一刀」，实做选的是四节里最大的一节（备份与数据 171 行）；两个 MD3 专用小组件（NavRow 46 + Swatch 92）
+  另立一个文件，因为它们只被 MD3 body 调用，而并进去会到 423 行（又超）。
+- **风险比规划小（实测，不是推断）**：规划把「抽子 Composable 会让 `remember` 跨组合边界搬家」列为主要风险；
+  落地当天用**去注释**口径量了 5 个文件：入口 7 处 `remember`（状态容器 / scope / snackbar / 3 个 SAF 启动器 /
+  `pendingImportState`）**一处没动**；MD3 body 只有根 `Column` 的 1 处 `rememberScrollState()`（留在 body）；
+  **抽出的备份节 0 处**；Miuix body 0 处；`PaletteSwatch` 里那处 `rememberDynamicColorScheme`（只为预览色块）
+  随函数一起搬、读它的重组作用域没变。⇒ 本次**唯一**新增的组合边界（备份节）内没有任何状态 ⇒ 风险等级从
+  「必测」降为「顺带过一眼」。
+- **搬运自校验（脚本自带，不过就不落盘）**：18 个行号锚点 · 逐字校验 **703** 行非空代码、**0 行找不到**
+  （备份节按「整体左移 4 空格」比对，其余逐字） · 备份节参数表与实测引用面逐个相等（从 8 个形参里实测出
+  `state` / `onUpload` / `onCloudRestore` 三个，多一个少一个都不落盘） · 每个文件 < 400 行 ·
+  4 个搬走的函数可见性放宽成功且不再 `private`（放宽是本批**唯一**的非逐字改动，名字一个没改）。
+- **import 计算的 2 个自坑（都被本地 `kt-lexcheck` 抓到，没到 CI）**：① 算「入口该保留哪些 import」时，
+  用来比对的文本**含 import 行本身**，于是 `… as MiuixIcon` 里的别名自己把自己证明成在用 ⇒ 6 处用法随 Miuix body
+  搬走后那条死 import 删不掉（判据 3 抓到）；② 带别名的 import 若同时匹配「简单名」会误留 ——
+  `…basic.Icon as MiuixIcon` 的简单名 `Icon` 与 `material3.Icon` 撞名。规则改成「**带 `as` 的只认别名**」，
+  并用 `git show HEAD:` 的原文重算 4 个新文件的 import 集，与脚本落盘结果逐个一致。**10b 沿用同一套算法**。
+- **守卫（逐个问过，本次没有任何判定需要改）**：`ScreenParityTest` 只加注释 —— 规则 1 靠入口仍在的
+  `rememberSettingsUiState(` 通过；规则 2 的 `uiFiles()` **自动**覆盖 4 个新文件（当天实测 4 个禁用模式在里面 0 命中）；
+  规则 4 禁的是 `Miuix<屏幕名>.kt` 这种**前缀式**第二实现，`SettingsBodyMiuix.kt` 是后缀式、不触雷（注释已写明）。
+  `ImeHandlingTest` 的 4 份文件名清单里没有 body 文件（body 内 `decorFitsSystemWindows` 0 处）；
+  `MiuixDialogContentTest` 走全树，body 内 `MiuixDialog` 0 处 ⇒ 解析点数仍 8；`SnackbarCopyTest` 走全树，
+  body 内 snackbar 文案 0 处；`doc-metrics.sh` 的屏幕指标全按 glob 现算（10a-1 加的两行新判据自动反映新文件名）。
+- **本地检查（提交前实测）**：`tools/kt-lexcheck.py` 100 份 · 0 问题；`tools/guard-mirror.py` 0 问题；
+  `bash tools/doc-metrics.sh` 表格断裂 0、写死的数字不符 0；超 400 行主代码 **6 → 5** 个（屏幕目录最大文件变成
+  `EditFoodScreen.kt` 659，viewmodel/ 最大仍是 `AppViewModel.kt` 700 ⇒ 10b 的靶子没变）。
+- **行为面**：零改动（文案、排版、主题分支、按钮色、节顺序一律逐字未动）⇒ 不占用真机复测；与 10c 那轮一起过设置页两主题。
 
 ---
 

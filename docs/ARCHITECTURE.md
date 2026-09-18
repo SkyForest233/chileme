@@ -61,14 +61,16 @@ app/src/main/java/com/agon/app/
     │                           #   AppBatchMoveDialog.kt（批量「移动存放位置」弹窗，2026-09-17 由包根 AppDialogs.kt 搬来）
     └─ screens/                 # 每屏一文件，自带 Scaffold。两层结构（2026-08-22 B-08 起）：
                                 # ① *State.kt 状态容器（8 个）：remember*UiState + 纯计算函数，双主题共用、单测覆盖
-                                # ② 渲染层（9 个屏幕文件 + 3 个设置页弹窗文件 + 8 个 *State.kt）：
+                                # ② 渲染层（9 个屏幕文件 + 7 个从设置页搬出来的文件 + 8 个 *State.kt）：
                                 #    ConsumptionLog / Archive / FoodDetail / Home /
                                 #    FoodList / Manage（阈值·分类·位置）/ Stats / Settings —— **八对已于 2026-09-16 全数合并为
                                 #    单文件双主题**，Miuix*Screen.kt 双胞胎全部删除（外壳差异走 ui/components/app/）；
                                 #    屏幕本体 17 文件 7,541 行（2026-09-16 前基线）→ 9 文件（-44%）；
-                                #    ⚠️ #10a-1（2026-09-18）起该目录另有 SettingsBackupDialogs /
-                                #    SettingsCloudDialogs / SettingsSnapshotDialogs 三个**弹窗文件**（不是新增屏幕，
-                                #    是从 SettingsScreen.kt 逐字搬出去的），所以「文件数」不再等于「屏幕数」；
+                                #    ⚠️ #10a（2026-09-18）起该目录另有 **7 个**从 SettingsScreen.kt 逐字搬出去的文件
+                                #    （都不是新增屏幕）：10a-1 的 3 个**弹窗文件** SettingsBackupDialogs /
+                                #    SettingsCloudDialogs / SettingsSnapshotDialogs，10a-2 的 4 个 **body / 小组件文件**
+                                #    SettingsBodyMd3 / SettingsBackupMd3 / SettingsBodyMiuix / SettingsMd3Widgets
+                                #    ⇒ 所以「文件数」不再等于「屏幕数」；
                                 #    **行数账不在本文件维护**
                                 #    （此前这里手抄的 4,204 / 2,746 / 6,950 三个数已过期，且与本文件 §5 的「12 文件 / 3,075 行」自相矛盾），
                                 #    现值见 docs/DESIGN_SPEC.md §7 的「口径」行，复核跑 bash tools/doc-metrics.sh
