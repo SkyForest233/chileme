@@ -16,7 +16,7 @@
 
 | 日期 | 主题 | 状态 |
 | --- | --- | --- |
-| [2026-09-18](2026-09-18.md) | 结构性重构第一轮 **#4a**：一次性 UI 事件从「可空 StateFlow + 手工 `consume`」改成 `UiEvent` + `Channel`（3 条队列、1 个发送点）；`kt-lexcheck.py` 入库；核查第 14 处（detekt `UnusedImports` 默认关）；守卫交接 + 日期纠正 22 处 | ✅ CI 绿（1 次，4 分 20 秒）· ⚠️ **待真机复测 4 处提示 × 2 主题** |
+| [2026-09-18](2026-09-18.md) | 结构性重构第一轮 **#4 全项收官（4a+4b+4c）**：一次性事件从「可空 StateFlow + 手工 `consume`」→ `UiEvent` + `Channel`（**4** 条队列、1 个发送点）；主壳三处「按主题分流」→ `showUndoSnackbarAcrossThemes()`；**5 个回调**（4 个 `(Boolean, String)` + 1 个 `(Boolean, Boolean)`）→ `OpFailure` 三档 + `OpFailed`/`CloudBackupsEmpty` 事件；`kt-lexcheck.py` 入库；核查第 14/15/16 处；守卫交接 + 日期纠正 22 处 | ✅ CI 绿（4c 那次**红过一回**：重写 KDoc 弄丢阳性对照样本，见 §10；修复后 run 35297362614 三 job 全绿）· 单测 121→127→135→**143** · ⚠️ **待真机复测：4 处提示 + 设置页 5 条流程，各 × 2 主题** |
 | [2026-09-17](2026-09-17.md) | 真机复测收尾：① MD3 输入弹窗粘性键盘避让（`stickyImePadding`）② Miuix 表单弹窗输入框与按钮零间距 ③ Miuix 弹窗主要动作按钮改蓝底白字；随后形参窄化、`ImeHandlingTest` 加固、`AppDialogs.kt` 搬进组件层；**+ 文档审计轮 P0–P4**（INDEX 重写 -70%、6 份报告补批注、抽出 `docs/ROADMAP.md`、三份组件清单合一、新增 `tools/doc-metrics.sh` 口径脚本、删 1 个孤儿文件）；**+ 文档事实核查轮**（把 8 份基础文档的可验证断言逐条拿去和仓库对：查出 **6 处确认错误 + 4 处判断题**并全部修掉，最要命的是升级手册的文件索引指着 0 个文件、只覆盖 23% 的 Miuix 调用点；另加 2 条守卫） | ✅ CI 最终全绿（当日 3 次红均已各自定位并修复）；**提交与 run 的计数不在本行手抄** —— 台账见日志末节（附取数命令）；单测 **121** 例 |
 | [2026-09-16](2026-09-16.md) | 文档对账轮（12 份文档、30+ 处，不改运行时行为）+ `Common.kt` 拆 8 文件 + `MainActivity.kt`(1,123 行) 拆 6 文件 + 双主题 8 对全数合并（§15–§22）+ 写入拆分路线图 | ✅ CI 绿（中间红过一次，真因见日志 §13） |
 | [2026-09-15](2026-09-15.md) | 两轮审查交叉验证后的 5 项修复 + IME 键盘避让（A 方案）+ 写守卫按 key 粒度 + 性能批（`DecodeCache` / 精确订阅）+ CI 门禁上线（`tools/ci-gates.sh` + 两个新 job） | ✅ CI 绿（当时单测 116 例） |
@@ -39,17 +39,25 @@
 
 ### 结构性（第三批 9 项；#1–#3 已完成，详见文末「已完成里程碑」）
 
-- 🔶 **#4 错误模型统一 —— 4a/4b 已做（2026-09-18），只剩 4c** —— 4a：4 个「可空 StateFlow + 手工 `consume`」
-  的一次性事件 → `sealed interface UiEvent` + **3 条** `Channel` 队列（按 Snackbar 落点分，因为 `Channel` 是单接收方语义），
+- ✅ **#4 错误模型统一 —— 4a/4b/4c 全部落地（2026-09-18），本项收官** —— 4a：4 个「可空 StateFlow + 手工 `consume`」
+  的一次性事件 → `sealed interface UiEvent` + `Channel` 队列（按 Snackbar 落点分，因为 `Channel` 是单接收方语义；4a 时 3 条，4c 加设置页后 **4** 条），
   发送端收成**一个** `emit()`；可空事件状态与 `consume` 函数双双归零，单测 121 → 127（新增 `UiEventTest` 钉住分流）。
   4b：`MainApp` 三处重复的「按主题分流弹撤销条」收成 `showUndoSnackbarAcrossThemes()`（含批量归档那条非事件流），
   主壳里两主题的结果枚举归零；新增 `SnackbarCopyTest`（8 例）把**文案与落位**钉进 CI，单测 127 → **135**。
+  4c：**5 个回调**（实测 4 个 `(Boolean, String)`：`syncUpload`/`loadCloudBackups`/`syncDownload`/`restoreLocalSnapshot`，
+  + 1 个 `(Boolean, Boolean)`：`importBackupWithSnapshot`）全部去掉回调参数、改发事件 —— 新增 `OpFailure`
+  （`Auth`/`Network`/`Other` 三档）+ `Throwable.toOpFailure()`、`UiEvent.OpFailed(op, failure)` 与
+  `CloudBackupsEmpty`（"拉成功但云端是空的"这一档原本被塞进 `onResult(false, …)`，与真失败共用一个布尔）、
+  `UiSurface.Settings` + 第 4 条队列；**文案逐字未改**（机械验证：diff 中消失的字符串字面量 0 条），
+  单测 135 → **143**（新增 `OpFailureTest` 6 例真行为测试）。
   ⚠️ 旧写法「错误提示靠散落的 `MutableStateFlow<String?>`、多个订阅方会重复消费同一条」经 09-18 复核**不成立**
-  （4/4 都记得清空，是纪律不是机制）；**4c 要收的其实是 3 个 `(Boolean, String)` 回调** —— 它们把 `NutstoreSync`
-  已分好类的失败原因压平了，且回调捕获的是当时那个界面的宿主。仍是 #5 的前置。详见 [`ROADMAP`](../docs/ROADMAP.md)。
-  🆕 **待真机复测**（4a+4b 都已完成 ⇒ 现在就可以测）：两主题 × 四处提示，见 ROADMAP #4 末的复测口径。
-  另：全仓有 **6 处** Snackbar 宿主站点（主壳覆盖层 + 5 个二级页），只有 3 处收 `UiEvent` —— 别把「三个落点」读成「三个宿主」。
-- ⏳ **#5 Repository 拆分 + `Clock` 注入 + 轻量 DI** —— `FoodRepository.kt` **950 行 / 47 个类级函数**；
+  （4/4 都记得清空，是纪律不是机制）；旧写法「**3 个** `(Boolean, String)` 回调」同样不成立 ⇒ **核查第 15 处**。
+  详见 [`ROADMAP`](../docs/ROADMAP.md) #4 节的「4c 落地结果」。
+  🆕 **待真机复测**（三阶段都完成 ⇒ 现在就可以测）：两主题 × 四处提示 **+ 设置页 5 条流程**，见 ROADMAP #4 末的复测口径。
+  🆕 **两个待用户决策项**：① 网络类失败仍原样透出 OkHttp 的**英文技术串**（改造前就这样，本轮刻意未改，
+  已被 `OpFailureTest` 钉住现状）；② `saveLocalSnapshot(onDone)` 四层管道齐全但**全仓无调用点**（核查第 16 处，疑似死 API）。
+  另：全仓有 **6 处** Snackbar 宿主站点（主壳覆盖层 + 5 个二级页），4c 之后 **4 处**收 `UiEvent` —— 别把「落点数」读成「宿主数」。
+- ⏳ **#5 Repository 拆分 + `Clock` 注入 + 轻量 DI**（**前置 #4 已于 09-18 收官 ⇒ 现在可以做**）—— `FoodRepository.kt` **950 行 / 47 个类级函数**；
   `Application` 子类 **0** 个（仓库在 `AppViewModel.kt:44` 现场构造）。
   ⚠️ 旧写法「`now()` 34 处 ⇒ 时间不可注入、跨零点逻辑无法单测」经 09-18 复核**后半句错**：跨零点逻辑 08-21 起
   就是可注入 `today` 的纯函数，且**真有单测在测**（`FoodModelsTest` / `CompactConsumptionTest` / `CsvExportTest`

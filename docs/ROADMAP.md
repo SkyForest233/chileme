@@ -22,7 +22,7 @@
 | 1 | detekt 由 `report` 切 **block** + `detekt_selftest` 防空转 | ✅ 2026-09-16 | 09-16 §14 |
 | 2 | 开启 detekt 复杂度规则，按实测清单收敛（4 条体量规则显式关闭） | ✅ 2026-09-16 | 09-16 §14 + `detekt.yml` 文件头 |
 | 3 | 双主题去重 + App 级组件层（最大的一项） | ✅ 2026-09-16 ⚠️ 原验收未达成 | 09-16 §15–§22；口径见下方「#3 收官」 |
-| **4** | **错误模型统一**（⚠️ 证据行 09-18 复核修正：不是「正在重复消费」，是 4 个手工 `consume` + 3 个 `(Boolean, String)` 回调） | 🔶 **4a ✅ · 4b ✅（2026-09-18）** · 4c 未做（3 个 `(Boolean, String)` 回调）；单测 121→127→**135** | 本节「4a/4b 落地结果」 |
+| **4** | **错误模型统一**（⚠️ 证据行 09-18 **两次**复核修正：不是「正在重复消费」，是 4 个手工 `consume` + **5 个回调**；回调数原写「3 个 `(Boolean, String)`」，实测 **4 个 `(Boolean, String)` + 1 个 `(Boolean, Boolean)`** ⇒ 核查第 15 处） | ✅ **4a / 4b / 4c 全部落地（2026-09-18）**；单测 121→127→135→**143** | 本节「4a/4b/4c 落地结果」 |
 | 5 | Repository 拆分 + `Clock` 注入 + 轻量 DI（⚠️ 证据行 09-18 复核修正：跨零点**早已可注入且已被测**，只剩 12 处硬调） | ⏳ 未开始（前置 #4）；分 5a/5b/5c | — |
 | 6 | 派生数据下沉 VM + `WhileSubscribed` | ⏳ 未开始（前置 #5）；**范围已缩小**，见下 | — |
 | 7 | 字符串资源化 + 无障碍补全 | ⏳ 未开始（前置 #3 已满足 ⇒ **随时可插队做**） | — |
@@ -36,7 +36,7 @@
 
 ---
 
-## #4 错误模型统一 —— 🔶 4a 已落地（2026-09-18），4b/4c 未做
+## #4 错误模型统一 —— ✅ 4a / 4b / 4c 全部落地（2026-09-18）
 
 > ⚠️ **2026-09-18 复核修正（核查第 12 处）**：本节原证据行写「错误提示目前靠**散落的** `MutableStateFlow<String?>` +
 > Snackbar 文案：**多个订阅方会重复消费同一条**」。逐条实测后不成立，已按代码实情重写 ——
@@ -50,7 +50,12 @@
      唯一的 `String?` 型，装的是**成功**提示「已自动同步到坚果云 ☁️」）。每条**只有 1 个订阅方**，
      且 **4/4 都调了 `consumeXxx()`**（`MainApp.kt:145`/`:162`、`ConsumptionLogScreen.kt:50`、`HomeScreen.kt:105`）
      ⇒ **目前没有正在发生的重放 bug**，靠的是人肉纪律而非机制：新增第 5 个事件时忘调 `consume` 就会静默重放。
-  2. **3 个 `(Boolean, String)` 回调** 承载失败提示（**4c 待做**）：`syncUpload` / `loadCloudBackups` / `syncDownload`。
+  2. ~~**3 个 `(Boolean, String)` 回调**~~ ⇒ **实测 5 个回调**承载失败提示（**4c 已全部消除**）：
+     **4 个** `(Boolean, String)`（`syncUpload` / `loadCloudBackups` / `syncDownload` / `restoreLocalSnapshot`）
+     + **1 个** `(Boolean, Boolean)`（`importBackupWithSnapshot`：界面拿「成功了吗 / 前置快照存下了吗」
+     两个布尔自己拼三句话）。⚠️ 原写「3 个」是**核查第 15 处**，与第 11/12/13 处同一类
+     （文档里的数与代码不符，而没有任何东西会因此变红）：漏掉的 `restoreLocalSnapshot` 与另外三个形状相同
+     （属数漏），`importBackupWithSnapshot` 形状不同（属整个漏掉，也正因形状不同，改造时最容易被落下）。
      这一套的问题更实际 —— ① 布尔 + 字符串不如 `Result` 自解释，且把 `NutstoreSync` 已经分好类的失败原因
      **压平**了（09-15 那轮做的「错误分类 / 诊断 / 失败留档」到 VM 这层就丢了类型）；② 回调捕获的是
      **当时那个界面的** Snackbar 宿主，旋屏后提示可能落到已销毁的宿主上；③ 三处各自重复「账号密码为空 ⇒ 同一句话」的样板。
@@ -66,12 +71,14 @@
 |---|---|---|---|
 | **4a** ✅ 已做（2026-09-18） | 新建 `viewmodel/UiEvent.kt`（`sealed interface UiEvent` 4 类 + `UiSurface` 3 个落点）；`AppViewModel` 里**三条** `Channel<UiEvent>` + **一个** `emit()` 发送点；4 个可空 StateFlow、4 个 `consumeXxx()`、3 个嵌套数据类全删；3 个收集点改收 Channel；新增 `UiEventTest`（6 例）钉住分流 | 可空事件状态 **0** 个；`fun consume` 型清空函数 **0** 个（只剩业务方法 `consumeOne`）；单测 121 → **127**；ktlint/detekt 待 CI 验 | ⚠️ **实施时推翻了本行原先的两处设想**：① 落点是**三个**不是两个（漏了首页 `AppScaffold` 的宿主）；② `Channel` 是单接收方语义，**一条队列挂多个收集协程会互相抢事件** ⇒ 只能按落点分队列，见下方「4a 落地结果」 |
 | **4b** ✅ 已做（2026-09-18） | `ui/components/UndoSnackbar.kt` 新增 `internal suspend fun showUndoSnackbarAcrossThemes(isMiuix, md3Host, miuixHost, message): Boolean`；`MainApp` 三处形状相同的 if/else 各收成一次调用（含 `archiveSelected()` 那条非事件流），随之失效的 3 条 import 删掉；新增 `SnackbarCopyTest`（8 例）钉住文案与落位 | 主壳里 `SnackbarResult` 字样 **0** 处；分流实现 **1** 处；单测 127 → **135**；CI ✅ | ⚠️ 三处期望值最初是**猜的**、且第一遍测量脚本按 `startswith(文件名)` 匹配带目录前缀的相对路径 ⇒ 6 项假零；两处坑（子串陷阱 / 路径匹配）都记在测试类注释里 |
-| **4c** | 3 个 `(Boolean, String)` 回调改成 `Result` / `sealed` 返回，失败经 `UiEvent.Notice` 报信；`NutstoreSync` 的错误分类不再被压平 | `(Boolean, String)` 回调 **0** 处；设置页 3 处调用点改完；失败原因可分类（凭据缺失 / 网络 / 格式 / 损坏态拒绝） | 会碰 `SettingsScreen.kt`（`ImeHandlingTest` 点名的 10 个文件之一）⇒ 只改回调、不动 IME 相关行；`CorruptGuardTest` 逐字断言 `syncDownload` 体内的 `snapshotBeforeRestore()` 与 `previewBackup(raw) == null` ⇒ **这两个子串必须留在原函数体内**，否则同批改测试 |
+| **4c** ✅ 已做（2026-09-18） | `data/CloudSync.kt` 新增 `sealed interface OpFailure`（`Auth` / `Network` / `Other`）+ `Throwable.toOpFailure(fallback)`，401 那句抽成 `NUTSTORE_AUTH_MESSAGE`（4 个抛出点共用）；`UiEvent` 新增 `OpFailed(op, failure)` / `CloudBackupsEmpty(message)`、`Notice` 的落点改为可指定、加 `UiSurface.Settings` 与 `DataOp`（5 值）；`AppViewModel` 加第 4 条 `Channel` 与 `settingsUiEvents`；**5 个**回调全部去掉回调参数、改发事件；`SettingsState` 三层 ×5 + `SettingsScreen` 5 处调用点 + 1 个收集器 | 回调 **0** 处（两种形状都清零）；设置页 **5** 处调用点改完；失败可分类（凭据 / 网络 / 其它）；**文案逐字未改**（机械验证：diff 中消失的字符串字面量 **0** 条）；单测 135 → **143** | 计划里那两条硬约束都守住了：只改回调、没动 IME 相关行；`CorruptGuardTest` 逐字断言的 `snapshotBeforeRestore()` 与 `previewBackup(raw) == null` 仍在原函数体内（改完把该守卫镜像成脚本在本地跑过）。**实施中另撞两件编译级的事**：`UiEvent` 从 4 类变 6 类 ⇒ `MainApp` 的 `when` 不再穷尽（sealed 不穷尽直接编译失败）；`private const val` 被我插在类体内（Kotlin 只允许顶层或 companion object）⇒ 挪到顶层。详见「4c 落地结果」 |
 
 ### 4a 落地结果（2026-09-18，提交见台账）
 
-- **现值（可复跑：`bash tools/doc-metrics.sh`）**：`Channel<` **3** 处（= 三个落点各一条队列）、
-  可空事件状态 **0** 个、事件型 `consume` 函数 **0** 个、单测 **127** 例（121 → 127，新增 `UiEventTest` 6 例）。
+- **4a 当时的现值**：三个落点各一条队列（共 3 条）、可空事件状态 **0** 个、事件型 `consume` 函数 **0** 个、
+  单测 **127** 例（121 → 127，新增 `UiEventTest` 6 例）。**4c 之后的现值见本节末「4c 落地结果」**
+  （`bash tools/doc-metrics.sh` 可复跑）。这里刻意不再用「`Channel<` **N** 处」那个写法：
+  `doc-metrics.sh` 会把它当**当前值**与实测比对，历史数字写成那个形式就会天天报不符。
 - **实施时发现的两个设想错误**（都已按代码实情改，不是照原计划硬做）：
   1. **落点是三个不是两个**：除主壳覆盖层与消耗记录页，**首页 `AppScaffold` 也有自己的宿主** ——
      自动同步提示一直落在那里。规划时只读了 `MainApp` 与消耗记录页，漏了首页。
@@ -111,6 +118,49 @@
   `AppSnackbarHostState`：首页 / 消耗记录 / 归档 / 食品详情 / 设置），其中只有 **3 处**收 `UiEvent`。
   此前文档里「三个宿主」的说法容易被读成「全仓只有三个宿主」，已按此改写。
 
+### 4c 落地结果（2026-09-18，提交 `a6b67d7` + 修复 `2fd6089`）
+
+- **现值（可复跑：`bash tools/doc-metrics.sh`）**：`Channel<` **4** 处（= 四个落点各一条队列）、
+  `receiveAsFlow()` **4** 处、`UiEvent` **6** 类 / `UiSurface` **4** 个落点、`(Boolean, String)` 与
+  `(Boolean, Boolean)` 型回调 **0** 处、单测 **143** 例（135 → 143：新增 `OpFailureTest` 6 例、
+  `UiEventTest` +2 例、`SettingsStateTest` 的转发测试补上这 5 个动作）。
+- **范围比计划大**：计划写的是 3 个回调，实测 **5** 个（见上方证据第 2 条的修正）。第 5 个
+  `importBackupWithSnapshot(raw, (ok, snapshotSaved) -> Unit)` 与「从快照还原」那套**完全同构**
+  （都是"成功了吗 + 前置快照存下了吗"⇒ 三句话），留下它验收 ① 就不成立 ⇒ 一并收。
+  它原来那三句话是**界面拼的**（在 `SettingsScreen` 里），现在搬到 VM，逐字未改。
+- **失败分三档，不是四档**：`OpFailure.Auth`（401）/ `Network`（`IOException` 及其子类：DNS、超时、连接重置）/
+  `Other`（HTTP 状态码类、格式不对、云端为空…）。**没有**给状态码单列一档：状态码本来就在文案里、用户看得见，
+  而 UI 目前对 507 与 500 没有任何不同处理 —— 为一档没人区分的情况加类型，只是让 `when` 多一个分支。
+- **命名当天改过一次**（趁引用还少）：最初叫 `SyncFailure` / `SyncOp`，但「导入备份」与「快照损坏」都不是同步操作，
+  装不进这个名字 ⇒ 改成中性的 `OpFailure` / `DataOp`。
+- **`CloudBackupsEmpty` 为什么必须单独一档**：`loadCloudBackups` 改造前用 `onResult(true, "")` 表示"成功且非空"、
+  用 `onResult(false, "云端暂无备份，请先上传")` 表示"成功但是空的" —— 一个布尔同时背着"失败"与"成功但没东西"两种语义。
+  天真地换成 `Result` 会把这一档丢进失败里（界面就会当成错误处理）。所以：成功且非空**不发事件**
+  （列表本来就由 `cloudBackups` 这个 `StateFlow` 驱动），成功但为空发 `CloudBackupsEmpty`，真失败发 `OpFailed`。
+- **「关掉备份选择器」搬进收集器，且只在 `op == DataOp.ListBackups` 时关**：改造前只有 `loadCloudBackups`
+  的回调里写了 `setShowBackupPicker(false)`，上传 / 下载 / 还原失败都不碰选择器 ⇒ 无条件关会改变那三条的行为。
+- **`syncUpload` 本地打包失败刻意用 `OpFailure.Other`，不走 `toOpFailure()`**：`buildBackupJson` 抛的是本地数据异常，
+  用 `toOpFailure()` 会因为「不是 `IOException`、也不等于凭据那句话」而落到 `Other` —— 结果一样，但**显式写 `Other`
+  才表达得出"这是本地数据问题、不是网络问题"**；把本地错误分类成网络错会误导用户去重试。
+- **文案零漂移是机械验证的**：`git diff -U0` 里所有被删行的字符串字面量与新增行比对，**消失 0 条**
+  （新增的 8 条全是注释里的中文短语）。`OpFailureTest` 另把改造前三个调用点各自的兜底话
+  （"上传失败" / "获取备份列表失败" / "下载失败"）逐个写死，包括"消息为空白等同没有消息"。
+- **⚠️ 一处「故意没修」**：网络类异常的 `message` 是 OkHttp 的**英文技术串**，改造前就被原样甩给用户，
+  本轮照旧透出（改文案属用户可见的行为变更，要单独提交 + 真机复测）。`OpFailureTest` 里有一条断言专门钉住
+  "现状如此"，并在注释里写明真要改时该怎么处理（改断言 + devlog 记一条行为变更）。**待用户决策**。
+- **顺带查出、本轮刻意没动**：`saveLocalSnapshot(onDone: ((Boolean) -> Unit)?)` 在接口 / 包装 / 实现 / VM
+  四层管道齐全，但**全仓没有任何调用点**（`grep` 实证）⇒ 疑似死 API。删公开 API 是另一个决定，**待用户决策**
+  （核查第 16 处：不是文档错，是代码里的死管道）。
+- **`maybeAutoSync()` 不在范围内**：它是第 5 条同步路径，但对失败**刻意静默**（代码里那句注释就是产品决定），
+  没有回调也没有提示 ⇒ 无事件可发。等哪天要让用户知道自动同步失败了，`OpFailed` 已经是现成的载体。
+- **守卫同步升级**（`tools/doc-metrics.sh`，与代码同提交）：那条"替代机制在场"检查原本把队列数写死成 3，
+  加第 4 个落点就红 ⇒ 改成**从 `UiSurface` 枚举反推期望值**（落点数 = 队列数 = 对外 Flow 数），
+  于是它能抓两种真错误：「有落点没队列」（事件发出去没人收 ⇒ 提示静默消失）与「有队列没落点」。
+  两个方向都反证过（临时加第 5 个落点 / 临时删掉 `Settings`，各自报出不符后还原）。
+- **CI 红过一次，根因与定位过程见 `devlog/2026-09-18.md` §9–§10**（一句话版：重写 `Notice` 的 KDoc 时把
+  `SnackbarCopyTest` 阳性对照所依赖的那句文案写没了；本地无编译器、Actions 日志与产物端点都被墙，
+  靠把三份守卫逐条镜像成脚本才定位到）。
+
 - **沿用的两条既有约束**（原风险项，09-18 逐条实测仍成立；其中 ② 已由 4b 的 `SnackbarCopyTest` 钉进 CI）：
   ① `AppViewModel` 在 detekt `TooManyFunctions` 的显式豁免清单里（**53** 个函数，09-16 快照，`detekt.yml:85`）⇒
   4a 新增 `emit()` 不会撞门禁，但**别再往里堆** —— #5 拆完 Repository 后要回去重评那 4 条体量规则（`detekt.yml:88` 已登记）；
@@ -119,13 +169,24 @@
   必须在 App 层内部消化 `SnackbarResult` / `MiuixSnackbarResult`，交给 VM 的只能是「用户点没点撤销」这个布尔。
 - **全项验收**：① 一次性事件只剩一种建模方式；② 失败提示有类型、可分类；③ 撤销条与提示条的**出现位置和文案逐条不变**
   （这是「纯重构」的判据 —— 任何位置变化都要单独提交 + 真机复测；**4b 已把它钉进 CI**：`SnackbarCopyTest`）；④ 单测数只增不减；⑤ ktlint / detekt 0。
+  **4c 之后逐条对照**：① ✅ 回调清零，一次性事件只剩 `UiEvent` + `Channel` 一种建模方式；
+  ② ✅ `OpFailure` 三档，凭据错与网络错在类型上分得开（UI 想据此引导重填凭据，现在有依据了）；
+  ③ ✅ 机制上成立（文案零漂移经机械验证 + `SnackbarCopyTest` 钉住分布），**但仍要真机过一轮**（见下方复测口径）；
+  ④ ✅ 121 → 127 → 135 → **143**；⑤ ✅ CI run [35297362614](https://github.com/SkyForest233/chileme/actions/runs/35297362614) 三 job 全绿。
 - **守卫交接**：✅ 4a 落地时已交接 —— `tools/doc-metrics.sh` 那条「一次性事件必须有 `consume` 配对」的临时守卫
   已改成「**禁止再出现可空 StateFlow 型一次性事件**（目标 0 个）」，同一次提交里完成，没留两套。
   它的阳性对照也跟着换了：临时造一个 `MutableStateFlow<X?>(null)` 就必须报警。
-- **真机复测口径（4a+4b 都已做完 ⇒ 现在就可以测）**：两主题 × 四处提示 —— 列表页减号（撤销消耗）、
+- **真机复测口径（4a/4b/4c 都已做完 ⇒ 现在就可以测）**：两主题 × 四处提示 —— 列表页减号（撤销消耗）、
   列表页搜索里恢复归档、消耗记录页删除记录、启动时自动同步成功提示。每处确认：① 提示出现在**原来那个位置**；
   ② 点「撤销」真的回滚；③ 旋屏一次不重复弹；④ 停在别的 Tab 时触发的事件，**回到该页才弹**（队列语义）。
   文案与落位已由 `SnackbarCopyTest` 在 CI 上钉住 ⇒ 真机这一轮只需确认「看起来对、点得动」，不必逐字比对。
+- **4c 追加的复测面（设置页，两主题 × 5 条流程）**：立即上传、拉取云端备份列表（含「云端暂无备份」这一档）、
+  从云端恢复、从本地快照还原、导入 JSON 备份。每条确认：① 成功与失败提示都出现在**设置页自己的宿主**上
+  （不是首页、也不是主壳覆盖层）；② 文案与改造前一致；③ **只有「拉列表失败 / 列表为空」会关掉备份选择器**，
+  上传 / 下载 / 还原失败时选择器不动（这是改造前的差别，用 `OpFailed.op` 复现的）；
+  ④ 未填凭据就点上传 / 拉列表 / 下载 ⇒ 提示「请先填写并保存坚果云账号和应用密码」。
+  ⚠️ 网络类失败仍会显示 OkHttp 的**英文技术串**（如 `Unable to resolve host …`）—— 改造前就这样、本轮刻意未改，
+  真机看到它**不算回归**；要不要换成中文是待用户决策项（见 `devlog/2026-09-18.md`）。
 
 ## #5 Repository 拆分 + `Clock` 注入 + 轻量 DI
 
