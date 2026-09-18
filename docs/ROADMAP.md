@@ -22,7 +22,7 @@
 | 1 | detekt 由 `report` 切 **block** + `detekt_selftest` 防空转 | ✅ 2026-09-16 | 09-16 §14 |
 | 2 | 开启 detekt 复杂度规则，按实测清单收敛（4 条体量规则显式关闭） | ✅ 2026-09-16 | 09-16 §14 + `detekt.yml` 文件头 |
 | 3 | 双主题去重 + App 级组件层（最大的一项） | ✅ 2026-09-16 ⚠️ 原验收未达成 | 09-16 §15–§22；口径见下方「#3 收官」 |
-| **4** | **错误模型统一**（⚠️ 证据行 09-18 复核修正：不是「正在重复消费」，是 4 个手工 `consume` + 3 个 `(Boolean, String)` 回调） | 🔶 **4a ✅ 2026-09-18**（4 个可空状态 → 3 条 `Channel` 队列，单测 121→127）· 4b/4c 未做 | 本节「4a 落地结果」 |
+| **4** | **错误模型统一**（⚠️ 证据行 09-18 复核修正：不是「正在重复消费」，是 4 个手工 `consume` + 3 个 `(Boolean, String)` 回调） | 🔶 **4a ✅ · 4b ✅（2026-09-18）** · 4c 未做（3 个 `(Boolean, String)` 回调）；单测 121→127→**135** | 本节「4a/4b 落地结果」 |
 | 5 | Repository 拆分 + `Clock` 注入 + 轻量 DI（⚠️ 证据行 09-18 复核修正：跨零点**早已可注入且已被测**，只剩 12 处硬调） | ⏳ 未开始（前置 #4）；分 5a/5b/5c | — |
 | 6 | 派生数据下沉 VM + `WhileSubscribed` | ⏳ 未开始（前置 #5）；**范围已缩小**，见下 | — |
 | 7 | 字符串资源化 + 无障碍补全 | ⏳ 未开始（前置 #3 已满足 ⇒ **随时可插队做**） | — |
@@ -65,7 +65,7 @@
 | 阶段 | 做什么 | 验收 | 风险与注意 |
 |---|---|---|---|
 | **4a** ✅ 已做（2026-09-18） | 新建 `viewmodel/UiEvent.kt`（`sealed interface UiEvent` 4 类 + `UiSurface` 3 个落点）；`AppViewModel` 里**三条** `Channel<UiEvent>` + **一个** `emit()` 发送点；4 个可空 StateFlow、4 个 `consumeXxx()`、3 个嵌套数据类全删；3 个收集点改收 Channel；新增 `UiEventTest`（6 例）钉住分流 | 可空事件状态 **0** 个；`fun consume` 型清空函数 **0** 个（只剩业务方法 `consumeOne`）；单测 121 → **127**；ktlint/detekt 待 CI 验 | ⚠️ **实施时推翻了本行原先的两处设想**：① 落点是**三个**不是两个（漏了首页 `AppScaffold` 的宿主）；② `Channel` 是单接收方语义，**一条队列挂多个收集协程会互相抢事件** ⇒ 只能按落点分队列，见下方「4a 落地结果」 |
-| **4b** | 把 `MainApp` 里三处重复的「按主题分流弹撤销条」收成一个 App 层 helper（含 `archiveSelected()` 那条非事件流）；再把四处提示的**文案与落位**写成断言 | 分流 if/else 由 3 处收成 1 处；文案改动会被 CI 拦 | ⚠️ 原写法「新增一份 `UiEventHandler` 挂在每个宿主上」**不成立**：三个落点各有各的宿主类型（主壳是两个裸 `SnackbarHostState`，两个二级页是 `AppSnackbarHostState`），且收集协程必须与宿主同生命周期，强行合一要么改落位（视觉改动）要么把宿主对象穿过多层导航 ⇒ 4a 保留了 3 个挂载点，4b 只收重复的分流逻辑 |
+| **4b** ✅ 已做（2026-09-18） | `ui/components/UndoSnackbar.kt` 新增 `internal suspend fun showUndoSnackbarAcrossThemes(isMiuix, md3Host, miuixHost, message): Boolean`；`MainApp` 三处形状相同的 if/else 各收成一次调用（含 `archiveSelected()` 那条非事件流），随之失效的 3 条 import 删掉；新增 `SnackbarCopyTest`（8 例）钉住文案与落位 | 主壳里 `SnackbarResult` 字样 **0** 处；分流实现 **1** 处；单测 127 → **135**；CI ✅ | ⚠️ 三处期望值最初是**猜的**、且第一遍测量脚本按 `startswith(文件名)` 匹配带目录前缀的相对路径 ⇒ 6 项假零；两处坑（子串陷阱 / 路径匹配）都记在测试类注释里 |
 | **4c** | 3 个 `(Boolean, String)` 回调改成 `Result` / `sealed` 返回，失败经 `UiEvent.Notice` 报信；`NutstoreSync` 的错误分类不再被压平 | `(Boolean, String)` 回调 **0** 处；设置页 3 处调用点改完；失败原因可分类（凭据缺失 / 网络 / 格式 / 损坏态拒绝） | 会碰 `SettingsScreen.kt`（`ImeHandlingTest` 点名的 10 个文件之一）⇒ 只改回调、不动 IME 相关行；`CorruptGuardTest` 逐字断言 `syncDownload` 体内的 `snapshotBeforeRestore()` 与 `previewBackup(raw) == null` ⇒ **这两个子串必须留在原函数体内**，否则同批改测试 |
 
 ### 4a 落地结果（2026-09-18，提交见台账）
@@ -88,20 +88,44 @@
   那句永远不成立；改用 Channel 后也没有「待处理事件」可清）—— 这是本次唯一的逻辑删除，已在代码注释里写明理由。
 - **待真机复测（与 4b 一起过一次）**：见本节末的复测口径。
 
-- **沿用的两条既有约束**（原风险项，09-18 逐条实测仍成立）：
+### 4b 落地结果（2026-09-18，提交见台账）
+
+- **收了什么**：`MainApp` 里三处**形状完全相同**的 if/else（撤销消耗、恢复归档、批量归档）→ 一次
+  `showUndoSnackbarAcrossThemes(...)` 调用；两主题的 `SnackbarResult` 枚举不再出现在主壳（实测 **0** 处）。
+  第三条不是事件流（`archiveSelected()` 里 `scope.launch` 直接调），一并收了 —— 重复的是「分流」，与走不走事件无关。
+- **现值（可复跑：`bash tools/doc-metrics.sh`）**：单测 **135** 例（4a 后 127 → 4b 新增 `SnackbarCopyTest` 8 例）。
+- **一个被否掉的更「干净」方案**：让主壳直接用二级页那个 `AppSnackbarHostState` 容器（它已经把分流收在容器里了）。
+  否掉的理由是生命周期，不是审美：那容器是 `remember(isMiuix)` 建的，切主题会换**新**容器与新宿主，
+  而主壳的收集协程是 `LaunchedEffect(Unit)`（key 一变就取消协程、中断 `showSnackbar` —— 当年 MD3 撤销条不出现的
+  根因），协程捕获的还是旧容器 ⇒ 提示弹到**没有渲染**的宿主上，而 `showSnackbar` 挂起到关闭为止
+  ⇒ 收集协程永久堵住，之后所有撤销条都不再出现。所以主壳这两个宿主的身份必须跨主题稳定，分流只能收在自由函数里。
+  理由写进了 helper 的 KDoc，并由 `SnackbarCopyTest` 钉住「主壳不再出现结果枚举」。
+- **`SnackbarCopyTest` 钉了什么**（8 例）：5 条提示文案在全仓的**分布**（哪个文件、几处）、
+  恢复归档那两句在主壳与归档页**两处一致**（全仓唯一故意重复的文案：归档页走本地回调、不经事件系统）、
+  分流只有一处实现、两主题的「撤销」标签与 6 秒自关、主壳覆盖层落位 7 个标记
+  （底部对齐 / 导航栏避让 / 键盘避让 / 动画偏移 84-8dp / 两主题各自宿主形态）、二级页落位
+  （首页 `FloatingNav`、消耗记录页与归档页走 `AppScaffold` 默认 `SystemBars`）。
+  首例是**注释剥离的阳性对照**：`UiEvent.kt` 的 KDoc 里也写着这些文案，剥注释后必须查不到，
+  否则「只出现在 X 文件」这类断言全是假的。
+- **顺带查清的一件事**：全仓其实有 **6 处** Snackbar 宿主站点（主壳覆盖层 + 5 个二级页各自持有
+  `AppSnackbarHostState`：首页 / 消耗记录 / 归档 / 食品详情 / 设置），其中只有 **3 处**收 `UiEvent`。
+  此前文档里「三个宿主」的说法容易被读成「全仓只有三个宿主」，已按此改写。
+
+- **沿用的两条既有约束**（原风险项，09-18 逐条实测仍成立；其中 ② 已由 4b 的 `SnackbarCopyTest` 钉进 CI）：
   ① `AppViewModel` 在 detekt `TooManyFunctions` 的显式豁免清单里（**53** 个函数，09-16 快照，`detekt.yml:85`）⇒
   4a 新增 `emit()` 不会撞门禁，但**别再往里堆** —— #5 拆完 Repository 后要回去重评那 4 条体量规则（`detekt.yml:88` 已登记）；
   ② **跨主题宿主对象不得漏回屏幕层**（`docs/ARCHITECTURE.md:157`）：MD3 与 Miuix 的 `SnackbarHostState` 是两个
   不相干的类型，`AppSnackbarHostState` 对外只暴露 `showUndoSnackbar(): Boolean` ⇒ 4b 的 `UiEventHandler`
   必须在 App 层内部消化 `SnackbarResult` / `MiuixSnackbarResult`，交给 VM 的只能是「用户点没点撤销」这个布尔。
 - **全项验收**：① 一次性事件只剩一种建模方式；② 失败提示有类型、可分类；③ 撤销条与提示条的**出现位置和文案逐条不变**
-  （这是「纯重构」的判据 —— 任何位置变化都要单独提交 + 真机复测）；④ 单测数只增不减；⑤ ktlint / detekt 0。
+  （这是「纯重构」的判据 —— 任何位置变化都要单独提交 + 真机复测；**4b 已把它钉进 CI**：`SnackbarCopyTest`）；④ 单测数只增不减；⑤ ktlint / detekt 0。
 - **守卫交接**：✅ 4a 落地时已交接 —— `tools/doc-metrics.sh` 那条「一次性事件必须有 `consume` 配对」的临时守卫
   已改成「**禁止再出现可空 StateFlow 型一次性事件**（目标 0 个）」，同一次提交里完成，没留两套。
   它的阳性对照也跟着换了：临时造一个 `MutableStateFlow<X?>(null)` 就必须报警。
-- **真机复测口径（4a+4b 做完后一次性过）**：两主题 × 四处提示 —— 列表页减号（撤销消耗）、列表页搜索里恢复归档、
-  消耗记录页删除记录、启动时自动同步成功提示。每处确认：① 提示出现在**原来那个位置**；② 点「撤销」真的回滚；
-  ③ 旋屏一次不重复弹。
+- **真机复测口径（4a+4b 都已做完 ⇒ 现在就可以测）**：两主题 × 四处提示 —— 列表页减号（撤销消耗）、
+  列表页搜索里恢复归档、消耗记录页删除记录、启动时自动同步成功提示。每处确认：① 提示出现在**原来那个位置**；
+  ② 点「撤销」真的回滚；③ 旋屏一次不重复弹；④ 停在别的 Tab 时触发的事件，**回到该页才弹**（队列语义）。
+  文案与落位已由 `SnackbarCopyTest` 在 CI 上钉住 ⇒ 真机这一轮只需确认「看起来对、点得动」，不必逐字比对。
 
 ## #5 Repository 拆分 + `Clock` 注入 + 轻量 DI
 
