@@ -247,30 +247,48 @@ for f in sorted(glob.glob('**/*.md', recursive=True)):
 print('%d 处，不自洽 %d 处' % (tot, bad))
 PY
 )" '本日曾两次写出「14 绿 3 红 / 14 run」这类算不平的计数，故固化成检查。也认「N run —— X 绿 · Y 红 · Z 被取消」这种三段写法（concurrency 取消是第三类结局，漏了它会误报）'
-row '一次性事件的 consume 配对（#4 临时守卫）' "$(python3 - <<'PY' 2>/dev/null || echo '需 python3'
-import glob, io, re
+row '可空 StateFlow 型一次性事件（目标 0）' "$(python3 - <<'PY' 2>/dev/null || echo '需 python3'
+import io, re
 VM = 'app/src/main/java/com/agon/app/viewmodel/AppViewModel.kt'
+UIE = 'app/src/main/java/com/agon/app/viewmodel/UiEvent.kt'
 src = io.open(VM, encoding='utf-8').read()
-events = re.findall(r'private val (_\w+) = MutableStateFlow<[^>]*\?>\(null\)', src)
-others = ''
-for f in glob.glob('app/src/main/**/*.kt', recursive=True):
-    if not f.endswith('AppViewModel.kt'):
-        others += io.open(f, encoding='utf-8').read()
-nofn = nocall = ok = 0
+PAT = r'private val (_\w+) = MutableStateFlow<[^>]*\?>\(null\)'
+# --- 阳性对照：先证明这条正则抓得到已知样本，否则下面的「0」毫无意义 ---
+probe = 'private val _probe = MutableStateFlow<String?>(null)'
+if len(re.findall(PAT, probe)) != 1:
+    print('     ✗ 阳性对照失败：正则没抓到已知样本 ⇒ 本项的「0 个」不可信')
+events = re.findall(PAT, src)
+bad = []  # 汇总行必须看这个列表，不能自己重新算 —— 否则会出现「上面一堆 ✗、下面还写 ✓」
+# --- 豁免清单：'<字段名>': '<它为什么不是一次性事件>'。当前为空（#4a 之后一个都不剩）---
+ALLOW = {}
 for e in events:
-    n = e[1:]
-    fn = 'consume' + n[0].upper() + n[1:]
-    if not re.search(r'fun %s\(\)' % fn, src):
-        nofn += 1
-        print('     ✗ %s 是「可空 StateFlow」型一次性事件，但 VM 里没有 %s()' % (e, fn))
-    elif not re.search(r'\.%s\(\)' % fn, others):
-        nocall += 1
-        print('     ✗ %s 的 %s() 全仓无人调用 ⇒ 旋屏/重组后同一条提示会重放' % (e, fn))
+    why = ALLOW.get(e)
+    if why:
+        print('     （已豁免 %s —— %s）' % (e, why))
     else:
-        ok += 1
-print('%d 个可空事件状态：配对齐全 %d，缺 consume 函数 %d，有函数但无人调用 %d' % (len(events), ok, nofn, nocall))
+        bad.append(e)
+        print('     ✗ %s 用「可空 StateFlow」建模：若它是一次性 UI 事件，请改用 UiEvent + Channel' % e)
+        print('       （见 viewmodel/UiEvent.kt 与 #4a；确实是非事件型状态就往本守卫的 ALLOW 里登记理由）')
+# --- 替代机制是否还在（防止「0 个」是因为整套机制被删了）---
+if 'sealed interface UiEvent' not in io.open(UIE, encoding='utf-8').read():
+    bad.append('UiEvent')
+    print('     ✗ UiEvent.kt 里没有 sealed interface UiEvent ⇒ 替代机制不见了')
+ch = src.count('Channel<UiEvent>')
+raf = src.count('receiveAsFlow()')
+if ch != 3:
+    bad.append('Channel')
+    print('     ✗ Channel<UiEvent> 实测 %d 个（应为 3：主壳 / 首页 / 消耗记录页各一条）' % ch)
+if raf != 3:
+    bad.append('receiveAsFlow')
+    print('     ✗ receiveAsFlow() 实测 %d 个（应为 3：每条队列一个对外 Flow）' % raf)
+if len(re.findall(PAT, probe)) != 1:
+    bad.append('probe')
+if bad:
+    print('%d 个；另有 %d 处 ✗（见上）⇒ 本项不通过' % (len(events), len(bad)))
+else:
+    print('0 个 ✓ 对照通过（正则抓得到样本）；替代机制在位：UiEvent + 3 条 Channel + 3 个 receiveAsFlow')
 PY
-)" '目标「配对齐全 = 全部」。2026-09-17 核查发现：本仓用「可空 StateFlow + 手工 consume」建模一次性事件（撤销×3 + 自动同步提示），**4/4 都记得清空 ⇒ 没有正在发生的重放 bug，但靠的是纪律不是机制**。这条守卫先把纪律钉住；#4a 把它们迁到 `Channel<UiEvent>` 后，本行应改成「禁止再出现可空 StateFlow 型一次性事件」（守卫随重构交接，不留两套）。⚠️ 已知盲区：只查「有没有调用点」，查不出「调用点自己是否也被调用」'
+)" '目标「0 个」。这是 ROADMAP #4「守卫交接」那次交接的产物：#4a 之前这里放的是临时守卫「一次性事件必须有 consume 配对」（2026-09-18 核查发现本仓用「可空 StateFlow + 手工 consume」建模 4 个一次性事件，4/4 都记得清空 ⇒ 当时并没有重放 bug，靠纪律不靠机制）；4a 把 4 个全改成 `UiEvent` + `Channel`（接收即出队）之后，守卫换成「**禁止再出现**，超出即 ✗，豁免须登记理由」，同一次提交完成、不留两套。自带阳性对照（内嵌样本）与替代机制在场检查（`Channel` / `receiveAsFlow` 计数）—— 因为「0 个」这种结果若不先证明探测真的在工作，就没有意义（见本脚本头部第 3 条硬约定）。'
 row '文档写死的关键数 vs 实测（不符即 ✗）' "$(python3 - <<'PY' 2>/dev/null || echo '需 python3'
 import glob, io, re
 MAIN = 'app/src/main'
@@ -324,7 +342,7 @@ for d in DOCS:
                     print('     ✗ %s:%d %s 文档写 %d，实测 %d ⇒ 改文档或改成指针' % (d, i, label, doc, real))
 print('%d 处写死的数被比对，不符 %d 处' % (hits, bad))
 PY
-)" '2026-09-17 核查的第 11/12/13 处都是这一类：**文档里的数或论述与代码不符，而没有任何东西会报警**（`4,204` 行、`37` 个角色、`6` 份批注、`没有任何页面消费它`、`跨零点无法单测`）。本行把「写死的关键数」逐个拿去和实测比。⚠️ 它**刻意与「指针优于数字」的原则相反**：不是鼓励写数字，而是让还留着的数字烂不掉 —— 报警的正确修法通常是**把数字换成指针**，而不是改数字。⚠️ **验收目标值要用散文写**（别写成 `**N** 个/处/行`），否则会被当成现状断言而误报 —— 本行上线当天就踩了一次（ROADMAP 5a 的「`Application` 子类 **1** 个」是目标不是现状）'
+)" '2026-09-18 核查的第 11/12/13 处都是这一类：**文档里的数或论述与代码不符，而没有任何东西会报警**（`4,204` 行、`37` 个角色、`6` 份批注、`没有任何页面消费它`、`跨零点无法单测`）。本行把「写死的关键数」逐个拿去和实测比。⚠️ 它**刻意与「指针优于数字」的原则相反**：不是鼓励写数字，而是让还留着的数字烂不掉 —— 报警的正确修法通常是**把数字换成指针**，而不是改数字。⚠️ **验收目标值要用散文写**（别写成 `**N** 个/处/行`），否则会被当成现状断言而误报 —— 本行上线当天就踩了一次（ROADMAP 5a 的「`Application` 子类 **1** 个」是目标不是现状）'
 row 'devlog 文件数 / 总行数' "$(ls devlog/*.md | wc -l | tr -d ' ') 个 / $(wc -l devlog/*.md | tail -1 | awk '{print $1}') 行" '含 INDEX.md'
 row 'docs/audits 报告数' "$(ls docs/audits/*.md | wc -l | tr -d ' ') 份" '历史审计报告，只加批注不改写'
 row '含 2026-09-17 批注的报告' "$(grep -l '2026-09-17 状态批注\|2026-09-17 追加' docs/audits/*.md | wc -l | tr -d ' ') 份" '7 份新增顶部批注 + 3 份在既有批注上追加（md3-audit / chileme-review / fix-plan；fix-plan 两者都有 ⇒ 去重 9 份）'
