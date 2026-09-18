@@ -32,21 +32,28 @@ class CorruptGuardTest {
      * 注意不能用 `indexOf("\n\n    ")`：更深缩进的行（如 12 空格的语句块）也以它开头，
      * 会提前截断函数体（CI 第一次跑时 `upsert` 就是这么被截到 `historyDecoded` 之前的）。
      */
-    private fun functionBody(src: String, signature: String): String {
+    private fun functionBody(src: String, signature: String, indent: Int = 4): String {
         val start = src.indexOf(signature)
         assertTrue("源码里找不到 $signature", start >= 0)
         val rest = src.substring(start)
+        // #5c 起领域函数是**顶层扩展函数**（缩进 0），不再都是类成员（缩进 4）⇒ 截断规则参数化。
+        // ⚠️ 顶层函数若仍用 4 空格那套规则，截断点会落在函数体里**第一个 4 空格的内部 `}`**
+        // （例如 `dataStore.edit { … }` 的收尾）而不是函数末尾 ⇒ 后半段的正向断言假红、
+        // `!contains(...)` 这类反向断言假绿。实测 `upsert` 只差 1 行（30 vs 31：它的内部块收尾
+        // 刚好靠近函数末尾），但那是运气，不能靠 —— 内部块靠前一点的函数会被截掉大半。
+        val pad = " ".repeat(indent)
         val end = listOf(
-            Regex("\\n {4}\\}").find(rest)?.range?.first ?: -1,
-            Regex("\\n\\n {4}[^ \\n]").find(rest)?.range?.first ?: -1,
+            Regex("\\n$pad\\}").find(rest)?.range?.first ?: -1,
+            Regex("\\n\\n$pad[^ \\n]").find(rest)?.range?.first ?: -1,
         ).filter { it > 0 }.minOrNull() ?: rest.length
         return rest.substring(0, end)
     }
 
     @Test
     fun `upsert 不再因录入历史损坏而整体拒绝写入`() {
-        val repo = read("com/agon/app/data/FoodRepository.kt")
-        assumeTrue("找不到 FoodRepository.kt（非 Gradle 工作目录？），跳过", repo != null)
+        // #5c-2：upsert 搬到了库存领域文件（顶层扩展函数）⇒ 这条守卫跟着搬，别留在旧文件里假绿
+        val repo = read("com/agon/app/data/FoodItems.kt")
+        assumeTrue("找不到 FoodItems.kt（非 Gradle 工作目录？），跳过", repo != null)
         val src = repo!!
 
         assertTrue(
@@ -54,7 +61,7 @@ class CorruptGuardTest {
             !src.contains("isCorrupt(itemsDecoded, historyDecoded)"),
         )
 
-        val body = functionBody(src, "suspend fun upsert(")
+        val body = functionBody(src, "suspend fun FoodRepository.upsert(", indent = 0)
         // 主数据（库存）仍然必须拦截
         assertTrue("upsert 必须保留库存损坏时的拒绝写入", body.contains("if (isCorrupt(itemsDecoded)) return@edit"))
         // 库存写完才判定历史，且历史损坏只跳过历史

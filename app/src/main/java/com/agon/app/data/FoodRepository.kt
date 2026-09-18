@@ -76,14 +76,14 @@ class FoodRepository internal constructor(
     /** 重型 key 的「原始串 → 解码结果」缓存，见 [rawFlow]。 */
     internal val decodeCache = DecodeCache()
 
-    private val itemsKey = stringPreferencesKey("food_items")
+    internal val itemsKey = stringPreferencesKey("food_items")
     private val archiveKey = stringPreferencesKey("archived_items")
     private val consumptionKey = stringPreferencesKey("consumption_records")
-    private val historyKey = stringPreferencesKey("history_entries")
+    internal val historyKey = stringPreferencesKey("history_entries")
     private val thresholdsKey = stringPreferencesKey("category_thresholds")
     private val categoriesKey = stringPreferencesKey("custom_categories")
-    private val locationsKey = stringPreferencesKey("custom_locations")
-    private val seededKey = booleanPreferencesKey("seeded")
+    internal val locationsKey = stringPreferencesKey("custom_locations")
+    internal val seededKey = booleanPreferencesKey("seeded")
     private val dynamicColorKey = booleanPreferencesKey("dynamic_color")
     private val darkModeKey = intPreferencesKey("dark_mode")
     private val paletteKey = stringPreferencesKey("palette")
@@ -103,7 +103,7 @@ class FoodRepository internal constructor(
     // 「配置型」key（thresholds / categories / locations）丢失可重设，维持回落默认值的旧行为。
     //
     // `decodeStrict` 本体在 `RepositoryCore.kt`（共用底座）；下面 7 个是各领域 key 的具名包装。
-    private fun decodeItems(raw: String?): Decoded<List<FoodItem>> =
+    internal fun decodeItems(raw: String?): Decoded<List<FoodItem>> =
         decodeStrict("food_items", raw)
 
     private fun decodeArchive(raw: String?): Decoded<List<ArchivedItem>> =
@@ -112,7 +112,7 @@ class FoodRepository internal constructor(
     private fun decodeConsumption(raw: String?): Decoded<List<ConsumptionRecord>> =
         decodeStrict("consumption_records", raw)
 
-    private fun decodeHistory(raw: String?): Decoded<List<HistoryEntry>> =
+    internal fun decodeHistory(raw: String?): Decoded<List<HistoryEntry>> =
         decodeStrict("history_entries", raw)
 
     // 配置型：解析失败回落默认值即可，不阻断写入。
@@ -124,7 +124,7 @@ class FoodRepository internal constructor(
         raw?.let { runCatching { json.decodeFromString<List<CategoryDef>>(it) }.getOrNull() }
             ?.takeIf { it.isNotEmpty() } ?: DefaultCategories
 
-    private fun decodeLocations(raw: String?): List<String> =
+    internal fun decodeLocations(raw: String?): List<String> =
         raw?.let { runCatching { json.decodeFromString<List<String>>(it) }.getOrNull() }
             ?: DefaultLocations
 
@@ -257,68 +257,6 @@ class FoodRepository internal constructor(
         }
     }
 
-    suspend fun seedIfNeeded() {
-        dataStore.edit { prefs ->
-            if (prefs[seededKey] == true) return@edit
-            // 库存 key 损坏时绝不种子化：否则会把损坏数据直接覆盖成 8 条示例。
-            if (isCorrupt(decodeItems(prefs[itemsKey]))) return@edit
-            val today = LocalDate.now(clock).toEpochDay()
-            fun id() = UUID.randomUUID().toString()
-            val seed = listOf(
-                FoodItem(id(), "鲜牛奶", "DAIRY", 2, "瓶", today - 12, 15, location = "冰箱"),
-                FoodItem(id(), "草莓酸奶", "DAIRY", 4, "杯", today - 25, 21, location = "冰箱"),
-                FoodItem(id(), "每日混合坚果", "NUTS", 1, "袋", today - 175, 180, location = "零食柜"),
-                FoodItem(id(), "芒果干", "FRUIT", 2, "袋", today - 85, 90, location = "零食柜"),
-                FoodItem(id(), "奥利奥夹心饼干", "SNACK", 3, "包", today - 60, 270, location = "零食柜"),
-                FoodItem(id(), "冰红茶", "DRINK", 6, "瓶", today - 100, 365, location = "储物间"),
-                FoodItem(id(), "红烧牛肉面", "INSTANT", 5, "桶", today - 30, 240, location = "厨房"),
-                FoodItem(id(), "大白兔奶糖", "CANDY", 1, "包", today - 200, 365, location = "零食柜"),
-            )
-            prefs[itemsKey] = json.encodeToString(seed)
-            prefs[seededKey] = true
-        }
-    }
-
-    /**
-     * 新增/编辑一条库存。
-     *
-     * **守卫按 key 粒度**（2026-09-15）：库存是本次写入的主数据，损坏时拒绝覆盖；
-     * 「录入历史」只是输入联想的辅助数据，它损坏时**不再连带锁死新增/编辑食品**，
-     * 而是跳过历史写入并记日志（原始串保持不动，留档仍在 filesDir/corrupt/）。
-     */
-    suspend fun upsert(item: FoodItem) {
-        dataStore.edit { prefs ->
-            val itemsDecoded = decodeItems(prefs[itemsKey])
-            if (isCorrupt(itemsDecoded)) return@edit
-            val current = itemsDecoded.orElse(emptyList())
-            val updated = if (current.any { it.id == item.id }) {
-                current.map { if (it.id == item.id) item else it }
-            } else {
-                listOf(item) + current
-            }
-            prefs[itemsKey] = json.encodeToString(updated)
-
-            val historyDecoded = decodeHistory(prefs[historyKey])
-            if (isCorrupt(historyDecoded)) {
-                Log.w(TAG, "history_entries 损坏：本次跳过录入历史写入（库存已正常保存）")
-                return@edit
-            }
-            val history = historyDecoded.orElse(emptyList())
-            val entry = HistoryEntry(
-                name = item.name,
-                category = item.category,
-                unit = item.unit,
-                shelfLifeDays = item.shelfLifeDays,
-                location = item.location,
-                coverText = item.coverText,
-                note = item.note,
-                expiringThresholdDays = item.expiringThresholdDays,
-            )
-            val newHistory = (listOf(entry) + history.filterNot { it.name == entry.name }).take(50)
-            prefs[historyKey] = json.encodeToString(newHistory)
-        }
-    }
-
     suspend fun archiveItems(ids: Set<String>, reason: ArchiveReason) {
         if (ids.isEmpty()) return
         dataStore.edit { prefs ->
@@ -401,30 +339,6 @@ class FoodRepository internal constructor(
         dataStore.edit { prefs ->
             prefs[archiveKey] = json.encodeToString(emptyList<ArchivedItem>())
             _corruptedKeys.update { it - "archived_items" }
-        }
-    }
-
-    /**
-     * 批量修改食品的存放位置。
-     */
-    suspend fun updateLocationBatch(ids: Set<String>, newLocation: String) {
-        if (ids.isEmpty()) return
-        val trimmed = newLocation.trim()
-        dataStore.edit { prefs ->
-            val itemsDecoded = decodeItems(prefs[itemsKey])
-            if (isCorrupt(itemsDecoded)) return@edit
-            val items = itemsDecoded.orElse(emptyList())
-            val updated = items.map {
-                if (it.id in ids) it.copy(location = trimmed) else it
-            }
-            prefs[itemsKey] = json.encodeToString(updated)
-
-            if (trimmed.isNotBlank()) {
-                val locs = decodeLocations(prefs[locationsKey])
-                if (trimmed !in locs) {
-                    prefs[locationsKey] = json.encodeToString(locs + trimmed)
-                }
-            }
         }
     }
 

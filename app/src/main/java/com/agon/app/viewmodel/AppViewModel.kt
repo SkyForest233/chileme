@@ -15,6 +15,10 @@ import com.agon.app.data.DefaultLocations
 import com.agon.app.data.FoodItem
 import com.agon.app.data.HistoryEntry
 import com.agon.app.data.isAutoSyncDue
+// ↓ #5c 起仓库的领域函数搬到了各自的领域文件（同包 internal 扩展函数）⇒ 跨包调用要逐个 import
+import com.agon.app.data.seedIfNeeded
+import com.agon.app.data.upsert
+import com.agon.app.data.updateLocationBatch
 import com.agon.app.data.OpFailure
 import com.agon.app.data.toOpFailure
 import com.agon.app.data.CloudBackup
