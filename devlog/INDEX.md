@@ -58,8 +58,8 @@
   （`OpFailureTest` 钉住现状，作用变成"防止无意改掉"）；② `saveLocalSnapshot(onDone)` 这条**全仓无调用点**的
   四层管道**留着不删**（核查第 16 处）⇒ 已知的死代码，别当遗漏再查。
   另：全仓有 **6 处** Snackbar 宿主站点（主壳覆盖层 + 5 个二级页），4c 之后 **4 处**收 `UiEvent` —— 别把「落点数」读成「宿主数」。
-- 🔶 **#5 Repository 拆分 + `Clock` 注入 + 轻量 DI**（**5a ✅ + 5b ✅ 已落地 2026-09-18，5c ⏳ 未做**）—— `FoodRepository.kt` **965 行 / 47 个类级函数**
-  （965 是 #5b 之后的快照：加时钟参数与说明让 950 → 965；5c 拆完会大幅变小）；
+- 🔶 **#5 Repository 拆分 + `Clock` 注入 + 轻量 DI**（**5a ✅ + 5b ✅ 已落地，5c 🔶 进行中**，均 2026-09-18）—— `FoodRepository.kt` 开工时是 **965 行 / 47 个类级函数**
+  （历史快照，不是现值：5c 正在按领域拆，行数每提交都在变，现值看 `tools/doc-metrics.sh`）；
   `Application` 子类 **1** 个（`ChiliMeApp` 持有 `AppContainer`，#5a 起；改造前 0 个、仓库在 `AppViewModel` 里现场构造）；
   **#5b 起数据层与 VM 取时间一律走注入的时钟**：函数体硬调 **0** 处、已注入 **14** 处（UI/主壳 **7** 处刻意保留），
   单测 143 → **153**（`FoodRepositoryClockTest` 6 例 + `AutoSyncDueTest` 4 例，都用固定时钟）。
