@@ -9,6 +9,7 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.IOException
 import java.net.URLDecoder
+import java.time.Clock
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.util.concurrent.TimeUnit
@@ -140,13 +141,20 @@ object NutstoreSync {
      * 上传成功后仅保留最近 [CLOUD_BACKUP_KEEP] 份新版备份，更旧的自动删除。
      * 旧版单文件备份不受影响。
      */
-    suspend fun upload(account: String, password: String, json: String): Result<Unit> =
+    suspend fun upload(
+        account: String,
+        password: String,
+        json: String,
+        // #5b：云端备份文件名里的时间戳向注入的时钟要（默认值 = 改造前的系统时钟，行为不变）。
+        // 轮转按文件名的时间戳倒序，所以这个名字必须继续单调递增 —— 换时钟不改这一点。
+        clock: Clock = Clock.systemDefaultZone(),
+    ): Result<Unit> =
         withContext(Dispatchers.IO) {
             runCatching {
                 val auth = authOf(account, password)
                 ensureDir(auth)
                 val fileName = PREFIX +
-                    LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss")) +
+                    LocalDateTime.now(clock).format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss")) +
                     ".json"
                 val put = request("$BASE_URL/$DIR/$fileName", auth)
                     .put(json.toRequestBody(JSON_TYPE))
@@ -233,3 +241,22 @@ object NutstoreSync {
         }
     }
 }
+
+/**
+ * 自动同步的**间隔判定**（#5b 从 `AppViewModel.maybeAutoSync()` 里抽出来的纯函数）。
+ *
+ * 抽出来只有一个理由：这段逻辑此前**没法测** —— 它长在需要 Android 环境的 VM 里，
+ * 而它偏偏是「跨零点」最敏感的一处（差一天就同步、差一天就不同步）。抽成纯函数后
+ * `AutoSyncDueTest` 能把边界钉死；行为逐位不变（原来写的是 `if (today - last < days) return`，
+ * 取反即此式）。
+ *
+ * ⚠️ 「间隔 <= 0 表示关闭自动同步」那条判断**留在 VM 里**、刻意不并进来：它必须在读凭据、
+ * 算今天之前就先短路（省掉两次 DataStore 读与一次日期计算），并进来就改变了读取顺序 ——
+ * 结果虽一样，但那就不是纯搬运了。
+ *
+ * @param lastSyncEpochDay 上次自动同步那天的 epochDay（从未同步过时仓库给的是 0 ⇒ 必然到期）
+ * @param todayEpochDay 今天的 epochDay —— 调用方从注入的时钟取，不再直接问系统
+ * @param intervalDays 用户设的间隔天数（调用方已保证 > 0）
+ */
+internal fun isAutoSyncDue(lastSyncEpochDay: Long, todayEpochDay: Long, intervalDays: Int): Boolean =
+    todayEpochDay - lastSyncEpochDay >= intervalDays

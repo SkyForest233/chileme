@@ -197,6 +197,105 @@ row 'Channel<' "$(occ 'Channel<' "$MAIN") 处（$(occ 'Channel<' "$SRC")）" '#4
 row 'UiEvent' "$(occ '\bUiEvent\b' "$MAIN") 处（$(occ '\bUiEvent\b' "$SRC")）" '#4'
 row 'java.time now() 直接调用' "$(occ 'LocalDate\.now|LocalDateTime\.now|LocalTime\.now' "$MAIN") 处（$(occ 'LocalDate\.now|LocalDateTime\.now|LocalTime\.now' "$SRC")）" '#5：时间不可注入 ⇒ 跨零点逻辑无法单测'
 row '  其中 LocalDate.now()' "$(occ 'LocalDate\.now\(\)' "$MAIN") 处（$(occ 'LocalDate\.now\(\)' "$SRC")）" '⚠️ 曾把 34（三个 now 工厂合计）当成 LocalDate.now() 的数写进文档，故单列一行'
+row '  数据层+VM 函数体硬调 now()（#5b：0）' "$(python3 - <<'PY' 2>/dev/null || echo '需 python3'
+import glob, io, re
+
+# 两条正则：空括号 = 没把时钟传进去（硬调）；(clock) = 已注入。
+# 只扫「代码行」（按行滤掉注释/KDoc）：本仓 KDoc 里刻意写着 `LocalDate.now()` 讲解设计，
+# 那些是文档不是调用点 —— 但要注意 doc-metrics 顶部那条 now() 计数**含注释**，两条口径不同。
+HARD = r'Local(?:Date|Time|DateTime)\.now\(\)'
+INJ = r'Local(?:Date|Time|DateTime)\.now\(clock\)'
+DIRS = ['app/src/main/java/com/agon/app/data', 'app/src/main/java/com/agon/app/viewmodel']
+bad = []
+
+# --- 阳性对照：先证明两条正则各自抓得到已知形状，否则下面的「0 处」毫无意义 ---
+probe_hard = 'val today = LocalDate.now().toEpochDay()'
+probe_inj = 'val today = LocalDate.now(clock).toEpochDay()'
+if len(re.findall(HARD, probe_hard)) != 1 or re.findall(INJ, probe_hard):
+    bad.append('probe-hard')
+    print('     ✗ 阳性对照失败：硬调正则没抓到已知样本（或误抓注入样本）⇒ 本项计数不可信')
+if len(re.findall(INJ, probe_inj)) != 1 or re.findall(HARD, probe_inj):
+    bad.append('probe-inj')
+    print('     ✗ 阳性对照失败：注入正则没抓到已知样本（或误抓硬调样本）⇒ 本项计数不可信')
+
+# --- 豁免清单：'<该行的可识别片段>': '<它为什么不算「函数体硬调」>' ---
+# 登记在此的两类都是**刻意保留**的：默认参数（生产调用点一律显式传注入的今天）与
+# 便捷属性委托（可测路径是同名的 `*At(today)` 纯函数，UI 走 LocalToday）。
+ALLOW = {
+    'today: LocalDate = LocalDate.now()':
+        'CsvExport 的便捷默认参数；仓库的导出入口一律显式传注入的今天',
+    'exportedEpochDay: Long = LocalDate.now()':
+        'BackupData 的默认参数（供缺字段的老备份反序列化），生产由调用方给值',
+    'get() = daysLeftAt(LocalDate.now())':
+        '便捷属性委托；可测路径是 daysLeftAt(today) 纯函数（见 FoodModels 的 KDoc）',
+    'get() = freshnessAt(LocalDate.now())':
+        '便捷属性委托；可测路径是 freshnessAt(today)',
+    'get() = elapsedRatioAt(LocalDate.now())':
+        '便捷属性委托；可测路径是 elapsedRatioAt(today)',
+    'get() = remainingTextAt(LocalDate.now())':
+        '便捷属性委托；可测路径是 remainingTextAt(today)',
+    'statusForAt(LocalDate.now(), categoryThresholds)':
+        '便捷包装 statusFor 的委托；可测路径是 statusForAt(today, …)',
+}
+
+def is_comment(line):
+    t = line.strip()
+    return t.startswith('*') or t.startswith('//') or t.startswith('/*')
+
+
+def code_only(path):
+    # 只按行滤掉注释/KDoc：本仓这些文件里没有会被朴素剥离误伤的 "*/\*" 那种字面量
+    return '\n'.join(l for l in io.open(path, encoding='utf-8').read().split('\n')
+                     if not is_comment(l))
+
+
+hard, inj, used = [], 0, set()
+for d in DIRS:
+    for f in sorted(glob.glob(d + '/**/*.kt', recursive=True)):
+        # ⚠️ 行号一律用**原文件**的行号（跳过注释行但不重排）：早先这里 enumerate 的是
+        # 剥完注释的文本，报出来的行号比真实行号小几行（CsvExport 报 9、实际 13），
+        # 拿它去翻源码会翻到无关的行 —— 守卫指错地方比不指更坏。
+        for ln, line in enumerate(io.open(f, encoding='utf-8').read().split('\n'), 1):
+            if is_comment(line):
+                continue
+            n = len(re.findall(HARD, line))
+            inj += len(re.findall(INJ, line))
+            if not n:
+                continue
+            where = '%s:%d' % (f.split('com/agon/app/')[-1], ln)
+            key = next((k for k in ALLOW if k in line), None)
+            if key:
+                used.add(key)
+                print('     （已豁免 %s —— %s）' % (where, ALLOW[key]))
+            else:
+                hard.append(where)
+                print('     ✗ %s 仍在直接向系统要时间（没把时钟传进去）' % where)
+
+for k in ALLOW:
+    if k not in used:
+        print('     ⚠ 豁免清单里这条已不在源码中，请复核后删除：%s' % k)
+
+# --- 机制是否还在：防止「0 处硬调」是靠把取时间的代码整个删掉换来的 ---
+app = 'app/src/main/java/com/agon/app/ChiliMeApp.kt'
+vm = 'app/src/main/java/com/agon/app/viewmodel/AppViewModel.kt'
+if 'FoodRepository(context, clock)' not in code_only(app):
+    bad.append('wiring-repo')
+    print('     ✗ 容器没把时钟交给仓库（%s 里找不到 FoodRepository(context, clock)）' % app)
+if 'container.clock' not in code_only(vm):
+    bad.append('wiring-vm')
+    print('     ✗ VM 没从容器取时钟（%s 里找不到 container.clock）' % vm)
+if inj == 0:
+    bad.append('no-injection')
+    print('     ✗ 数据层与 VM 里一处 now(clock) 都没有 ⇒ 时钟注入整套不见了')
+
+if hard:
+    bad.append('hard')
+if bad:
+    print('%d 处硬调、%d 处已注入；%d 项 ✗ ⇒ 本项不通过' % (len(hard), inj, len(bad)))
+else:
+    print('%d 处 ✓（%d 处已注入时钟；豁免 %d 处，对照通过）' % (len(hard), inj, len(used)))
+PY
+)" '#5b 验收：数据层与 VM 的取时间必须走注入的时钟；UI 侧刻意保留系统时钟（界面「现在几点」没有值得测的跨零点逻辑，而把时钟穿进 Compose 要多传好几层）'
 row 'stateIn(' "$(occ 'stateIn\(' "$MAIN") 处" '#6'
 row 'WhileSubscribed' "$(occ 'WhileSubscribed' "$MAIN") 处" '#6：0 = 后台仍在算'
 row 'corruptedKeys' "$(occ 'corruptedKeys' "$MAIN") 处（$(occ 'corruptedKeys' "$SRC")）" '#8：被引用很多但没有任何页面消费它'
@@ -380,7 +479,10 @@ REPO = MAIN + '/java/com/agon/app/data/FoodRepository.kt'
 VMF = MAIN + '/java/com/agon/app/viewmodel/AppViewModel.kt'
 # (指标, 文档里提取数值的正则, 实测值)
 ITEMS = [
-    ('FoodRepository.kt 行数', r'`FoodRepository\.kt`\s*\*{0,2}([\d,]+)\s*行', wcl(REPO)),
+    # ⚠️ 数字**两边**都要吃掉星号：早先只写了前面的 \*{0,2}，于是 "`FoodRepository.kt` **950** 行"
+    # 这种（数字后面也有 `**`）根本匹配不上 ⇒ 同一次运行里 devlog/INDEX 的 950 被抓到、ROADMAP 的 950 漏网，
+    # 汇总还报「17 处比对、不符 1 处」，看着像只有一处要改（#5b 当场撞上）。5c 拆完这个数还会再变，别再让它漏。
+    ('FoodRepository.kt 行数', r'`FoodRepository\.kt`\s*\*{0,2}([\d,]+)\*{0,2}\s*行', wcl(REPO)),
     ('FoodRepository 类级函数', r'\*\*(\d+)\*\*\s*个类级函数',
      len(re.findall(r'^    (?:private |internal |suspend |override )*fun ', io.open(REPO, encoding='utf-8').read(), re.M))),
     ('corruptedKeys 出现次数', r'`corruptedKeys`\s*被引用\s*\*\*(\d+)\*\*\s*处', occ(r'corruptedKeys')),

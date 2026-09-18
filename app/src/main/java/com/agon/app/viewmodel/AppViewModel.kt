@@ -14,6 +14,7 @@ import com.agon.app.data.DefaultCategories
 import com.agon.app.data.DefaultLocations
 import com.agon.app.data.FoodItem
 import com.agon.app.data.HistoryEntry
+import com.agon.app.data.isAutoSyncDue
 import com.agon.app.data.OpFailure
 import com.agon.app.data.toOpFailure
 import com.agon.app.data.CloudBackup
@@ -57,7 +58,8 @@ private const val NO_CREDENTIALS_MESSAGE = "请先填写并保存坚果云账号
 class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     /**
-     * 仓库从 App 级容器取（#5a）—— 本文件里**不再现场构造**。
+     * 仓库与时钟都从 App 级容器取（#5a 建容器 / #5b 接时钟）—— 本文件里**不再现场构造**，
+     * 也**不再直接向系统要时间**。
      *
      * 这里用**硬转型**而不是 `as? … ?: FoodRepository(application)` 那种"兜底再 new 一个"：
      * 兜底会悄悄造出第二个仓库实例（各带一份损坏状态与解码缓存），比直接崩更难查。
@@ -67,9 +69,14 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
      * ⚠️ 构造签名必须保持 `(Application)` 不变：**不能**加带默认值的第二参数 ——
      * `ViewModelProvider` 的默认工厂用反射找 `(Application)` 构造器，而 Kotlin 的默认参数
      * 只生成带 `DefaultConstructorMarker` 的合成构造器 ⇒ 反射找不到、运行时崩。
-     * 所以时钟一类依赖一律从容器取，不从构造参数进。
+     * 所以时钟一类依赖一律从容器取，不从构造参数进（#5b 正是这么接的）。
      */
-    private val repo = (application as ChiliMeApp).container.repo
+    private val container = (application as ChiliMeApp).container
+
+    private val repo = container.repo
+
+    /** 全 App 唯一的时钟（见 [com.agon.app.AppContainer.clock]）；本文件取时间一律走它。 */
+    private val clock = container.clock
 
     val items: StateFlow<List<FoodItem>> =
         repo.itemsFlow.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
@@ -282,16 +289,17 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         val account = repo.nutstoreAccountFlow.first()
         val password = repo.nutstorePasswordFlow.first()
         if (account.isBlank() || password.isBlank()) return
-        val today = LocalDate.now().toEpochDay()
+        val today = LocalDate.now(clock).toEpochDay()
         val last = repo.lastAutoSyncEpochDayFlow.first()
-        if (today - last < days) return
+        // 判定抽成了纯函数（见 isAutoSyncDue 的注释）：这条跨零点边界此前长在 VM 里没法测
+        if (!isAutoSyncDue(last, today, days)) return
         // 数据损坏时 buildBackupJson 抛异常：静默跳过本次自动同步，
         // 绝不能把残缺备份推上云端覆盖掉云端的完好版本。
         val payload = runCatching { repo.buildBackupJson() }.getOrNull() ?: return
-        val result = NutstoreSync.upload(account, password, payload)
+        val result = NutstoreSync.upload(account, password, payload, clock)
         if (result.isSuccess) {
             repo.setLastAutoSyncEpochDay(today)
-            val time = java.time.LocalDateTime.now()
+            val time = java.time.LocalDateTime.now(clock)
                 .format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"))
             repo.setLastSync("自动同步于 $time")
             emit(UiEvent.Notice("已自动同步到坚果云 ☁️"))
@@ -301,7 +309,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     private suspend fun maybeAutoSnapshot() {
         val snapshots = LocalSnapshotStore.listSnapshots(getApplication())
-        val today = LocalDate.now()
+        val today = LocalDate.now(clock)
+        // ⚠️ 这里两种时间来源相遇：`today` 来自注入的时钟，而快照文件的修改时刻按**系统时区**解读。
+        // 生产上两者同一个时区（容器给的就是系统时区时钟）⇒ 行为与改造前逐位相同；
+        // 但若哪天要单测这个函数并塞一个别的时区的固定时钟，这条比较会偏一天 —— 届时把下面
+        // 的时区也改成从时钟取（clock.zone），别只改一半。
         val hasSnapshotToday = snapshots.any {
             Instant.ofEpochMilli(it.modifiedEpochMillis)
                 .atZone(ZoneId.systemDefault())
@@ -309,7 +321,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
         if (!hasSnapshotToday) {
             val json = runCatching { repo.buildBackupJson() }.getOrNull() ?: return
-            LocalSnapshotStore.saveSnapshot(getApplication(), json)
+            LocalSnapshotStore.saveSnapshot(getApplication(), json, clock = clock)
             loadLocalSnapshots()
         }
     }
@@ -434,7 +446,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
      */
     private suspend fun snapshotBeforeRestore(): Boolean = withContext(Dispatchers.IO) {
         runCatching { repo.buildBackupJson() }.getOrNull()
-            ?.let { json -> LocalSnapshotStore.saveSnapshot(getApplication(), json) != null }
+            ?.let { json -> LocalSnapshotStore.saveSnapshot(getApplication(), json, clock = clock) != null }
             ?: false
     }
 
@@ -492,7 +504,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun saveLocalSnapshot(onDone: ((Boolean) -> Unit)? = null) = viewModelScope.launch {
         val json = runCatching { repo.buildBackupJson() }.getOrNull()
         if (json != null) {
-            LocalSnapshotStore.saveSnapshot(getApplication(), json)
+            LocalSnapshotStore.saveSnapshot(getApplication(), json, clock = clock)
             loadLocalSnapshots()
             onDone?.invoke(true)
         } else {
@@ -556,11 +568,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             emit(UiEvent.OpFailed(DataOp.Upload, OpFailure.Other(it.message ?: "数据异常，已取消上传")))
             return@launch
         }
-        val result = NutstoreSync.upload(account, password, json)
+        val result = NutstoreSync.upload(account, password, json, clock)
         _syncing.value = false
         result.fold(
             onSuccess = {
-                val time = java.time.LocalDateTime.now()
+                val time = java.time.LocalDateTime.now(clock)
                     .format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"))
                 repo.setLastSync("上传于 $time")
                 emit(UiEvent.Notice("已上传到坚果云 ☁️", UiSurface.Settings))
@@ -631,7 +643,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         val snapshotSaved = snapshotBeforeRestore()
         if (snapshotSaved) loadLocalSnapshots()
         if (repo.importBackupJson(raw)) {
-            val time = java.time.LocalDateTime.now()
+            val time = java.time.LocalDateTime.now(clock)
                 .format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"))
             repo.setLastSync("恢复于 $time")
             emit(

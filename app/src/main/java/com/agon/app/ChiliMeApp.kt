@@ -21,12 +21,19 @@ import java.time.Clock
 class AppContainer(context: Application) {
 
     /**
-     * 全 App 唯一的时钟。#5a 先把它放进容器，**#5b** 再把数据层与 VM 里那 12 处
-     * `LocalDate` / `LocalDateTime` 的 `now()` 硬调接到它上面（届时仓库构造会收这个参数）。
+     * 全 App 唯一的时钟。**#5b 起数据层与 VM 都问它要时间**：仓库构造收这个参数，
+     * `AppViewModel` 从容器直接取用 —— 已接上的是 **14 处**（仓库 7 + VM 5 +
+     * `CloudSync` 云端备份文件名 1 + `LocalSnapshotStore` 快照文件名 1；后两处原计划
+     * 误归给 UI，见 ROADMAP #5 的核查第 17 处）。
      *
-     * ⚠️ 上一行刻意**不把那两个工厂写成「类名点 now()」的连写形式**：`tools/doc-metrics.sh`
+     * ⚠️ 本段刻意**不把那两个日期工厂写成「类名点 now()」的连写形式**：`tools/doc-metrics.sh`
      * 用同一个正则数**真实调用点**（口径含注释），散文里连写一次就把计数撑大一次 ——
      * 写这段的当天「now() 直接调用」就从 34 变成了 36。别"顺手改回更自然的写法"。
+     *
+     * **刻意保留**系统时钟的是 UI/主壳那 **7** 处（导出文件名 2、`MainActivity` 的今天刷新 3、
+     * 编辑页生产日期初值 1、`TodayProvider` 默认值 1）：界面显示"现在几点"没有值得测的跨零点逻辑，
+     * 而把时钟穿进 Compose 要多传好几层参数，代价大于收益。口径与豁免清单都写在
+     * `tools/doc-metrics.sh` 的「数据层+VM 函数体硬调 now()」那条守卫里。
      *
      * 单测里换成固定时钟（`Clock.fixed(...)`）就能测「跨零点」这类行为 —— 生产路径用的是
      * 系统时钟，与今天的取值逐位相同。
@@ -36,7 +43,7 @@ class AppContainer(context: Application) {
     /**
      * 全 App 唯一的仓库实例。
      *
-     * `by lazy` 而不是直接构造：`FoodRepository(context)` 会碰到 DataStore 的委托属性，
+     * `by lazy` 而不是直接构造：仓库的构造会碰到 DataStore 的委托属性，
      * 放在进程启动那一刻做属于白白的冷启动开销；等到第一个 `AppViewModel` 真正需要它时再建。
      *
      * **共享一个实例比改造前更安全**：改造前每次构造 `AppViewModel` 都会 `FoodRepository(application)`
@@ -44,7 +51,7 @@ class AppContainer(context: Application) {
      * 这里刻意不写出字段名，理由同上：它被 `doc-metrics.sh` 当作 #8 的引用计数指标，散文提一次就 +1）——
      * 真出现两个 VM 实例时，一个看到的损坏状态另一个看不到。现在全进程一份，不存在这种分叉。
      */
-    val repo: FoodRepository by lazy { FoodRepository(context) }
+    val repo: FoodRepository by lazy { FoodRepository(context, clock) }
 }
 
 /**

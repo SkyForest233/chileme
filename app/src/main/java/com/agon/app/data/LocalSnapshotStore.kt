@@ -7,6 +7,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import java.io.File
+import java.time.Clock
 import java.time.Instant
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -61,12 +62,21 @@ object LocalSnapshotStore {
      *
      * 文件写入已下沉到 [Dispatchers.IO]（2026-09-15）：调用点包括启动路径、
      * 每日自动快照与三条恢复路径的前置快照，此前都在主线程同步写盘。
+     *
+     * `clock`（#5b）：文件名里的时间戳向它要。默认值就是改造前的行为（系统时钟）⇒ 生产路径
+     * 逐位不变；VM 那 3 个调用点把 App 级时钟传进来，于是「数据层不再直接问系统要时间」
+     * 这句话在本仓是真的（口径见 `tools/doc-metrics.sh`）。
      */
-    suspend fun saveSnapshot(context: Context, jsonPayload: String, maxKeep: Int = MAX_SNAPSHOTS): File? =
+    suspend fun saveSnapshot(
+        context: Context,
+        jsonPayload: String,
+        maxKeep: Int = MAX_SNAPSHOTS,
+        clock: Clock = Clock.systemDefaultZone(),
+    ): File? =
         withContext(Dispatchers.IO) {
             runCatching {
                 val dir = getDir(context)
-                val timestamp = LocalDateTime.now().format(timeFormatter)
+                val timestamp = LocalDateTime.now(clock).format(timeFormatter)
                 val file = File(dir, "snapshot_$timestamp.json")
                 file.writeText(jsonPayload)
 

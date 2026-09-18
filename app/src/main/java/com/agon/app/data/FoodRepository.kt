@@ -27,6 +27,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 import java.io.File
 import java.io.IOException
+import java.time.Clock
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
@@ -108,17 +109,31 @@ internal class DecodeCache {
 /**
  * 数据仓库。
  *
- * 两条构造路径：生产用 [FoodRepository] 的 `Context` 构造（App 私有 DataStore +
- * `filesDir/corrupt` 留档目录）；主构造是 `internal` 的「依赖显式版」，单测可以传一个
- * 临时文件上的 DataStore 与临时留档目录，从而在**纯 JVM** 下测仓储的写入守卫
- * （不需要 Robolectric —— 少一个 SDK 模拟层，也少一份依赖）。
+ * 两条构造路径：生产用 [FoodRepository] 的 `Context` + `Clock` 构造（App 私有 DataStore +
+ * `filesDir/corrupt` 留档目录 + App 级时钟）；主构造是 `internal` 的「依赖显式版」，单测可以传
+ * 一个临时文件上的 DataStore、临时留档目录与一个**固定时钟**，从而在**纯 JVM** 下测仓储的
+ * 写入守卫与「跨零点」这类日期行为（不需要 Robolectric —— 少一个 SDK 模拟层，也少一份依赖）。
+ *
+ * **时钟为什么带默认值**（#5b）：默认值就是改造前的行为（系统时钟）⇒ 生产路径逐位不变，
+ * 而且单测不传时钟也照样编译（既有的守卫单测就是两参构造）。生产唯一的构造点在 `AppContainer`，
+ * 那里把 App 级时钟**显式**传进来 ⇒ 默认值这条路在生产上不会被走到；留着它只是免得每个
+ * internal 构造的调用方都得写一个时钟。
+ *
+ * 仓库内部一律问 `clock` 要时间，不再直接向系统要（口径见 `tools/doc-metrics.sh` 的
+ * 「数据层+VM 函数体硬调 now()」那条守卫）。⚠️ 这句刻意不写出工厂方法的连写形式：
+ * 该脚本数调用点的正则**含注释**，散文里连写一次就把计数撑大一次。
  */
 class FoodRepository internal constructor(
     private val dataStore: DataStore<Preferences>,
     private val corruptDir: File,
+    private val clock: Clock = Clock.systemDefaultZone(),
 ) {
-    /** 生产路径：`pantry_store` DataStore + `filesDir/corrupt`。 */
-    constructor(context: Context) : this(context.dataStore, File(context.filesDir, "corrupt"))
+    /** 生产路径：`pantry_store` DataStore + `filesDir/corrupt`，时钟由 App 容器注入。 */
+    constructor(context: Context, clock: Clock) : this(
+        context.dataStore,
+        File(context.filesDir, "corrupt"),
+        clock,
+    )
 
     private val json = Json { ignoreUnknownKeys = true }
     private val prettyJson = Json { ignoreUnknownKeys = true; prettyPrint = true }
@@ -209,7 +224,7 @@ class FoodRepository internal constructor(
         if (!firstTime) return
         runCatching {
             val dir = corruptDir.apply { mkdirs() }
-            val stamp = LocalDateTime.now()
+            val stamp = LocalDateTime.now(clock)
                 .format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"))
             File(dir, "$keyName-$stamp.json").writeText(raw)
             pruneCorruptDir(dir)
@@ -416,7 +431,7 @@ class FoodRepository internal constructor(
             if (prefs[seededKey] == true) return@edit
             // 库存 key 损坏时绝不种子化：否则会把损坏数据直接覆盖成 8 条示例。
             if (isCorrupt(decodeItems(prefs[itemsKey]))) return@edit
-            val today = LocalDate.now().toEpochDay()
+            val today = LocalDate.now(clock).toEpochDay()
             fun id() = UUID.randomUUID().toString()
             val seed = listOf(
                 FoodItem(id(), "鲜牛奶", "DAIRY", 2, "瓶", today - 12, 15, location = "冰箱"),
@@ -482,7 +497,7 @@ class FoodRepository internal constructor(
             val current = itemsDecoded.orElse(emptyList())
             val (toArchive, keep) = current.partition { it.id in ids }
             if (toArchive.isEmpty()) return@edit
-            val today = LocalDate.now().toEpochDay()
+            val today = LocalDate.now(clock).toEpochDay()
             val archive = archiveDecoded.orElse(emptyList())
             val newArchive = (toArchive.map { ArchivedItem(it, today, reason) } + archive).take(200)
             prefs[itemsKey] = json.encodeToString(keep)
@@ -615,7 +630,7 @@ class FoodRepository internal constructor(
                     category = item.category,
                     amount = consumed,
                     unit = item.unit,
-                    epochDay = LocalDate.now().toEpochDay(),
+                    epochDay = LocalDate.now(clock).toEpochDay(),
                     id = consumptionId,
                 )
                 prefs[consumptionKey] = json.encodeToString(
@@ -624,7 +639,7 @@ class FoodRepository internal constructor(
             }
             if (newQty == 0 && delta < 0 && archiveOk) {
                 // 吃完了 → 自动归档
-                val today = LocalDate.now().toEpochDay()
+                val today = LocalDate.now(clock).toEpochDay()
                 val archive = archiveDecoded.orElse(emptyList())
                 val entry = ArchivedItem(item.copy(quantity = 0), today, ArchiveReason.CONSUMED)
                 prefs[archiveKey] = json.encodeToString((listOf(entry) + archive).take(200))
@@ -831,7 +846,7 @@ class FoodRepository internal constructor(
      * 长期统计（排行榜/月度消耗）不失真，存储规模有界。
      */
     private fun compactConsumption(records: List<ConsumptionRecord>): List<ConsumptionRecord> =
-        compactConsumptionAt(records, LocalDate.now())
+        compactConsumptionAt(records, LocalDate.now(clock))
 
     // ---- Backup ----
 
@@ -871,7 +886,7 @@ class FoodRepository internal constructor(
         val items = itemsDecoded.orElse(emptyList())
         val categories = decodeCategories(prefs[categoriesKey])
         val thresholds = decodeThresholds(prefs[thresholdsKey])
-        return buildCsvExport(items, categories, thresholds, LocalDate.now())
+        return buildCsvExport(items, categories, thresholds, LocalDate.now(clock))
     }
 
     /**
