@@ -173,5 +173,5 @@ internal suspend fun FoodRepository.undoConsumption(itemId: String, consumptionI
  * （epochDay 归一到当月 1 号，amount 求和）。
  * 长期统计（排行榜/月度消耗）不失真，存储规模有界。
  */
-private fun compactConsumption(records: List<ConsumptionRecord>): List<ConsumptionRecord> =
+internal fun FoodRepository.compactConsumption(records: List<ConsumptionRecord>): List<ConsumptionRecord> =
     compactConsumptionAt(records, LocalDate.now(clock))
