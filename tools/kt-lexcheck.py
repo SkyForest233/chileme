@@ -21,6 +21,17 @@ CI 是唯一的编译器。一次 CI 约 4 分钟，而 concurrency 又会取消
    而 detekt 的 `UnusedImports` **默认 `active: false`**（1.23.8 的 default-detekt-config.yml:744 已核对），
    本仓也没显式打开 ⇒ `detekt.yml:158` 那句「这里兜底」是不成立的（2026-09-18 核查第 14 处）。
    所以这一条是本地唯一防线，比 CI 更严。
+4. **用了「别名 import」的别名、本文件却没 import** —— 第 3 条的镜像，09-18 #10a-1 修红的教训：
+   `import top.yukonga.miuix.kmp.basic.Text as MiuixText` 这类别名，在按「简单名 = 路径最后一段」
+   判断依赖的搬运脚本眼里是**隐形**的。当时把设置页弹窗区搬进三个新文件，脚本按简单名给新文件补了
+   import（42/43/33 条，一个不缺），别名那一层没补；而入口里被判定「已不再使用」删掉的 24 条 import 中，
+   恰好有 3 条是别名（`MiuixSurface`/`MiuixText`/`MiuixTextButton`）—— 那正是新文件要的
+   ⇒ CI `:app:compileDebugKotlin` 报 24 处 Unresolved reference + 4 处连带的
+   「@Composable invocations can only happen from the context of a @Composable function」
+   （都在未解析的 `MiuixSurface {}` 尾随 lambda 里），烧掉一轮、还要请用户去取日志。
+   别名表从**全仓**扫，不受命令行 targets 影响（否则只传一个文件进来时这条检查会静默变弱）。
+   ⚠️ 已知盲区：某个别名若同时又是项目自己的顶层声明名，会漏报 —— 本仓 25 个别名与项目顶层声明零交集
+   （`MiuixDialog` 是项目自己的函数、不在别名表里，故不受影响）。
 
 已知的两类"报了但不是错"
 --------------------------
@@ -33,7 +44,7 @@ CI 是唯一的编译器。一次 CI 约 4 分钟，而 concurrency 又会取消
 --------------------
 本仓的规矩是「零结果必须做阳性对照」——`tools/ci-gates.sh` 的 `detekt_selftest` 就是为此存在。
 这条工具自己也可能被改坏（09-17 就发生过：插守卫时留了一行空 `row` 调用，`set -u` 下报错还吞掉后续指标），
-所以把 12 个对照（1 份好文件 + 9 类必报 + 2 类必不报）内建成 `--selftest`，改完脚本先跑它。
+所以把 15 个对照（1 份好文件 + 10 类必报 + 4 类必不报）内建成 `--selftest`，改完脚本先跑它。
 """
 import io
 import os
@@ -170,7 +181,30 @@ def lex(src):
     return ''.join(out), ok, detail
 
 
-def check(path):
+def build_alias_corpus(root='app/src'):
+    """全仓扫 `import … as X`，返回 {别名: [完整路径…]}（同名指向多个路径时都留着，报出来让人判断）。
+
+    为什么按**全仓**建表、而不是按本次要检查的文件：这条检查的价值在于「别处这么 import 过、
+    你这里用了却没 import」，表若只来自 targets，`python3 tools/kt-lexcheck.py 某个文件.kt`
+    这种最常见的用法下表就是空的 ⇒ 检查静默失效（与本仓「守卫不许静默少覆盖」的规矩冲突）。
+    """
+    corpus = {}
+    for r, _, fs in os.walk(root):
+        for f in sorted(fs):
+            if not f.endswith('.kt'):
+                continue
+            try:
+                src = io.open(os.path.join(r, f), encoding='utf-8').read()
+            except (OSError, UnicodeDecodeError):
+                continue
+            for m in re.finditer(r'^import\s+([\w.]+)\s+as\s+(\w+)\s*$', src, re.M):
+                paths = corpus.setdefault(m.group(2), [])
+                if m.group(1) not in paths:
+                    paths.append(m.group(1))
+    return corpus
+
+
+def check(path, alias_corpus=None):
     src = io.open(path, encoding='utf-8').read()
     problems = []
     code, ok, detail = lex(src)
@@ -211,6 +245,27 @@ def check(path):
             elsewhere = bool(re.search(r'\b%s\b' % re.escape(name), no_imports))
             problems.append(f'未使用的 import：{fq}' + ('（只在注释/字符串里出现）' if elsewhere else '（全文件再没出现）'))
 
+    # 用了「别名 import」的别名、本文件却没 import（判据 4）
+    # `code` 已剥掉注释与字符串 ⇒ KDoc 里的 `[MiuixText]`、测试里的字面量 "MiuixText(" 都不算用量。
+    if alias_corpus:
+        no_import = re.sub(r'^import .*$|^package .*$', '', code, flags=re.M)
+        imported_here = {
+            m.group(2) or m.group(1).rsplit('.', 1)[-1]
+            for m in re.finditer(r'^import\s+([\w.]+)(?:\s+as\s+(\w+))?', code, re.M)
+        }
+        declared_here = set(re.findall(
+            r'^\s*(?:(?:public|private|internal|protected|final|open|abstract|sealed|data|value|annotation'
+            r'|enum|inline|noinline|crossinline|actual|expect|lateinit|const|operator|infix|suspend|companion)\s+)*'
+            r'(?:fun|class|object|interface|val|var|typealias)\s+(?:<[^>]*>\s*)?(?:[\w$]+\.)?([\w$]+)',
+            no_import, re.M))
+        for alias in sorted(alias_corpus):
+            if alias in imported_here or alias in declared_here:
+                continue
+            hits = re.findall(r'(?<![\w$.])%s\b' % re.escape(alias), no_import)
+            if hits:
+                full = ' / '.join(alias_corpus[alias])
+                problems.append(f'用了别名 {alias}（{len(hits)} 次）却没 import：需要 `import {full} as {alias}`')
+
     # 冗余字符串模板 "${simple}"
     for m in re.finditer(r'\$\{(\w+)\}(\w?)', src):
         if not m.group(2):      # 后一个字符是标识符字符 ⇒ 花括号是必需的，不报
@@ -232,7 +287,10 @@ fun a(s: String, n: Int): String {
 }
 '''
 
-# (文件名, 内容, 期望命中的关键词或 None = 期望干净)
+# 判据 4 的自检用别名表（刻意写死、不复用仓库现状：自检要在任何 checkout 下都跑出同样结果）
+ALIASES = {'MiuixText': ['top.yukonga.miuix.kmp.basic.Text']}
+
+# (文件名, 内容, 期望命中的关键词, 可选第 4 项 = 别名表；None = 期望干净)
 CONTROLS = [
     ('good', GOOD, None),
     ('missing_brace', GOOD.replace(' 与 ${n}天"\n}\n', ' 与 ${n}天"\n'), '配平失败'),
@@ -263,16 +321,45 @@ fun a() = "云端保留最近 $CLOUD_BACKUP_KEEP 次备份"
 
 fun a(i: Int, n: Int, d: Int) = "第${i}_101 号、${n}天、${d / 30}个月、等${n}ms"
 ''', None),
+    # ③④⑤ 判据 4（别名 import）：一报 + 两不报。别名表由 selftest 显式传入，不依赖仓库现状
+    #    —— 本仓真实案例：#10a-1 搬走的弹窗代码用了 `MiuixText`，新文件没 import，CI 报 24 处 Unresolved。
+    ('missing_alias_import', '''package x
+
+import top.yukonga.miuix.kmp.theme.MiuixTheme
+
+fun a() {
+    MiuixText("标题", color = MiuixTheme.colorScheme.onSurface)
+}
+''', '用了别名', ALIASES),
+    # 别名已 import ⇒ 不报（这条同时证明判据 4 不会对「本来就对的文件」乱叫）
+    ('alias_imported', '''package x
+
+import top.yukonga.miuix.kmp.basic.Text as MiuixText
+import top.yukonga.miuix.kmp.theme.MiuixTheme
+
+fun a() {
+    MiuixText("标题", color = MiuixTheme.colorScheme.onSurface)
+}
+''', None, ALIASES),
+    # 同名但是**本文件自己声明的** ⇒ 不报（项目里 `MiuixDialog` 就是这种：自己的函数，不是别名）
+    ('alias_declared_locally', '''package x
+
+private fun MiuixText(s: String) = s
+
+fun a() = MiuixText("标题")
+''', None, ALIASES),
 ]
 
 
 def selftest():
     tmp = tempfile.mkdtemp(prefix='kt-lexcheck-')
     bad = 0
-    for name, text, expect in CONTROLS:
+    for entry in CONTROLS:
+        name, text, expect = entry[0], entry[1], entry[2]
+        aliases = entry[3] if len(entry) > 3 else None
         f = os.path.join(tmp, name + '.kt')
         io.open(f, 'w', encoding='utf-8').write(text)
-        probs = check(f)
+        probs = check(f, aliases)
         hit = next((p for p in probs if expect and expect in p), None)
         if expect is None:
             ok = not probs
@@ -297,9 +384,14 @@ if __name__ == '__main__':
             for r, _, fs in os.walk('app/src')
             for f in fs if f.endswith('.kt')
         )
+    alias_corpus = build_alias_corpus()
+    # 表的大小要报出来：判据 4 是「零结果」型检查，表空了它就静默不生效
+    # （本仓规矩：零结果必须能自证探测在工作，见 doc-metrics.sh 头部第 3 条）。
+    print('别名表：%d 个%s' % (
+        len(alias_corpus), '' if alias_corpus else ' ⚠️ 空表 ⇒ 判据 4 本轮不生效（是否在仓库根目录下跑？）'))
     bad = 0
     for p in targets:
-        probs = check(p)
+        probs = check(p, alias_corpus)
         if probs:
             bad += 1
             print('✗ %s' % p)

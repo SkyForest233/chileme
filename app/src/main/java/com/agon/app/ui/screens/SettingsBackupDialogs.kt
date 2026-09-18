@@ -35,6 +35,7 @@ import com.agon.app.ui.components.app.AppOptionDialog
 import com.agon.app.ui.components.app.AppOptionSpec
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
+import top.yukonga.miuix.kmp.basic.TextButton as MiuixTextButton
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Download
 import top.yukonga.miuix.kmp.icon.extended.FileDownloads

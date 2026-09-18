@@ -115,7 +115,7 @@
   `ScreenParityTest` 只遍历 `ui/screens/` 一层且反向断言入口文件必须还在 ⇒ 搬包会红 + 静默失覆盖，
   代价换目录形状不值；② 拆 App 级组件层那 5 个文件（`AppChrome` 479 / `AppListRow` 406 / `AppControls` 376 /
   `AppText` 349 / `AppSurface` 353）—— 吸收主题分支正是它们的职责。
-  证据、切法与守卫清单见 [`ROADMAP`](../docs/ROADMAP.md) #10 与 [2026-09-18 日志](2026-09-18.md) §13
+  证据、切法与守卫清单见 [`ROADMAP`](../docs/ROADMAP.md) #10 与 [2026-09-18 日志](2026-09-18.md) §13（10a-1 首轮 CI 红与修红见 §13.8：别名 import 是搬运脚本的盲区，已固化成 `kt-lexcheck` 判据 4）
   （含 KernelSU manager 的逐文件对照：他们 219 个 `.kt`、**0** 个测试文件、每屏两份主题实现且两版体积差 4–6 KB 已在漂移）。
 
 ### 代码级（中）

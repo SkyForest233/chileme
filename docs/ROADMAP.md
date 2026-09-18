@@ -481,7 +481,7 @@
   | `bundleRelease`(AAB) | **0** 处 | 上架 Google Play 需要 AAB，现在只出 APK |
   | `versionCode` 改用仓库内版本文件 | 现为 `github.run_number`（`release.yml` 里 2 处引用） | run number 与语义版本脱钩，回滚/重跑会产生奇怪的 versionCode |
 
-## #10 UI/VM 层拆分收尾（`SettingsScreen.kt` + `AppViewModel.kt`）—— 🔨 **10a-1 已落地**（2026-09-18）；10a-2 起未开工
+## #10 UI/VM 层拆分收尾（`SettingsScreen.kt` + `AppViewModel.kt`）—— 🔨 **10a-1 已落地（首轮 CI 红一次、已修：别名 import 漏带 9 条，见 devlog §13.8）**（2026-09-18）；10a-2 起未开工
 
 > **为什么新开一项、而不是并进 #6**：#6 剩下的两件事（加 `WhileSubscribed`、少量派生下沉）是**行为改动**，
 > 本项的 10a/10b 是**结构搬运**（不改行为、不需真机复测）。混在一个提交里，坏了的时候无法判断是"搬错了"还是
@@ -540,7 +540,7 @@
 
 | 步 | 做什么 | 验收 | 风险与必须同批改的守卫 |
 |---|---|---|---|
-| **10a-1** ✅ 已做（2026-09-18） | 弹窗区 **352–986（跨 635 行，git 记为删 632 行；差额见「10a-1 落地结果」）**按领域抽到同包 3 个文件：备份与导入 352–520 → `SettingsBackupDialogs.kt`；坚果云账号 + 云端备份选择 + 恢复二次确认 522–828 → `SettingsCloudDialogs.kt`；本地快照列表 830–986 → `SettingsSnapshotDialogs.kt`。3 个 SAF 启动器**留在入口**（它们的结果回调要用 `scope` / `snackbar` / `pendingImport`，搬走反而要多传三样），以 `ActivityResultLauncher<String>` / `<Array<String>>` 传参 | 三个新文件 233 / 368 / 207 行，全部 < 400 ✓；`SettingsScreen.kt` 1,705 → **1,079** 行（⚠️ 不是规划时预计的 ~350 —— 两套 body 还在里面，那是 10a-2）；逐字校验 0 缺失；`kt-lexcheck` 96 份 0 问题 | 已同批改的守卫：`ImeHandlingTest.dialogFiles`（`SettingsScreen.kt` → `SettingsCloudDialogs.kt`）+ 它两处 KDoc 的 MIME 行号；`MiuixDialogContentTest` 的调用点分布（总数仍 **8**）与「覆盖导入」引用；`ScreenParityTest` 第 8 对注释 **+ 规则 2 的扫描面加宽**（新增 `uiFiles()`：目录内除 `*State.kt` 的所有 `.kt`；原 `screenFiles()` 只收 `*Screen.kt` / `*Screens.kt`，三个 `*Dialogs.kt` 搬出后会让「禁止内联聚合」**静默失覆盖** —— 加宽前实测那 4 个禁用模式在目录内的命中全在 `*State.kt`，故只补覆盖、不改判定）。⚠️ 规划里「`SettingsActions` 可直接当参数包」被实测推翻：弹窗区用的是入口的局部回调与启动器，实测参数面 10 个（三块各 7 / 4 / 3） |
+| **10a-1** ✅ 已做（2026-09-18） | 弹窗区 **352–986（跨 635 行，git 记为删 632 行；差额见「10a-1 落地结果」）**按领域抽到同包 3 个文件：备份与导入 352–520 → `SettingsBackupDialogs.kt`；坚果云账号 + 云端备份选择 + 恢复二次确认 522–828 → `SettingsCloudDialogs.kt`；本地快照列表 830–986 → `SettingsSnapshotDialogs.kt`。3 个 SAF 启动器**留在入口**（它们的结果回调要用 `scope` / `snackbar` / `pendingImport`，搬走反而要多传三样），以 `ActivityResultLauncher<String>` / `<Array<String>>` 传参 | 三个新文件 234 / 372 / 211 行（⚠️ 首轮 CI 红：别名 import 漏带 9 条 ⇒ 已修，行数含补进的 import），全部 < 400 ✓；`SettingsScreen.kt` 1,705 → **1,079** 行（⚠️ 不是规划时预计的 ~350 —— 两套 body 还在里面，那是 10a-2）；逐字校验 0 缺失；`kt-lexcheck` 96 份 0 问题 | 已同批改的守卫：`ImeHandlingTest.dialogFiles`（`SettingsScreen.kt` → `SettingsCloudDialogs.kt`）+ 它两处 KDoc 的 MIME 行号；`MiuixDialogContentTest` 的调用点分布（总数仍 **8**）与「覆盖导入」引用；`ScreenParityTest` 第 8 对注释 **+ 规则 2 的扫描面加宽**（新增 `uiFiles()`：目录内除 `*State.kt` 的所有 `.kt`；原 `screenFiles()` 只收 `*Screen.kt` / `*Screens.kt`，三个 `*Dialogs.kt` 搬出后会让「禁止内联聚合」**静默失覆盖** —— 加宽前实测那 4 个禁用模式在目录内的命中全在 `*State.kt`，故只补覆盖、不改判定）。⚠️ 规划里「`SettingsActions` 可直接当参数包」被实测推翻：弹窗区用的是入口的局部回调与启动器，实测参数面 10 个（三块各 7 / 4 / 3） |
 | **10a-2** | `Md3SettingsBody` + `SettingsNavRow` + `PaletteSwatch`（合计 522 行）与 `MiuixSettingsBody`（185 行）分别抽到两个新文件；MD3 侧 522 行 + 文件头必然超 400 ⇒ **还得按分区再切一刀** | 每个文件 < 400 行；入口文件仍含 `rememberSettingsUiState(`（`ScreenParityTest` 规则 1） | `ScreenParityTest` 禁的是 `Miuix` + 屏幕名这种**前缀式**文件名（`MiuixSettingsScreen.kt`），`SettingsBodyMiuix.kt` 不触雷；⚠️ 抽子 Composable 会让 `remember` 跨组合边界搬家 ⇒ **不是零风险**，纳入 10c 那轮复测顺带过一遍设置页两主题 |
 | **10b** | `AppViewModel` 的 50 个函数按领域搬成**同包 `internal` 扩展函数**（与 #5c 完全同形），一个领域一个提交：备份导入导出 9 / 云端同步 4 / 归档与消耗撤销 6 / 食物 CRUD 与批量 11 / 分类与位置 7 / 设置 6 / UI 状态与事件 5（余 2 个按实际归类） | 类本体 < 400 行；10 个调用方文件只加 import、**调用写法一字不变** | ① 20 处 `stateIn(` 属性**留在类里**（搬成扩展属性 = `get() =` 每次新建 Flow ⇒ #5c 已否决）；② 类里**不留同名转发**（成员遮蔽扩展 ⇒ 无限递归且编译期不报，#5c 已否决）；③ ⚠️ **`CorruptGuardTest` 会红**：它用 `functionBody(src, "fun syncDownload(")` 这类**按 4 空格缩进签名**抽函数体、还断言字面量 `private suspend fun snapshotBeforeRestore()` 与 `vm.contains("fun discardCorruptData()")` ⇒ 函数一旦变成 0 缩进的扩展函数，这几处全失配，必须同批改**读取路径 + 缩进参数 + 签名字面量**；④ `SnackbarCopyTest` 按**全仓递归**统计文案片段落在哪些文件（期望 map 逐键相等）⇒ 带文案的函数搬家后要改期望 map 的**键**；⑤ `tools/guard-mirror.py` **查不到 ③④**（它把这类断言归入「作用域受限跳过」，今日 18 处里有 11 处正是它们）⇒ 必须人工核 |
 | **10c** | = **#6**：20 处 `stateIn(` 加 `WhileSubscribed(5_000)`，**一屏一个提交** | `WhileSubscribed` 由 **0** 处 → 20 处；用户真机复测一轮（两主题，含设置页） | **行为改动**：后台不再预热，冷进页面首帧可能等一次解码（#6 原风险条目照旧）；逐屏提交 ⇒ 逐屏可回滚 |
@@ -558,20 +558,27 @@
   `ScreenParityTest` 三条全绿、`CorruptGuardTest` 与 `SnackbarCopyTest` 同批镜像；
   ④ 单测数只增不减（现 **153** 例，词法计数：粗 `grep @Test` 会数出 154，多的那处在 KDoc 里）；CI 三 job 全绿；
   ⑤ 10c 完成后用户真机复测**一轮**（两主题；顺带覆盖 10a-2 的 `remember` 搬家）。
-- **风险汇总**：10a/10b 的主要风险不是编译（本地无 JDK，CI 是唯一编译神谕），而是**守卫漏改** ⇒
+- **风险汇总**：10a/10b 的主要风险不是编译（本地无 JDK，CI 是唯一编译神谕）⚠️ **这半句已被 10a-1 证伪**：
+  它红的那轮正是编译错（别名 import），而本地三项检查全绿 ⇒ 编译风险真实存在、且能被本地工具兜住一部分（见下条），
+  但**守卫漏改**仍是另一半风险 ⇒
   每步开工前先跑 `tools/guard-mirror.py`，再人工核上面 ③④ 那两类它查不到的断言；
   10c 的风险是首帧延迟（已知、可逐屏回滚）。
   ⚠️ **10a-1 实做时兑现了一条规划里没写的**：搬家除了「把守卫搬红」，还会「把守卫的覆盖面搬窄」
   （按文件名点名、按后缀枚举的清单，搬走的那部分就没人查了，而且**什么都不响**）⇒
   10a-2 与 10b 开工前先列出「哪些守卫按路径或文件名后缀枚举」，逐个问一句「搬走后它还扫得到吗」。
+  ⚠️ **10a-1 落地后又兑现一条（编译侧）**：按名字算依赖的脚本对 `import … as X` 是瞎的 ⇒ 红了一轮 CI。
+  现在有两道防线：`kt-lexcheck.py` 判据 4（本地、几毫秒）+ CI 的 Kotlin 编译；
+  10a-2/10b 的搬运脚本仍必须把「别名」与「项目自己的同名声明」一起收进依赖表 —— 别只靠事后检查。
+  另一条流程教训：**CI 红了先请用户给日志签名 URL（网页抓取工具能读），别先按排除法猜**
+  （10a-1 那次先猜了 5 个方向全不中，日志到手 30 秒定位）—— 办法已写进 `WORKFLOW.md` §3。
 
 ### 10a-1 落地结果（2026-09-18，提交见台账）
 
 | 新文件 | 行数 | 原行号 | 装了什么 | 参数（= 实测引用面） |
 |---|---|---|---|---|
-| `SettingsBackupDialogs.kt` | 233 | 352–520 | 导出格式选择 / 恢复来源选择 / 导入前预览与二次确认 / 清空库存确认 | `state` `isMiuix` `pendingImportState` 3 个 launcher `confirmImport`（7） |
-| `SettingsCloudDialogs.kt` | 368 | 522–828 | 坚果云账号（账号 + 密码两个输入框）/ 云端备份选择 / 恢复二次确认 | `state` `isMiuix` `saveNutstore` `confirmRestore`（4） |
-| `SettingsSnapshotDialogs.kt` | 207 | 830–986 | 本地历史快照列表（含还原确认） | `state` `isMiuix` `confirmSnapshotRestore`（3） |
+| `SettingsBackupDialogs.kt` | 234 | 352–520 | 导出格式选择 / 恢复来源选择 / 导入前预览与二次确认 / 清空库存确认 | `state` `isMiuix` `pendingImportState` 3 个 launcher `confirmImport`（7） |
+| `SettingsCloudDialogs.kt` | 372 | 522–828 | 坚果云账号（账号 + 密码两个输入框）/ 云端备份选择 / 恢复二次确认 | `state` `isMiuix` `saveNutstore` `confirmRestore`（4） |
+| `SettingsSnapshotDialogs.kt` | 211 | 830–986 | 本地历史快照列表（含还原确认） | `state` `isMiuix` `confirmSnapshotRestore`（3） |
 
 - **入口**：1,705 → **1,079** 行。账按 `git diff --numstat` 记（−658 / +32，`1705 − 658 + 32 = 1079`）：
   删的 658 = 弹窗区内 632 行 + 失效 import 24 行 + 被改写的 2 行（`var pendingImport by remember { … }`、
@@ -595,6 +602,14 @@
   的所有 `.kt`）只给规则 2 用；加宽前实测那 4 个禁用模式在目录内的命中全在 `*State.kt` ⇒ 判定结果不变。
 - **行为面**：零改动（弹窗的文案、排版、主题分支、按钮色一律逐字未动）⇒ **不占用真机复测**；
   与 10a-2 的 `remember` 搬家一起，留到 10c 那一轮复测顺带过设置页两主题。
+- **⚠️ 落地后 CI 红了一轮（已修，全过程见 `devlog/2026-09-18.md` §13.8）**：搬运脚本按
+  「简单名 = import 路径最后一段」算依赖，对**别名 import** 是瞎的（`…basic.Text as MiuixText`，全仓 25 条）
+  ⇒ 三个新文件少了 9 条别名 import，`:app:compileDebugKotlin` 报 24 处 `Unresolved reference`
+  + 4 处连带的「`@Composable` invocations can only happen from …」（未解析的 `MiuixSurface {}` 尾随 lambda 引起）。
+  修法只补那 9 行 import（`git diff --stat` = 9 insertions / 0 deletions ⇒ 行为仍零改动）；
+  同批给 `tools/kt-lexcheck.py` 加**判据 4「用了别名却没 import」**（别名表扫全仓建、自检对照 12 → 15），
+  并用修复前的文件做端到端阴性对照（点名 9 处、次数 2/15/7 与 CI 逐条对上）。
+  **10a-2 与 10b 开工前必读**：搬文件时别名要当「第三个名字」一起收（路径名 / 别名 / 项目自己的同名声明）。
 
 ---
 

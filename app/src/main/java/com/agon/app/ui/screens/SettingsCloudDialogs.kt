@@ -38,6 +38,10 @@ import com.agon.app.ui.components.MiuixDialog
 import com.agon.app.ui.components.app.AppConfirmDialog
 import com.agon.app.ui.components.app.stickyImePadding
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
+import top.yukonga.miuix.kmp.basic.Icon as MiuixIcon
+import top.yukonga.miuix.kmp.basic.Surface as MiuixSurface
+import top.yukonga.miuix.kmp.basic.Text as MiuixText
+import top.yukonga.miuix.kmp.basic.TextButton as MiuixTextButton
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.CloudFill
 import top.yukonga.miuix.kmp.icon.extended.Download
