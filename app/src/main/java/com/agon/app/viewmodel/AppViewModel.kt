@@ -34,6 +34,17 @@ import com.agon.app.data.buildCsvExport
 import com.agon.app.data.previewBackup
 import com.agon.app.data.importBackupJson
 import com.agon.app.data.clearAll
+import com.agon.app.data.setDynamicColor
+import com.agon.app.data.setDarkMode
+import com.agon.app.data.setPalette
+import com.agon.app.data.setThemeStyle
+import com.agon.app.data.setFloatingNav
+import com.agon.app.data.setAutoSyncDays
+import com.agon.app.data.setLastAutoSyncEpochDay
+import com.agon.app.data.setLastSync
+import com.agon.app.data.setCategoryThreshold
+import com.agon.app.data.setCategories
+import com.agon.app.data.setLocations
 import com.agon.app.data.OpFailure
 import com.agon.app.data.toOpFailure
 import com.agon.app.data.CloudBackup

@@ -79,17 +79,17 @@ class FoodRepository internal constructor(
     internal val categoriesKey = stringPreferencesKey("custom_categories")
     internal val locationsKey = stringPreferencesKey("custom_locations")
     internal val seededKey = booleanPreferencesKey("seeded")
-    private val dynamicColorKey = booleanPreferencesKey("dynamic_color")
-    private val darkModeKey = intPreferencesKey("dark_mode")
-    private val paletteKey = stringPreferencesKey("palette")
-    private val themeStyleKey = stringPreferencesKey("theme_style")
-    private val floatingNavKey = booleanPreferencesKey("floating_nav")
+    internal val dynamicColorKey = booleanPreferencesKey("dynamic_color")
+    internal val darkModeKey = intPreferencesKey("dark_mode")
+    internal val paletteKey = stringPreferencesKey("palette")
+    internal val themeStyleKey = stringPreferencesKey("theme_style")
+    internal val floatingNavKey = booleanPreferencesKey("floating_nav")
     private val nutstoreAccountKey = stringPreferencesKey("nutstore_account")
     private val nutstorePasswordKey = stringPreferencesKey("nutstore_password")
     private val nutstorePasswordEncKey = stringPreferencesKey("nutstore_password_enc")
-    private val lastSyncKey = stringPreferencesKey("last_sync_time")
-    private val autoSyncDaysKey = intPreferencesKey("auto_sync_days")
-    private val lastAutoSyncEpochDayKey = stringPreferencesKey("last_auto_sync_epoch_day")
+    internal val lastSyncKey = stringPreferencesKey("last_sync_time")
+    internal val autoSyncDaysKey = intPreferencesKey("auto_sync_days")
+    internal val lastAutoSyncEpochDayKey = stringPreferencesKey("last_auto_sync_epoch_day")
 
     // ---- 解码 ----
     //
@@ -238,26 +238,6 @@ class FoodRepository internal constructor(
         }
     }
 
-    suspend fun setCategoryThreshold(categoryId: String, days: Int) {
-        dataStore.edit { prefs ->
-            val current = decodeThresholds(prefs[thresholdsKey]).toMutableMap()
-            current[categoryId] = days.coerceIn(1, 365)
-            prefs[thresholdsKey] = json.encodeToString(current.toMap())
-        }
-    }
-
-    suspend fun setCategories(categories: List<CategoryDef>) {
-        dataStore.edit { prefs ->
-            prefs[categoriesKey] = json.encodeToString(categories)
-        }
-    }
-
-    suspend fun setLocations(locations: List<String>) {
-        dataStore.edit { prefs ->
-            prefs[locationsKey] = json.encodeToString(locations)
-        }
-    }
-
     /** 资产型 key 的名字 → Preferences.Key，供 [discardCorrupt] 按名字删除。 */
     private val assetKeysByName: Map<String, Preferences.Key<String>> by lazy {
         mapOf(
@@ -284,26 +264,6 @@ class FoodRepository internal constructor(
         Log.w(TAG, "已放弃损坏数据：${targets.joinToString { it.name }}（原文留档仍在 filesDir/corrupt/）")
     }
 
-    suspend fun setDynamicColor(enabled: Boolean) {
-        dataStore.edit { it[dynamicColorKey] = enabled }
-    }
-
-    suspend fun setDarkMode(mode: Int) {
-        dataStore.edit { it[darkModeKey] = mode }
-    }
-
-    suspend fun setPalette(name: String) {
-        dataStore.edit { it[paletteKey] = name }
-    }
-
-    suspend fun setThemeStyle(name: String) {
-        dataStore.edit { it[themeStyleKey] = name }
-    }
-
-    suspend fun setFloatingNav(enabled: Boolean) {
-        dataStore.edit { it[floatingNavKey] = enabled }
-    }
-
     suspend fun setNutstoreCredentials(account: String, password: String) {
         dataStore.edit { prefs ->
             prefs[nutstoreAccountKey] = account.trim()
@@ -319,17 +279,5 @@ class FoodRepository internal constructor(
                 prefs[nutstorePasswordKey] = password.trim()
             }
         }
-    }
-
-    suspend fun setAutoSyncDays(days: Int) {
-        dataStore.edit { it[autoSyncDaysKey] = days.coerceIn(0, 30) }
-    }
-
-    suspend fun setLastAutoSyncEpochDay(epochDay: Long) {
-        dataStore.edit { it[lastAutoSyncEpochDayKey] = epochDay.toString() }
-    }
-
-    suspend fun setLastSync(text: String) {
-        dataStore.edit { it[lastSyncKey] = text }
     }
 }
