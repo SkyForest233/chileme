@@ -24,6 +24,11 @@ import com.agon.app.data.restoreArchived
 import com.agon.app.data.restoreArchivedBatch
 import com.agon.app.data.deleteArchived
 import com.agon.app.data.clearArchive
+import com.agon.app.data.changeQuantity
+import com.agon.app.data.migrateConsumptionIds
+import com.agon.app.data.deleteConsumption
+import com.agon.app.data.addConsumption
+import com.agon.app.data.undoConsumption
 import com.agon.app.data.OpFailure
 import com.agon.app.data.toOpFailure
 import com.agon.app.data.CloudBackup

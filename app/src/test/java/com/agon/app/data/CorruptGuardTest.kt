@@ -76,9 +76,10 @@ class CorruptGuardTest {
 
     @Test
     fun `changeQuantity 的附带 key 按需判定`() {
-        val repo = read("com/agon/app/data/FoodRepository.kt")
-        assumeTrue("找不到 FoodRepository.kt，跳过", repo != null)
-        val body = functionBody(repo!!, "suspend fun changeQuantity(")
+        // #5c-4：changeQuantity 搬到了消耗领域文件（顶层扩展函数）⇒ 这条守卫跟着搬
+        val repo = read("com/agon/app/data/FoodConsumption.kt")
+        assumeTrue("找不到 FoodConsumption.kt，跳过", repo != null)
+        val body = functionBody(repo!!, "suspend fun FoodRepository.changeQuantity(", indent = 0)
 
         assertTrue(
             "changeQuantity 仍在把 items/consumption/archive 三个 key 一起判 —— 消耗记录损坏会让「改数量」整体失效",
