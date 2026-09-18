@@ -114,7 +114,10 @@ class CompactConsumptionTest {
         // 2026-09-16：消耗记录页双主题合并成一份文件（外壳差异下沉到 ui/components/app/），
         // 这里原来要同时读 MD3 与 Miuix 两个文件、分别断言，现在只剩一个——
         // 「两套实现都得拦」变成「一套就够」，这正是合并想要的效果：漏改一个主题不再可能。
-        val repo = read("com/agon/app/data/FoodRepository.kt")
+        // #5c-4：deleteConsumption 从 FoodRepository.kt 搬到了消耗领域文件 ⇒ 这条守卫跟着搬。
+        // （搬完没跟着改，CI 就真的红了：断言的字面串留在旧文件里找不到。#5c 期间每个领域搬完
+        // 都要跑一遍 tools 之外的源码文本守卫镜像，别再靠"我记得哪个测试盯着它"。）
+        val repo = read("com/agon/app/data/FoodConsumption.kt")
         val screen = read("com/agon/app/ui/screens/ConsumptionLogScreen.kt")
         assertTrue("找不到源码（非 Gradle 工作目录？）", repo != null && screen != null)
 
