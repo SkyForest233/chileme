@@ -64,6 +64,7 @@ import com.agon.app.ui.components.app.rememberAppSnackbarHostState
 import com.agon.app.ui.components.corruptKeyNames
 import com.agon.app.ui.components.rememberStatusUi
 import com.agon.app.viewmodel.AppViewModel
+import com.agon.app.viewmodel.UiEvent
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 
@@ -98,11 +99,15 @@ fun HomeScreen(
     val scope = rememberCoroutineScope()
     var showDiscardCorruptDialog by remember { mutableStateOf(false) }
 
-    // 启动自动同步完成后提示一次
-    LaunchedEffect(state.autoSyncMessage) {
-        state.autoSyncMessage?.let {
-            snackbar.showMessage(it)
-            state.consumeAutoSyncMessage()
+    // 启动自动同步完成后提示一次（#4a：改收 Channel）。
+    // key 用 snackbar 而不是事件值：切换主题会换一个新的宿主容器，旧协程必须停掉。
+    // 这条队列只在首页组合期间排空 —— 用户停在别的 Tab 时事件在队列里等着，
+    // 回到首页才弹（与旧的可空 StateFlow 行为一致；详见 viewmodel/UiEvent.kt 的类注释）。
+    LaunchedEffect(snackbar) {
+        viewModel.homeUiEvents.collect { event ->
+            if (event is UiEvent.Notice) {
+                snackbar.showMessage(event.message)
+            }
         }
     }
 

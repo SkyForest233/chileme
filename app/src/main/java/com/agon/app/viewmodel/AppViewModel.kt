@@ -23,7 +23,10 @@ import com.agon.app.data.cleanupOrphanCovers
 import com.agon.app.data.daysLeft
 import com.agon.app.data.toHistoryEntry
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.receiveAsFlow
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -156,44 +159,43 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         _selectedIds.value = emptySet()
     }
 
-    /** 「撤销一次消耗」请求：列表页减少数量后，供 MainActivity 弹撤销 Snackbar。 */
-    data class UndoRequest(val itemId: String, val consumptionId: String)
+    // ---- 一次性 UI 事件（路线图 #4a，2026-09-18）----
+    //
+    // 此前这里是 3 个「可空 StateFlow + 手工 consumeXxx()」（撤销消耗 / 删消耗记录 / 恢复归档），
+    // 加上下面 maybeAutoSync 里的第 4 个（自动同步提示）。StateFlow 会向新订阅者重放最后一个值，
+    // 所以「看过就撕」全靠每个收集点记得调 consume —— 4/4 都记得，但那是纪律不是机制。
+    // 改成 Channel 后**接收即出队**，consume 函数与可空状态一起消失。
+    // 设计理由（含「为什么是三条队列而不是一条」）见 viewmodel/UiEvent.kt 的类注释。
+    private val appShellEvents = Channel<UiEvent>(Channel.BUFFERED)
+    private val homeEvents = Channel<UiEvent>(Channel.BUFFERED)
+    private val consumptionLogEvents = Channel<UiEvent>(Channel.BUFFERED)
 
-    private val _undoRequest = MutableStateFlow<UndoRequest?>(null)
-    val undoRequest: StateFlow<UndoRequest?> = _undoRequest.asStateFlow()
+    /** 主壳覆盖层（`MainApp`）的事件：撤销消耗、恢复归档。 */
+    val appShellUiEvents: Flow<UiEvent> = appShellEvents.receiveAsFlow()
 
-    fun consumeUndoRequest() {
-        _undoRequest.value = null
+    /** 首页 `AppScaffold` 的事件：自动同步完成提示。 */
+    val homeUiEvents: Flow<UiEvent> = homeEvents.receiveAsFlow()
+
+    /** 消耗记录页 `AppScaffold` 的事件：删除记录的撤销。 */
+    val consumptionLogUiEvents: Flow<UiEvent> = consumptionLogEvents.receiveAsFlow()
+
+    /** 一次性事件的**唯一发送点**：按 [UiEvent.surface] 分流到对应宿主的队列。 */
+    private suspend fun emit(event: UiEvent) {
+        when (event.surface) {
+            UiSurface.AppShell -> appShellEvents.send(event)
+            UiSurface.Home -> homeEvents.send(event)
+            UiSurface.ConsumptionLog -> consumptionLogEvents.send(event)
+        }
     }
 
     /** 撤销最近一次减少消耗：删消耗记录 + 数量回滚。 */
-    fun undoConsumption(request: UndoRequest) = viewModelScope.launch {
-        repo.undoConsumption(request.itemId, request.consumptionId)
-    }
-
-    /** 删除消耗记录后的「撤销」状态：记录本身 + 删除前在日期倒序列表里的下标。 */
-    data class DeletedConsumption(val record: ConsumptionRecord, val index: Int)
-
-    private val _deletedConsumption = MutableStateFlow<DeletedConsumption?>(null)
-    val deletedConsumption: StateFlow<DeletedConsumption?> = _deletedConsumption.asStateFlow()
-
-    fun consumeDeletedConsumption() {
-        _deletedConsumption.value = null
-    }
-
-    /** 恢复归档后的「撤销」状态（用于列表页搜索归档恢复等场景弹撤销条） */
-    data class RestoredArchivedEvent(val item: FoodItem, val reason: ArchiveReason, val merged: Boolean)
-
-    private val _restoredArchivedEvent = MutableStateFlow<RestoredArchivedEvent?>(null)
-    val restoredArchivedEvent: StateFlow<RestoredArchivedEvent?> = _restoredArchivedEvent.asStateFlow()
-
-    fun consumeRestoredArchivedEvent() {
-        _restoredArchivedEvent.value = null
+    fun undoConsumption(event: UiEvent.UndoConsumption) = viewModelScope.launch {
+        repo.undoConsumption(event.itemId, event.consumptionId)
     }
 
     fun restoreArchivedWithUndo(entry: ArchivedItem) = viewModelScope.launch {
         val merged = repo.restoreArchived(entry.item.id)
-        _restoredArchivedEvent.value = RestoredArchivedEvent(entry.item, entry.reason, merged)
+        emit(UiEvent.UndoRestoreArchived(entry.item, entry.reason, merged))
     }
 
     /** 删除单条消耗记录（修正统计），并记下原位置供撤销插回。 */
@@ -205,15 +207,15 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
         val target = sorted.getOrNull(index) ?: return@launch
         repo.deleteConsumption(target)
-        _deletedConsumption.value = DeletedConsumption(target, index.coerceAtLeast(0))
+        emit(UiEvent.UndoDeleteConsumption(target, index.coerceAtLeast(0)))
     }
 
     /** 撤销删除：按原下标插回，避免被提到列表最前。 */
     fun undoDeleteConsumption(record: ConsumptionRecord, index: Int) = viewModelScope.launch {
         repo.addConsumption(record, index)
-        if (_deletedConsumption.value?.record?.id == record.id) {
-            _deletedConsumption.value = null
-        }
+        // 原先这里还有一句「若待处理的撤销事件正是这条记录就清空它」的防御性代码：
+        // 收集端一直是「先 consume 再弹条」，弹条期间那个状态早已是 null，故那句永远不成立；
+        // 改用 Channel 后事件接收即出队，也没有「待处理的事件」可清 ⇒ 一并删掉。
     }
 
     init {
@@ -245,14 +247,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    /** 自动同步消息（供 UI Snackbar 展示，消费后置空） */
-    private val _autoSyncMessage = MutableStateFlow<String?>(null)
-    val autoSyncMessage: StateFlow<String?> = _autoSyncMessage.asStateFlow()
-
-    fun consumeAutoSyncMessage() {
-        _autoSyncMessage.value = null
-    }
-
     private suspend fun maybeAutoSync() {
         val days = repo.autoSyncDaysFlow.first()
         if (days <= 0) return
@@ -271,7 +265,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             val time = java.time.LocalDateTime.now()
                 .format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"))
             repo.setLastSync("自动同步于 $time")
-            _autoSyncMessage.value = "已自动同步到坚果云 ☁️"
+            emit(UiEvent.Notice("已自动同步到坚果云 ☁️"))
         }
         // 失败静默忽略，下次启动重试；不打扰用户
     }
@@ -338,7 +332,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         val result: QuantityChangeResult = repo.changeQuantity(id, delta)
         if (result.autoArchived) onAutoArchived?.invoke()
         if (withUndo && delta < 0 && result.consumptionId != null) {
-            _undoRequest.value = UndoRequest(id, result.consumptionId)
+            emit(UiEvent.UndoConsumption(id, result.consumptionId))
         }
     }
 

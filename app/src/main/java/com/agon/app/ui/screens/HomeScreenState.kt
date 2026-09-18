@@ -37,13 +37,8 @@ class HomeUiState(
      */
     val expiringQuantity: Int,
     val urgent: List<FoodItem>,
-    val autoSyncMessage: String?,
     private val viewModel: AppViewModel,
 ) {
-    fun consumeAutoSyncMessage() {
-        viewModel.consumeAutoSyncMessage()
-    }
-
     fun cleanExpired(onDone: ((Set<String>) -> Unit)? = null) {
         viewModel.cleanExpired(onDone)
     }
@@ -90,7 +85,6 @@ fun rememberHomeUiState(viewModel: AppViewModel): HomeUiState {
     val corruptedKeys by viewModel.corruptedKeys.collectAsStateWithLifecycle()
     val thresholds by viewModel.thresholds.collectAsStateWithLifecycle()
     val categories by viewModel.categories.collectAsStateWithLifecycle()
-    val autoSyncMessage by viewModel.autoSyncMessage.collectAsStateWithLifecycle()
 
     val today = LocalToday.current
     val total = items.size
@@ -114,7 +108,6 @@ fun rememberHomeUiState(viewModel: AppViewModel): HomeUiState {
         expiredQuantity,
         expiringQuantity,
         urgent,
-        autoSyncMessage,
     ) {
         HomeUiState(
             items = items,
@@ -128,7 +121,6 @@ fun rememberHomeUiState(viewModel: AppViewModel): HomeUiState {
             expiredQuantity = expiredQuantity,
             expiringQuantity = expiringQuantity,
             urgent = urgent,
-            autoSyncMessage = autoSyncMessage,
             viewModel = viewModel,
         )
     }

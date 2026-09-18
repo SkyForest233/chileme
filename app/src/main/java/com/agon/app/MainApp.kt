@@ -77,8 +77,8 @@ import com.agon.app.ui.theme.MotionEasing
 import com.agon.app.ui.theme.MotionSpring
 import com.agon.app.ui.theme.ThemeStyle
 import com.agon.app.viewmodel.AppViewModel
+import com.agon.app.viewmodel.UiEvent
 import kotlin.math.abs
-import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.nav.core.rememberNavBackStack
 
@@ -136,41 +136,45 @@ fun MainApp(viewModel: AppViewModel) {
     val snackbarHostState = remember { SnackbarHostState() }
     val miuixSnackbarHostState = remember { MiuixSnackbarHostState() }
 
-    // 列表页步进器减号触发的「撤销消耗」：弹撤销 Snackbar（MD3 / MIUIX 两套样式）。
-    // 用 LaunchedEffect(Unit)+collect 而非 LaunchedEffect(key)：consume 会改变 key，导致协程被取消、
-    // showSnackbar 中断（MD3 撤销不出现的根因）。
+    // 一次性 UI 事件（路线图 #4a）：主壳覆盖层这一路。此前是两条 LaunchedEffect 各收一个
+    // 可空 StateFlow 并手工 consume；现在收一条 Channel —— 接收即出队，没有 consume 可调，
+    // 也不会向新订阅者重放最后一个值。分流成三条队列的理由见 viewmodel/UiEvent.kt 的类注释。
+    // 仍用 LaunchedEffect(Unit)+collect 而非 LaunchedEffect(key)：key 变化会取消协程、中断
+    // showSnackbar（MD3 撤销不出现的根因）。
     val currentIsMiuix by rememberUpdatedState(isMiuix)
     LaunchedEffect(Unit) {
-        viewModel.undoRequest.filterNotNull().collect { request ->
-            viewModel.consumeUndoRequest()
-            val undone = if (currentIsMiuix) {
-                miuixSnackbarHostState.showUndoSnackbar("已减少一件并计入消耗") ==
-                    MiuixSnackbarResult.ActionPerformed
-            } else {
-                snackbarHostState.showUndoSnackbar("已减少一件并计入消耗") ==
-                    SnackbarResult.ActionPerformed
-            }
-            if (undone) {
-                viewModel.undoConsumption(request)
-            }
-        }
-    }
-
-    // 列表页搜索结果中恢复归档：弹撤销 Snackbar
-    LaunchedEffect(Unit) {
-        viewModel.restoredArchivedEvent.filterNotNull().collect { event ->
-            viewModel.consumeRestoredArchivedEvent()
-            val msg = if (event.merged) "库存中已有同批次「${event.item.name}」，已合并数量"
-                      else "已恢复「${event.item.name}」到零食柜"
-            val undone = if (currentIsMiuix) {
-                miuixSnackbarHostState.showUndoSnackbar(msg) ==
-                    MiuixSnackbarResult.ActionPerformed
-            } else {
-                snackbarHostState.showUndoSnackbar(msg) ==
-                    SnackbarResult.ActionPerformed
-            }
-            if (undone) {
-                viewModel.archiveBatch(setOf(event.item.id), event.reason)
+        viewModel.appShellUiEvents.collect { event ->
+            when (event) {
+                // 列表页步进器减号触发的「撤销消耗」：弹撤销 Snackbar（MD3 / MIUIX 两套样式）。
+                is UiEvent.UndoConsumption -> {
+                    val undone = if (currentIsMiuix) {
+                        miuixSnackbarHostState.showUndoSnackbar("已减少一件并计入消耗") ==
+                            MiuixSnackbarResult.ActionPerformed
+                    } else {
+                        snackbarHostState.showUndoSnackbar("已减少一件并计入消耗") ==
+                            SnackbarResult.ActionPerformed
+                    }
+                    if (undone) {
+                        viewModel.undoConsumption(event)
+                    }
+                }
+                // 列表页搜索结果中恢复归档：弹撤销 Snackbar
+                is UiEvent.UndoRestoreArchived -> {
+                    val msg = if (event.merged) "库存中已有同批次「${event.item.name}」，已合并数量"
+                              else "已恢复「${event.item.name}」到零食柜"
+                    val undone = if (currentIsMiuix) {
+                        miuixSnackbarHostState.showUndoSnackbar(msg) ==
+                            MiuixSnackbarResult.ActionPerformed
+                    } else {
+                        snackbarHostState.showUndoSnackbar(msg) ==
+                            SnackbarResult.ActionPerformed
+                    }
+                    if (undone) {
+                        viewModel.archiveBatch(setOf(event.item.id), event.reason)
+                    }
+                }
+                // 另两类事件走各自宿主的队列，不会流到这里；when 对 sealed 必须穷尽，故显式列出。
+                is UiEvent.UndoDeleteConsumption, is UiEvent.Notice -> Unit
             }
         }
     }

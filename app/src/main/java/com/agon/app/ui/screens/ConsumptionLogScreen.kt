@@ -23,7 +23,7 @@ import com.agon.app.ui.components.app.AppScaffold
 import com.agon.app.ui.components.app.rememberAppSnackbarHostState
 import com.agon.app.ui.theme.MotionEasing
 import com.agon.app.viewmodel.AppViewModel
-import kotlinx.coroutines.flow.filterNotNull
+import com.agon.app.viewmodel.UiEvent
 import java.time.LocalDate
 
 /**
@@ -42,15 +42,18 @@ fun ConsumptionLogScreen(
     val state = rememberConsumptionLogUiState(viewModel)
     val snackbar = rememberAppSnackbarHostState()
 
-    // 删除后的撤销提示（collect 模式避免 consume 改变 key 取消协程）。
+    // 删除后的撤销提示（#4a：改收 Channel，接收即出队，不再需要 consume）。
     // key 用 snackbar：切换主题会换一个新的宿主容器，旧协程必须停掉，
     // 否则撤销条会弹到已经卸载的那个宿主上（合并前两份文件天然分开，不存在这个问题）。
+    // 换成 Channel 后这条更稳：主题切换期间发出的事件会在队列里等着，不会像
+    // SharedFlow(replay=0) 那样直接丢掉。
     LaunchedEffect(snackbar) {
-        viewModel.deletedConsumption.filterNotNull().collect { deleted ->
-            viewModel.consumeDeletedConsumption()
-            val undone = snackbar.showUndoSnackbar("已删除「${deleted.record.name}」的消耗记录")
-            if (undone) {
-                viewModel.undoDeleteConsumption(deleted.record, deleted.index)
+        viewModel.consumptionLogUiEvents.collect { event ->
+            if (event is UiEvent.UndoDeleteConsumption) {
+                val undone = snackbar.showUndoSnackbar("已删除「${event.record.name}」的消耗记录")
+                if (undone) {
+                    viewModel.undoDeleteConsumption(event.record, event.index)
+                }
             }
         }
     }
