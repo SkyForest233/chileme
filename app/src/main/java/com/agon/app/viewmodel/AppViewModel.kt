@@ -45,6 +45,8 @@ import com.agon.app.data.setLastSync
 import com.agon.app.data.setCategoryThreshold
 import com.agon.app.data.setCategories
 import com.agon.app.data.setLocations
+import com.agon.app.data.migratePlaintextPassword
+import com.agon.app.data.setNutstoreCredentials
 import com.agon.app.data.OpFailure
 import com.agon.app.data.toOpFailure
 import com.agon.app.data.CloudBackup

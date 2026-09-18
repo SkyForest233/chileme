@@ -114,7 +114,14 @@ class CorruptGuardTest {
     fun `凭据加密失败必须可区分且调用方按非空判定`() {
         val store = read("com/agon/app/data/SecureStore.kt")
         val repo = read("com/agon/app/data/FoodRepository.kt")
-        assumeTrue("找不到 SecureStore.kt / FoodRepository.kt，跳过", store != null && repo != null)
+        // #5c-7：两处凭据写入（migratePlaintextPassword / setNutstoreCredentials）搬到了凭据领域文件，
+        // 所以 `if (enc != null)` 的**计数**断言要读它；而 nutstorePlaintextFallbackFlow 是对外读取流，
+        // 仍留在 FoodRepository.kt ⇒ 下面两条断言分别读各自的文件，别图省事都指一个。
+        val creds = read("com/agon/app/data/FoodCredentials.kt")
+        assumeTrue(
+            "找不到 SecureStore.kt / FoodRepository.kt / FoodCredentials.kt，跳过",
+            store != null && repo != null && creds != null,
+        )
 
         // 旧实现失败返回空串，调用方的 `enc != null` 恒为真：既写不进密文（"" 覆盖已有密文），
         // 又会删掉明文键 —— 凭据直接丢失；而且「Keystore 不可用」的降级没有任何 UI 能感知。
@@ -127,11 +134,11 @@ class CorruptGuardTest {
         assertEquals(
             "两处凭据写入都必须走非空判定，否则加密失败会写入空密文",
             2,
-            Regex("if \\(enc != null\\)").findAll(repo!!).count(),
+            Regex("if \\(enc != null\\)").findAll(creds!!).count(),
         )
         assertTrue(
             "明文降级必须能被 UI 感知（nutstorePlaintextFallbackFlow → 设置页提示）",
-            repo.contains("nutstorePlaintextFallbackFlow"),
+            repo!!.contains("nutstorePlaintextFallbackFlow"),
         )
     }
 

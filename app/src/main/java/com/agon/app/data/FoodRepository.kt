@@ -84,9 +84,9 @@ class FoodRepository internal constructor(
     internal val paletteKey = stringPreferencesKey("palette")
     internal val themeStyleKey = stringPreferencesKey("theme_style")
     internal val floatingNavKey = booleanPreferencesKey("floating_nav")
-    private val nutstoreAccountKey = stringPreferencesKey("nutstore_account")
-    private val nutstorePasswordKey = stringPreferencesKey("nutstore_password")
-    private val nutstorePasswordEncKey = stringPreferencesKey("nutstore_password_enc")
+    internal val nutstoreAccountKey = stringPreferencesKey("nutstore_account")
+    internal val nutstorePasswordKey = stringPreferencesKey("nutstore_password")
+    internal val nutstorePasswordEncKey = stringPreferencesKey("nutstore_password_enc")
     internal val lastSyncKey = stringPreferencesKey("last_sync_time")
     internal val autoSyncDaysKey = intPreferencesKey("auto_sync_days")
     internal val lastAutoSyncEpochDayKey = stringPreferencesKey("last_auto_sync_epoch_day")
@@ -224,20 +224,6 @@ class FoodRepository internal constructor(
             it[lastAutoSyncEpochDayKey]?.toLongOrNull() ?: 0L
         }
 
-    /** 启动时迁移：若存在旧版明文密码，加密后写入新 key 并删除明文。 */
-    suspend fun migratePlaintextPassword() {
-        dataStore.edit { prefs ->
-            val plain = prefs[nutstorePasswordKey]
-            if (!plain.isNullOrBlank()) {
-                val enc = SecureStore.encrypt(plain)
-                if (enc != null) {
-                    prefs[nutstorePasswordEncKey] = enc
-                    prefs.remove(nutstorePasswordKey)
-                }
-            }
-        }
-    }
-
     /** 资产型 key 的名字 → Preferences.Key，供 [discardCorrupt] 按名字删除。 */
     private val assetKeysByName: Map<String, Preferences.Key<String>> by lazy {
         mapOf(
@@ -262,22 +248,5 @@ class FoodRepository internal constructor(
         dataStore.edit { prefs -> targets.forEach { prefs.remove(it) } }
         _corruptedKeys.update { it - keys }
         Log.w(TAG, "已放弃损坏数据：${targets.joinToString { it.name }}（原文留档仍在 filesDir/corrupt/）")
-    }
-
-    suspend fun setNutstoreCredentials(account: String, password: String) {
-        dataStore.edit { prefs ->
-            prefs[nutstoreAccountKey] = account.trim()
-            val enc = SecureStore.encrypt(password.trim())
-            if (enc != null) {
-                prefs[nutstorePasswordEncKey] = enc
-                prefs.remove(nutstorePasswordKey) // 确保明文不再落盘
-            } else {
-                // Keystore 不可用的极端回退：为了不打断同步功能只能先存明文，
-                // 但**绝不能静默**——记日志 + 由 nutstorePlaintextFallbackFlow 让设置页提示用户。
-                // 下次启动 migratePlaintextPassword 会重试加密。
-                Log.e(TAG, "凭据加密失败（Keystore 不可用？），本次以未加密形式保存，将于下次启动重试")
-                prefs[nutstorePasswordKey] = password.trim()
-            }
-        }
     }
 }
