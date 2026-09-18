@@ -59,7 +59,7 @@
   四层管道**留着不删**（核查第 16 处）⇒ 已知的死代码，别当遗漏再查。
   另：全仓有 **6 处** Snackbar 宿主站点（主壳覆盖层 + 5 个二级页），4c 之后 **4 处**收 `UiEvent` —— 别把「落点数」读成「宿主数」。
 - ⏳ **#5 Repository 拆分 + `Clock` 注入 + 轻量 DI**（**前置 #4 已于 09-18 收官 ⇒ 现在可以做**）—— `FoodRepository.kt` **950 行 / 47 个类级函数**；
-  `Application` 子类 **0** 个（仓库在 `AppViewModel.kt:44` 现场构造）。
+  `Application` 子类 **1** 个（`ChiliMeApp` 持有 `AppContainer`，#5a 起；改造前 0 个、仓库在 `AppViewModel` 里现场构造）。
   ⚠️ 旧写法「`now()` 34 处 ⇒ 时间不可注入、跨零点逻辑无法单测」经 09-18 复核**后半句错**：跨零点逻辑 08-21 起
   就是可注入 `today` 的纯函数，且**真有单测在测**（`FoodModelsTest` / `CompactConsumptionTest` / `CsvExportTest`
   都传固定日期）；34 处含注释 5 + 默认参数 3 + 委托属性 5，**真该接时钟的只有数据层与 VM 的 12 处**。

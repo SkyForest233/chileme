@@ -4,6 +4,7 @@ import android.app.Application
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.agon.app.ChiliMeApp
 import com.agon.app.data.ArchiveReason
 import com.agon.app.data.ArchivedItem
 import com.agon.app.data.BackupData
@@ -12,7 +13,6 @@ import com.agon.app.data.ConsumptionRecord
 import com.agon.app.data.DefaultCategories
 import com.agon.app.data.DefaultLocations
 import com.agon.app.data.FoodItem
-import com.agon.app.data.FoodRepository
 import com.agon.app.data.HistoryEntry
 import com.agon.app.data.OpFailure
 import com.agon.app.data.toOpFailure
@@ -56,7 +56,20 @@ private const val NO_CREDENTIALS_MESSAGE = "请先填写并保存坚果云账号
 
 class AppViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val repo = FoodRepository(application)
+    /**
+     * 仓库从 App 级容器取（#5a）—— 本文件里**不再现场构造**。
+     *
+     * 这里用**硬转型**而不是 `as? … ?: FoodRepository(application)` 那种"兜底再 new 一个"：
+     * 兜底会悄悄造出第二个仓库实例（各带一份损坏状态与解码缓存），比直接崩更难查。
+     * 转型失败只可能是 `AndroidManifest.xml` 少了 `android:name=".ChiliMeApp"` 这类配置错，
+     * 属于一启动就炸、原因明确的编程错误 ⇒ 让它响。
+     *
+     * ⚠️ 构造签名必须保持 `(Application)` 不变：**不能**加带默认值的第二参数 ——
+     * `ViewModelProvider` 的默认工厂用反射找 `(Application)` 构造器，而 Kotlin 的默认参数
+     * 只生成带 `DefaultConstructorMarker` 的合成构造器 ⇒ 反射找不到、运行时崩。
+     * 所以时钟一类依赖一律从容器取，不从构造参数进。
+     */
+    private val repo = (application as ChiliMeApp).container.repo
 
     val items: StateFlow<List<FoodItem>> =
         repo.itemsFlow.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
@@ -431,7 +444,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
      * 导入是不可撤销的破坏性操作，此前点一下文件就直接覆盖。现在：
      * 1. 先 `buildBackupJson()` + `LocalSnapshotStore.saveSnapshot()` 留一份「导入前状态」，
      *    用户可在设置页「本地快照」里一键回到导入前；
-     * 2. 再执行 [FoodRepository.importBackupJson]。
+     * 2. 再执行 [com.agon.app.data.FoodRepository.importBackupJson]。
+     *    （这里写**全限定名**：`FoodRepository` 的 import 在 #5a 之后只剩这一处 KDoc 引用了，
+     *    而本仓的口径是 import 只服务代码 —— `tools/kt-lexcheck.py` 会把"只被注释用着的 import"
+     *    报成未使用，detekt 的 `UnusedImports` 又是关的（核查第 14 处），所以只能自己守。)
      *
      * 快照失败（例如当前数据本身已损坏、无法序列化）**不阻断导入**——那种情况正是导入的用途。
      *

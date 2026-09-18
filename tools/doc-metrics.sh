@@ -34,7 +34,12 @@ SCREENS='app/src/main/java/com/agon/app/ui/screens'
 APPLAYER='app/src/main/java/com/agon/app/ui/components/app'
 
 # occ <正则> <作用域...> —— 出现次数（不是命中行数）
-occ() { local pat="$1"; shift; git grep -o -E "$pat" -- "$@" 2>/dev/null | wc -l | tr -d ' '; }
+# occ <ERE 正则> <路径…> —— 出现次数口径。
+# ⚠️ 必须带 --untracked：git grep **默认只搜已跟踪文件**，新建但还没 git add 的文件对它是隐形的。
+#   2026-09-18 做 #5a 时当场撞上：新建 ChiliMeApp.kt 后本行报「Application 子类 0 个」，
+#   而下面那条用 glob 走文件系统的守卫报 1 ⇒ 同一件事两个答案。开发中（add 之前）量到的数会偏低，
+#   而偏低正好等于「新写的东西没被算进去」，最难察觉。--untracked 仍然尊重 .gitignore，不会把 build/ 算进来。
+occ() { local pat="$1"; shift; git grep --untracked -o -E "$pat" -- "$@" 2>/dev/null | wc -l | tr -d ' '; }
 # lines <文件/目录> —— wc -l 口径
 lines() { find "$@" -name '*.kt' 2>/dev/null | xargs wc -l 2>/dev/null | tail -1 | awk '{print $1}'; }
 nfiles() { find "$@" -name '*.kt' 2>/dev/null | wc -l | tr -d ' '; }
@@ -46,7 +51,62 @@ row '屏幕本体（不含 *State.kt）' "$(nfiles "$SCREENS" -not -name '*State
 row 'App 级组件层' "$(nfiles "$APPLAYER") 文件 / $(lines "$APPLAYER") 行" 'ui/components/app/*.kt'
 row 'FoodRepository.kt' "$(wc -l < app/src/main/java/com/agon/app/data/FoodRepository.kt | tr -d ' ') 行" '路线图 #5 的拆分对象'
 row '*State.kt 状态容器' "$(ls "$SCREENS"/*State.kt | wc -l | tr -d ' ') 个" '路线图 #6 的基础'
-row 'Application 子类' "$(occ 'class[[:space:]]+[A-Za-z]*[[:space:]]*:[[:space:]]*Application\b' "$MAIN") 个" '0 = 无 DI 容器（路线图 #5）'
+row 'Application 子类' "$(occ 'class[[:space:]]+[A-Za-z]*[[:space:]]*:[[:space:]]*Application\b' "$MAIN") 个" '#5a 起 = 1（`ChiliMeApp` 持有 `AppContainer`）；0 = 无 DI 容器'
+row '依赖构造点（目标：只在容器里 1 处）' "$(python3 - <<'PY' 2>/dev/null || echo '需 python3'
+import glob, io, re
+MAN = 'app/src/main/AndroidManifest.xml'
+CONTAINER = 'ChiliMeApp.kt'
+PAT = r'FoodRepository\('
+bad = []
+# --- 阳性对照：先证明这条正则抓得到「现场构造」那个形状，否则下面的计数毫无意义 ---
+probe = 'private val repo = FoodRepository(application)'
+if len(re.findall(PAT, probe)) != 1:
+    bad.append('probe')
+    print('     ✗ 阳性对照失败：正则没抓到已知样本 ⇒ 本项计数不可信')
+
+def code_only(path):
+    # 只按行滤掉注释/KDoc：本仓这些文件里没有会被朴素剥离误伤的 "*/*" 那种字面量
+    return '\n'.join(l for l in io.open(path, encoding='utf-8').read().split('\n')
+                     if not (l.strip().startswith('*') or l.strip().startswith('//')
+                             or l.strip().startswith('/*')))
+
+sites = []
+for f in sorted(glob.glob('app/src/main/**/*.kt', recursive=True)):
+    n = len(re.findall(PAT, code_only(f)))
+    if n:
+        sites.append((f.split('com/agon/app/')[-1], n))
+off = ['%s ×%d' % (f, n) for f, n in sites if f != CONTAINER]
+if off:
+    bad.append('sites')
+    print('     ✗ 容器之外还在现场构造仓库：%s' % '、'.join(off))
+    print('       （验收②「依赖只有一个构造点」：仓库应只由 %s 里的 AppContainer 建，VM 从容器取。'
+          '多一个构造点就多一份独立的损坏状态与解码缓存）' % CONTAINER)
+
+# --- 容器必须真的挂上 Manifest：少了 android:name，(application as ChiliMeApp) 会在运行时
+#     ClassCastException，而**编译器与单测都发现不了**（单测里没人构造 VM）⇒ 只能靠这条守 ---
+apps = []
+for f in glob.glob('app/src/main/**/*.kt', recursive=True):
+    apps += re.findall(r'class\s+(\w+)\s*:\s*Application\b', io.open(f, encoding='utf-8').read())
+man = io.open(MAN, encoding='utf-8').read()
+if len(apps) != 1:
+    bad.append('appclass')
+    print('     ✗ Application 子类应恰好 1 个，实测 %d 个：%s' % (len(apps), apps))
+elif 'android:name=".%s"' % apps[0] not in man:
+    bad.append('manifest')
+    print('     ✗ AndroidManifest.xml 里没有 android:name=".%s" ⇒ 容器根本不会被创建，'
+          'VM 取仓库时 ClassCastException（编译器与单测都发现不了）' % apps[0])
+if 'class AppContainer' not in code_only('app/src/main/java/com/agon/app/' + CONTAINER):
+    bad.append('container')
+    print('     ✗ %s 里没有 class AppContainer ⇒ 容器不见了' % CONTAINER)
+
+tot = sum(n for _, n in sites)
+if bad:
+    print('%d 处；%d 项 ✗ ⇒ 本项不通过' % (tot, len(bad)))
+else:
+    print('%d 处 ✓ 全在 %s；对照通过（正则抓得到样本）；Manifest 已挂 android:name=".%s"'
+          % (tot, CONTAINER, apps[0]))
+PY
+)" '#5a 的验收②。两个方向都反证过：把构造搬回 VM ⇒ 报「容器之外还在现场构造」；删掉 Manifest 的 android:name ⇒ 报运行时 ClassCastException 风险'
 row 'UI 测试' "$(find app/src/androidTest -name '*.kt' 2>/dev/null | wc -l | tr -d ' ') 个" 'androidTest 目录存在与否'
 
 echo
@@ -353,7 +413,7 @@ for d in DOCS:
                     print('     ✗ %s:%d %s 文档写 %d，实测 %d ⇒ 改文档或改成指针' % (d, i, label, doc, real))
 print('%d 处写死的数被比对，不符 %d 处' % (hits, bad))
 PY
-)" '2026-09-18 核查的第 11/12/13 处都是这一类：**文档里的数或论述与代码不符，而没有任何东西会报警**（`4,204` 行、`37` 个角色、`6` 份批注、`没有任何页面消费它`、`跨零点无法单测`）。本行把「写死的关键数」逐个拿去和实测比。⚠️ 它**刻意与「指针优于数字」的原则相反**：不是鼓励写数字，而是让还留着的数字烂不掉 —— 报警的正确修法通常是**把数字换成指针**，而不是改数字。⚠️ **验收目标值要用散文写**（别写成 `**N** 个/处/行`），否则会被当成现状断言而误报 —— 本行上线当天就踩了一次（ROADMAP 5a 的「`Application` 子类 **1** 个」是目标不是现状）'
+)" '2026-09-18 核查的第 11/12/13 处都是这一类：**文档里的数或论述与代码不符，而没有任何东西会报警**（`4,204` 行、`37` 个角色、`6` 份批注、`没有任何页面消费它`、`跨零点无法单测`）。本行把「写死的关键数」逐个拿去和实测比。⚠️ 它**刻意与「指针优于数字」的原则相反**：不是鼓励写数字，而是让还留着的数字烂不掉 —— 报警的正确修法通常是**把数字换成指针**，而不是改数字。⚠️ **验收目标值要用散文写**（别写成 `**N** 个/处/行`），否则会被当成现状断言而误报 —— 本行上线当天就踩了一次（当时 ROADMAP 5a 的验收列写着「`Application` 子类 **1** 个」，那是**目标**、现状是 0，于是天天报不符；#5a 落地后目标变成了现状，这一处才自洽。**教训仍然成立**：目标值一律散文写）'
 row 'devlog 文件数 / 总行数' "$(ls devlog/*.md | wc -l | tr -d ' ') 个 / $(wc -l devlog/*.md | tail -1 | awk '{print $1}') 行" '含 INDEX.md'
 row 'docs/audits 报告数' "$(ls docs/audits/*.md | wc -l | tr -d ' ') 份" '历史审计报告，只加批注不改写'
 row '含 2026-09-17 批注的报告' "$(grep -l '2026-09-17 状态批注\|2026-09-17 追加' docs/audits/*.md | wc -l | tr -d ' ') 份" '7 份新增顶部批注 + 3 份在既有批注上追加（md3-audit / chileme-review / fix-plan；fix-plan 两者都有 ⇒ 去重 9 份）'

@@ -8,6 +8,7 @@
         android:required="false" />
 
     <application
+        android:name=".ChiliMeApp"
         android:allowBackup="true"
         android:fullBackupContent="@xml/backup_rules"
         android:dataExtractionRules="@xml/data_extraction_rules"

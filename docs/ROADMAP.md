@@ -23,7 +23,7 @@
 | 2 | 开启 detekt 复杂度规则，按实测清单收敛（4 条体量规则显式关闭） | ✅ 2026-09-16 | 09-16 §14 + `detekt.yml` 文件头 |
 | 3 | 双主题去重 + App 级组件层（最大的一项） | ✅ 2026-09-16 ⚠️ 原验收未达成 | 09-16 §15–§22；口径见下方「#3 收官」 |
 | **4** | **错误模型统一**（⚠️ 证据行 09-18 **两次**复核修正：不是「正在重复消费」，是 4 个手工 `consume` + **5 个回调**；回调数原写「3 个 `(Boolean, String)`」，实测 **4 个 `(Boolean, String)` + 1 个 `(Boolean, Boolean)`** ⇒ 核查第 15 处） | ✅ **4a / 4b / 4c 全部落地（2026-09-18）** · **真机复测已通过**；单测 121→127→135→**143** | 本节「4a/4b/4c 落地结果」 |
-| 5 | Repository 拆分 + `Clock` 注入 + 轻量 DI（⚠️ 证据行 09-18 复核修正：跨零点**早已可注入且已被测**，只剩 12 处硬调） | ⏳ 未开始（前置 #4）；分 5a/5b/5c | — |
+| 5 | Repository 拆分 + `Clock` 注入 + 轻量 DI（⚠️ 证据行 09-18 复核修正：跨零点**早已可注入且已被测**，只剩 12 处硬调） | 🔶 **5a ✅（2026-09-18）** · 5b/5c 未做（前置 #4 已收官） | 本节「5a 落地结果」 |
 | 6 | 派生数据下沉 VM + `WhileSubscribed` | ⏳ 未开始（前置 #5）；**范围已缩小**，见下 | — |
 | 7 | 字符串资源化 + 无障碍补全 | ⏳ 未开始（前置 #3 已满足 ⇒ **随时可插队做**） | — |
 | 8 | 诊断包 + 许可清单（⚠️ 09-18 复核：健康告警条**自 09-15 已在首页运行**，原「没有任何页面消费它」是错的） | ⏳ 未开始（**无前置**，可随时做）；**范围已缩小** | — |
@@ -189,7 +189,7 @@
   ⚠️ 网络类失败仍会显示 OkHttp 的**英文技术串**（如 `Unable to resolve host …`）—— 改造前就这样、本轮刻意未改，
   真机看到它**不算回归**；要不要换成中文 ⇒ **用户已决（2026-09-18）：保持英文不改**（见 `devlog/2026-09-18.md` §11）。
 
-## #5 Repository 拆分 + `Clock` 注入 + 轻量 DI
+## #5 Repository 拆分 + `Clock` 注入 + 轻量 DI —— 🔶 5a 已落地（2026-09-18），5b/5c 未做
 
 > ⚠️ **2026-09-18 复核修正（核查第 13 处）**：本节原证据行写「`now()` 直接调用 **34** 处 ⇒ **时间不可注入，
 > 跨零点逻辑无法单测**」。后半句**是错的，而且写下来那天就错** —— 跨零点逻辑在 08-21 那轮（fix-plan 阶段 6）
@@ -200,7 +200,10 @@
   - `FoodRepository.kt` **950** 行 / **47** 个类级函数（另有 1 个局部函数 `FoodRepository.kt:420`；47 与 detekt 09-16
     `TooManyFunctions` 快照一致），一个类管着库存、归档、消耗、录入历史、阈值分类位置、
     全部设置项、坚果云凭据、备份导入导出 —— 改任一领域都要先读懂其余六个。
-  - `Application` 子类 **0** 个；仓库在 `AppViewModel.kt:44` 用 `private val repo = FoodRepository(application)` 现场构造。
+  - `Application` 子类 **1** 个（`ChiliMeApp`，#5a 起）。改造前是 0 个，仓库在 `AppViewModel` 里
+    现场 `FoodRepository(application)` 构造 ⇒ 现已归零：构造点只剩容器里那 1 处，
+    由 `tools/doc-metrics.sh` 的「依赖构造点」守卫看着（含"Manifest 必须挂同名 `android:name`"这一条，
+    因为漏挂只会在**运行时**炸，编译器与单测都发现不了）。
   - `now()` **34** 处的真实构成：**注释/KDoc 5 + 默认参数 3 + 便捷属性委托 5 + 函数体硬调 21**。
     硬调 21 处里**该修的只有数据层与 VM 的 12 处**：`FoodRepository.kt` 7 处（损坏留档时间戳、归档上限裁剪的 today、
     消耗压缩的 today、CSV 导出的 today 等）、`AppViewModel.kt` 5 处（自动同步间隔天数、每日快照判定、
@@ -229,7 +232,7 @@
 
 | 阶段 | 做什么 | 验收 | 风险与注意 |
 |---|---|---|---|
-| **5a** | `Application` 子类 + 轻量容器：`ChiliMeApp`（`AndroidManifest.xml` 挂 `android:name`）持有 `AppContainer`（`clock` / `repo`）；`AppViewModel` 从 `application` 取容器，**构造签名保持 `(Application)` 不变** | `Application` 子类由 0 变 1（容器挂在它上面）；`FoodRepository(application)` 现场构造归零；**不引入 Hilt/Koin** | ⚠️ **不能给 `AppViewModel` 加带默认值的第二参数**：`ViewModelProvider` 的默认工厂用反射找 `(Application)` 构造器，而 Kotlin 的默认参数只生成带 `DefaultConstructorMarker` 的合成构造器 ⇒ 反射找不到、运行时崩。时钟从容器取，不从构造参数取 |
+| **5a** ✅ 已做（2026-09-18） | `Application` 子类 + 轻量容器：`ChiliMeApp`（`AndroidManifest.xml` 挂 `android:name`）持有 `AppContainer`（`clock` / `repo`）；`AppViewModel` 从 `application` 取容器，**构造签名保持 `(Application)` 不变** | `Application` 子类由 0 变 1（容器挂在它上面）；`FoodRepository(application)` 现场构造归零；**不引入 Hilt/Koin** | ⚠️ **不能给 `AppViewModel` 加带默认值的第二参数**：`ViewModelProvider` 的默认工厂用反射找 `(Application)` 构造器，而 Kotlin 的默认参数只生成带 `DefaultConstructorMarker` 的合成构造器 ⇒ 反射找不到、运行时崩。时钟从容器取，不从构造参数取 ⇒ **实施时已遵守**（VM 构造签名一字未动；容器里先放好 `clock`，#5b 再接线） |
 | **5b** | 时钟注入：`FoodRepository` 的 `internal` 主构造加 `clock: Clock = Clock.systemDefaultZone()`，替换数据层 7 处 + VM 5 处硬调；给「跨零点的归档裁剪 / 消耗压缩 / 自动同步间隔」补单测 | 数据层与 VM 的 `now()` 硬调 **0** 处（UI 侧 9 处刻意保留，并在脚本里注明口径）；新增单测**用固定时钟**断言跨零点行为；单测数只增不减 | 行为必须逐位不变：默认值就是系统时钟 ⇒ 生产路径零改动。`FoodRepositoryGuardTest` 已经能用 internal 构造传临时 DataStore，加时钟是同一套路 |
 | **5c** | 按领域拆分（**纯搬运**，签名与实现不改）：核心读写与损坏三态（`Decoded` / `DecodeCache` / `rawFlow` / `markCorrupt`）留作共用底座；其余按库存、归档、消耗、备份导入导出、设置与凭据分文件 | `FoodRepository.kt` 不再是 950 行单文件；每个新文件 < 400 行；`git diff --stat` 里**新增行数 ≈ 删除行数**（纯搬运的判据）；三个测试同批改完、CI 绿 | 本项最险：一次要搬 48 个函数。建议**一个领域一个提交**（库存 → 归档 → 消耗 → 备份 → 设置），每个提交自带守卫改动；每搬完一个领域立刻 `git diff -w --stat` 确认没顺手改实现 |
 
@@ -238,6 +241,44 @@
 - **顺带**：`ImeHandlingTest` 点名 10 个文件（`MainActivity.kt` / `MainApp.kt` / `BatchBars.kt` / `NavChrome.kt`
   + 4 个屏幕 + `AppFormDialog.kt` / `AppBatchMoveDialog.kt`）。拆 Repository 正常碰不到它，5a 也不需要动
   `MainActivity.kt`（容器挂在 `Application` 上，从 VM 里取）⇒ **清单不动**。
+
+### 5a 落地结果（2026-09-18，提交见台账）
+
+- **新增 `ChiliMeApp.kt`**（本仓第一个 `Application` 子类）：`AppContainer(context: Application)` 持有
+  `clock`（`Clock.systemDefaultZone()`，**#5b 才接线**）与 `repo`（`by lazy { FoodRepository(context) }`）；
+  `ChiliMeApp` 用 `val container by lazy { AppContainer(this) }` 持有容器；`AndroidManifest.xml` 挂
+  `android:name=".ChiliMeApp"`；`AppViewModel` 那行现场构造改成 `(application as ChiliMeApp).container.repo`
+  （构造签名保持 `(Application)` 不变，理由见上表的风险列）。参数类型刻意收成 `Application` 而不是 `Context`：
+  容器是进程级的，若收 `Context`，某天有人把 Activity 传进来就会被容器一直握着 ⇒ 整个界面泄漏。
+- **两个刻意的设计选择**：
+  1. **容器用 `by lazy`，不用「`onCreate` 里赋值 + `lateinit var`」那个常见写法**：`ContentProvider.onCreate()`
+     的执行时机**早于** `Application.onCreate()`（本仓注册了 `FileProvider`）⇒ `lateinit` 版本会让
+     "在 provider 里（或它拉起的东西里）取容器"变成 `UninitializedPropertyAccessException`，
+     而这种崩溃只在真机上出现、还离原因很远。`by lazy` 把"必须先 onCreate"这个时序假设整个去掉，
+     顺带没有可写的 `var` 暴露出去（容器一旦建好就换不掉）。
+  2. **VM 里用硬转型，不用 `as? … ?: FoodRepository(application)` 兜底**：兜底会悄悄造出**第二个**仓库实例
+     （各带一份损坏状态与解码缓存），比启动即崩更难查。转型失败只可能是 Manifest 少挂 `android:name`
+     这类配置错 ⇒ 让它响，而且响在启动第一行。
+- **共享一个实例比改造前更安全**：改造前每次构造 VM 都现场 new 一个仓库，各自持有独立的损坏 key 集合与
+  解码缓存 —— 真出现两个 VM 实例时，一个看到的损坏状态另一个看不到。现在全进程一份，不存在这种分叉。
+- **新增守卫「依赖构造点（目标：只在容器里 1 处）」**（`tools/doc-metrics.sh`，与代码同提交）：
+  ① 现场构造只允许出现在 `ChiliMeApp.kt`（验收 ②「依赖只有一个构造点」）；
+  ② **`Application` 子类必须恰好 1 个、且 Manifest 里挂着同名的 `android:name`** —— 这条守的是
+  **编译器与单测都发现不了**的错：Manifest 漏挂、或类名改了没同步，`(application as ChiliMeApp)`
+  会在**运行时** ClassCastException，而单测里没人构造 VM ⇒ CI 能一路绿到用户手里。自带阳性对照（内嵌样本）。
+- **顺带修掉 `doc-metrics.sh` 一个会静默偏低的 bug**：`occ()` 用的 `git grep` **默认只搜已跟踪文件**，
+  新建但还没 `git add` 的文件对它是隐形的 ⇒ 开发中量到的数偏低，而"偏低"正好等于"新写的东西没被算进去"，
+  最难察觉。本次当场撞上：新建 `ChiliMeApp.kt` 后「Application 子类」那行报 **0**，
+  而同一次运行里用 glob 走文件系统的新守卫报 **1** ⇒ 同一件事两个答案。已加 `--untracked`
+  （仍尊重 `.gitignore`，不会把 `build/` 算进来）。修完立刻多揪出 3 处文档不符，其中 **2 处是本次新写的
+  KDoc 散文把被追踪的计数撑大了**：连写「类名点 now()」让「now() 直接调用」34→36、写出字段名让
+  「`corruptedKeys` 出现次数」32→33 ⇒ 已把两处散文改成不触发正则的写法，并在代码注释里写明为什么，
+  免得后人"顺手改回更自然的写法"。
+- **现值**：`Application` 子类 **1** 个；仓库现场构造 **1** 处（全在容器里）；`AppViewModel` 构造签名未变；
+  单测 **143** 例（本阶段不新增：容器只是把构造点搬了个家，没有可测的新逻辑，而 `AppContainer` 要真跑起来
+  需要 Android 环境 ⇒ 守卫做在 `doc-metrics.sh` 里而不是单测里）。
+- **待真机复测**：本阶段理论上零行为变化（同一个仓库、同一个 DataStore、同一套调用），
+  但"App 能不能正常启动"这件事只有装上才知道 ⇒ 与 5b/5c 一起在 #5 收官时复测一轮（冷启动 + 各页正常）。
 
 ## #6 派生数据下沉 VM + `WhileSubscribed`（**范围比原路线图小**）
 
