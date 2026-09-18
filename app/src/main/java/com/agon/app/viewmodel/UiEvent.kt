@@ -71,8 +71,17 @@ sealed interface UiEvent {
     /**
      * 只报信、不带撤销动作的提示。
      *
-     * [surface] 可由发送方指定（默认 [UiSurface.Home] = 启动时自动同步那条）；
-     * 设置页的同步/还原**成功**提示走 [UiSurface.Settings]。
+     * #4c 之前它只有一种用法：启动时自动同步成功后那句「已自动同步到坚果云 ☁️」，落 [UiSurface.Home]。
+     * 现在设置页的同步 / 还原 / 导入**成功**提示也走这里（落 [UiSurface.Settings]），
+     * 失败走 [OpFailed]（带分类），「拉到了但云端是空的」走 [CloudBackupsEmpty]。
+     *
+     * [surface] 的默认值仍是 [UiSurface.Home]，好让启动自动同步那条调用点保持原样、不必跟着改。
+     *
+     * ⚠️ 上面那句文案是**照着原文抄进注释的**，重写本段时别把它写没：`SnackbarCopyTest`
+     * 的阳性对照（「注释剥离本身有效」）拿它当样本 —— 这句话在本文件里只存在于注释中，
+     * 剥掉注释后必须查不到，才能证明那些「某句话只出现在某文件」的分布断言数的是代码而不是注释。
+     * 2026-09-18 改 #4c 时就把它写丢了，CI 红在单测那一步；本地没有编译器、Actions 的日志端点
+     * 又被墙（只取得到 annotations），最后是把那份守卫逐条镜像成脚本才定位到的。
      */
     data class Notice(
         val message: String,
