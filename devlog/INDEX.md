@@ -101,7 +101,7 @@
   仍挂着未做：`paths-ignore`、APK 体积基线、`bundleRelease`(AAB)、
   `versionCode` 改用仓库内版本文件（现为 `github.run_number`，`release.yml:112`）。
 
-- ⏳ **#10 UI/VM 层拆分收尾（`SettingsScreen.kt` 1,705 行 + `AppViewModel.kt` 700 行）** —— 2026-09-18 规划完成、未开工。
+- 🔨 **#10 UI/VM 层拆分收尾（`SettingsScreen.kt` 1,705 → **1,079** 行 + `AppViewModel.kt` 700 行）** —— **10a-1 已落地（2026-09-18）**：弹窗区（352–986，跨 635 行）逐字搬到同包 `SettingsBackupDialogs.kt`(233) / `SettingsCloudDialogs.kt`(368) / `SettingsSnapshotDialogs.kt`(207)，行为零改动 ⇒ 不占用复测；10a-2（两套 body）起未开工。
   **含 #6 的执行**（10c = 加 `WhileSubscribed`），因为两者动同一片代码、共用一轮真机复测。
   10a（设置页：645 行弹窗区抽出 + 两个 body 抽出）与 10b（VM 的 50 个函数按领域搬成同包 `internal` 扩展函数，与 #5c 同形）
   是**结构搬运、不改行为 ⇒ 不单独占用用户复测时间**；10c 是行为改动（后台不再预热、冷进页面首帧可能等一次解码）
@@ -130,7 +130,9 @@
 - 归档 `take(200)` 静默丢最老记录（`FoodRepository.kt:487` / `:630`）→ 需独立计数器 + UI 提示
 - 恢复路径（导入 / 快照 / 云端）无集成测试
 - `ImeHandlingTest.codeOnly()` 改走词法状态机 —— 现用块注释正则，不认字符串字面量，
-  `SettingsScreen.kt:379` 的 MIME 通配符会吞掉约 600 行真代码；`MiuixDialogContentTest` 里已有验证过的实现可抄
+  `SettingsBackupDialogs.kt:106` 的 MIME 通配符会吞掉约 600 行真代码（#10a-1 前在 `SettingsScreen.kt:379`，
+  拆分后它与那处键盘避让已不同文件，吞不到一起了，但 `codeOnly()` 本身的毛病还在）；
+  `MiuixDialogContentTest` 里已有验证过的实现可抄
 - `FoodCard.kt:161/251` 自己分流了一份进度条，与组件层 `AppLinearProgress` **不同构**（6dp vs `LinearProgressHeight = 8.dp`、`weight(1f)` vs `fillMaxWidth()`）⇒ 收编是**视觉改动**而非纯重构，需两主题真机复测（2026-09-17 文档审计时发现）
 - ktlint 只开了 6 条规则（见 `.editorconfig`），全量规则集待评估
 - `ObsoleteSdkInt` 3 处 · README / 商店截图缺失

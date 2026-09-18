@@ -123,12 +123,15 @@ class ImeHandlingTest {
      * 算成一处实现（拆分当天就踩到了：注释让计数从 4 变 5，还让底栏那条 assertFalse 直接误报）。
      *
      * ⚠️ **已知局限（2026-09-17 发现，尚未修）**：块注释正则不认字符串字面量。源码里出现 MIME 全通配符
-     * （星号 + 斜杠 + 星号那种写法，`SettingsScreen.kt:379` 的 `arrayOf(...)` 第三个元素就是）时，
+     * （星号 + 斜杠 + 星号那种写法，`SettingsBackupDialogs.kt:106` 的 `arrayOf(...)` 第三个元素就是；
+     * #10a-1 前它在 `SettingsScreen.kt:379`）时，
      * 其中的「斜杠星号」会被当成本函数的块注释开头，与后文第一个「星号斜杠」（往往是几百行外某段 KDoc 的结尾）
-     * 配对，把中间的真实代码整段吞掉 —— 实测吞掉 379–976 行约 600 行，坚果云弹窗那处键盘避让正在其中。
+     * 配对，把中间的真实代码整段吞掉 —— 拆分前实测吞掉 379–976 行约 600 行，坚果云弹窗那处键盘避让正在其中。
      * 后果分两面：计数偏低会**假失败**（响，能发现），而 `assertFalse` 类断言会变**空转**（不响，危险）。
-     * 目前只有 `SettingsScreen.kt` 命中，且它不在第 2 条的 chromeFiles / navBarFiles 清单里，
+     * 目前只有 `SettingsBackupDialogs.kt` 命中，且它不在第 2 条的 chromeFiles / navBarFiles 清单里，
      * 故现有断言都还成立；第 3 条新增的那半因此改为匹配赋值形态、绕开本函数。
+     * ℹ️ #10a-1 之后 MIME 字面量与那处键盘避让**已不在同一个文件**（避让在 `SettingsCloudDialogs.kt`），
+     * 吞不到一起了；但第 3 条仍按赋值形态匹配、不依赖本函数 —— 万一将来又同文件也不会假失败。
      * 正解是让剥离也走词法状态机（`MiuixDialogContentTest` 里已有一份验证过的），登记在 devlog 待办。
      *
      * 本段刻意用中文描述那两个符号而不写出来：**Kotlin 的块注释可嵌套**，在 KDoc 里写「斜杠星号」会让本注释
@@ -192,7 +195,9 @@ class ImeHandlingTest {
      * 而这里没同步，2026-09-17 起会**直接红**（见 [assertAllListedFilesExist]），不再静默少覆盖。
      */
     private val dialogFiles = listOf(
-        "com/agon/app/ui/screens/SettingsScreen.kt",        // 坚果云账号 / 应用密码
+        // #10a-1（2026-09-18）：坚果云账号弹窗（账号 + 密码两个输入框）随弹窗区搬去同包新文件，
+        // 条目跟着搬 —— 不搬就会红：SettingsScreen.kt 里已经没有 decorFitsSystemWindows 了。
+        "com/agon/app/ui/screens/SettingsCloudDialogs.kt",
         // 分类名称 + Emoji、添加存放位置：2026-09-16 第 6 对把这两个弹窗搬进了组件层，条目跟着搬
         "com/agon/app/ui/components/app/AppFormDialog.kt",
         // 批量「移动存放位置」弹窗：2026-09-16 补入清单时它在 MainActivity.kt，同日拆分后落在 AppDialogs.kt，
@@ -206,9 +211,10 @@ class ImeHandlingTest {
     /**
      * 第 3 条后半：关掉 decorFits 只是「拿得到 inset」，还得**真的避让**。两种写法都认。
      *
-     * 这里**刻意不用 codeOnly()**，而是匹配完整的赋值形态：`SettingsScreen.kt:379` 那个 MIME 数组里有一项
+     * 这里**刻意不用 codeOnly()**，而是匹配完整的赋值形态：`SettingsBackupDialogs.kt:106`（#10a-1 前是
+     * `SettingsScreen.kt:379`）那个 MIME 数组里有一项
      * 是「星号斜杠星号」写法的全通配符，其中「斜杠星号」两字符会被 codeOnly() 的块注释正则当成注释起点，
-     * 一路吞到 976 行 KDoc 的注释结尾为止 —— 600 行真实代码（含坚果云弹窗那处避让）在「只剩代码」的视图里
+     * 一路吞到 976 行 KDoc 的注释结尾为止 —— 拆分前那 600 行真实代码（含坚果云弹窗那处避让）在「只剩代码」的视图里
      * 根本不存在，断言就会假失败。赋值形态不会出现在散文里，所以直接匹配原文既精确又不依赖注释剥离
      * （该坑已记在 codeOnly() 的 KDoc 与 devlog 2026-09-17）。
      *

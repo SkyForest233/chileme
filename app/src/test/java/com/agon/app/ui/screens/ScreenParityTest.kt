@@ -19,7 +19,8 @@ import java.io.File
  * 按前缀枚举会让**刚合并完的屏幕逃出守卫**（Miuix 分支还在文件里，却没人查它了）。
  * 故规则改为覆盖 screens 目录下的所有屏幕文件：
  * 1. 必须调用某个 `remember*UiState(` —— 即业务数据来自已测的状态容器；
- * 2. 不得出现 `sumOf {` / `groupBy {` / `count {` / `.sortedByDescending` —— 即不在 UI 层重做聚合；
+ * 2. 不得出现 `sumOf {` / `groupBy {` / `count {` / `.sortedByDescending` —— 即不在 UI 层重做聚合
+ *    （**扫描面比规则 1 宽**：screens 目录下除 `*State.kt` 的所有文件，见 [uiFiles]）；
  * 3. 统计页专项：口径只许来自 `StatsState`；
  * 4. 已合并的屏幕不许把 `Miuix<同名>` 的第二实现加回来。
  *
@@ -47,6 +48,9 @@ class ScreenParityTest {
             // 第 8 对（2026-09-16）：八对全数完成。两版只有 287 行逐字相同（八对里最低），
             // body 仍是 Md3SettingsBody / MiuixSettingsBody 两套；去重发生在弹窗（AppConfirmDialog /
             // AppOptionDialog）、SAF 启动器与 AppScaffold 骨架上。规则 1 靠 rememberSettingsUiState 通过。
+            // #10a-1（2026-09-18）：弹窗区 635 行搬到同包 SettingsBackupDialogs / SettingsCloudDialogs /
+            // SettingsSnapshotDialogs 三个文件（逐字搬、非屏幕文件，故不进 screenFiles()）；本条文件名不动 ——
+            // 屏幕入口还在原地，且 rememberSettingsUiState( 也还在里面（规则 1 靠它通过）。
             "SettingsScreen.kt",
         )
     }
@@ -60,6 +64,24 @@ class ScreenParityTest {
     /** 屏幕文件 = `*Screen.kt` 与 `*Screens.kt`（管理三页合住一个文件）；`*State.kt` 是状态层，不在此列。 */
     private fun screenFiles(dir: File): List<File> =
         dir.listFiles { f -> f.name.endsWith("Screen.kt") || f.name.endsWith("Screens.kt") }
+            .orEmpty()
+            .sortedBy { it.name }
+
+    /**
+     * 规则 2 的扫描面 = screens 目录下的**所有 UI 文件**（只排除 `*State.kt` 状态层），刻意比 [screenFiles] 宽。
+     *
+     * ⚠️ 2026-09-18 #10a-1 起必须更宽：设置页的 9 个弹窗实现搬进了同包的 `*Dialogs.kt`
+     * （`SettingsBackupDialogs` / `SettingsCloudDialogs` / `SettingsSnapshotDialogs`），
+     * 只按 `*Screen.kt` 枚举会让那 800 多行 UI 代码**静默逃出**这条守卫 —— 而「守卫不响 ≠ 没问题」
+     * 正是本测试要防的失效方式（同 `MiuixDialogContentTest` 的 [ExpectedParsedSites] 下限、
+     * `tools/ci-gates.sh` 的 `detekt_selftest`）。搬家当天实测：目录内 4 个禁用模式的命中**全在
+     * `*State.kt`**（状态层的纯函数，本就该在那儿），非 State 文件 0 命中 ⇒ 加宽不改判定结果，只补覆盖。
+     *
+     * 规则 1（必须调 `remember*UiState`）**仍只按屏幕文件点名**：弹窗文件的 `state` 是调用方传进来的，
+     * 不该被要求自己去 remember（真要求了就会逼出第二个状态容器，反而违反规则 1 的本意）。
+     */
+    private fun uiFiles(dir: File): List<File> =
+        dir.listFiles { f -> f.isFile && f.extension == "kt" && !f.name.endsWith("State.kt") }
             .orEmpty()
             .sortedBy { it.name }
 
@@ -86,17 +108,17 @@ class ScreenParityTest {
     fun `屏幕不得内联聚合计算`() {
         val dir = screensDir()
         assumeTrue("找不到 screens 源码目录（非 Gradle 工作目录？），跳过", dir != null)
-        val screens = screenFiles(dir!!)
-        assertTrue("未找到任何屏幕文件，路径假设失效", screens.isNotEmpty())
+        val targets = uiFiles(dir!!)
+        assertTrue("未找到任何 UI 文件，路径假设失效", targets.isNotEmpty())
 
         // 只拦「聚合」这类业务计算：布局相关的 map/filter 不在此列
         val forbidden = listOf("sumOf {", "groupBy {", "count {", ".sortedByDescending")
-        val offenders = screens.mapNotNull { file ->
+        val offenders = targets.mapNotNull { file ->
             val hits = forbidden.filter { it in file.readText() }
             if (hits.isEmpty()) null else "${file.name}: ${hits.joinToString()}"
         }
         assertTrue(
-            "屏幕文件里出现了聚合计算，应下沉到 *State.kt 的纯函数（可 JVM 单测）：\n" +
+            "ui/screens 下的 UI 文件（含弹窗文件）里出现了聚合计算，应下沉到 *State.kt 的纯函数（可 JVM 单测）：\n" +
                 offenders.joinToString("\n"),
             offenders.isEmpty(),
         )

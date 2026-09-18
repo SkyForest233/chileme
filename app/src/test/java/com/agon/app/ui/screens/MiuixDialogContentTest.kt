@@ -23,7 +23,10 @@ import java.io.File
  * **守卫口径**：
  * 1. 每个能解析出尾随 lambda 的 `MiuixDialog(…)` 调用点，其 content 的顶层语句必须**恰好 1 条**；
  * 2. 成功解析的调用点数不得少于 [ExpectedParsedSites]（2026-09-17 实测 8 个：`AppBatchMoveDialog` 1 +
- *    `AppConfirmDialog` 1 + `AppFormDialog` 1 + `AppOptionDialog` 1 + `SettingsScreen` 4）。
+ *    `AppConfirmDialog` 1 + `AppFormDialog` 1 + `AppOptionDialog` 1 + 设置页 4）。
+ *    ⚠️ #10a-1（2026-09-18）后设置页那 4 个不在 `SettingsScreen` 里了，分布变成
+ *    `SettingsBackupDialogs` 1（导入预览）+ `SettingsCloudDialogs` 2（坚果云账号、云端备份选择）+
+ *    `SettingsSnapshotDialogs` 1（本地快照列表）—— 本测试递归扫全树，总数不变、仍是 8。
  *    解析不出来的调用点**不算违规**，但会让这个计数掉下来 —— 于是「解析器失效」与「弹窗被删」
  *    都会在这一条上响，守卫不会静默空转（与 `tools/ci-gates.sh` 的 `detekt_selftest` 同思路）。
  *
@@ -164,7 +167,7 @@ class MiuixDialogContentTest {
      * B. content 里出现 2 个及以上 `TextButton(` 时，至少一个必须显式传 `colors =` ——
      *    静态判不出「哪个是主要动作」，所以只约束「不许全是库默认色」：默认容器色是
      *    `secondaryVariant` 浅灰，全默认时用户分不出主要动作与「取消」。
-     *    危险动作传 error 色同样满足 B（`SettingsScreen` 的「覆盖导入」就是这种）。
+     *    危险动作传 error 色同样满足 B（`SettingsBackupDialogs` 的「覆盖导入」就是这种；#10a-1 前在 `SettingsScreen`）。
      */
     private fun scanButtons(file: File, violations: MutableList<String>) {
         val src = file.readText()

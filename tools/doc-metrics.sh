@@ -47,7 +47,7 @@ nfiles() { find "$@" -name '*.kt' 2>/dev/null | wc -l | tr -d ' '; }
 row() { printf '  %-34s %10s   %s\n' "$1" "$2" "$3"; }
 
 echo '════ 规模与结构（行数一律 wc -l）════'
-row '屏幕本体（不含 *State.kt）' "$(nfiles "$SCREENS" -not -name '*State.kt') 文件 / $(find "$SCREENS" -name '*.kt' -not -name '*State.kt' | xargs wc -l | tail -1 | awk '{print $1}') 行" 'ui/screens/*.kt 排除 *State.kt'
+row '屏幕目录 ui/screens（不含 *State.kt）' "$(nfiles "$SCREENS" -not -name '*State.kt') 文件 / $(find "$SCREENS" -name '*.kt' -not -name '*State.kt' | xargs wc -l | tail -1 | awk '{print $1}') 行" 'ui/screens/*.kt 排除 *State.kt；⚠️ #10a 起这里还含弹窗/body 文件，文件数增加不等于新增屏幕'
 row 'App 级组件层' "$(nfiles "$APPLAYER") 文件 / $(lines "$APPLAYER") 行" 'ui/components/app/*.kt'
 DATADIR=app/src/main/java/com/agon/app/data
 row 'FoodRepository.kt（#5c 后的核心）' "$(wc -l < $DATADIR/FoodRepository.kt | tr -d ' ') 行" '只剩 19 个 key + 19 条对外读取流 + 7 个解码包装 + 放弃损坏数据入口 = 9 个类级函数'
@@ -69,7 +69,7 @@ print((('%s %d 行%s' % (sizes[0][1], sizes[0][0],
                        (' => X 超 400 的有 ' + ', '.join(over)) if over else ' OK 全部 < 400')) if sizes else 'X 找不到源码（glob 空集）—— 本脚本会 cd 到自己所在目录的上一级，请在仓库根目录跑'))
 PY
 )" '#5 验收③在 data 层的落点；⚠️ UI/VM 层仍有 6 个文件超 400 行，不属 #5 范围（见 ROADMAP 全项验收③ 与 #10）'
-row '屏幕本体最大文件（#10 判据 < 400 行）' "$(python3 - <<'PY'
+row '屏幕目录最大文件（#10 判据 < 400 行）' "$(python3 - <<'PY'
 import glob, io, os
 sizes = sorted(((sum(1 for _ in io.open(f, encoding='utf-8')), os.path.basename(f))
                 for f in glob.glob('app/src/main/java/com/agon/app/ui/screens/*.kt')
@@ -78,7 +78,7 @@ over = ['%s %d' % (n, c) for c, n in sizes if c > 400]
 print((('%s %d 行%s' % (sizes[0][1], sizes[0][0],
                        (' => X 超 400 的有 ' + ', '.join(over)) if over else ' OK 全部 < 400')) if sizes else 'X 找不到源码（glob 空集）—— 本脚本会 cd 到自己所在目录的上一级，请在仓库根目录跑'))
 PY
-)" '#10 验收①的一半；口径同上面「屏幕本体」那行（排除 *State.kt）'
+)" '#10 验收①的一半；口径同上面「屏幕目录」那行（排除 *State.kt，含弹窗/body 文件）'
 row 'viewmodel/ 最大文件（#10 判据 < 400 行）' "$(python3 - <<'PY'
 import glob, io, os
 sizes = sorted(((sum(1 for _ in io.open(f, encoding='utf-8')), os.path.basename(f))

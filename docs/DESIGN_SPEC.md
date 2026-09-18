@@ -215,7 +215,7 @@ StatusUi 提供三个颜色槽位，按用途严格区分：
   `restartInput`、输入法窗口整个消失再出现，`WindowInsets.ime` 瞬时归零 ⇒ 居中弹窗上下坠一下。
   粘性避让在 inset 变小时先按住 `holdMillis`（默认 300ms）再平滑落回，焦点切换因此零位移；
   代价是主动收起键盘时弹窗晚 300ms 才落回居中。**只用于 MD3 弹窗**（三处：`AppFormDialog` /
-  `AppBatchMoveDialog` / `SettingsScreen` 坚果云）；**Miuix 侧无法同样处理**（上游无任何 IME 平滑能力，
+  `AppBatchMoveDialog` / `SettingsCloudDialogs` 坚果云 —— #10a-1 前在 `SettingsScreen`）；**Miuix 侧无法同样处理**（上游无任何 IME 平滑能力，
   唯一开关 `defaultWindowInsetsPadding = false` 会连带关掉 `navigationBarsPadding` / `captionBarPadding`）。
   详见 `docs/ARCHITECTURE.md` §5「键盘避让」与 `devlog/2026-09-17.md` §2–§6。
 
@@ -262,7 +262,7 @@ StatusUi 提供三个颜色槽位，按用途严格区分：
 - 迁移进度（v2.8 起，2026-09-16 校正）：
   - **已 Miuix 化（全部屏幕除编辑页）**：设置页、首页、食品列表、食品详情、归档页、管理三页（阈值/分类/位置）、**统计页**，以及底部导航（悬浮/全宽）、FAB、`ui/components/` 复用组件（StatusBadge/LocationTag/QuantityStepper/EmptyState/FoodCard/DataCorruptBanner）。统计页的**图表是 `Canvas` + `layout` 自绘**（与主题无关，两版逐字相同，合并后只有一份），外壳与组件（Scaffold/TopAppBar/Card/Text/Icon/SmallTitle）走 Miuix。
   - **已合并为单文件双主题（2026-09-16，第三批 #3；八对收官）**：消耗记录页 / 归档页 / 食品详情页 / 首页 / 食品列表页 / 管理页三合一 / 统计页 / 设置页 —— `Miuix*Screen.kt` 双胞胎 **8 → 0**；`screens/` 下现为 **9 个屏幕文件**（含从未有双胞胎的编辑页）+ **8 个 `*State.kt`**。第 6 对之后 `AppNavGraph.kt` 已不含主题分支，第 8 对之后 `NavChrome.kt` 也不含了。
-    - **口径（这些行数账的唯一落点；复核跑 `bash tools/doc-metrics.sh`）**：屏幕本体（不含 `*State.kt`）**9 文件 4,209 行**、组件层 `ui/components/app/` **12 文件 3,075 行**、渲染层合计 **7,284 行**；相对 09-16 之前的基线（17 文件 7,541 行）：屏幕本体 **-44%**、渲染层合计 **-3.4%**（2026-09-17 实测）。
+    - **口径（复核跑 `bash tools/doc-metrics.sh`）**：⚠️ **本行的三个数是 2026-09-17 的快照，#10a-1 后又变了** （弹窗抽到同包 3 个新文件 ⇒ `ui/screens/` 下除 `*State.kt` 的文件从 9 个变 12 个，其中 3 个不是屏幕而是弹窗文件）。现值一律看 doc-metrics 的「屏幕目录 ui/screens（不含 *State.kt）」「App 级组件层」两行，本行只作历史快照保留：屏幕本体（不含 `*State.kt`）**9 文件 4,209 行**、组件层 `ui/components/app/` **12 文件 3,075 行**、渲染层合计 **7,284 行**；相对 09-16 之前的基线（17 文件 7,541 行）：屏幕本体 **-44%**、渲染层合计 **-3.4%**（2026-09-17 实测）。
       09-16 收官时记的是 4,204 / 2,746 / 6,950（-8%）—— **当时记得没错**（在 `5788ae2` 上复核即为这三个数），是此后变了：09-17 的 IME 修复与弹窗搬家让渲染层净增 **334** 行（新增 `AppIme.kt` 85 + `AppBatchMoveDialog.kt` 211，改动 `AppFormDialog` / `AppConfirmDialog` / `SettingsScreen`；`git diff --stat 5788ae2 HEAD -- app/src/main/java/com/agon/app/ui/` 可复核）。
 ⚠️ 原验收「4,500 量级 / -24%」**不成立**；「-24%」「4,500 量级」「7,205 行 / 16 文件」「7,541 行 / 17 文件」四个数字**均已作废且彼此不可换算**（后两者是同日两个不同文件集口径）。复盘见 `devlog/2026-09-16.md` §22 与 `docs/ROADMAP.md`「#3 收官」。
     - **两个刻意的例外（别当缺陷去「修」）**：① **设置页 body 保留两套**（`Md3SettingsBody` / `MiuixSettingsBody`）—— 两版排版习语根本不同（MD3 是滚动 `Column` + `Surface` 分组卡片，Miuix 是 `LazyColumn` + 库的 Preference 组件；664 行里只有 **287 行逐字相同**，八对最低），去重发生在 9 个弹窗（其中 5 个收进 `AppConfirmDialog` / `AppOptionDialog`）与骨架上，故该对收缩率只有 **-20%**；② **统计页图表**是 `Canvas` + `layout` 自绘、与主题无关（合并前就是一份语义两份拷贝，合并只删拷贝、无处可缩 ⇒ 该对 **-55%**），且只此一屏用 ⇒ **不进通用组件层**。

@@ -111,7 +111,7 @@ grep -rn "top.yukonga.miuix.kmp" app/src/main/java | sed 's/.*import //' | sort 
 5. **桥接层**：`MiuixRootTheme.kt` 的 `miuixColorsToMd3ColorScheme` 是「MD3 页面取色」的过渡层，升级时若 Miuix `Colors` 字段变化，需同步修正映射。
 6. **状态色**：安全/临期/过期是硬编码语义色（`Color.kt`），不随主题/版本变。
 7. **minSdk 26 不变**（2026-08-21 由 24 提升：全项目 28 处 `java.time` 未开脱糖，API 24/25 会 `NoClassDefFoundError`。除非新 Miuix 强制要求更高，需评估）。
-8. **Miuix 弹窗的 `content` 必须是单一根节点**（2026-09-17 真机复测踩坑）：库 `DialogContent` 把 `title` / `summary` / `content()` 依次放进一个**不带 `verticalArrangement` 的 Column**（间距只由 title、summary 各自的 `padding(bottom = 12.dp)` 提供），所以 content 里两个平级节点之间是 **0dp**。标准写法：单一 `Column(verticalArrangement = Arrangement.spacedBy(12.dp))`，按钮区再额外留 4~8.dp（上游示例 `example/shared/.../component/DialogSection.kt:351`；本仓 `app/AppBatchMoveDialog.kt` / `AppFormDialog.kt` / `SettingsScreen.kt` 坚果云弹窗）。静态守卫：`MiuixDialogContentTest`。
+8. **Miuix 弹窗的 `content` 必须是单一根节点**（2026-09-17 真机复测踩坑）：库 `DialogContent` 把 `title` / `summary` / `content()` 依次放进一个**不带 `verticalArrangement` 的 Column**（间距只由 title、summary 各自的 `padding(bottom = 12.dp)` 提供），所以 content 里两个平级节点之间是 **0dp**。标准写法：单一 `Column(verticalArrangement = Arrangement.spacedBy(12.dp))`，按钮区再额外留 4~8.dp（上游示例 `example/shared/.../component/DialogSection.kt:351`；本仓 `app/AppBatchMoveDialog.kt` / `AppFormDialog.kt` / `SettingsCloudDialogs.kt` 坚果云弹窗 —— #10a-1 前在 `SettingsScreen.kt`）。静态守卫：`MiuixDialogContentTest`。
 9. **Miuix 弹窗的动作按钮一律用 `TextButton`，主要动作传 `ButtonDefaults.textButtonColorsPrimary()`**（2026-09-17 真机复测踩坑）：库的 `TextButton` **不是**无底文字按钮 —— 它内部就是 `Button`，用 `.squircleSurface(color = containerColor)` 实心填充（`basic/Button.kt:76`）；默认 `textButtonColors()` 的容器色是 `secondaryVariant`（浅灰），所以不传 `colors` 时「确定 / 保存 / 添加」和「取消」完全同色。`textButtonColorsPrimary()` = 容器 `primary` 蓝 + 文字 `onPrimary` 白 + 对应 disabled 角色 ⇒ 蓝底白字胶囊（上游 `DialogSection.kt` 的 7 个弹窗一律如此）。弹窗里**不要**用 `Button` + `buttonColorsPrimary()`：颜色虽同，但要自己补文字色与字重、拿不到 `textStyles.button` 与 disabled 角色。静态守卫：`MiuixDialogContentTest.dialogActionsFollowMiuixButtonConvention`。
 
 ---
@@ -160,7 +160,7 @@ grep -rn "top.yukonga.miuix.kmp" app/src/main/java | sed 's/.*import //' | sort 
 | `app/src/main/java/com/agon/app/ui/theme/ThemeStyle.kt` | 主题风格枚举 |
 | `app/src/main/java/com/agon/app/ui/components/app/` | **App 级双主题外壳 —— Miuix API 调用最集中的一层**（`AppScaffold` / `AppTopBar` / 确认·表单·选项三类弹窗 / `AppText` / `AppButtons` / `AppIme` …）。组件清单与每个组件的关键约定见 [`docs/DESIGN_SPEC.md`](DESIGN_SPEC.md) **§4.1（由源码生成，本表不复述）** |
 | `app/src/main/java/com/agon/app/ui/components/*.kt` | 复用组件（10 个文件，**单文件双主题** —— 分流在组件内部走 `LocalThemeStyle`，不是两份实现）；2026-09-16 由**已删除**的 `Common.kt` 拆出 8 个，另有原本就独立的 `UndoSnackbar.kt` / `ExpiryCalendar.kt` |
-| `app/src/main/java/com/agon/app/ui/screens/*.kt` | 屏幕：9 个渲染文件 + 8 个 `*State.kt`。⚠️ **`Miuix*Screen.kt` 双胞胎已于 2026-09-16 全部删除**，别照旧清单去找「各页 Miuix 实现」—— Miuix 分支现在就写在同一个屏幕文件里 |
+| `app/src/main/java/com/agon/app/ui/screens/*.kt` | 屏幕：9 个渲染文件 + 3 个设置页弹窗文件（`Settings*Dialogs.kt`，#10a-1 起，不是新增屏幕）+ 8 个 `*State.kt`。⚠️ **`Miuix*Screen.kt` 双胞胎已于 2026-09-16 全部删除**，别照旧清单去找「各页 Miuix 实现」—— Miuix 分支现在就写在同一个屏幕文件里 |
 | 包根 `app/src/main/java/com/agon/app/*.kt` | `MainActivity` / `MainApp` / `AppNavGraph` / `NavChrome` / `BatchBars` —— 底栏四套形态、`NavDisplay` 转场与系统圆角、Snackbar / FAB / 批量栏都在这层调 Miuix API |
 | `.claude/skills/miuix/` | skill（组件 API 证据基线） |
 | `docs/audits/2026-08-20-miuix-review.md` | 设计审查报告 |
