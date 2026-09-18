@@ -14,6 +14,8 @@ import com.agon.app.data.DefaultLocations
 import com.agon.app.data.FoodItem
 import com.agon.app.data.FoodRepository
 import com.agon.app.data.HistoryEntry
+import com.agon.app.data.OpFailure
+import com.agon.app.data.toOpFailure
 import com.agon.app.data.CloudBackup
 import com.agon.app.data.LocalSnapshot
 import com.agon.app.data.LocalSnapshotStore
@@ -42,6 +44,15 @@ import kotlinx.coroutines.withContext
 import java.util.UUID
 
 private const val TAG = "AppViewModel"
+
+/**
+ * 「还没填凭据」这句话在 3 个入口（上传 / 拉列表 / 下载）各写了一遍，且字字相同 ⇒ 抽成常量。
+ * 不是为省字：三处若各写一遍，改一处忘两处就会让用户在同一件事上看到三种说法。
+ *
+ * 放顶层而不是类内：Kotlin 的 `const val` 只能在**顶层或 companion object** 里，
+ * 类体内直接写 `private const val` 编译不过（本文件的 [TAG] 同样是顶层，沿用这个惯例）。
+ */
+private const val NO_CREDENTIALS_MESSAGE = "请先填写并保存坚果云账号和应用密码"
 
 class AppViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -169,6 +180,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private val appShellEvents = Channel<UiEvent>(Channel.BUFFERED)
     private val homeEvents = Channel<UiEvent>(Channel.BUFFERED)
     private val consumptionLogEvents = Channel<UiEvent>(Channel.BUFFERED)
+    private val settingsEvents = Channel<UiEvent>(Channel.BUFFERED)
 
     /** 主壳覆盖层（`MainApp`）的事件：撤销消耗、恢复归档。 */
     val appShellUiEvents: Flow<UiEvent> = appShellEvents.receiveAsFlow()
@@ -179,12 +191,16 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     /** 消耗记录页 `AppScaffold` 的事件：删除记录的撤销。 */
     val consumptionLogUiEvents: Flow<UiEvent> = consumptionLogEvents.receiveAsFlow()
 
+    /** 设置页 `AppScaffold` 的事件：同步 / 还原的成败提示（#4c 之前是 4 个 `(Boolean, String)` 回调）。 */
+    val settingsUiEvents: Flow<UiEvent> = settingsEvents.receiveAsFlow()
+
     /** 一次性事件的**唯一发送点**：按 [UiEvent.surface] 分流到对应宿主的队列。 */
     private suspend fun emit(event: UiEvent) {
         when (event.surface) {
             UiSurface.AppShell -> appShellEvents.send(event)
             UiSurface.Home -> homeEvents.send(event)
             UiSurface.ConsumptionLog -> consumptionLogEvents.send(event)
+            UiSurface.Settings -> settingsEvents.send(event)
         }
     }
 
@@ -419,15 +435,27 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
      *
      * 快照失败（例如当前数据本身已损坏、无法序列化）**不阻断导入**——那种情况正是导入的用途。
      *
-     * @param onResult 参数一：导入是否成功；参数二：导入前快照是否已保存。
+     * 成败经 [UiEvent]（落点 [UiSurface.Settings]）报信：那三句话此前写在 `SettingsScreen` 里，
+     * 由界面拿 `(ok, snapshotSaved)` 两个布尔拼出来 —— 与还原快照/云端恢复的文案是同一套句式，
+     * 却分散在两个文件里。#4c 一并收到 VM，句式与用词逐字未改。
      */
-    fun importBackupWithSnapshot(raw: String, onResult: (ok: Boolean, snapshotSaved: Boolean) -> Unit) =
+    fun importBackupWithSnapshot(raw: String) =
         viewModelScope.launch {
             // 快照（含整份 JSON 序列化与落盘）与导入都放 IO 线程，避免主线程卡顿
             val snapshotSaved = snapshotBeforeRestore()
             if (snapshotSaved) loadLocalSnapshots()
             val ok = withContext(Dispatchers.IO) { repo.importBackupJson(raw) }
-            onResult(ok, snapshotSaved)
+            if (ok) {
+                emit(
+                    UiEvent.Notice(
+                        if (snapshotSaved) "导入成功，数据已恢复 ✅（已自动留存导入前快照）"
+                        else "导入成功，数据已恢复 ✅（导入前快照未能保存）",
+                        UiSurface.Settings,
+                    ),
+                )
+            } else {
+                emit(UiEvent.OpFailed(DataOp.ImportBackup, OpFailure.Other("导入失败：文件格式不正确")))
+            }
         }
 
     // ---- 本地快照管理 ----
@@ -463,23 +491,27 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
      * 反过来的话，快照份数已达上限（[LocalSnapshotStore.MAX_SNAPSHOTS] = 3）时，
      * 新写的那份会把要还原的旧快照挤掉（按修改时间淘汰），导致「点了还原却报找不到」。
      */
-    fun restoreLocalSnapshot(fileName: String, onResult: (Boolean, String) -> Unit) = viewModelScope.launch {
+    fun restoreLocalSnapshot(fileName: String) = viewModelScope.launch {
+        // 两条失败路径（读不出来 / 导不进去）今天是同一句话，故共用一个值 —— 写两遍就有改一处忘一处的风险。
+        val corrupt = OpFailure.Other("快照文件损坏或无法还原")
         val raw = LocalSnapshotStore.readSnapshot(getApplication(), fileName)
         if (raw == null) {
-            onResult(false, "快照文件损坏或无法还原")
+            emit(UiEvent.OpFailed(DataOp.RestoreSnapshot, corrupt))
             return@launch
         }
         val snapshotSaved = snapshotBeforeRestore()
         if (snapshotSaved) loadLocalSnapshots()
         if (repo.importBackupJson(raw)) {
             loadLocalSnapshots()
-            onResult(
-                true,
-                if (snapshotSaved) "已从本地快照还原数据 ✅（已自动留存还原前快照）"
-                else "已从本地快照还原数据 ✅（还原前快照未能保存）",
+            emit(
+                UiEvent.Notice(
+                    if (snapshotSaved) "已从本地快照还原数据 ✅（已自动留存还原前快照）"
+                    else "已从本地快照还原数据 ✅（还原前快照未能保存）",
+                    UiSurface.Settings,
+                ),
             )
         } else {
-            onResult(false, "快照文件损坏或无法还原")
+            emit(UiEvent.OpFailed(DataOp.RestoreSnapshot, corrupt))
         }
     }
 
@@ -488,19 +520,24 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun saveNutstoreCredentials(account: String, password: String) =
         viewModelScope.launch { repo.setNutstoreCredentials(account, password) }
 
-    /** 上传当前数据到坚果云。回调参数：成功与否、提示消息。 */
-    fun syncUpload(onResult: (Boolean, String) -> Unit) = viewModelScope.launch {
+    /**
+     * 上传当前数据到坚果云。成败经 [UiEvent]（落点 [UiSurface.Settings]）报信，不再要回调。
+     *
+     * 本地数据异常那条走 [OpFailure.Other] 而不是 `toOpFailure()`：它不是同步失败，
+     * 用类型归类会把一个本地错误误报成"网络问题"。
+     */
+    fun syncUpload() = viewModelScope.launch {
         val account = nutstoreAccount.value
         val password = nutstorePassword.value
         if (account.isBlank() || password.isBlank()) {
-            onResult(false, "请先填写并保存坚果云账号和应用密码")
+            emit(UiEvent.OpFailed(DataOp.Upload, OpFailure.Other(NO_CREDENTIALS_MESSAGE)))
             return@launch
         }
         _syncing.value = true
         // 同上：损坏态下拒绝上传，避免残缺备份覆盖云端完好版本。
         val json = runCatching { repo.buildBackupJson() }.getOrElse {
             _syncing.value = false
-            onResult(false, it.message ?: "数据异常，已取消上传")
+            emit(UiEvent.OpFailed(DataOp.Upload, OpFailure.Other(it.message ?: "数据异常，已取消上传")))
             return@launch
         }
         val result = NutstoreSync.upload(account, password, json)
@@ -510,9 +547,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 val time = java.time.LocalDateTime.now()
                     .format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"))
                 repo.setLastSync("上传于 $time")
-                onResult(true, "已上传到坚果云 ☁️")
+                emit(UiEvent.Notice("已上传到坚果云 ☁️", UiSurface.Settings))
             },
-            onFailure = { onResult(false, it.message ?: "上传失败") },
+            onFailure = { emit(UiEvent.OpFailed(DataOp.Upload, it.toOpFailure("上传失败"))) },
         )
     }
 
@@ -524,12 +561,21 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private val _loadingBackups = MutableStateFlow(false)
     val loadingBackups: StateFlow<Boolean> = _loadingBackups.asStateFlow()
 
-    /** 拉取云端备份列表，供用户选择恢复哪一份。 */
-    fun loadCloudBackups(onResult: (Boolean, String) -> Unit) = viewModelScope.launch {
+    /**
+     * 拉取云端备份列表，供用户选择恢复哪一份。
+     *
+     * 三种结果各走各路（改造前它们被压进一个 Boolean）：
+     * - **非空** ⇒ 不发事件：列表由 [cloudBackups] 这个 `StateFlow` 驱动，选择器保持打开
+     *   （改造前是 `onResult(true, "")`，界面拿到空字符串什么也不做）；
+     * - **空** ⇒ [UiEvent.CloudBackupsEmpty]：请求是成功的，只是没东西可恢复；
+     * - **失败** ⇒ [UiEvent.OpFailed] 带分类。
+     * 后两种都要关掉选择器 —— 由收集端按事件类型决定，见 `SettingsScreen`。
+     */
+    fun loadCloudBackups() = viewModelScope.launch {
         val account = nutstoreAccount.value
         val password = nutstorePassword.value
         if (account.isBlank() || password.isBlank()) {
-            onResult(false, "请先填写并保存坚果云账号和应用密码")
+            emit(UiEvent.OpFailed(DataOp.ListBackups, OpFailure.Other(NO_CREDENTIALS_MESSAGE)))
             return@launch
         }
         _loadingBackups.value = true
@@ -538,19 +584,18 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         result.fold(
             onSuccess = { list ->
                 _cloudBackups.value = list
-                if (list.isEmpty()) onResult(false, "云端暂无备份，请先上传")
-                else onResult(true, "")
+                if (list.isEmpty()) emit(UiEvent.CloudBackupsEmpty("云端暂无备份，请先上传"))
             },
-            onFailure = { onResult(false, it.message ?: "获取备份列表失败") },
+            onFailure = { emit(UiEvent.OpFailed(DataOp.ListBackups, it.toOpFailure("获取备份列表失败"))) },
         )
     }
 
-    /** 从坚果云下载指定备份并恢复（整体替换）。 */
-    fun syncDownload(fileName: String, onResult: (Boolean, String) -> Unit) = viewModelScope.launch {
+    /** 从坚果云下载指定备份并恢复（整体替换）。成败经 [UiEvent]（落点 [UiSurface.Settings]）报信。 */
+    fun syncDownload(fileName: String) = viewModelScope.launch {
         val account = nutstoreAccount.value
         val password = nutstorePassword.value
         if (account.isBlank() || password.isBlank()) {
-            onResult(false, "请先填写并保存坚果云账号和应用密码")
+            emit(UiEvent.OpFailed(DataOp.Download, OpFailure.Other(NO_CREDENTIALS_MESSAGE)))
             return@launch
         }
         _syncing.value = true
@@ -558,12 +603,13 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         _syncing.value = false
         val raw = result.getOrNull()
         if (raw == null) {
-            onResult(false, result.exceptionOrNull()?.message ?: "下载失败")
+            val failure = result.exceptionOrNull()?.toOpFailure("下载失败") ?: OpFailure.Other("下载失败")
+            emit(UiEvent.OpFailed(DataOp.Download, failure))
             return@launch
         }
         // 与「文件导入」同一套前置校验：必须含 items 键，否则拒绝覆盖（防「合法空备份」清空数据）。
         if (repo.previewBackup(raw) == null) {
-            onResult(false, "云端备份格式不正确")
+            emit(UiEvent.OpFailed(DataOp.Download, OpFailure.Other("云端备份格式不正确")))
             return@launch
         }
         val snapshotSaved = snapshotBeforeRestore()
@@ -572,13 +618,15 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             val time = java.time.LocalDateTime.now()
                 .format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"))
             repo.setLastSync("恢复于 $time")
-            onResult(
-                true,
-                if (snapshotSaved) "已从坚果云恢复数据 ✅（已自动留存恢复前快照）"
-                else "已从坚果云恢复数据 ✅（恢复前快照未能保存）",
+            emit(
+                UiEvent.Notice(
+                    if (snapshotSaved) "已从坚果云恢复数据 ✅（已自动留存恢复前快照）"
+                    else "已从坚果云恢复数据 ✅（恢复前快照未能保存）",
+                    UiSurface.Settings,
+                ),
             )
         } else {
-            onResult(false, "云端备份格式不正确")
+            emit(UiEvent.OpFailed(DataOp.Download, OpFailure.Other("云端备份格式不正确")))
         }
     }
 

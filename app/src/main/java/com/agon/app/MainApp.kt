@@ -170,8 +170,11 @@ fun MainApp(viewModel: AppViewModel) {
                         viewModel.archiveBatch(setOf(event.item.id), event.reason)
                     }
                 }
-                // 另两类事件走各自宿主的队列，不会流到这里；when 对 sealed 必须穷尽，故显式列出。
-                is UiEvent.UndoDeleteConsumption, is UiEvent.Notice -> Unit
+                // 其余四类事件走各自宿主的队列，不会流到这里；when 对 sealed 必须穷尽，故显式列出。
+                // （#4c 新增了 Notice 的两种设置页用法与 OpFailed / CloudBackupsEmpty ⇒ 这里也要跟着补，
+                //   否则 sealed 的 when 不穷尽会直接编译失败 —— 这正是 sealed 想要的效果。）
+                is UiEvent.UndoDeleteConsumption, is UiEvent.Notice,
+                is UiEvent.OpFailed, is UiEvent.CloudBackupsEmpty -> Unit
             }
         }
     }

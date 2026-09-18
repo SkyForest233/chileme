@@ -37,18 +37,18 @@ internal interface SettingsActions {
     fun setFloatingNav(enabled: Boolean)
     fun setAutoSyncDays(days: Int)
     fun saveNutstoreCredentials(account: String, pass: String)
-    fun syncUpload(onResult: (Boolean, String) -> Unit)
-    fun loadCloudBackups(onResult: (Boolean, String) -> Unit)
-    fun syncDownload(fileName: String, onResult: (Boolean, String) -> Unit)
+    fun syncUpload()
+    fun loadCloudBackups()
+    fun syncDownload(fileName: String)
     fun loadLocalSnapshots()
     fun saveLocalSnapshot(onDone: ((Boolean) -> Unit)?)
-    fun restoreLocalSnapshot(fileName: String, onResult: (Boolean, String) -> Unit)
+    fun restoreLocalSnapshot(fileName: String)
     fun clearAll()
     suspend fun buildBackupJson(): String
     suspend fun buildCsvExport(): String
     suspend fun importBackupJson(raw: String): Boolean
     suspend fun previewBackup(raw: String): BackupData?
-    fun importBackupWithSnapshot(raw: String, onResult: (ok: Boolean, snapshotSaved: Boolean) -> Unit)
+    fun importBackupWithSnapshot(raw: String)
 }
 
 /**
@@ -197,15 +197,13 @@ class SettingsUiState internal constructor(
     fun saveNutstoreCredentials(account: String, pass: String) =
         actions.saveNutstoreCredentials(account, pass)
 
-    fun syncUpload(onResult: (Boolean, String) -> Unit) = actions.syncUpload(onResult)
-    fun loadCloudBackups(onResult: (Boolean, String) -> Unit) = actions.loadCloudBackups(onResult)
-    fun syncDownload(fileName: String, onResult: (Boolean, String) -> Unit) =
-        actions.syncDownload(fileName, onResult)
+    fun syncUpload() = actions.syncUpload()
+    fun loadCloudBackups() = actions.loadCloudBackups()
+    fun syncDownload(fileName: String) = actions.syncDownload(fileName)
 
     fun loadLocalSnapshots() = actions.loadLocalSnapshots()
     fun saveLocalSnapshot(onDone: ((Boolean) -> Unit)? = null) = actions.saveLocalSnapshot(onDone)
-    fun restoreLocalSnapshot(fileName: String, onResult: (Boolean, String) -> Unit) =
-        actions.restoreLocalSnapshot(fileName, onResult)
+    fun restoreLocalSnapshot(fileName: String) = actions.restoreLocalSnapshot(fileName)
 
     fun clearAll() = actions.clearAll()
 
@@ -218,9 +216,8 @@ class SettingsUiState internal constructor(
     /** 解析备份用于导入前预览（不改动数据）；非备份 / 畸形 JSON 返回 null。 */
     suspend fun previewBackup(raw: String): BackupData? = actions.previewBackup(raw)
 
-    /** 导入前先存一份本地快照，再整体替换。参数二 = 快照是否保存成功。 */
-    fun importBackupWithSnapshot(raw: String, onResult: (ok: Boolean, snapshotSaved: Boolean) -> Unit) =
-        actions.importBackupWithSnapshot(raw, onResult)
+    /** 导入前先存一份本地快照，再整体替换。成败经设置页的 `UiEvent` 报信（#4c）。 */
+    fun importBackupWithSnapshot(raw: String) = actions.importBackupWithSnapshot(raw)
 }
 
 /** `SettingsActions` 的 ViewModel 实现（保持 `AppViewModel` 不变）。 */
@@ -247,15 +244,15 @@ private class ViewModelSettingsActions(private val viewModel: AppViewModel) : Se
         viewModel.saveNutstoreCredentials(account, pass)
     }
 
-    override fun syncUpload(onResult: (Boolean, String) -> Unit) {
-        viewModel.syncUpload(onResult)
+    override fun syncUpload() {
+        viewModel.syncUpload()
     }
-    override fun loadCloudBackups(onResult: (Boolean, String) -> Unit) {
-        viewModel.loadCloudBackups(onResult)
+    override fun loadCloudBackups() {
+        viewModel.loadCloudBackups()
     }
 
-    override fun syncDownload(fileName: String, onResult: (Boolean, String) -> Unit) {
-        viewModel.syncDownload(fileName, onResult)
+    override fun syncDownload(fileName: String) {
+        viewModel.syncDownload(fileName)
     }
 
     override fun loadLocalSnapshots() {
@@ -264,8 +261,8 @@ private class ViewModelSettingsActions(private val viewModel: AppViewModel) : Se
     override fun saveLocalSnapshot(onDone: ((Boolean) -> Unit)?) {
         viewModel.saveLocalSnapshot(onDone)
     }
-    override fun restoreLocalSnapshot(fileName: String, onResult: (Boolean, String) -> Unit) {
-        viewModel.restoreLocalSnapshot(fileName, onResult)
+    override fun restoreLocalSnapshot(fileName: String) {
+        viewModel.restoreLocalSnapshot(fileName)
     }
 
     override fun clearAll() {
@@ -275,11 +272,8 @@ private class ViewModelSettingsActions(private val viewModel: AppViewModel) : Se
     override suspend fun buildCsvExport(): String = viewModel.buildCsvExport()
     override suspend fun importBackupJson(raw: String): Boolean = viewModel.importBackupJson(raw)
     override suspend fun previewBackup(raw: String): BackupData? = viewModel.previewBackup(raw)
-    override fun importBackupWithSnapshot(
-        raw: String,
-        onResult: (ok: Boolean, snapshotSaved: Boolean) -> Unit,
-    ) {
-        viewModel.importBackupWithSnapshot(raw, onResult)
+    override fun importBackupWithSnapshot(raw: String) {
+        viewModel.importBackupWithSnapshot(raw)
     }
 }
 

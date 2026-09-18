@@ -53,15 +53,15 @@ class SettingsStateTest {
             calls += "saveNutstoreCredentials($account)"
         }
 
-        override fun syncUpload(onResult: (Boolean, String) -> Unit) {
+        override fun syncUpload() {
             calls += "syncUpload"
         }
 
-        override fun loadCloudBackups(onResult: (Boolean, String) -> Unit) {
+        override fun loadCloudBackups() {
             calls += "loadCloudBackups"
         }
 
-        override fun syncDownload(fileName: String, onResult: (Boolean, String) -> Unit) {
+        override fun syncDownload(fileName: String) {
             calls += "syncDownload($fileName)"
         }
 
@@ -73,7 +73,7 @@ class SettingsStateTest {
             calls += "saveLocalSnapshot"
         }
 
-        override fun restoreLocalSnapshot(fileName: String, onResult: (Boolean, String) -> Unit) {
+        override fun restoreLocalSnapshot(fileName: String) {
             calls += "restoreLocalSnapshot($fileName)"
         }
 
@@ -89,10 +89,7 @@ class SettingsStateTest {
 
         override suspend fun previewBackup(raw: String): BackupData? = null
 
-        override fun importBackupWithSnapshot(
-            raw: String,
-            onResult: (ok: Boolean, snapshotSaved: Boolean) -> Unit,
-        ) {
+        override fun importBackupWithSnapshot(raw: String) {
             calls += "importBackupWithSnapshot"
         }
     }
@@ -196,9 +193,21 @@ class SettingsStateTest {
         state.setFloatingNav(false)
         state.setAutoSyncDays(7)
         state.clearAll()
+        // #4c 之后这 5 个不再要回调参数，可以直接调 ⇒ 顺手补上转发覆盖
+        // （改造前它们带 `(Boolean, String)` 回调，这个测试里一直没测到）。
+        state.syncUpload()
+        state.loadCloudBackups()
+        state.syncDownload("chileme_backup_20260918_090000.json")
+        state.restoreLocalSnapshot("snapshot-1.json")
+        state.importBackupWithSnapshot("{}")
 
         assertEquals(
-            listOf("setDarkMode(1)", "setFloatingNav(false)", "setAutoSyncDays(7)", "clearAll"),
+            listOf(
+                "setDarkMode(1)", "setFloatingNav(false)", "setAutoSyncDays(7)", "clearAll",
+                "syncUpload", "loadCloudBackups",
+                "syncDownload(chileme_backup_20260918_090000.json)",
+                "restoreLocalSnapshot(snapshot-1.json)", "importBackupWithSnapshot",
+            ),
             actions.calls,
         )
     }

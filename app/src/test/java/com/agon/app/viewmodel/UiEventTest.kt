@@ -3,6 +3,7 @@ package com.agon.app.viewmodel
 import com.agon.app.data.ArchiveReason
 import com.agon.app.data.ConsumptionRecord
 import com.agon.app.data.FoodItem
+import com.agon.app.data.OpFailure
 import java.io.File
 import java.time.LocalDate
 import org.junit.Assert.assertEquals
@@ -73,17 +74,44 @@ class UiEventTest {
     }
 
     @Test
-    fun `三个落点齐全且四类事件恰好覆盖它们`() {
+    fun `四个落点齐全且六类事件恰好覆盖它们`() {
         // 落点数 = AppViewModel 里的队列数：多一个落点就要多一条 Channel 与一个 when 分支，
         // 少一个则有事件无处可去。这条断言让「悄悄改分流」在 CI 上就红。
-        assertEquals(3, UiSurface.entries.size)
+        assertEquals(4, UiSurface.entries.size)
         val used = listOf(
             UiEvent.UndoConsumption("i1", "c1"),
             UiEvent.UndoRestoreArchived(item, ArchiveReason.CONSUMED, merged = true),
             UiEvent.UndoDeleteConsumption(record, 0),
             UiEvent.Notice("x"),
+            UiEvent.OpFailed(DataOp.Upload, OpFailure.Other("x")),
+            UiEvent.CloudBackupsEmpty("x"),
         ).map { it.surface }.toSet()
         assertEquals(UiSurface.entries.toSet(), used)
+    }
+
+    @Test
+    fun `同步与导入的成败都落在设置页`() {
+        // 这 5 条改造前是 `(Boolean, String)` / `(Boolean, Boolean)` 回调，界面拿到后自己弹提示。
+        // 现在统一走事件，落点是设置页自己的宿主（FloatingNav 落位 + Plain 形态）。
+        val upload = UiEvent.OpFailed(DataOp.Upload, OpFailure.Auth("账号或应用密码错误"))
+        assertEquals(UiSurface.Settings, upload.surface)
+        assertEquals(UiSurface.Settings, UiEvent.CloudBackupsEmpty("云端暂无备份，请先上传").surface)
+        assertEquals(
+            UiSurface.Settings,
+            UiEvent.Notice("已上传到坚果云 ☁️", UiSurface.Settings).surface,
+        )
+        // Notice 的默认落点仍是首页（启动时那条自动同步提示），改了默认值就会把提示弹到错误的宿主上。
+        assertEquals(UiSurface.Home, UiEvent.Notice("已自动同步到坚果云 ☁️").surface)
+    }
+
+    @Test
+    fun `失败事件带齐分类与操作判别`() {
+        // op 是收集端唯一的分流依据：只有 ListBackups 失败才顺手关掉备份选择器（与改造前一致）。
+        val failed = UiEvent.OpFailed(DataOp.ListBackups, OpFailure.Network("timeout"))
+        assertEquals(DataOp.ListBackups, failed.op)
+        assertTrue("失败原因必须带分类，不能只剩一句话", failed.failure is OpFailure.Network)
+        assertEquals("timeout", failed.failure.message)
+        assertEquals(5, DataOp.entries.size)
     }
 
     @Test

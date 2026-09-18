@@ -273,20 +273,31 @@ for e in events:
 if 'sealed interface UiEvent' not in io.open(UIE, encoding='utf-8').read():
     bad.append('UiEvent')
     print('     ✗ UiEvent.kt 里没有 sealed interface UiEvent ⇒ 替代机制不见了')
+# 期望值从 UiSurface 枚举**反推**，不写死数字：落点数 = 队列数 = 对外 Flow 数。
+# 写死的话每加一个落点就得回来改守卫（今天 #4c 加了 Settings 就撞上）；反推则能抓住两种真错误 ——
+# 「有落点没队列」（事件发出去没人收，提示静默消失）与「有队列没落点」（多出来的队列永远空着）。
+m = re.search(r'enum class UiSurface \{([^}]*)\}', io.open(UIE, encoding='utf-8').read())
+surfaces = [x.strip() for x in m.group(1).split(',') if x.strip()] if m else []
+if not surfaces:
+    bad.append('UiSurface')
+    print('     ✗ 在 UiEvent.kt 里找不到 enum class UiSurface { … } ⇒ 反推不出期望值')
 ch = src.count('Channel<UiEvent>')
 raf = src.count('receiveAsFlow()')
-if ch != 3:
+if surfaces and ch != len(surfaces):
     bad.append('Channel')
-    print('     ✗ Channel<UiEvent> 实测 %d 个（应为 3：主壳 / 首页 / 消耗记录页各一条）' % ch)
-if raf != 3:
+    print('     ✗ Channel<UiEvent> 实测 %d 个、落点 %d 个（%s）—— 应一一对应'
+          % (ch, len(surfaces), ' / '.join(surfaces)))
+if surfaces and raf != len(surfaces):
     bad.append('receiveAsFlow')
-    print('     ✗ receiveAsFlow() 实测 %d 个（应为 3：每条队列一个对外 Flow）' % raf)
+    print('     ✗ receiveAsFlow() 实测 %d 个、落点 %d 个 —— 每条队列应有一个对外 Flow'
+          % (raf, len(surfaces)))
 if len(re.findall(PAT, probe)) != 1:
     bad.append('probe')
 if bad:
     print('%d 个；另有 %d 处 ✗（见上）⇒ 本项不通过' % (len(events), len(bad)))
 else:
-    print('0 个 ✓ 对照通过（正则抓得到样本）；替代机制在位：UiEvent + 3 条 Channel + 3 个 receiveAsFlow')
+    print('0 个 ✓ 对照通过（正则抓得到样本）；替代机制在位：UiEvent + %d 条 Channel + %d 个 receiveAsFlow'
+          '（与 UiSurface 的 %d 个落点一一对应）' % (ch, raf, len(surfaces)))
 PY
 )" '目标「0 个」。这是 ROADMAP #4「守卫交接」那次交接的产物：#4a 之前这里放的是临时守卫「一次性事件必须有 consume 配对」（2026-09-18 核查发现本仓用「可空 StateFlow + 手工 consume」建模 4 个一次性事件，4/4 都记得清空 ⇒ 当时并没有重放 bug，靠纪律不靠机制）；4a 把 4 个全改成 `UiEvent` + `Channel`（接收即出队）之后，守卫换成「**禁止再出现**，超出即 ✗，豁免须登记理由」，同一次提交完成、不留两套。自带阳性对照（内嵌样本）与替代机制在场检查（`Channel` / `receiveAsFlow` 计数）—— 因为「0 个」这种结果若不先证明探测真的在工作，就没有意义（见本脚本头部第 3 条硬约定）。'
 row '文档写死的关键数 vs 实测（不符即 ✗）' "$(python3 - <<'PY' 2>/dev/null || echo '需 python3'

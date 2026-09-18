@@ -58,6 +58,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -93,6 +94,8 @@ import com.agon.app.ui.theme.AppPalette
 import com.agon.app.ui.theme.LocalThemeStyle
 import com.agon.app.ui.theme.ThemeStyle
 import com.agon.app.viewmodel.AppViewModel
+import com.agon.app.viewmodel.DataOp
+import com.agon.app.viewmodel.UiEvent
 import com.materialkolor.PaletteStyle
 import com.materialkolor.rememberDynamicColorScheme
 import kotlinx.coroutines.launch
@@ -250,20 +253,41 @@ fun SettingsScreen(
         }
     }
 
+    // 同步 / 还原 / 导入的成败提示（#4c：改收 Channel，不再用 `(Boolean, String)` 回调）。
+    // key 用 snackbar：切主题会换一个新的宿主容器，旧协程必须停掉（与消耗记录页同理）。
+    // 文案全在 VM 里（`AppViewModel`）—— 界面只负责"弹在哪、要不要顺手关掉选择器"。
+    LaunchedEffect(snackbar) {
+        viewModel.settingsUiEvents.collect { event ->
+            when (event) {
+                is UiEvent.Notice -> snackbar.showMessage(event.message)
+                is UiEvent.CloudBackupsEmpty -> {
+                    state.setShowBackupPicker(false)
+                    snackbar.showMessage(event.message)
+                }
+                is UiEvent.OpFailed -> {
+                    // 只有「拉云端备份列表」失败才关选择器 —— 与改造前逐字一致的行为：
+                    // 那时只有 loadCloudBackups 的回调里写了 setShowBackupPicker(false)，
+                    // 上传/下载/还原失败都不碰选择器。
+                    if (event.op == DataOp.ListBackups) state.setShowBackupPicker(false)
+                    snackbar.showMessage(event.failure.message)
+                }
+                // 另三类是撤销事件，走各自宿主的队列，不会流到这里；when 对 sealed 必须穷尽。
+                is UiEvent.UndoConsumption, is UiEvent.UndoRestoreArchived,
+                is UiEvent.UndoDeleteConsumption -> Unit
+            }
+        }
+    }
+
     // ---- 两版共用的动作 ----
     // 合并前这些回调在两版里各写一遍（备份节两个按钮 + 三个确认弹窗），逻辑逐字相同；
     // 抽出来既让 body 与弹窗共享，也避免第 3 份拷贝。snackbar 一律走 App 级宿主。
     val onUpload: () -> Unit = {
-        state.syncUpload { _, msg -> scope.launch { snackbar.showMessage(msg) } }
+        state.syncUpload()
     }
     val onCloudRestore: () -> Unit = {
         state.setShowBackupPicker(true)
-        state.loadCloudBackups { ok, msg ->
-            if (!ok) {
-                state.setShowBackupPicker(false)
-                scope.launch { snackbar.showMessage(msg) }
-            }
-        }
+        // 失败/为空时关选择器与提示都由上面的收集器负责（改造前写在这个回调里）。
+        state.loadCloudBackups()
     }
     val saveNutstore: () -> Unit = {
         state.saveNutstoreCredentials(state.accountInput, state.passwordInput)
@@ -272,22 +296,13 @@ fun SettingsScreen(
     }
     val confirmImport: (PendingImport) -> Unit = { pending ->
         pendingImport = null
-        state.importBackupWithSnapshot(pending.raw) { ok, snapshotSaved ->
-            scope.launch {
-                val msg = when {
-                    !ok -> "导入失败：文件格式不正确"
-                    snapshotSaved -> "导入成功，数据已恢复 ✅（已自动留存导入前快照）"
-                    else -> "导入成功，数据已恢复 ✅（导入前快照未能保存）"
-                }
-                snackbar.showMessage(msg)
-            }
-        }
+        state.importBackupWithSnapshot(pending.raw)
     }
     val confirmRestore: () -> Unit = {
         val fileName = state.restoreCandidate?.fileName
         state.setRestoreCandidate(null)
         if (fileName != null) {
-            state.syncDownload(fileName) { _, msg -> scope.launch { snackbar.showMessage(msg) } }
+            state.syncDownload(fileName)
         }
     }
     val confirmSnapshotRestore: () -> Unit = {
@@ -295,7 +310,7 @@ fun SettingsScreen(
         state.setRestoreSnapshotCandidate(null)
         state.setShowSnapshotPicker(false)
         if (fileName != null) {
-            state.restoreLocalSnapshot(fileName) { _, msg -> scope.launch { snackbar.showMessage(msg) } }
+            state.restoreLocalSnapshot(fileName)
         }
     }
 
