@@ -22,11 +22,11 @@
 | 1 | detekt 由 `report` 切 **block** + `detekt_selftest` 防空转 | ✅ 2026-09-16 | 09-16 §14 |
 | 2 | 开启 detekt 复杂度规则，按实测清单收敛（4 条体量规则显式关闭） | ✅ 2026-09-16 | 09-16 §14 + `detekt.yml` 文件头 |
 | 3 | 双主题去重 + App 级组件层（最大的一项） | ✅ 2026-09-16 ⚠️ 原验收未达成 | 09-16 §15–§22；口径见下方「#3 收官」 |
-| **4** | **错误模型统一** | ⏳ **未开始 · 下一个该做的** | — |
-| 5 | Repository 拆分 + `Clock` 注入 + 轻量 DI | ⏳ 未开始（前置 #4） | — |
+| **4** | **错误模型统一**（⚠️ 证据行 09-17 复核修正：不是「正在重复消费」，是 4 个手工 `consume` + 3 个 `(Boolean, String)` 回调） | ⏳ **未开始 · 下一个该做的**；分 4a/4b/4c | — |
+| 5 | Repository 拆分 + `Clock` 注入 + 轻量 DI（⚠️ 证据行 09-17 复核修正：跨零点**早已可注入且已被测**，只剩 12 处硬调） | ⏳ 未开始（前置 #4）；分 5a/5b/5c | — |
 | 6 | 派生数据下沉 VM + `WhileSubscribed` | ⏳ 未开始（前置 #5）；**范围已缩小**，见下 | — |
 | 7 | 字符串资源化 + 无障碍补全 | ⏳ 未开始（前置 #3 已满足 ⇒ **随时可插队做**） | — |
-| 8 | 数据健康检查页 + 诊断包 + 许可清单 | ⏳ 未开始（前置 #4/#5） | — |
+| 8 | 诊断包 + 许可清单（⚠️ 09-17 复核：健康告警条**自 09-15 已在首页运行**，原「没有任何页面消费它」是错的） | ⏳ 未开始（**无前置**，可随时做）；**范围已缩小** | — |
 | 9 | CI 加固 | 🔶 用户已否掉大半，剩 4 个小项 | 09-17 §10 |
 
 **排序原则（原文照录，对剩余项仍适用）**：**先能拦、再去重、后补体验**。
@@ -38,33 +38,98 @@
 
 ## #4 错误模型统一 —— 下一个该做的
 
-- **证据（2026-09-17 实测）**：`Channel<` **0** 处、`UiEvent` **0** 处、`Result<` 仅 **3** 处。
-  错误提示目前靠散落的 `MutableStateFlow<String?>` + Snackbar 文案：多个订阅方会重复消费同一条，
-  且「一次性事件」被当成「状态」建模（旋转/重组后可能重放或丢失）。
-- **做法**：`Result` 承载返回值 + `Channel<UiEvent>` 承载一次性事件 + **一处**全局收集（`MainApp` 的 Snackbar 覆盖层）。
-- **验收**：`Channel<UiEvent>` 在 `AppViewModel` 里有且只有一处发送端与一处收集端；
-  现有 `MutableStateFlow<String?>` 型的错误提示逐个迁走（迁一个删一个，不留两套）；单测数只增不减。
-- **风险**：会碰到 `AppViewModel`（`TooManyFunctions` 清单里的大头，09-16 实测 53 个函数）；
-  撤销条那条链路（`AppSnackbarHostState` / `AppSnackbarForm`）已经是容器化的，迁移时**不要**把两个主题的
-  `SnackbarResult` 顺着签名漏回屏幕层（这条约定记在 `docs/ARCHITECTURE.md` §5「App 级组件层」）。
+> ⚠️ **2026-09-17 复核修正（核查第 12 处）**：本节原证据行写「错误提示目前靠**散落的** `MutableStateFlow<String?>` +
+> Snackbar 文案：**多个订阅方会重复消费同一条**」。逐条实测后不成立，已按代码实情重写 ——
+> 原句把「一次性事件用状态建模」这个**机制隐患**说成了「正在发生的重复消费 bug」。
+
+- **证据（2026-09-17 逐条实测）**：`Channel<` **0** 处、`UiEvent` **0** 处、`Result<` **3** 处（全在 `data/CloudSync.kt`）。
+  错误与一次性提示今天走**两套各自的土办法**：
+  1. **4 个「可空 StateFlow + 手工 `consume`」** 承载一次性事件：`_undoRequest`（`AppViewModel.kt:162`）、
+     `_deletedConsumption`（`:177`）、`_restoredArchivedEvent`（`:187`）、`_autoSyncMessage`（`:249`，
+     唯一的 `String?` 型，装的是**成功**提示「已自动同步到坚果云 ☁️」）。每条**只有 1 个订阅方**，
+     且 **4/4 都调了 `consumeXxx()`**（`MainApp.kt:145`/`:162`、`ConsumptionLogScreen.kt:50`、`HomeScreen.kt:105`）
+     ⇒ **目前没有正在发生的重放 bug**，靠的是人肉纪律而非机制：新增第 5 个事件时忘调 `consume` 就会静默重放。
+  2. **3 个 `(Boolean, String)` 回调** 承载失败提示：`syncUpload` / `loadCloudBackups` / `syncDownload`。
+     这一套的问题更实际 —— ① 布尔 + 字符串不如 `Result` 自解释，且把 `NutstoreSync` 已经分好类的失败原因
+     **压平**了（09-15 那轮做的「错误分类 / 诊断 / 失败留档」到 VM 这层就丢了类型）；② 回调捕获的是
+     **当时那个界面的** Snackbar 宿主，旋屏后提示可能落到已销毁的宿主上；③ 三处各自重复「账号密码为空 ⇒ 同一句话」的样板。
+
+  另：**自动同步失败是刻意静默的**（`AppViewModel.kt:277` 注释原文「失败静默忽略，下次启动重试；不打扰用户」）——
+  这是产品决定不是缺陷，但意味着今天**没有一个正确的载体**能承接「哪天想让用户知道同步失败了」。
+- **本项的真实性质**：**预防性改造**（把纪律换成机制 + 给失败原因保住类型），不是救火。
+  它排在 #5 之前只有一个理由：#5 会改 Repository 的返回类型，先拆文件再改签名等于同一批代码搬两次。
+
+### 做法：分三阶段，每阶段一个提交、各自过 CI
+
+| 阶段 | 做什么 | 验收 | 风险与注意 |
+|---|---|---|---|
+| **4a** | 新建 `viewmodel/UiEvent.kt`：`sealed interface UiEvent` + `AppViewModel` 里**一个** `Channel<UiEvent>` 与**一个**发送点；4 个可空 StateFlow 与 4 个 `consumeXxx()` **全删** | 可空 StateFlow 型一次性事件 **0** 处；`fun consume` **0** 处；发送端 **1** 处；单测数只增不减 | 撤销条要拿 `SnackbarResult` 决定要不要执行撤销 ⇒ 事件里**只放数据**（itemId / 记录 / 原因），由收集端回调 VM 方法；**不要**把 `onUndo: () -> Unit` 塞进事件（会捕获 VM 作用域，也没法在单测里断言） |
+| **4b** | 收集端收敛：App 层新增**一份** `UiEventHandler(…)`（放 `ui/components/app/`），在每个 Snackbar 宿主处挂载 | 收集**实现只有一份**；两个挂载点的落位与文案与今天**逐像素一致** | ⚠️ **与旧验收「一处收集端」刻意偏差**：本仓有**两个** Snackbar 宿主 —— `MainApp` 的全局宿主，与消耗记录页（带 `onBack` 的子页，自己的 `AppScaffold` 内独立宿主）。强行只在 `MainApp` 收集会把撤销条弹到主壳底部 ⇒ 那是**视觉改动**，必须真机复测才敢做，本阶段不做 |
+| **4c** | 3 个 `(Boolean, String)` 回调改成 `Result` / `sealed` 返回，失败经 `UiEvent.Notice` 报信；`NutstoreSync` 的错误分类不再被压平 | `(Boolean, String)` 回调 **0** 处；设置页 3 处调用点改完；失败原因可分类（凭据缺失 / 网络 / 格式 / 损坏态拒绝） | 会碰 `SettingsScreen.kt`（`ImeHandlingTest` 点名的 10 个文件之一）⇒ 只改回调、不动 IME 相关行；`CorruptGuardTest` 逐字断言 `syncDownload` 体内的 `snapshotBeforeRestore()` 与 `previewBackup(raw) == null` ⇒ **这两个子串必须留在原函数体内**，否则同批改测试 |
+
+- **沿用的两条既有约束**（原风险项，09-17 逐条实测仍成立）：
+  ① `AppViewModel` 在 detekt `TooManyFunctions` 的显式豁免清单里（**53** 个函数，09-16 快照，`detekt.yml:85`）⇒
+  4a 新增 `emit()` 不会撞门禁，但**别再往里堆** —— #5 拆完 Repository 后要回去重评那 4 条体量规则（`detekt.yml:88` 已登记）；
+  ② **跨主题宿主对象不得漏回屏幕层**（`docs/ARCHITECTURE.md:157`）：MD3 与 Miuix 的 `SnackbarHostState` 是两个
+  不相干的类型，`AppSnackbarHostState` 对外只暴露 `showUndoSnackbar(): Boolean` ⇒ 4b 的 `UiEventHandler`
+  必须在 App 层内部消化 `SnackbarResult` / `MiuixSnackbarResult`，交给 VM 的只能是「用户点没点撤销」这个布尔。
+- **全项验收**：① 一次性事件只剩一种建模方式；② 失败提示有类型、可分类；③ 撤销条与提示条的**出现位置和文案逐条不变**
+  （这是「纯重构」的判据 —— 任何位置变化都要单独提交 + 真机复测）；④ 单测数只增不减；⑤ ktlint / detekt 0。
+- **守卫交接**：4a 落地后，把「一次性事件必须有 `consume` 配对」这条**临时守卫**（`tools/doc-metrics.sh`，2026-09-17 加）
+  换成「禁止再出现可空 StateFlow 型一次性事件」—— 守卫随重构交接，不留两套。
+- **真机复测口径（4a+4b 做完后一次性过）**：两主题 × 四处提示 —— 列表页减号（撤销消耗）、列表页搜索里恢复归档、
+  消耗记录页删除记录、启动时自动同步成功提示。每处确认：① 提示出现在**原来那个位置**；② 点「撤销」真的回滚；
+  ③ 旋屏一次不重复弹。
 
 ## #5 Repository 拆分 + `Clock` 注入 + 轻量 DI
 
-- **前置**：#4（错误模型会改 Repository 的返回类型）。
-- **证据**：`FoodRepository.kt` **950** 行；`Application` 子类 **0** 个（DI 靠 `remember { … }` 现场构造）；
-  java.time 的 `now()` 直接调用 **34** 处（其中 `LocalDate.now()` **26** 处）⇒ 时间不可注入，跨零点逻辑无法单测。
-- **做法**：按领域拆 Repository（库存 / 归档 / 消耗 / 历史 / 备份）+ 注入 `Clock`（或 `today: LocalDate` 参数，
-  仓库里已有 `LocalToday` CompositionLocal 与可注入 `today` 的 `*At` 函数，沿用同一套）+ 一个轻量 DI 容器
-  （`Application` 子类或手写 `ServiceLocator`，**不引入 Hilt/Koin**：单模块、构造点少，引框架的代价大于收益）。
-- ⚠️ **风险：会撞两个「读源码」的静态守卫，且清单已随 09-16 合并变过**（原路线图点名的
-  `MiuixHomeScreen.kt` / `MiuixConsumptionLogScreen.kt` **已被删除**，别照抄旧清单）。今日实测清单：
-  - `CorruptGuardTest` 读 4 个文件：`data/FoodRepository.kt`、`data/SecureStore.kt`、`ui/screens/HomeScreen.kt`、`viewmodel/AppViewModel.kt`
-  - `CompactConsumptionTest` 读 2 个：`data/FoodRepository.kt`、`ui/screens/ConsumptionLogScreen.kt`
+> ⚠️ **2026-09-17 复核修正（核查第 13 处）**：本节原证据行写「`now()` 直接调用 **34** 处 ⇒ **时间不可注入，
+> 跨零点逻辑无法单测**」。后半句**是错的，而且写下来那天就错** —— 跨零点逻辑在 08-21 那轮（fix-plan 阶段 6）
+> 就已经做成可注入 `today` 的纯函数，并且**真的有单测在测**。前半句的「34」也是个会误导的口径（含注释与默认参数）。
+
+- **前置**：#4（错误模型会改 Repository 的返回类型；先改签名再搬文件，避免同一批代码搬两次）。
+- **证据（2026-09-17 逐条实测）**：
+  - `FoodRepository.kt` **950** 行 / **47** 个类级函数（另有 1 个局部函数 `FoodRepository.kt:420`；47 与 detekt 09-16
+    `TooManyFunctions` 快照一致），一个类管着库存、归档、消耗、录入历史、阈值分类位置、
+    全部设置项、坚果云凭据、备份导入导出 —— 改任一领域都要先读懂其余六个。
+  - `Application` 子类 **0** 个；仓库在 `AppViewModel.kt:44` 用 `private val repo = FoodRepository(application)` 现场构造。
+  - `now()` **34** 处的真实构成：**注释/KDoc 5 + 默认参数 3 + 便捷属性委托 5 + 函数体硬调 21**。
+    硬调 21 处里**该修的只有数据层与 VM 的 12 处**：`FoodRepository.kt` 7 处（损坏留档时间戳、归档上限裁剪的 today、
+    消耗压缩的 today、CSV 导出的 today 等）、`AppViewModel.kt` 5 处（自动同步间隔天数、每日快照判定、
+    三处「上传于 / 恢复于 …」时间戳）。其余 9 处在 UI 侧，多为文件名与显示初值（`SettingsScreen` 导出文件名 2 处、
+    `MainActivity` 的 `LocalToday` 刷新 3 处、`EditFoodScreen` 生产日期初值 1 处、`TodayProvider` 默认值 1 处、
+    `CloudSync`/`LocalSnapshotStore` 文件名与时间戳各 1 处），注入价值低，**刻意不动**。
+  - ✅ **已经可注入、且已被测的**（不要再当待办）：`daysLeftAt` / `statusForAt` / `freshnessAt` / `elapsedRatioAt` /
+    `remainingTextAt`（`FoodModels.kt`）与 `compactConsumptionAt` / `buildCsvExport(…, today)` 都收 `today: LocalDate`；
+    `FoodModelsTest` 传固定日期断言剩余天数（含过期负数）、`CompactConsumptionTest` 用固定 `today = 2026-08-21`
+    测 90 天压缩与跨月聚合、`CsvExportTest` 同理；界面侧有 `LocalToday` CompositionLocal + `MainActivity` 在
+    `ON_RESUME` 刷新。⇒ **本项的时间部分只剩「把 12 处硬调接到同一个可注入时钟上」。**
+- **⚠️ 最大的风险：会撞三个读源码/真跑仓库的测试，且清单已随 09-16 合并变过**（原路线图点名的
+  `MiuixHomeScreen.kt` / `MiuixConsumptionLogScreen.kt` **已被删除**，别照抄旧清单）。2026-09-17 实测清单：
+  - `CorruptGuardTest` 读 4 个文件（`data/FoodRepository.kt`、`data/SecureStore.kt`、`ui/screens/HomeScreen.kt`、
+    `viewmodel/AppViewModel.kt`），对 `FoodRepository.kt` **逐字断言** `upsert` / `changeQuantity` / `discardCorrupt`
+    的函数体内容，还断言 `if (enc != null)` 在该文件里**恰好 2 处**；
+  - `CompactConsumptionTest` 读 2 个（`data/FoodRepository.kt` 断言含 `if (!record.isDeletable())`、
+    `ui/screens/ConsumptionLogScreen.kt`）；
+  - `FoodRepositoryGuardTest` 是**真跑** DataStore 的集成测试（8 例），走 `FoodRepository(dataStore, corruptDir)`
+    这个 `internal` 主构造 ⇒ 拆分后构造方式一变，这里必须同批改；
   - 且 `CorruptGuardTest.functionBody()` 是**按 4 空格缩进截函数体**的 ⇒ 函数签名一搬家就会
     `assertTrue("源码里找不到 …")` 直接失败。
   - ⇒ **拆分与测试改动必须在同一个提交里**，否则 CI 必红且红得莫名其妙。
+
+### 做法：分三阶段（顺序与旧路线图不同 —— DI 先做，否则 VM 拿不到注入的时钟）
+
+| 阶段 | 做什么 | 验收 | 风险与注意 |
+|---|---|---|---|
+| **5a** | `Application` 子类 + 轻量容器：`ChiliMeApp`（`AndroidManifest.xml` 挂 `android:name`）持有 `AppContainer`（`clock` / `repo`）；`AppViewModel` 从 `application` 取容器，**构造签名保持 `(Application)` 不变** | `Application` 子类由 0 变 1（容器挂在它上面）；`FoodRepository(application)` 现场构造归零；**不引入 Hilt/Koin** | ⚠️ **不能给 `AppViewModel` 加带默认值的第二参数**：`ViewModelProvider` 的默认工厂用反射找 `(Application)` 构造器，而 Kotlin 的默认参数只生成带 `DefaultConstructorMarker` 的合成构造器 ⇒ 反射找不到、运行时崩。时钟从容器取，不从构造参数取 |
+| **5b** | 时钟注入：`FoodRepository` 的 `internal` 主构造加 `clock: Clock = Clock.systemDefaultZone()`，替换数据层 7 处 + VM 5 处硬调；给「跨零点的归档裁剪 / 消耗压缩 / 自动同步间隔」补单测 | 数据层与 VM 的 `now()` 硬调 **0** 处（UI 侧 9 处刻意保留，并在脚本里注明口径）；新增单测**用固定时钟**断言跨零点行为；单测数只增不减 | 行为必须逐位不变：默认值就是系统时钟 ⇒ 生产路径零改动。`FoodRepositoryGuardTest` 已经能用 internal 构造传临时 DataStore，加时钟是同一套路 |
+| **5c** | 按领域拆分（**纯搬运**，签名与实现不改）：核心读写与损坏三态（`Decoded` / `DecodeCache` / `rawFlow` / `markCorrupt`）留作共用底座；其余按库存、归档、消耗、备份导入导出、设置与凭据分文件 | `FoodRepository.kt` 不再是 950 行单文件；每个新文件 < 400 行；`git diff --stat` 里**新增行数 ≈ 删除行数**（纯搬运的判据）；三个测试同批改完、CI 绿 | 本项最险：一次要搬 48 个函数。建议**一个领域一个提交**（库存 → 归档 → 消耗 → 备份 → 设置），每个提交自带守卫改动；每搬完一个领域立刻 `git diff -w --stat` 确认没顺手改实现 |
+
+- **全项验收**：① 跨零点相关逻辑有**用固定时钟**跑的单测；② 依赖只有一个构造点；③ 单文件不再超过 400 行；
+  ④ 全程行为不变（`git diff` 里除 `package` / `import` / 构造注入外没有逻辑改动）；⑤ 单测数只增不减；⑥ ktlint / detekt 0。
 - **顺带**：`ImeHandlingTest` 点名 10 个文件（`MainActivity.kt` / `MainApp.kt` / `BatchBars.kt` / `NavChrome.kt`
-  + 4 个屏幕 + `AppFormDialog.kt` / `AppBatchMoveDialog.kt`）。拆 Repository 正常碰不到它；若顺手动了屏幕就要同步改清单。
+  + 4 个屏幕 + `AppFormDialog.kt` / `AppBatchMoveDialog.kt`）。拆 Repository 正常碰不到它，5a 也不需要动
+  `MainActivity.kt`（容器挂在 `Application` 上，从 VM 里取）⇒ **清单不动**。
 
 ## #6 派生数据下沉 VM + `WhileSubscribed`（**范围比原路线图小**）
 
@@ -97,16 +162,31 @@
 - **验收**：`contentDescription = null` 逐条判定为「刻意留空（装饰性）」或「补上描述」，**不允许有未判定的**；
   图表补 `semantics` 后能被 TalkBack 读出数据；资源化的验收按屏幕给（如「设置页 184 处全部入 `strings.xml`」）。
 
-## #8 数据健康检查页 + 诊断包 + 许可清单
+## #8 诊断包 + 许可清单（**范围已缩小**：健康提示那半已经有了）
 
-- **前置**：#4/#5（诊断包要导出的东西会随错误模型与 Repository 边界变化）。
-- **证据**：`corruptedKeys` 被引用 **32** 处（作用域 `app/src/main`，出现次数口径），但**没有任何页面消费它** ——
-  用户看不到「哪些数据坏了」，出路只有「导入备份 / 放弃损坏数据」两个入口；
-  `corrupt/` 留档目录相关代码 **14** 处；许可清单 **0** 处、诊断包 **0** 处（两者都还不存在）。
-- **做法**：新页面读 `corruptedKeys` 逐 key 说明影响 + 一键导出诊断包（版本/设备/各表条数/损坏 key/最近日志，
-  **不含**用户数据明文与凭据）+ 开源许可清单（`play-services-oss-licenses` 之类，或自生成）。
-- **验收**：损坏态下用户能看到「哪几张表坏了、各影响什么功能、能怎么救」；诊断包可被用户导出并发给开发者；
-  导出内容经 `tools/ci-gates.sh` 之外的一次人工审查确认不含凭据（本仓密钥已做过全历史扫描，见 09-17 §10）。
+> ⚠️ **2026-09-17 复核修正（核查第 11 处）**：本节原证据行写「`corruptedKeys` 被引用 32 处，但**没有任何页面消费它** ——
+> 用户看不到「哪些数据坏了」」。**这句是错的，而且写下来那天就错**：首页自 2026-09-15 起就有一条置顶告警条在消费它。
+> 标题、前置与验收随之下调。
+
+- **前置**：~~#4/#5~~ ⇒ **无**（告警条已在运行，加诊断包不必等错误模型与 Repository 边界定型）。
+- **证据（2026-09-17 逐条实测）**：
+  - ✅ **已经有的**：`ui/components/DataCorrupt.kt` 的 `DataCorruptBanner` 在 `HomeScreen.kt:126` 置顶显示，
+    用人话报「库存、归档 数据读取失败」+「这部分数据的写入已暂停，其余数据不受影响（2026-09-15 起按 key 粒度降级）」
+    +「原始内容已留档到应用私有目录 corrupt/ 下」，并给两个出路：导入此前的备份恢复 / 「放弃这部分数据」
+    （`HomeScreen.kt:233` 有二次确认弹窗）；`corruptKeyNames()` 把 key 翻成中文名，横幅与弹窗共用；
+    `CorruptGuardTest` 静态断言这条链路接上了（`onDiscard = {` + 「放弃损坏的数据？」）。
+  - ❌ **仍然缺的**：诊断包 **0** 处、开源许可清单 **0** 处（两者都还不存在）；告警条**只出现在首页**；
+    它笼统说「写入已暂停」，**没有逐 key 说清「坏了会影响哪个具体功能」**。
+  - `corruptedKeys` 被引用 **32** 处（作用域 `app/src/main`，出现次数口径）—— 这个数本身是对的，
+    错的只是「没有页面消费它」那半句。
+  - ℹ️ 原文还有一条「`corrupt/` 留档目录相关代码 **14** 处」：该口径**无法复现**（09-17 实测按命中行数 18、
+    按出现次数 53），且不影响本项决策 ⇒ **删数不删事实** —— 留档机制在上面 ✅ 那条里已说明。
+- **做法**：① **诊断包**（本项对你最有用的部分）：一键导出「版本 / 设备 / 各表条数 / 损坏 key / 最近日志」，
+  **不含**用户数据明文与凭据，走既有 SAF 导出通道；② **许可清单**：`play-services-oss-licenses` 之类或自生成
+  （上架 Google Play 需要开源库归属声明）；③（可选，价值最低）把告警条升级成整页健康检查、逐 key 说明影响。
+- **验收**：诊断包可被用户导出并发给开发者，导出内容经一次人工审查确认**不含凭据**
+  （本仓密钥已做过全历史扫描，见 09-17 §10）；许可清单可在应用内打开；
+  ①② 两项**都不改变现有告警条的文案与位置**（那是已被守卫钉住的行为）。
 
 ## #9 CI 加固 —— 🔶 用户已否掉大半（2026-09-17）
 

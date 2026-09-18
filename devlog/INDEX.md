@@ -38,11 +38,19 @@
 
 ### 结构性（第三批 9 项；#1–#3 已完成，详见文末「已完成里程碑」）
 
-- ⏳ **#4 错误模型统一** —— `Channel<UiEvent>` 全项目 **0** 处，错误提示目前靠 `MutableStateFlow<String?>`，
-  多个订阅方会重复消费同一条。是 #5 的前置（Repository 拆分时顺带定型）。
-- ⏳ **#5 Repository 拆分 + `Clock` 注入 + 轻量 DI** —— `FoodRepository.kt` **950 行**；`Application` 子类 **0** 个
-  （DI 靠 `remember { … }` 现场构造）；java.time 的 `now()` 直接调用 **34** 处（其中 `LocalDate.now()` 26 处；时间不可注入 ⇒ 跨零点逻辑无法单测）。
-  ⚠️ 会撞 `CorruptGuardTest`（它按缩进截函数体），**拆分与测试改动必须同一提交**。
+- ⏳ **#4 错误模型统一** —— `Channel<UiEvent>` 全项目 **0** 处。⚠️ 旧写法「错误提示靠散落的 `MutableStateFlow<String?>`、
+  多个订阅方会重复消费同一条」经 09-17 复核**不成立**：实情是 **4 个**「可空 StateFlow + 手工 `consume`」的一次性事件
+  （4/4 都记得清空 ⇒ **目前没有重放 bug**，靠纪律不靠机制）+ **3 个** `(Boolean, String)` 回调
+  （把 `NutstoreSync` 已分好类的失败原因压平了，且回调捕获的是当时那个界面的宿主）。
+  **是预防性改造、不是救火**；仍是 #5 的前置（拆分时顺带定型）。分 4a/4b/4c 三阶段，详见 [`ROADMAP`](../docs/ROADMAP.md)。
+- ⏳ **#5 Repository 拆分 + `Clock` 注入 + 轻量 DI** —— `FoodRepository.kt` **950 行 / 47 个类级函数**；
+  `Application` 子类 **0** 个（仓库在 `AppViewModel.kt:44` 现场构造）。
+  ⚠️ 旧写法「`now()` 34 处 ⇒ 时间不可注入、跨零点逻辑无法单测」经 09-17 复核**后半句错**：跨零点逻辑 08-21 起
+  就是可注入 `today` 的纯函数，且**真有单测在测**（`FoodModelsTest` / `CompactConsumptionTest` / `CsvExportTest`
+  都传固定日期）；34 处含注释 5 + 默认参数 3 + 委托属性 5，**真该接时钟的只有数据层与 VM 的 12 处**。
+  顺序改为 5a（DI 容器）→ 5b（时钟）→ 5c（按领域拆，一个领域一个提交）；⚠️ 会撞 `CorruptGuardTest`
+  （逐字断言函数体、还断言 `if (enc != null)` 恰好 2 处）、`CompactConsumptionTest`、`FoodRepositoryGuardTest`
+  （真跑 DataStore 的 8 例），**拆分与测试改动必须同一提交**。详见 [`ROADMAP`](../docs/ROADMAP.md)。
 - ⏳ **#6 派生数据下沉 VM + `WhileSubscribed`** —— `stateIn(` **20** 处但 `WhileSubscribed` **0** 处
   （全部 `Eagerly`，后台仍在算）。**本项范围已缩小**：屏幕层的聚合计算今日实测**已清零**
   （`sumOf {` / `groupBy {` / `count {` / `.sortedByDescending` 在 9 个屏幕文件里 0 处，`ScreenParityTest` 拦截；
@@ -52,8 +60,10 @@
 - ⏳ **#7 字符串资源化 + 无障碍** —— `strings.xml` **1** 条 vs 源码中文字面量 **583** 处；
   `contentDescription = null` **50** 处、`semantics` **1** 处。
   （09-16 记的 61 / 7 已随双主题去重下降，本行为 09-17 实测值。）
-- ⏳ **#8 数据健康检查页 + 诊断包 + 许可清单** —— `corruptedKeys` 已被 **32** 处引用，但没有任何页面消费它，
-  用户看不到「哪些数据坏了」。
+- ⏳ **#8 诊断包 + 许可清单**（**范围已缩小**）—— ⚠️ 旧写法「`corruptedKeys` 没有任何页面消费、用户看不到哪些数据坏了」
+  经 09-17 复核**是错的、且写下那天就错**：首页自 09-15 起就有 `DataCorruptBanner` 置顶告警
+  （报哪几张表坏了 + 写入已按 key 粒度暂停 + 两个出路：导入备份 / 放弃损坏数据）。仍缺的是
+  **诊断包 0 处、许可清单 0 处**；前置 ~~#4/#5~~ **取消** ⇒ 可随时做。详见 [`ROADMAP`](../docs/ROADMAP.md)。
 - 🔶 **#9 CI 加固** —— 2026-09-17 用户指定只做「零件过期」与「依赖/密钥检查」两类：
   13 处 action 升级已改好、patch 已验证可用（`git apply --check` + `git diff` 核对），
   但沙箱的 GitHub App 令牌缺 `workflows` 权限 ⇒ **推不上去**，存为
