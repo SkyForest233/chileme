@@ -44,12 +44,10 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.SnackbarResult
 import top.yukonga.miuix.kmp.basic.FloatingActionButton as MiuixFloatingActionButton
 import top.yukonga.miuix.kmp.basic.Icon as MiuixIcon
 import top.yukonga.miuix.kmp.basic.SnackbarHost as MiuixSnackbarHost
 import top.yukonga.miuix.kmp.basic.SnackbarHostState as MiuixSnackbarHostState
-import top.yukonga.miuix.kmp.basic.SnackbarResult as MiuixSnackbarResult
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -70,7 +68,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.agon.app.data.ArchiveReason
 import com.agon.app.ui.navigation.AppRoute
 import com.agon.app.ui.components.SwipeDismissSnackbarHost
-import com.agon.app.ui.components.showUndoSnackbar
+import com.agon.app.ui.components.showUndoSnackbarAcrossThemes
 import com.agon.app.ui.components.app.BatchMoveLocationDialog
 import com.agon.app.ui.theme.LocalThemeStyle
 import com.agon.app.ui.theme.MotionEasing
@@ -140,20 +138,20 @@ fun MainApp(viewModel: AppViewModel) {
     // 可空 StateFlow 并手工 consume；现在收一条 Channel —— 接收即出队，没有 consume 可调，
     // 也不会向新订阅者重放最后一个值。分流成三条队列的理由见 viewmodel/UiEvent.kt 的类注释。
     // 仍用 LaunchedEffect(Unit)+collect 而非 LaunchedEffect(key)：key 变化会取消协程、中断
-    // showSnackbar（MD3 撤销不出现的根因）。
+    // showSnackbar（MD3 撤销不出现的根因）。跨主题分流已收进 ui/components/UndoSnackbar.kt 的
+    // showUndoSnackbarAcrossThemes（#4b）—— 这两个宿主的身份必须跨主题稳定，理由见那个函数的注释。
     val currentIsMiuix by rememberUpdatedState(isMiuix)
     LaunchedEffect(Unit) {
         viewModel.appShellUiEvents.collect { event ->
             when (event) {
                 // 列表页步进器减号触发的「撤销消耗」：弹撤销 Snackbar（MD3 / MIUIX 两套样式）。
                 is UiEvent.UndoConsumption -> {
-                    val undone = if (currentIsMiuix) {
-                        miuixSnackbarHostState.showUndoSnackbar("已减少一件并计入消耗") ==
-                            MiuixSnackbarResult.ActionPerformed
-                    } else {
-                        snackbarHostState.showUndoSnackbar("已减少一件并计入消耗") ==
-                            SnackbarResult.ActionPerformed
-                    }
+                    val undone = showUndoSnackbarAcrossThemes(
+                        isMiuix = currentIsMiuix,
+                        md3Host = snackbarHostState,
+                        miuixHost = miuixSnackbarHostState,
+                        message = "已减少一件并计入消耗",
+                    )
                     if (undone) {
                         viewModel.undoConsumption(event)
                     }
@@ -162,13 +160,12 @@ fun MainApp(viewModel: AppViewModel) {
                 is UiEvent.UndoRestoreArchived -> {
                     val msg = if (event.merged) "库存中已有同批次「${event.item.name}」，已合并数量"
                               else "已恢复「${event.item.name}」到零食柜"
-                    val undone = if (currentIsMiuix) {
-                        miuixSnackbarHostState.showUndoSnackbar(msg) ==
-                            MiuixSnackbarResult.ActionPerformed
-                    } else {
-                        snackbarHostState.showUndoSnackbar(msg) ==
-                            SnackbarResult.ActionPerformed
-                    }
+                    val undone = showUndoSnackbarAcrossThemes(
+                        isMiuix = currentIsMiuix,
+                        md3Host = snackbarHostState,
+                        miuixHost = miuixSnackbarHostState,
+                        message = msg,
+                    )
                     if (undone) {
                         viewModel.archiveBatch(setOf(event.item.id), event.reason)
                     }
@@ -203,13 +200,12 @@ fun MainApp(viewModel: AppViewModel) {
         scope.launch {
             viewModel.setFabSuppressed(true)
             try {
-                val undone = if (isMiuix) {
-                    miuixSnackbarHostState.showUndoSnackbar("已将 ${ids.size} 件食品移入归档") ==
-                        MiuixSnackbarResult.ActionPerformed
-                } else {
-                    snackbarHostState.showUndoSnackbar("已将 ${ids.size} 件食品移入归档") ==
-                        SnackbarResult.ActionPerformed
-                }
+                val undone = showUndoSnackbarAcrossThemes(
+                    isMiuix = isMiuix,
+                    md3Host = snackbarHostState,
+                    miuixHost = miuixSnackbarHostState,
+                    message = "已将 ${ids.size} 件食品移入归档",
+                )
                 if (undone) {
                     viewModel.restoreArchivedBatch(ids)
                 }

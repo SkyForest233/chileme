@@ -251,6 +251,32 @@ suspend fun MiuixSnackbarHostState.showUndoSnackbar(message: String): MiuixSnack
         }
     }
 
+/**
+ * 主壳覆盖层的跨主题撤销条：按 [isMiuix] 挑宿主弹条，只把「用户点没点撤销」这一个 Boolean 交回调用方。
+ *
+ * **为什么不让主壳直接用二级页那个 `AppSnackbarHostState` 容器**（`ui/components/app/AppChrome.kt`）：
+ * 那容器是 `remember(isMiuix)` 建的，切主题会换一个**新**容器与两个**新**宿主；而主壳的收集协程是
+ * `LaunchedEffect(Unit)` —— key 一变协程就被取消、`showSnackbar` 被中断（这正是当年 MD3 撤销条不出现的
+ * 根因），所以主壳这两个宿主的身份必须跨主题稳定（`remember {}` 无 key）。若换成带 key 的容器，
+ * `Unit` 协程捕获的还是**旧**容器 ⇒ 提示会弹到没有渲染的宿主上，而 `showSnackbar` 挂起到关闭为止
+ * ⇒ 那条协程永久堵住，之后所有撤销条都不再出现。于是分流只能收在这个自由函数里：
+ * 宿主身份不变、effect key 不变，三处重复的 if/else 收成一处。
+ *
+ * 两主题的 `SnackbarResult` 枚举到此为止，不再往 `MainApp` 泄漏（`docs/ARCHITECTURE.md:157` 的既有约束：
+ * 跨主题宿主对象不得漏回屏幕层）。`internal` = 只给本模块用，不进公开 API 面。
+ */
+internal suspend fun showUndoSnackbarAcrossThemes(
+    isMiuix: Boolean,
+    md3Host: SnackbarHostState,
+    miuixHost: MiuixSnackbarHostState,
+    message: String,
+): Boolean =
+    if (isMiuix) {
+        miuixHost.showUndoSnackbar(message) == MiuixSnackbarResult.ActionPerformed
+    } else {
+        md3Host.showUndoSnackbar(message) == SnackbarResult.ActionPerformed
+    }
+
 private suspend inline fun <T : Any> awaitShown(crossinline current: suspend () -> T?): T? {
     var data = current()
     var tries = 0
