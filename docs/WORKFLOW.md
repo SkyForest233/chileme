@@ -66,6 +66,10 @@
   **规矩：CI 红了先要日志，别先按排除法猜**（09-18 那次先猜了 5 个方向全不中，日志到手 30 秒定位）。
   拿不到日志时还有两个旁证：`gh api …/check-runs/<job_id>/annotations`（例如「没有测试报告 / 没有 lint 报告」
   ⇒ 红在编译阶段、单测没跑起来）与 `gh run view --json jobs` 的步骤级结论 + 起止时间。
+- **`gh` 自己也 401 时**（令牌失效，但 `git push` 用的另一条凭据还活着 ⇒ 代码推上去了、run 也起来了，只是读不到结论；2026-09-18 第二次实测）：还有两条**不需要登录**的公开通道 ——
+  ① **badge**：`https://github.com/<owner>/<repo>/actions/workflows/build.yml/badge.svg?branch=<分支>` 直接给出 `Build - passing / failing`（拿 `?branch=master` 当对照，证明 badge 本身没坏）；
+  ② **run 页面的 HTML**（`…/actions/runs/<id>`，用网页抓取工具读）：`Status`、逐 job 结论与时长、Annotations 全文 —— "Process completed with exit code 1" 带 `#step:N:M` 指向具体步骤，产物步骤的 "No files were found" 能反推"红在编译期、单测没跑起来"。
+  **次序：badge → run 页面 HTML → 才请用户复制签名 URL**（这次没打扰用户就定位到了阶段与步骤）。
 - 升级工具版本：改 `tools/ci-gates.sh` 里的版本号 + sha256，并同步改 `build.yml` 里 `actions/cache` 的 key。
 - release 侧另有 `release-r8` job：每个 PR 都跑 `assembleRelease -PallowUnsignedRelease=true`（R8 + 资源压缩 + `lintRelease`），因为这类问题只在 release 构建出现。
 - 提交代码前建议先跑一次门禁，比等 CI 反馈快。
@@ -74,7 +78,7 @@
 
 | 错误 | 原因与处理 |
 |---|---|
-| Unresolved reference 'X' | 缺 import 或拼写错误；检查文件顶部导入。⚠️ **搬代码进新文件时最容易漏的是「别名 import」**：本仓双主题组件层有 25 条 `import top.yukonga.miuix.kmp.basic.Text as MiuixText` 这类别名，按「简单名 = 路径最后一段」算依赖的脚本看不见它们（09-18 #10a-1 因此红了 24 处）。本地 `python3 tools/kt-lexcheck.py` 的判据 4 专查这条。它常伴着一串「`@Composable` invocations can only happen from the context of a `@Composable` function」——那是未解析的 Composable 尾随 lambda 引起的**连带错**，补好 import 就一起消失，别当成第二个问题去修 |
+| Unresolved reference 'X' | 缺 import 或拼写错误；检查文件顶部导入。⚠️ **搬代码进新文件时最容易漏的是「别名 import」**：本仓双主题组件层有 25 条 `import top.yukonga.miuix.kmp.basic.Text as MiuixText` 这类别名，按「简单名 = 路径最后一段」算依赖的脚本看不见它们（09-18 #10a-1 因此红了 24 处）。本地 `python3 tools/kt-lexcheck.py` 的判据 4 专查这条。⚠️ **09-18 #10a-2 又漏了另一半**：按「大写开头、不含下划线」算依赖的脚本看不见**小写扩展函数/属性**（`dp` / `padding` / `fillMaxWidth` / `launch`）、**全大写常量**（`CLOUD_BACKUP_KEEP`）与**点号后面的大写成员**（`Icons.Rounded.Cloud`），5 个文件少 41 条 import ⇒ 同样红在编译，而 `kt-lexcheck` 判据 1–4 全绿。搬完代码跑 `python3 tools/move-importcheck.py --old <搬家前的 git 引用> --new <搬家后的文件…>`（拿旧文件的 import 表当参照物；两次历史真红都能逐条复现，`--selftest` 有 4 个合成对照，`--apply` 直接补齐）。它常伴着一串「`@Composable` invocations can only happen from the context of a `@Composable` function」——那是未解析的 Composable 尾随 lambda 引起的**连带错**，补好 import 就一起消失，别当成第二个问题去修 |
 | Unresolved reference: R | res/ 文件有误（常见 strings.xml / xml 格式） |
 | @Composable invocations... | 在非 Composable 作用域（onClick/协程）调了 Composable；把值提前在组合作用域获取 |
 | Platform declaration clash | 为 `var x` 又手写了 `fun setX()`；删掉手写 setter |
