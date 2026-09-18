@@ -65,10 +65,37 @@ import glob, io, os
 sizes = sorted(((sum(1 for _ in io.open(f, encoding='utf-8')), os.path.basename(f))
                 for f in glob.glob('app/src/main/java/com/agon/app/data/*.kt')), reverse=True)
 over = ['%s %d' % (n, c) for c, n in sizes if c > 400]
-print('%s %d 行%s' % (sizes[0][1], sizes[0][0],
-                      (' => X 超 400 的有 ' + ', '.join(over)) if over else ' OK 全部 < 400'))
+print((('%s %d 行%s' % (sizes[0][1], sizes[0][0],
+                       (' => X 超 400 的有 ' + ', '.join(over)) if over else ' OK 全部 < 400')) if sizes else 'X 找不到源码（glob 空集）—— 本脚本会 cd 到自己所在目录的上一级，请在仓库根目录跑'))
 PY
-)" '#5 验收③在 data 层的落点；⚠️ UI/VM 层仍有 6 个文件超 400 行，不属 #5 范围（见 ROADMAP 全项验收③）'
+)" '#5 验收③在 data 层的落点；⚠️ UI/VM 层仍有 6 个文件超 400 行，不属 #5 范围（见 ROADMAP 全项验收③ 与 #10）'
+row '屏幕本体最大文件（#10 判据 < 400 行）' "$(python3 - <<'PY'
+import glob, io, os
+sizes = sorted(((sum(1 for _ in io.open(f, encoding='utf-8')), os.path.basename(f))
+                for f in glob.glob('app/src/main/java/com/agon/app/ui/screens/*.kt')
+                if not f.endswith('State.kt')), reverse=True)
+over = ['%s %d' % (n, c) for c, n in sizes if c > 400]
+print((('%s %d 行%s' % (sizes[0][1], sizes[0][0],
+                       (' => X 超 400 的有 ' + ', '.join(over)) if over else ' OK 全部 < 400')) if sizes else 'X 找不到源码（glob 空集）—— 本脚本会 cd 到自己所在目录的上一级，请在仓库根目录跑'))
+PY
+)" '#10 验收①的一半；口径同上面「屏幕本体」那行（排除 *State.kt）'
+row 'viewmodel/ 最大文件（#10 判据 < 400 行）' "$(python3 - <<'PY'
+import glob, io, os
+sizes = sorted(((sum(1 for _ in io.open(f, encoding='utf-8')), os.path.basename(f))
+                for f in glob.glob('app/src/main/java/com/agon/app/viewmodel/*.kt')), reverse=True)
+over = ['%s %d' % (n, c) for c, n in sizes if c > 400]
+print((('%s %d 行%s' % (sizes[0][1], sizes[0][0],
+                       (' => X 超 400 的有 ' + ', '.join(over)) if over else ' OK 全部 < 400')) if sizes else 'X 找不到源码（glob 空集）—— 本脚本会 cd 到自己所在目录的上一级，请在仓库根目录跑'))
+PY
+)" '#10 验收①的另一半；#6 的 20 处 stateIn( 也在这个目录里'
+row '主代码超 400 行的文件（全清单）' "$(python3 - <<'PY'
+import glob, io
+sizes = sorted(((sum(1 for _ in io.open(f, encoding='utf-8')), f)
+                for f in glob.glob('app/src/main/**/*.kt', recursive=True)), reverse=True)
+over = ['%s %d' % (f.replace('app/src/main/java/com/agon/app/', ''), c) for c, f in sizes if c > 400]
+print((('%d 个%s' % (len(over), ('：' + ' · '.join(over)) if over else ' OK 全仓无一超 400')) if sizes else 'X 找不到源码（glob 空集）—— 本脚本会 cd 到自己所在目录的上一级，请在仓库根目录跑'))
+PY
+)" 'ROADMAP #5 验收③ 与 #10 的证据都指这行 —— 别再往文档里抄行数（抄过的 668 已腐烂成核查第 18 处）'
 row '*State.kt 状态容器' "$(ls "$SCREENS"/*State.kt | wc -l | tr -d ' ') 个" '路线图 #6 的基础'
 row 'Application 子类' "$(occ 'class[[:space:]]+[A-Za-z]*[[:space:]]*:[[:space:]]*Application\b' "$MAIN") 个" '#5a 起 = 1（`ChiliMeApp` 持有 `AppContainer`）；0 = 无 DI 容器'
 row '依赖构造点（目标：只在容器里 1 处）' "$(python3 - <<'PY' 2>/dev/null || echo '需 python3'
@@ -208,7 +235,7 @@ echo
 echo '════ 无障碍与资源化（作用域 app/src/main）════'
 row 'contentDescription = null' "$(occ 'contentDescription[[:space:]]*=[[:space:]]*null' "$MAIN") 处" '待办 #7'
 row 'Modifier.semantics 真调用' "$(occ '\.semantics[[:space:]]*[({]' "$MAIN") 处" '⚠️ 别用 \bsemantics\b 数：那会把 6 行 import 也算进来（曾因此得出 7 处的错值）'
-row 'strings.xml 条目' "$(grep -c '<string' app/src/main/res/values/strings.xml | tr -d ' ') 条" '与上面 583 处中文字面量对比即待办 #7 的规模'
+row 'strings.xml 条目' "$(grep -c '<string' app/src/main/res/values/strings.xml | tr -d ' ') 条" '与上面「含中文的字符串字面量」那行对比即待办 #7 的规模（别在这里写死数字，它会腐烂）'
 
 echo
 echo '════ 路线图 #4/#5/#6/#8 的证据（作用域 app/src/main，括号内为含测试）════'
@@ -496,6 +523,45 @@ def wcl(p):
     return sum(1 for _ in io.open(p, encoding='utf-8'))
 REPO = MAIN + '/java/com/agon/app/data/FoodRepository.kt'
 VMF = MAIN + '/java/com/agon/app/viewmodel/AppViewModel.kt'
+
+# ⚠️ 这份 strip_comments 是上面「测试」段那份的副本（两个 heredoc 各自独立，无法共享定义）。
+# 改一份必须改另一份 —— 否则「单测数」与「中文字面量」两条会各用一套剥注释逻辑，
+# 数字对不上还查不出原因（09-18 加第 21 条比对时特意留这行提醒）。
+def strip_comments(src):
+    """只剥注释、保留字符串内容（用于数字面量）。"""
+    out = []; i = 0; n = len(src)
+    while i < n:
+        c = src[i]
+        if c == '/' and i + 1 < n and src[i + 1] == '/':
+            j = src.find('\n', i); i = n if j < 0 else j
+        elif c == '/' and i + 1 < n and src[i + 1] == '*':
+            d = 1; i += 2
+            while i < n and d:
+                if src.startswith('/*', i): d += 1; i += 2
+                elif src.startswith('*/', i): d -= 1; i += 2
+                else: i += 1
+        elif c == '"':
+            if src.startswith('"""', i):
+                j = src.find('"""', i + 3); e = n if j < 0 else j + 3
+            else:
+                k = i + 1
+                while k < n and src[k] != '"':
+                    k += 2 if src[k] == '\\' else 1
+                e = k + 1
+            out.append(src[i:e]); i = e
+        else:
+            out.append(c); i += 1
+    return ''.join(out)
+
+def cn_literals():
+    n = 0
+    for t in kt.values():
+        s = strip_comments(t)
+        for m in re.finditer(r'"""(.*?)"""|"((?:[^"\\]|\\.)*)"', s, re.S):
+            c = m.group(1) if m.group(1) is not None else m.group(2)
+            if re.search(r'[\u4e00-\u9fff]', c or ''):
+                n += 1
+    return n
 # (指标, 文档里提取数值的正则, 实测值)
 ITEMS = [
     # ⚠️ 数字**两边**都要吃掉星号：早先只写了前面的 \*{0,2}，于是 "`FoodRepository.kt` **950** 行"
@@ -517,6 +583,10 @@ ITEMS = [
      len(re.findall(r'<string', io.open(MAIN + '/res/values/strings.xml', encoding='utf-8').read()))),
     ('Application 子类', r'`Application`\s*子类\s*\*\*(\d+)\*\*\s*个',
      occ(r'class\s+[A-Za-z]*\s*:\s*Application\b')),
+    # 第 21 条（09-18 加）：ROADMAP #7 与 INDEX #7 的两种写法都吃 —— 原写 583、实测 576（核查第 19 处），
+    # 腐烂了 1 天没人报警，因为这一项此前不在比对清单里。星号两侧都吃（与 FoodRepository 那条同一个教训）。
+    ('含中文的字符串字面量', r'(?:含中文的字符串字面量|源码中文字面量)\s*\*{0,2}([\d,]+)\*{0,2}\s*处',
+     cn_literals()),
 ]
 bad = hits = 0
 for d in DOCS:
