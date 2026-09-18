@@ -23,6 +23,9 @@ import 表里（或是同包/stdlib/局部）⇒ 「旧文件的 import 表 ∩ 
 - **#10a-2**（`befff9f` 的 5 个文件）：点名 41 条（入口 1 + MD3 body 9 + 备份节 12 + Miuix body 7 +
   小组件 12），与修复提交的 `+41 / −2` 对上；那 2 条是搬完后**变成死 import** 的
   （入口的 `layout.padding`、Miuix body 的 `lazy.items` —— 都只剩「形参名/具名实参」用法）。
+- **#10a-2 第二轮**（`83a38fe` 之后，入口仍红）：点名 `getValue` / `setValue` 2 条 —— 与 CI 那轮
+  **唯一**一处报错（`SettingsScreen.kt:138:23`，两行 `e:` 是同一处的 getValue/setValue 两侧）逐字对上。
+  判据 6 就是为这一条加的；加完后重跑，5 个文件 0 缺失。
 
 判据（每条都对应踩过的坑）
 --------------------------
@@ -38,10 +41,21 @@ import 表里（或是同包/stdlib/局部）⇒ 「旧文件的 import 表 ∩ 
 5. **函数形参刻意不算本地名**：形参名与扩展撞名时（`fun f(padding: PaddingValues)` 里又调
    `Modifier.padding(…)`）算本地名会造成**漏报**，而漏报正是这次事故的方向 ⇒ 宁可多一眼假警。
    lambda 参（`{ padding -> }`）算本地名。
+6. **委托算子（`getValue` / `setValue` / `provideDelegate`）走结构判据**：这类 import 的名字在代码里
+   **从不以标识符出现** —— `var x by remember { mutableStateOf(…) }` 一个字母都没提 `setValue`，
+   所以判据 3（整词）和判据 4（调用形）都看不见它，"整词都没出现 ⇒ 跳过"那道闸直接把它放走了。
+   #10a-2 第二轮 CI 红就是这一条：`e: SettingsScreen.kt:138:23 Type 'MutableState<PendingImport?>'
+   has no method 'setValue(…)', so it cannot serve as a delegate`。
+   认法：代码里有属性委托 `val|var X by …`（排除 `by lazy` / `by Delegates.`，那两个不需要 runtime 的
+   算子）⇒ 需要 `getValue`；其中出现 `var` ⇒ 另需 `setValue`。照旧受参照物约束：参照文件没 import 过
+   就不报（避免对非 Compose 代码乱叫）。
+   ⚠️ 其余算子约定名（`componentN` 解构 / `iterator` / `invoke` / `compareTo` …）**不覆盖**：本仓实测
+   `git grep` 全部 `*.kt`，这类 import 只有 `runtime.getValue` 21 处、`runtime.setValue` 12 处，其余 0 处。
 
 已知盲区：① 同包声明按**目录**近似（main/test 同包不同目录时失效，但那种情况下旧文件参照物照样兜住）；
 ② 旧文件自己若有死 import，会被判成"新文件也该有"⇒ 报出来的每一条都要看一眼用法；
-③ 新写的代码（不在旧文件里）用到的新符号，这条判据看不见。
+③ 新写的代码（不在旧文件里）用到的新符号，这条判据看不见；
+④ 委托以外的算子约定名（判据 6 的 ⚠️）—— 本仓实测 0 处，所以是"已量过的空"，不是"没看过"。
 
 用法
 ----
@@ -91,6 +105,12 @@ TOPDECL_RE = re.compile(
     r'^(?:public |internal |private |protected )*'
     r'(?:(?:fun|class|object|interface|val|var|typealias)|(?:data|enum|sealed|annotation) class)'
     r'\s+(?:<[^>]*>\s*)?(?:[\w$]+\.)?([\w$]+)', re.M)
+# 判据 6：属性委托 `val|var X by …`。排除 `by lazy` / `by Delegates.`（那两个用的是 kotlin 自带的算子，
+# 不需要 runtime.getValue/setValue）。只认行首带修饰词也算，`class X : Y by z` 那种接口委托不会被误认。
+DELEG_RE = re.compile(
+    r'^[ \t]*(?:(?:private|internal|public|protected|override|lateinit|actual|expect|const)\s+)*'
+    r'(val|var)\s+[\w$]+\s+by\s+(?!lazy\b|Delegates\b)', re.M)
+OPERATOR_NAMES = ('getValue', 'setValue', 'provideDelegate')
 
 
 def usable_imports(text):
@@ -116,6 +136,24 @@ def used(name, code):
                     or re.search(r'\d\s*\.\s*%s(?![\w$])' % re.escape(name), code)
                     or re.search(r'(?<![\w$.])%s\s*[(<{]' % re.escape(name), code))
     return bool(re.search(r'(?<![\w$])%s\b' % re.escape(name), code))
+
+
+def delegations(code):
+    """属性委托的处数，以及其中 `var` 的处数（判据 6）。"""
+    kinds = [m.group(1) for m in DELEG_RE.finditer(code)]
+    return len(kinds), sum(1 for k in kinds if k == 'var')
+
+
+def deleg_lines(code, limit=3):
+    """报缺失时拿委托那一行当"用法"：算子名在代码里没有字面出现，contexts() 会是空的。"""
+    return [' '.join(m.group(0).split())[:88] for m in list(DELEG_RE.finditer(code))[:limit]]
+
+
+def operator_needed(name, n_deleg, n_var):
+    """算子约定名要不要（判据 6）：有委托就要 getValue/provideDelegate，其中有 var 才要 setValue。"""
+    if name == 'setValue':
+        return n_var > 0
+    return n_deleg > 0
 
 
 def contexts(name, code, limit=3):
@@ -183,8 +221,13 @@ def analyse(old_ref, new_paths, verbose=True):
         mine = usable_imports(text)
         decl = local_decls(code)
         needed, skipped = {}, []
+        n_deleg, n_var = delegations(code)
         for name, (path, alias) in old_imports.items():
             if name in decl or name in pkg:
+                continue
+            if name in OPERATOR_NAMES:        # 判据 6：这类名字在代码里根本不出现，只能按结构认
+                if operator_needed(name, n_deleg, n_var):
+                    needed[name] = (path, alias)
                 continue
             if not re.search(r'(?<![\w$])%s\b' % re.escape(name), code):
                 continue                      # 整词都没出现
@@ -203,7 +246,8 @@ def analyse(old_ref, new_paths, verbose=True):
             for n in missing:
                 path, alias = needed[n]
                 print(f'      ✗ 缺 {n:<22} ← {path}' + (f' as {alias}' if alias else ''))
-                for c in contexts(n, code, 2):
+                shown = deleg_lines(code, 2) if n in OPERATOR_NAMES else contexts(n, code, 2)
+                for c in shown:
                     print(f'           用法: {c}')
             for n in extra:
                 print(f'      ? 疑似多余 {n:<16} ← {mine[n][0]}（旧文件 import 过、这里找不到调用形用法；'
@@ -239,6 +283,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Cloud
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.agon.app.data.CLOUD_BACKUP_KEEP
@@ -299,6 +345,46 @@ fun a(scope: S) {
     MiuixText("标题")
     scope.launch { }
     items(emptyList<Int>()) { }
+}
+''', []),
+    # ⑤ var 属性委托：`by` 一个字母都不提 getValue/setValue，只有结构判据看得见（判据 6 的正面）
+    ('delegation_var', '''package new
+
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+
+@Composable
+fun a() {
+    var x by remember { mutableStateOf(0) }
+    x = x + 1
+}
+''', ['getValue', 'setValue']),
+    # ⑥ `by lazy` 用的是 kotlin 自带的算子 ⇒ 一条都不该报（判据 6 的反面，防假警）
+    ('delegation_by_lazy', '''package new
+
+val cached by lazy { 1 }
+
+fun a(): Int = cached
+''', []),
+    # ⑦ 只读委托（val）⇒ 只该报 getValue，不该顺手把 setValue 也带上
+    ('delegation_val_only', '''package new
+
+fun a(state: MutableState<Int>): Int {
+    val v by state
+    return v
+}
+''', ['getValue']),
+    # ⑧ 委托齐了 ⇒ 干净（证明判据 6 不会对正确的文件乱叫）
+    ('delegation_complete', '''package new
+
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+
+fun a() {
+    var x by remember { mutableStateOf(0) }
+    x = x + 1
 }
 ''', []),
 ]
