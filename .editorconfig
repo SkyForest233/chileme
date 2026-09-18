@@ -17,8 +17,12 @@
 #
 # 未开启及原因（不是遗漏，是明确决定）：
 #   * no-unused-imports：ktlint 1.7 起**已弃用**（官方 issue #3038：误报率高，可能删掉
-#     实际在用的 import 导致编译失败），1.8 需显式开启、2.0 将移除。本仓库改用 detekt 的
-#     UnusedImports 规则（更保守），见 detekt.yml。存量 11 处未使用 import 已在 2026-09-15 手工清掉。
+#     实际在用的 import 导致编译失败），1.8 需显式开启、2.0 将移除。
+#     ⚠️ 2026-09-18 核查第 14 处：这里原先写「本仓库改用 detekt 的 UnusedImports 规则」——**不成立**，
+#     detekt 1.23.8 默认 `UnusedImports: active: false` 且本仓未显式打开（见 detekt.yml 同名注释），
+#     ⇒ 未使用的 import 在 CI 上**没有门禁**，改由本地 `tools/kt-lexcheck.py` 兜（12 个自检对照）。
+#     存量 11 处未使用 import 已在 2026-09-15 手工清掉；此后又漏进 1 处（09-17 搬家留下的
+#     `AppBatchMoveDialog.kt` 的 `layout.size`，09-18 由该工具查出并删除）。
 #   * 全量格式规则（缩进/换行/括号/参数换行…）：留待专门一轮 `ktlint --format` 一次性刷，
 #     单独 review 那份 diff；之后把 `ktlint_standard = disabled` 改成 enabled 即可升级门禁。
 #   * max-line-length：中文注释多、单行偏长，开启需先全量重排注释。

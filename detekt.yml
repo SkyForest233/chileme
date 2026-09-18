@@ -155,8 +155,15 @@ style:
   UnderscoresInNumericLiterals:
     active: false        # 主观
   # 保留默认开启的高价值规则（此处不写 = 用 detekt 默认值，前提是 --build-upon-default-config）：
-  #   UnusedImports        未使用的 import（ktlint 的同类规则已弃用，这里兜底）
-  #   UnusedPrivateMember  私有函数/属性没人用 = 死代码
-  #   UnusedPrivateProperty 同上
-  #   UnusedPrivateClass   私有类没人用
+  #   UnusedPrivateMember   私有函数/属性没人用 = 死代码（1.23.8 默认 active: true，已核对）
+  #   UnusedPrivateProperty 同上（默认 active: true）
+  #   UnusedPrivateClass    私有类没人用（默认 active: true）
+  #
+  # ⚠️ **UnusedImports 不在此列**（2026-09-18 核查第 14 处）：detekt 1.23.8 的
+  #   default-detekt-config.yml:744 写的是 `UnusedImports: active: false`（官方因误报率高默认关闭），
+  #   本仓也没有显式打开 ⇒ **未使用的 import 目前没有任何门禁在管**。此前这里写着「ktlint 的同类规则
+  #   已弃用，这里兜底」、`.editorconfig` 写着「本仓库改用 detekt 的 UnusedImports 规则」—— 两句都不成立，
+  #   已各自改正。实测确实漏了一个：`AppBatchMoveDialog.kt` 的 `import …layout.size`（09-17 搬家时留下）。
+  #   处置：本地由 `tools/kt-lexcheck.py` 的第 3 条判据兜（含 12 个内建自检对照）；CI 侧**暂不开启** ——
+  #   开启前要先跑一轮看 detekt 的误报面（它默认关闭正是这个原因），那是独立一轮，别混进功能改动。
   #   EqualsNullCall / UnconditionalJumpStatementInLoop / etc.
