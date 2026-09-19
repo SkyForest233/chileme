@@ -42,13 +42,14 @@ app/src/main/java/com/agon/app/
 │   ├─ ImageStore.kt            # 封面图片复制到私有目录（下采样 + EXIF 旋转校正）+ 孤儿封面清理
 │   ├─ CloudSync.kt             # 坚果云 WebDAV（NutstoreSync 单例）
 │   └─ SecureStore.kt           # Keystore AES-GCM 密码
-├─ viewmodel/                   # 6 个文件（2026-09-19 #10b-1 / #10b-2 / #10b-3 / #10b-4 起：VM 的领域函数按领域搬成同包 internal 扩展函数）
-│   ├─ AppViewModel.kt          # 全局共享 VM（AndroidViewModel），StateFlow 暴露；363 行 🎯 < 400 达标（#10b-1 前 700、#10b-2 前 590、#10b-3 前 469、#10b-4 前 431）
+├─ viewmodel/                   # 7 个文件（2026-09-19 #10b-1 … #10b-5 起：VM 的领域函数按领域搬成同包 internal 扩展函数）
+│   ├─ AppViewModel.kt          # 全局共享 VM（AndroidViewModel），StateFlow 暴露；322 行 🎯 < 400 达标（#10b-1 前 700、#10b-2 前 590、#10b-3 前 469、#10b-4 前 431、#10b-5 前 363）
 │   ├─ UiEvent.kt               # 一次性事件：sealed interface UiEvent（6 类，#4a 建 4 类 / #4c 扩 2 类）+ enum DataOp（5 值）+ enum UiSurface（4 值）
 │   ├─ AppViewModelBackup.kt    # VM 的备份领域 9 个函数（导出/文件导入/导入前快照/本地快照；#10b-1，2026-09-19）
 │   ├─ AppViewModelCloud.kt     # VM 的坚果云同步领域 4 个函数 + 顶层常量 NO_CREDENTIALS_MESSAGE（凭据/上传/列表/下载；#10b-2，2026-09-19）
 │   ├─ AppViewModelArchiveUndo.kt # VM 的归档与消耗撤销领域 6 个函数（单件归档/恢复 + 消耗记录删除与撤销；#10b-3，2026-09-19）
-│   └─ AppViewModelFood.kt      # VM 的食物 CRUD 与批量领域 11 个函数（新增/编辑、数量增减、批量归档与恢复、清空与放弃损坏数据；#10b-4，2026-09-19）
+│   ├─ AppViewModelFood.kt      # VM 的食物 CRUD 与批量领域 11 个函数（新增/编辑、数量增减、批量归档与恢复、清空与放弃损坏数据；#10b-4，2026-09-19）
+│   └─ AppViewModelCategoryLocation.kt # VM 的分类与位置领域 7 个函数（分类增删改与阈值、位置增删与批量改位置；#10b-5，2026-09-19）
 └─ ui/
     ├─ navigation/              # AppRoute（miuix-nav 二级页栈；转场用库预设 NavTransitions.MiuixDefault）
     ├─ theme/                   # Palettes.kt（15 套种子色方案）/ Color.kt（仅状态语义色）/ Theme.kt（MaterialKolor 生成 + animateColorScheme）/ ThemeStyle.kt（MATERIAL3/MIUIX 风格枚举 + LocalThemeStyle）/ MiuixRootTheme.kt（MiuixTheme + MaterialTheme 桥接，v2.8）/ Motion.kt（MD3 缓动与时长 token）/ TodayProvider.kt（LocalToday，跨零点刷新）

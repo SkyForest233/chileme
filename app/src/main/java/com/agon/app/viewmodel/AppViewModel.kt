@@ -15,7 +15,6 @@ import com.agon.app.data.HistoryEntry
 import com.agon.app.data.isAutoSyncDue
 // ↓ #5c 起仓库的领域函数搬到了各自的领域文件（同包 internal 扩展函数）⇒ 跨包调用要逐个 import
 import com.agon.app.data.seedIfNeeded
-import com.agon.app.data.updateLocationBatch
 import com.agon.app.data.migrateConsumptionIds
 import com.agon.app.data.buildBackupJson
 import com.agon.app.data.setDynamicColor
@@ -26,9 +25,6 @@ import com.agon.app.data.setFloatingNav
 import com.agon.app.data.setAutoSyncDays
 import com.agon.app.data.setLastAutoSyncEpochDay
 import com.agon.app.data.setLastSync
-import com.agon.app.data.setCategoryThreshold
-import com.agon.app.data.setCategories
-import com.agon.app.data.setLocations
 import com.agon.app.data.migratePlaintextPassword
 import com.agon.app.data.CloudBackup
 import com.agon.app.data.LocalSnapshot
@@ -51,7 +47,6 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import java.util.UUID
 
 private const val TAG = "AppViewModel"
 
@@ -302,38 +297,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setAutoSyncDays(days: Int) = viewModelScope.launch { repo.setAutoSyncDays(days) }
 
-    fun setCategoryThreshold(categoryId: String, days: Int) =
-        viewModelScope.launch { repo.setCategoryThreshold(categoryId, days) }
-
-    // ---- 分类管理 ----
-
-    fun addCategory(label: String, emoji: String) = viewModelScope.launch {
-        val def = CategoryDef(UUID.randomUUID().toString(), label.trim(), emoji.trim().ifBlank { "🍽️" })
-        repo.setCategories(categories.value + def)
-    }
-
-    fun updateCategory(def: CategoryDef) = viewModelScope.launch {
-        repo.setCategories(categories.value.map { if (it.id == def.id) def else it })
-    }
-
-    fun deleteCategory(id: String) = viewModelScope.launch {
-        val remaining = categories.value.filterNot { it.id == id }
-        if (remaining.isNotEmpty()) repo.setCategories(remaining)
-    }
-
-    // ---- 位置管理 ----
-
-    fun addLocation(name: String) = viewModelScope.launch {
-        val trimmed = name.trim()
-        if (trimmed.isNotBlank() && trimmed !in locations.value) {
-            repo.setLocations(locations.value + trimmed)
-        }
-    }
-
-    fun deleteLocation(name: String) = viewModelScope.launch {
-        repo.setLocations(locations.value.filterNot { it == name })
-    }
-
     fun setDynamicColor(enabled: Boolean) = viewModelScope.launch { repo.setDynamicColor(enabled) }
 
     fun setDarkMode(mode: Int) = viewModelScope.launch { repo.setDarkMode(mode) }
@@ -343,10 +306,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun setThemeStyle(name: String) = viewModelScope.launch { repo.setThemeStyle(name) }
 
     fun setFloatingNav(enabled: Boolean) = viewModelScope.launch { repo.setFloatingNav(enabled) }
-
-    fun updateLocationBatch(ids: Set<String>, newLocation: String) = viewModelScope.launch {
-        repo.updateLocationBatch(ids, newLocation)
-    }
 
     // ---- 本地快照管理 ----
 

@@ -79,6 +79,7 @@ import com.agon.app.viewmodel.UiEvent
 import com.agon.app.viewmodel.archiveBatch
 import com.agon.app.viewmodel.restoreArchivedBatch
 import com.agon.app.viewmodel.undoConsumption
+import com.agon.app.viewmodel.updateLocationBatch
 import kotlin.math.abs
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.nav.core.rememberNavBackStack
