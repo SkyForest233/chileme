@@ -20,9 +20,11 @@ import 表里（或是同包/stdlib/局部）⇒ 「旧文件的 import 表 ∩ 
 --------------------------------------------------------------
 - **#10a-1**（`c20458a` 的三个弹窗文件，别名 import 漏带）：点名 1 / 4 / 4 条，与修复提交 `2035ab2`
   的 `+1 / +4 / +4` 逐条对上，覆盖 CI 报的 24 处 `Unresolved reference`。
-- **#10a-2**（`befff9f` 的 5 个文件）：点名 41 条（入口 1 + MD3 body 9 + 备份节 12 + Miuix body 7 +
-  小组件 12），与修复提交的 `+41 / −2` 对上；那 2 条是搬完后**变成死 import** 的
-  （入口的 `layout.padding`、Miuix body 的 `lazy.items` —— 都只剩「形参名/具名实参」用法）。
+- **#10a-2**（`befff9f` 的 5 个文件）：**今天**跑同一条命令点名 **43** 条 = 首轮的 41（入口 `launch` 1 +
+  MD3 body 9 + 备份节 12 + Miuix body 7 + 小组件 12）+ 次轮的 2（入口 `getValue` / `setValue`）——
+  判据 6 加进来之后，**两轮真红被同一次运行一起复现**。首轮当时记的是 41 条，与修复提交的 `+41 / −2`
+  对上；那 2 条删除是搬完后**变成死 import** 的（入口的 `layout.padding`、Miuix body 的 `lazy.items`
+  —— 都只剩「形参名/具名实参」用法）。
 - **#10a-2 第二轮**（`83a38fe` 之后，入口仍红）：点名 `getValue` / `setValue` 2 条 —— 与 CI 那轮
   **唯一**一处报错（`SettingsScreen.kt:138:23`，两行 `e:` 是同一处的 getValue/setValue 两侧）逐字对上。
   判据 6 就是为这一条加的；加完后重跑，5 个文件 0 缺失。
@@ -35,9 +37,14 @@ import 表里（或是同包/stdlib/局部）⇒ 「旧文件的 import 表 ∩ 
    （`…basic.Icon as MiuixIcon` 的 `Icon` vs `material3.Icon`）。
 3. **大写/全大写名**：整词出现即算用量（`Icons.Rounded.Cloud`、`MiuixIcons.CloudFill`、
    `CLOUD_BACKUP_KEEP` 都是这个形状 —— 点号后面也要认，这正是 #10a-2 漏掉的一类）。
-4. **小写名（扩展函数/属性）只认调用形**：`.name(` / `.name {` / `.name<` / `数字.name` / 裸 `name(` /
-   裸 `name {` / 裸 `name<`。`state.items.size`、`items = listOf(…)` 这类属性访问与具名实参和同名扩展
-   撞名，是主要假警源 ⇒ 放过。⚠️ 代价：只有属性形写法的小写扩展（从不带括号调用的）会漏。
+4. **小写名（扩展函数/属性）只认这四种形状**：`.name(` / `.name {` / `.name<`（点号后调用）、
+   `数字.name`（`20.dp`）、裸 `name(` / `name {` / `name<`（直接调用）、裸 `name.`（**扩展属性当接收者用**，
+   如 `viewModelScope.launch { }`）。最后这条是 #10b-1 开工前补的：漏了它，搬 `AppViewModel` 的函数就会丢
+   `import androidx.lifecycle.viewModelScope`（去注释实测：VM 代码里 `viewModelScope` 共 **58** 处、
+   其中 `viewModelScope.launch` **38** 处，全是这个形状；领域 1 那 9 个块里占 4 处），
+   而本地四项检查照样全绿 ⇒ 又是只有 CI 能抓的那类。
+   `state.items.size`、`items = listOf(…)` 这类**点号后的属性访问与具名实参**和同名扩展撞名，
+   是主要假警源 ⇒ 放过。⚠️ 代价：点号后面既不带括号、也不当接收者用的小写扩展属性仍会漏。
 5. **函数形参刻意不算本地名**：形参名与扩展撞名时（`fun f(padding: PaddingValues)` 里又调
    `Modifier.padding(…)`）算本地名会造成**漏报**，而漏报正是这次事故的方向 ⇒ 宁可多一眼假警。
    lambda 参（`{ padding -> }`）算本地名。
@@ -51,18 +58,29 @@ import 表里（或是同包/stdlib/局部）⇒ 「旧文件的 import 表 ∩ 
    就不报（避免对非 Compose 代码乱叫）。
    ⚠️ 其余算子约定名（`componentN` 解构 / `iterator` / `invoke` / `compareTo` …）**不覆盖**：本仓实测
    `git grep` 全部 `*.kt`，这类 import 只有 `runtime.getValue` 21 处、`runtime.setValue` 12 处，其余 0 处。
+7. **带接收者的声明不压制同名 import**：`internal suspend fun AppViewModel.buildCsvExport()` 这条声明自己
+   就叫 `buildCsvExport`，但它体内 `repo.buildCsvExport()` 要的是 `data/` 里那个**同名扩展**
+   （`data/FoodBackup.kt:67`：`internal suspend fun FoodRepository.buildCsvExport()`）。把声明名当"本地名"
+   去压制 import，就会一条都算不出来 ⇒ 落盘必红，而本地四项检查照样全绿。#10b-1 搬 `AppViewModel` 的备份
+   领域时实测撞上 **4** 条：`buildBackupJson` / `buildCsvExport` / `previewBackup` / `importBackupJson`
+   （VM 第 32–35 行都 import 着，新文件原先只算出 7 条 import、这 4 条全缺）。
+   认法：声明名前面带接收者（`fun Receiver.name` / `val|var Receiver.name`）时，**不**算本地名。
+   ⚠️ 代价：真被本地声明遮蔽的同名 import 会多报一条 —— 多一条不红 CI（本仓 `no-unused-imports` 没开、
+   由 `kt-lexcheck` 的死 import 判据在本地兜），漏一条必红 ⇒ 取安全方向。
 
 已知盲区：① 同包声明按**目录**近似（main/test 同包不同目录时失效，但那种情况下旧文件参照物照样兜住）；
 ② 旧文件自己若有死 import，会被判成"新文件也该有"⇒ 报出来的每一条都要看一眼用法；
 ③ 新写的代码（不在旧文件里）用到的新符号，这条判据看不见；
-④ 委托以外的算子约定名（判据 6 的 ⚠️）—— 本仓实测 0 处，所以是"已量过的空"，不是"没看过"。
+④ 委托以外的算子约定名（判据 6 的 ⚠️）—— 本仓实测 0 处，所以是"已量过的空"，不是"没看过"；
+⑤ 同名遮蔽只按词法判，判不准时一律取安全方向（判据 7 的 ⚠️）：宁可多报一条 import，也不漏一条。
 
 用法
 ----
     # 核对（OLD = 搬家前那个文件的 git 引用；NEW = 搬家后的所有文件，含被改写的入口）
     python3 tools/move-importcheck.py --old 2035ab2:app/src/main/java/com/agon/app/ui/screens/SettingsScreen.kt \\
         --new app/src/main/java/com/agon/app/ui/screens/Settings{Screen,BodyMd3,BackupMd3,BodyMiuix,Md3Widgets}.kt
-    # 把缺的补进去（按路径 ASCII 排序 = 本仓 ktlint import-ordering 的既有形状）
+    # 把缺的补进去（按路径 ASCII 排序 = 本仓 import 块的**既有惯例**，不是门禁：
+    # `.editorconfig` 里 `ktlint_standard = disabled`、只逐条开了 6 条，`import-ordering` 没开）
     python3 tools/move-importcheck.py --old … --new … --apply
     # 自检（合成对照，不依赖仓库现状）
     python3 tools/move-importcheck.py --selftest
@@ -76,7 +94,7 @@ import 表里（或是同包/stdlib/局部）⇒ 「旧文件的 import 表 ∩ 
       git show c20458a:app/src/main/java/com/agon/app/ui/screens/$f.kt > /tmp/pc1/$f.kt; done
     python3 tools/move-importcheck.py --old 'c20458a^:app/src/main/java/com/agon/app/ui/screens/SettingsScreen.kt' \\
         --new /tmp/pc1/*.kt
-    # #10a-2（应点名 41 条）
+    # #10a-2（应点名 43 条 = 首轮 41 + 次轮 2）
     mkdir -p /tmp/pc2 && cp app/src/main/java/com/agon/app/ui/screens/*.kt /tmp/pc2/
     for f in SettingsScreen SettingsBodyMd3 SettingsBackupMd3 SettingsBodyMiuix SettingsMd3Widgets; do
       git show befff9f:app/src/main/java/com/agon/app/ui/screens/$f.kt > /tmp/pc2/$f.kt; done
@@ -101,6 +119,12 @@ DECL_RE = re.compile(
     r'^\s*(?:(?:public|private|internal|protected|final|open|abstract|sealed|data|value|annotation'
     r'|enum|inline|noinline|crossinline|actual|expect|lateinit|const|operator|infix|suspend|companion|override)\s+)*'
     r'(?:fun|class|object|interface|val|var|typealias)\s+(?:<[^>]*>\s*)?(?:[\w$]+\.)?([\w$]+)', re.M)
+# 判据 7：带接收者的声明（`fun Receiver.name` / `val|var Receiver.name`）**不算本地名** ——
+# 它自己不遮蔽同名 import（体内 `repo.name()` 要的常常是别的包里那个同名扩展）。
+RECEIVER_DECL_RE = re.compile(
+    r'^\s*(?:(?:public|private|internal|protected|final|open|abstract|sealed|data|value|annotation'
+    r'|enum|inline|noinline|crossinline|actual|expect|lateinit|const|operator|infix|suspend|companion|override)\s+)*'
+    r'(?:fun|val|var)\s+(?:<[^>]*>\s*)?[\w$]+\.([\w$]+)', re.M)
 TOPDECL_RE = re.compile(
     r'^(?:public |internal |private |protected )*'
     r'(?:(?:fun|class|object|interface|val|var|typealias)|(?:data|enum|sealed|annotation) class)'
@@ -134,7 +158,8 @@ def used(name, code):
     if name[:1].islower():
         return bool(re.search(r'\.\s*%s\s*[(<{]' % re.escape(name), code)
                     or re.search(r'\d\s*\.\s*%s(?![\w$])' % re.escape(name), code)
-                    or re.search(r'(?<![\w$.])%s\s*[(<{]' % re.escape(name), code))
+                    or re.search(r'(?<![\w$.])%s\s*[(<{]' % re.escape(name), code)
+                    or re.search(r'(?<![\w$.])%s\s*\.' % re.escape(name), code))
     return bool(re.search(r'(?<![\w$])%s\b' % re.escape(name), code))
 
 
@@ -167,12 +192,14 @@ def contexts(name, code, limit=3):
 
 
 def local_decls(code):
-    """本文件的声明名（顶层 + 局部 val/var + lambda 参；**不含函数形参**，见判据 5）。"""
+    """本文件的声明名（顶层 + 局部 val/var + lambda 参；**不含函数形参**，见判据 5；
+    **带接收者的声明名也不算**，见判据 7 —— 减法放在最后，免得被上面几条并回来）。"""
     d = set(DECL_RE.findall(code))
     d |= set(re.findall(r'(?m)^\s*(?:val|var)\s+([\w$]+)', code))
     d |= set(re.findall(r'\{[^{}]*?([\w$]+)\s*->', code))
     d |= set(re.findall(r'\bfor\s*\(([\w$]+)', code))
     d |= set(re.findall(r'\bcatch\s*\(([\w$]+)', code))
+    d -= set(RECEIVER_DECL_RE.findall(code))
     return d
 
 
@@ -287,7 +314,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewModelScope
 import com.agon.app.data.CLOUD_BACKUP_KEEP
+import com.agon.app.data.buildCsvExport
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.Text as MiuixText
 
@@ -387,6 +416,20 @@ fun a() {
     x = x + 1
 }
 ''', []),
+    # ⑨ 小写扩展**属性当接收者用**（`viewModelScope.launch { }`）：判据 4 原来放过这个形状 ⇒ 会漏 import
+    #    （#10b-1 开工前发现的；点号后的 `launch` 那条本来就能认，所以期望里两个名字都在）
+    ('bare_property_chain', '''package new
+
+fun a() {
+    viewModelScope.launch { }
+}
+''', ['launch', 'viewModelScope']),
+    # ⑩ 带接收者的声明 + 体内调同名扩展（判据 7 的正面）：声明名不许把 import 压掉
+    #    （#10b-1 实测：漏了这条，新文件少 4 条 `com.agon.app.data.*`，落盘必红、本地全绿）
+    ('receiver_decl_same_name', '''package new
+
+internal suspend fun AppViewModel.buildCsvExport(): String = repo.buildCsvExport()
+''', ['buildCsvExport']),
 ]
 
 

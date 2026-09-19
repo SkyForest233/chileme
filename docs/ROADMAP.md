@@ -638,7 +638,12 @@
 - **⚠️ 补完那 41 条，CI 又红了一轮（已修，全过程见 `devlog/2026-09-18.md` §13.11）**：入口那句 `var pendingImport by pendingImportState` 需要 `androidx.compose.runtime.getValue` / `setValue`，而搬运脚本算「入口该保留哪些 import」是**按名字在剩余代码里找用量**的 —— **委托算子的名字在代码里从不以标识符出现**（`by` 后面一个字母都不提 `setValue`），于是这两条被当成死 import 从入口删了；`move-importcheck` 判据 3/4 同样放过（小写名只认调用形，委托一个调用形都没有）。CI 报 `e: SettingsScreen.kt:138:23 Type 'MutableState<PendingImport?>' has no method 'getValue(…)' / 'setValue(…)', so it cannot serve as a delegate` —— **只有这一处**（两行 `e:` 是同一处的读/写两侧），与上一轮 24 处报错 / 41 条缺失不是一个量级。
   修法照旧只动 import 行（`+2 / −0`，入口 295 → **297** 行、20 → **22** 条）⇒ 行为零改动；`move-importcheck` 加**判据 6**（结构判据：代码里有属性委托 ⇒ 需要 `getValue`，其中出现 `var` ⇒ 另需 `setValue`；排除 `by lazy` / `by Delegates.`，并照旧受参照物约束），自检 4 → **8** 个对照（新增：var 委托 / 只 val 委托 / `by lazy` 反面 / 齐了不报），再用**修前状态**当阳性对照复跑 ⇒ 点名恰好这 2 条、其余 4 个文件仍 0。
   这轮的定位**没打扰用户**：向 `api.github.com` 要日志接口的 302 `location:`（就是那条签名 URL），交给网页抓取工具读 ⇒ 拿到编译器原文（做法与三个坑写进 `docs/WORKFLOW.md` §3）。
-  **10b 开工前照旧跑 `move-importcheck`**：它现在覆盖三类（别名 `as` / 小写扩展与全大写常量与点号后成员 / 委托算子）。
+  **10b 开工前照旧跑 `move-importcheck`**：它现在覆盖**五类**（别名 `as` / 小写扩展与全大写常量与点号后成员 / 委托算子 /
+  **小写扩展属性当接收者用**（`viewModelScope.launch { }`，判据 4 第 4 形状）/ **带接收者的声明不压制同名 import**
+  （`internal fun AppViewModel.buildCsvExport()` 体内 `repo.buildCsvExport()` 要的是 data 层那个同名扩展，判据 7）。
+  后两类是 2026-09-19 为 10b 开工做纸上演练时逼出来的，**都是「本地四项全绿、CI 必红」的方向**；自检对照 8 → **10** 个。
+  ⚠️ 同批查明一个记账口径：判据 6 加进来之后，#10a-2 那 5 个文件的对照由 41 条变 **43** 条
+  （= 首轮 41 + 次轮 2 条委托算子）—— **同一条命令把两轮真红一起复现了**，不是新判据多点出来的。
 
 - **规划与实况的差**：规划写的是「抽到两个新文件」，实做是 **4 个** —— 规划已预见「MD3 侧 522 行 + 文件头必然超 400，
   还得按分区再切一刀」，实做选的是四节里最大的一节（备份与数据 171 行）；两个 MD3 专用小组件（NavRow 46 + Swatch 92）
