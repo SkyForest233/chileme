@@ -65,10 +65,19 @@ import 表里（或是同包/stdlib/局部）⇒ 「旧文件的 import 表 ∩ 
    领域时实测撞上 **4** 条：`buildBackupJson` / `buildCsvExport` / `previewBackup` / `importBackupJson`
    （VM 第 32–35 行都 import 着，新文件原先只算出 7 条 import、这 4 条全缺）。
    认法：声明名前面带接收者（`fun Receiver.name` / `val|var Receiver.name`）时，**不**算本地名。
+   ⚠️ **同包声明那条路也一样**（2026-09-19 #10b-3 补的第 3 处）：`same_package_decls()` 原先把目录里
+   所有顶层声明一律当「同包名 ⇒ 不用 import」，于是**同包另一个领域文件**里的
+   `internal fun AppViewModel.restoreArchived` 会把 `com.agon.app.data.restoreArchived` 压掉。
+   当场做了阳性/阴性对照复现：同目录放一个声明了同名接收者扩展的兄弟文件 ⇒ 目标文件明明缺那条 import，
+   工具报「缺 0」；把兄弟文件移走 ⇒ 立刻报「缺 1」。这条若不修，**下一个领域必红**：#10b-4 要搬的
+   `restoreArchivedSmart` 体内写的正是 `repo.restoreArchived(id)`，而 `restoreArchived` 那时已经被
+   #10b-3 的 `AppViewModelArchiveUndo.kt` 声明成同包接收者扩展了。修法与 `local_decls` 同一条：
+   带接收者的声明名从同包集合里减掉（自检对照 ⑪）。
    ⚠️ 代价：真被本地声明遮蔽的同名 import 会多报一条 —— 多一条不红 CI（本仓 `no-unused-imports` 没开、
    由 `kt-lexcheck` 的死 import 判据在本地兜），漏一条必红 ⇒ 取安全方向。
 
 已知盲区：① 同包声明按**目录**近似（main/test 同包不同目录时失效，但那种情况下旧文件参照物照样兜住）；
+   集合里已按判据 7 减掉「带接收者的声明名」，所以它只会**少压**、不会多压（安全方向）；
 ② 旧文件自己若有死 import，会被判成"新文件也该有"⇒ 报出来的每一条都要看一眼用法；
 ③ 新写的代码（不在旧文件里）用到的新符号，这条判据看不见；
 ④ 委托以外的算子约定名（判据 6 的 ⚠️）—— 本仓实测 0 处，所以是"已量过的空"，不是"没看过"；
@@ -207,10 +216,15 @@ _PKG = {}
 
 
 def same_package_decls(paths):
-    """参照文件与新文件所在目录里所有 `.kt` 的顶层声明名（≈ 同包，不需要 import）。"""
+    """参照文件与新文件所在目录里所有 `.kt` 的顶层声明名（≈ 同包，不需要 import）。
+
+    ⚠️ 判据 7 在这条路上**同样生效**（2026-09-19 #10b-3 补）：**带接收者**的顶层声明
+    （`fun Receiver.name` / `val|var Receiver.name`）不算"同包名"。它自己不遮蔽别的包里的同名扩展 ——
+    同包另一个文件体内写的 `repo.name()`，要的常常正是那条 `import`。减法放在最后（与 `local_decls` 同形）。
+    """
     key = tuple(sorted(os.path.dirname(p) or '.' for p in paths))
     if key not in _PKG:
-        names = set()
+        names, recv = set(), set()
         for d in key:
             try:
                 entries = sorted(os.listdir(d))
@@ -220,10 +234,12 @@ def same_package_decls(paths):
                 if not f.endswith('.kt'):
                     continue
                 try:
-                    names |= set(TOPDECL_RE.findall(io.open(os.path.join(d, f), encoding='utf-8').read()))
+                    text = io.open(os.path.join(d, f), encoding='utf-8').read()
                 except (OSError, UnicodeDecodeError):
                     continue
-        _PKG[key] = names
+                names |= set(TOPDECL_RE.findall(text))
+                recv |= set(RECEIVER_DECL_RE.findall(text))
+        _PKG[key] = names - recv
     return _PKG[key]
 
 
@@ -323,7 +339,8 @@ import top.yukonga.miuix.kmp.basic.Text as MiuixText
 fun old() = Unit
 '''
 
-# (名字, 新文件内容, 期望点名的缺失 import)
+# (名字, 新文件内容, 期望点名的缺失 import[, 同目录还要放的兄弟文件 [(文件名, 内容), …]])
+# 第 4 项是给对照 ⑪ 用的：判据 7 的「同包路径」必须有**另一个文件**才测得出来。
 CONTROLS = [
     # ① 四类真形状各一条：数字后的小写扩展属性、点号后的大写成员、全大写常量、别名
     ('all_four_shapes', '''package new
@@ -430,6 +447,17 @@ fun a() {
 
 internal suspend fun AppViewModel.buildCsvExport(): String = repo.buildCsvExport()
 ''', ['buildCsvExport']),
+    # ⑪ 同包**另一个文件**里的带接收者声明，也不许把 import 压掉（判据 7 的同包路径 = #10b-3 实测的盲点）：
+    #    Sibling.kt 声明 `AppViewModel.buildCsvExport`，目标文件体内要 `repo.buildCsvExport()` ⇒ 那条
+    #    `com.agon.app.data.buildCsvExport` 必须报缺。修前这里报「缺 0」（同包集合把名字压掉了），
+    #    而真实代价是下一轮 #10b-4 落盘必红（`restoreArchivedSmart` 要 `repo.restoreArchived(id)`）。
+    ('sibling_receiver_decl_same_name', '''package new
+
+internal suspend fun AppViewModel.buildCsvExportAll(): String = repo.buildCsvExport()
+''', ['buildCsvExport'], [('Sibling.kt', '''package new
+
+internal suspend fun AppViewModel.buildCsvExport(): String = repo.buildCsvExport()
+''')]),
 ]
 
 
@@ -438,8 +466,18 @@ def selftest():
     old = os.path.join(tmp, 'Old.kt')
     io.open(old, 'w', encoding='utf-8').write(OLD_FIXTURE)
     bad = 0
-    for name, text, expect in CONTROLS:
-        f = os.path.join(tmp, name + '.kt')
+    for c in CONTROLS:
+        name, text, expect = c[0], c[1], c[2]
+        siblings = c[3] if len(c) > 3 else []
+        # 每个对照一个**独立子目录**：`_PKG` 按目录缓存「同包声明」，全塞进同一个目录的话，
+        # 第一个对照之后缓存就定格了，后面写进去的文件（含对照自己的声明）根本不会被重扫 ——
+        # 对照 ⑩ 当初就是这样**蒙对**的（2026-09-19 #10b-3 查同包那条路时才发现：它测的形状
+        # 其实一直没被真正扫到）。分目录之后 ⑩ 才真的在测判据 7。
+        d = os.path.join(tmp, name)
+        os.makedirs(d, exist_ok=True)
+        for fn, body in siblings:
+            io.open(os.path.join(d, fn), 'w', encoding='utf-8').write(body)
+        f = os.path.join(d, name + '.kt')
         io.open(f, 'w', encoding='utf-8').write(text)
         plan, _ = analyse(old, [f], verbose=False)
         got = plan[f][3]
