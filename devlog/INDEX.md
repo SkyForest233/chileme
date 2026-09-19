@@ -138,7 +138,7 @@
   证据、切法与守卫清单见 [`ROADMAP`](../docs/ROADMAP.md) #10 与 [2026-09-18 日志](2026-09-18.md) §13（10a-1 首轮 CI 红与修红见 §13.8：别名 import 是搬运脚本的盲区，已固化成 `kt-lexcheck` 判据 4）
   （含 KernelSU manager 的逐文件对照：他们 219 个 `.kt`、**0** 个测试文件、每屏两份主题实现且两版体积差 4–6 KB 已在漂移）。
 
-- 🔶 **#11 按职责边界的第二轮拆分（2026-09-19 立项，用户否掉「按 400 行筛」的口径；**同日 11a、11b、11c、11d 收官（11c 靠 `9b5c33e` 修掉守卫自己的两条门禁红；11d ① 图表件下沉组件层 + 新层界守卫，run `35450811382` 全绿；11d ② 把统计页 3 个区块各抽成同包文件、装配体 327 → 146 行、守卫改成表驱动，红过一次"新引入的类型名没 import"，见 09-19 日志 §18.5 与新工具 `tools/kt-name-audit.py`）**，未开工只剩 11e、11f） —— ≥150 行的 40 个主代码文件逐个过顶层声明清单，问「这文件里有几件事」而非「多少行」。结论：**行数与边界错置基本无关**，6 处该动里有 4 处在 400 行以下。顺序 11a `AppText.kt`（藏着 9 个取色 helper = 全仓事实上的颜色层，同包移动 0 处 import）→ 11b `AppChrome.kt` 四件事（snackbar 宿主 / 顶栏 / 顶栏动作族 / 整屏 `AppMessageScreen`）→ 11c `CloudSync.kt` 四件事（WebDAV 协议 / 编排 / `OpFailure` / `isAutoSyncDue` 纯策略）→ 11d `StatsScreen.kt` 4 区块 + 图表件下沉 → 11e `ExpiryCalendar.kt` 月网格数学抽纯函数**并补它的第一份单测** → 11f `AppViewModel.init` 的启动编排抽成 `runPantryStartup()`（#10c 的阻塞点，放最后、完成后请用户过两条真机）；每笔附一条**位置守卫**，不写会腐烂的函数计数。**落地 2/6**：11a `AppText.kt` 349→212 行（抽出 `AppColors.kt` 164 行）、11b `AppChrome.kt` 479→224 行（`AppSnackbar.kt` 128 / `AppBarActions.kt` 123 / `AppMessageScreen.kt` 76），两笔都是零行为改动、调用点 import 改动 0，守卫健在**位置登记表**（`ComponentAppHomeTest` 20 条 + `AppColorLocationTest` 3 条）而不是函数计数。踩到的两个判据盲区各补了一条守卫，并把「同包跨文件 `private`」与「`arrayArrayOf` 已被移除」写进 `docs/WORKFLOW.md` §4。
+- 🔶 **#11 按职责边界的第二轮拆分（2026-09-19 立项，用户否掉「按 400 行筛」的口径；**同日 11a、11b、11c、11d 收官（11c 靠 `9b5c33e` 修掉守卫自己的两条门禁红；11d ① 图表件下沉组件层 + 新层界守卫，run `35450811382` 全绿；11d ② 把统计页 3 个区块各抽成同包文件、装配体 327 → 146 行、守卫改成表驱动；连改两次才闭环 —— 第六次红"新引入的类型名没 import"（§18.5，配了新工具 `tools/kt-name-audit.py`）、第七次红"旧守卫把调用点钉死在文件名上"（§18.6），最终 run `35476775511` 三 job 全绿）**，未开工只剩 11e、11f） —— ≥150 行的 40 个主代码文件逐个过顶层声明清单，问「这文件里有几件事」而非「多少行」。结论：**行数与边界错置基本无关**，6 处该动里有 4 处在 400 行以下。顺序 11a `AppText.kt`（藏着 9 个取色 helper = 全仓事实上的颜色层，同包移动 0 处 import）→ 11b `AppChrome.kt` 四件事（snackbar 宿主 / 顶栏 / 顶栏动作族 / 整屏 `AppMessageScreen`）→ 11c `CloudSync.kt` 四件事（WebDAV 协议 / 编排 / `OpFailure` / `isAutoSyncDue` 纯策略）→ 11d `StatsScreen.kt` 4 区块 + 图表件下沉 → 11e `ExpiryCalendar.kt` 月网格数学抽纯函数**并补它的第一份单测** → 11f `AppViewModel.init` 的启动编排抽成 `runPantryStartup()`（#10c 的阻塞点，放最后、完成后请用户过两条真机）；每笔附一条**位置守卫**，不写会腐烂的函数计数。**落地 2/6**：11a `AppText.kt` 349→212 行（抽出 `AppColors.kt` 164 行）、11b `AppChrome.kt` 479→224 行（`AppSnackbar.kt` 128 / `AppBarActions.kt` 123 / `AppMessageScreen.kt` 76），两笔都是零行为改动、调用点 import 改动 0，守卫健在**位置登记表**（`ComponentAppHomeTest` 20 条 + `AppColorLocationTest` 3 条）而不是函数计数。踩到的两个判据盲区各补了一条守卫，并把「同包跨文件 `private`」与「`arrayArrayOf` 已被移除」写进 `docs/WORKFLOW.md` §4。
 **押后**：`FoodRepository.kt` 的 20 key / 20 flow 归位（跟 Room 一起决定）。**明确不做**：按行数拆组件层三个文件、拆 `ManageScreens` / `NavChrome`、一弹窗一文件、拆 `MiuixDialogContentTest`、合并两份空态实现（读代码后确认`EmptyState` 与 `AppMessageScreen` 不是同一件事）。顺序、判据与风险表见 [`ROADMAP`](../docs/ROADMAP.md) #11、立项过程见 [2026-09-19 日志](2026-09-19.md) §15。
 ### 代码级（中）
 
@@ -252,6 +252,6 @@ Keystore AES-GCM 加密 + 旧数据自动迁移
 ---
 
 **单测数演变**：91（09-15 中途）→ 116 → 117 → 119 → 120（09-16/09-17）→ 121（09-17）→ **195**（09-19，
-CI run `35476442138` 的 `195 tests completed`）。口径 = Gradle 实际执行的测试方法数；`@Test` 词法计数（见各日日志）
+CI run `35476775511`（三 job 全绿）的 `195 tests completed / 0 失败`。口径 = Gradle 实际执行的测试方法数；`@Test` 词法计数（见各日日志）
 与之可能差 1–2 条（注释里的 `@Test` 也算词法命中），两处都以当日实测写。
 此前这几个数字在本文件里被逐层加注修正过三次，现已收敛为一行；各时点的口径见对应日志。
