@@ -47,8 +47,19 @@ class BackupRulesTest {
     private fun read(vararg candidates: String): String {
         val file = firstExisting(*candidates)
         assumeTrue("找不到 ${candidates.joinToString()}（非 Gradle 工作目录？），跳过", file != null)
-        return file!!.readText()
+        return stripComments(file!!.readText())
     }
+
+    /**
+     * 先把注释整段剥掉再解析。
+     *
+     * ⚠️ 这条不是可选的：`backup_rules.xml` 顶部那段说明**引用了旧写法原文**（"此前是排除整个
+     * `datastore/` 目录"那句里就含一条 `<exclude ... />`），不剥注释的话 `excludes()` 会把这句
+     * 历史说明当成一条生效规则，于是"不许再整目录排除"那条断言永远红 —— 第一次跑 CI 就是这么红的。
+     * 剥注释同时保住了守卫的本事：将来谁把真规则加回去，照样红。
+     * 与 `CorruptGuardTest`/`EditFoodSaveGuardTest` 的 `codeLines()` 是同一招式（那边是 Kotlin 行注释）。
+     */
+    private fun stripComments(xml: String): String = Regex("<!--.*?-->", RegexOption.DOT_MATCHES_ALL).replace(xml, "")
 
     /** 取 `<exclude ... path="X" />` 里的 X（三份作用域共用这一个解析器）。 */
     private fun excludes(xml: String): Set<String> =
