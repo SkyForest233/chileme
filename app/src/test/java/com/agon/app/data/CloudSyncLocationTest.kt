@@ -33,7 +33,7 @@ class CloudSyncLocationTest {
         "CLOUD_BACKUP_KEEP" to "CloudSync.kt",
         "CloudBackup" to "CloudSync.kt",
         "NutstoreSync" to "CloudSync.kt",
-        # ② 协议层分家（09-19）：WebDAV 细节与「云端文件名怎么认」只住在 NutstoreWebdav.kt
+        // ② 协议层分家（09-19）：WebDAV 细节与「云端文件名怎么认」只住在 NutstoreWebdav.kt
         "NutstoreWebdav" to "NutstoreWebdav.kt",
         "listDir" to "NutstoreWebdav.kt",
         "parsePropfind" to "NutstoreWebdav.kt",
@@ -62,14 +62,13 @@ class CloudSyncLocationTest {
         )
         val name = Regex("""(?:val|var|fun|object|class|interface)\s+(?:[\w.]+\.)?(\w+)""")
         for ((file, code) in files) {
-            for (raw in code.split("\n")) {
+            code.split("\n")
                 // 去缩进 ⇒ object 里的成员也算数（`parsePropfind` / `listDir` 就是这样住在
                 // `NutstoreWebdav` 里的；只看第 0 列的话登记表的这几行永远是「没找到」= 假守卫）
-                val line = raw.trimStart()
-                if (!head.containsMatchIn(line)) continue
-                val m = name.find(line) ?: continue
-                where.getOrPut(m.groupValues[1]) { mutableListOf() }.add(file)
-            }
+                .map { it.trimStart() }
+                .filter { head.containsMatchIn(it) }
+                .mapNotNull { name.find(it)?.groupValues?.get(1) }
+                .forEach { sym -> where.getOrPut(sym) { mutableListOf() }.add(file) }
         }
         val bad = home.mapNotNull { (sym, expected) ->
             val owners = where[sym].orEmpty().distinct().sorted()

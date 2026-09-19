@@ -120,6 +120,8 @@ bash tools/bootstrap-build-env.sh --bootstrap      # = 上面两条
 | Platform declaration clash | 为 `var x` 又手写了 `fun setX()`；删掉手写 setter |
 | mergeDebugResources 失败 | XML 格式错误，检查最近改过的 res 文件 |
 | 同错误重复 2 次+ | 停下来读完整报错 → read_file 定位 → 换思路；必要时 `./gradlew clean --no-daemon` |
+| ktlint 报 `Not a valid Kotlin file (N:M expecting an expression)` | **这不是格式规则，是解析失败** ⇒ 先 grep 行首 `#`：从 markdown / shell 串过来的注释习惯，Kotlin 只认 `//` 和 `/* */`。查法 `grep -rn "^[[:space:]]*#" app/src --include=*.kt`。09-19 #11c 就栽在这（一行 `# ② 协议层分家…`），ktlint 与 kotlinc 同时红，而 `tools/kt-lexcheck.py` 放过去了 —— 它查大括号、别名表、import 双向，**不查注释符**。 |
+| detekt `LoopWithTooManyJumpStatements` | 阈值是 **1**：一个 `for` 里两条 `continue`（或 `break`）就报。改成 `filter` + `mapNotNull` + `forEach`（既有先例就是 `NutstoreWebdav.parsePropfind`，注释里写着当年为什么换）。⚠️ **守卫与工具测试的循环一样受管** —— 别觉得测试代码可以裸写。 |
 
 ## 5. 文档维护责任
 
