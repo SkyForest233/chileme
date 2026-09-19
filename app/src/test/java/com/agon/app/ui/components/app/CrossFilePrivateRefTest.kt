@@ -53,9 +53,8 @@ class CrossFilePrivateRefTest {
                 }
             }
         }
-        val bad = use.entries.joinToString("; ") { (name, files) ->
-            "$name（${File(solo[name]!!).name} 的 private）被 ${files.joinToString()}"
-        }
+        // 消息里只放违规清单：`use` 的 key 就是被跨文件引用的 private 名，value 是引用它的文件名。
+        val bad = use.keys.sorted().joinToString("; ") { name -> "$name -> ${use[name]}" }
         assertTrue("跨文件引用了别的文件的 private 顶层成员，Kotlin 编译不过：$bad", use.isEmpty())
     }
 
