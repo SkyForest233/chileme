@@ -288,7 +288,7 @@
   新增行只有可见性放宽与 import。⚠️ 唯一未实机确认的是 **release 包**（这次只装了 debug）⇒
   release 侧只有 CI 的 R8 + `lintRelease` 保障，比 #4 那轮"debug 主测 + release 冒烟"少了后一半；
   ⑤ ✅ 单测数只增不减：143 →（5b）**153** →（5c）**153**（拆分不新增测试，但 4 条源码守卫跟着搬了家；
-  原始 `grep @Test` 会数出 154，多的那处在 `ImeHandlingTest.kt` 末尾那段 KDoc 里，doc-metrics 剥注释后是 153）；
+  原始 `grep @Test` 会数出 154，多的那处在 `ImeHandlingTest.kt` 里「赋值形态不会出现在散文里」那段 KDoc 里，doc-metrics 剥注释后是 153）；
   ⑥ ✅ ktlint / detekt 0（每轮 CI 的「静态门禁」job 全绿；detekt 仍是 block 模式）。
 - **顺带**：`ImeHandlingTest` 点名 10 个文件（`MainActivity.kt` / `MainApp.kt` / `BatchBars.kt` / `NavChrome.kt`
   + 4 个屏幕 + `AppFormDialog.kt` / `AppBatchMoveDialog.kt`）。拆 Repository 正常碰不到它，5a 也不需要动

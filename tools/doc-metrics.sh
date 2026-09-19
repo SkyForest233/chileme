@@ -446,7 +446,7 @@ for d in DOCS:
                   % (d, i, f, n))
 print('%d 处指本仓文件的行号指针（目标 0）；上游库引用豁免 %d 处' % (tot, up))
 PY
-)" '目标「0 处」。2026-09-19 #10 结构审计查出：活文档里 21 个这类指针（32 处提及）有 **13 个**当天就是错的 —— 3 个是 #10e 拆 `EditFoodScreen.kt` 直接漂的（`:105`→`:64`、`:284`→搬去 `EditFoodCoverSection.kt`、`:189`→`:149`），其余 10 个更早就烂了（`FoodRepository.kt:487` 在 #5c 拆分后越界、`AppViewModel.kt:277` 在 #10b 前就偏 62 行、`HomeScreen.kt:126/233` 各偏 7/3 行），**没有任何东西报警**。修法不是把 13 个数字改对（改完照样再烂），而是活文档一律改写符号锚点 + 本行守 0 处。⚠️ **本行的盲区**：判定「上游库」的依据是「该文件名不在 app/src 里」，所以**把我们的文件名拼错**（如 `EditFoodScree.kt:99`）会被当成上游引用而豁免 —— 阳性对照时特意塞过一个 `NoSuchFile.kt:12`，确实不报。要堵得改成上游白名单（Card / TopAppBar / Button / ProgressIndicator / DialogSection / MiuixPopupUtils），暂不做：拼错的文件名在通配符检查与 kt-lexcheck 那边也会露馅'
+)" '目标「0 处」。2026-09-19 #10 结构审计查出：活文档里 21 个这类指针（32 处提及；**本行的计数规则排除 `file.kt:行:列` 那种编译器报错格式，故本行口径是 20 个 / 30 处**）有 **13 个**当天就是错的 —— 3 个是 #10e 拆 `EditFoodScreen.kt` 直接漂的（`:105`→`:64`、`:284`→搬去 `EditFoodCoverSection.kt`、`:189`→`:149`），其余 10 个更早就烂了（`FoodRepository.kt:487` 在 #5c 拆分后越界、`AppViewModel.kt:277` 在 #10b 前就偏 62 行、`HomeScreen.kt:126/233` 各偏 7/3 行），**没有任何东西报警**。修法不是把 13 个数字改对（改完照样再烂），而是活文档一律改写符号锚点 + 本行守 0 处。⚠️ **本行的盲区**：判定「上游库」的依据是「该文件名不在 app/src 里」，所以**把我们的文件名拼错**（如 `EditFoodScree.kt:99`）会被当成上游引用而豁免 —— 阳性对照时特意塞过一个 `NoSuchFile.kt:12`，确实不报。要堵得改成上游白名单（Card / TopAppBar / Button / ProgressIndicator / DialogSection / MiuixPopupUtils），暂不做：拼错的文件名在通配符检查与 kt-lexcheck 那边也会露馅'
 row '#10e 五个区块文件行数（文档写死 vs 实测）' "$(python3 - <<'PY' 2>/dev/null || echo '需 python3'
 import glob, io, re
 S = 'app/src/main/java/com/agon/app/ui/screens'
