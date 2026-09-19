@@ -21,6 +21,8 @@ import com.agon.app.ui.theme.LocalToday
 import com.agon.app.ui.theme.MotionEasing
 import com.agon.app.viewmodel.AppViewModel
 import com.agon.app.viewmodel.archive
+import com.agon.app.viewmodel.changeQuantity
+import com.agon.app.viewmodel.consumeOne
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 

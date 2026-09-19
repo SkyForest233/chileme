@@ -15,6 +15,8 @@ import com.agon.app.data.daysLeftAt
 import com.agon.app.data.statusForAt
 import com.agon.app.ui.theme.LocalToday
 import com.agon.app.viewmodel.AppViewModel
+import com.agon.app.viewmodel.changeQuantity
+import com.agon.app.viewmodel.deleteArchived
 import com.agon.app.viewmodel.restoreArchived
 import com.agon.app.viewmodel.restoreArchivedWithUndo
 import java.time.LocalDate

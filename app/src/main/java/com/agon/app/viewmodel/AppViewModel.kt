@@ -5,7 +5,6 @@ import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.agon.app.ChiliMeApp
-import com.agon.app.data.ArchiveReason
 import com.agon.app.data.ArchivedItem
 import com.agon.app.data.CategoryDef
 import com.agon.app.data.ConsumptionRecord
@@ -16,17 +15,9 @@ import com.agon.app.data.HistoryEntry
 import com.agon.app.data.isAutoSyncDue
 // ↓ #5c 起仓库的领域函数搬到了各自的领域文件（同包 internal 扩展函数）⇒ 跨包调用要逐个 import
 import com.agon.app.data.seedIfNeeded
-import com.agon.app.data.upsert
 import com.agon.app.data.updateLocationBatch
-import com.agon.app.data.archiveItems
-import com.agon.app.data.restoreArchived
-import com.agon.app.data.restoreArchivedBatch
-import com.agon.app.data.deleteArchived
-import com.agon.app.data.clearArchive
-import com.agon.app.data.changeQuantity
 import com.agon.app.data.migrateConsumptionIds
 import com.agon.app.data.buildBackupJson
-import com.agon.app.data.clearAll
 import com.agon.app.data.setDynamicColor
 import com.agon.app.data.setDarkMode
 import com.agon.app.data.setPalette
@@ -43,9 +34,7 @@ import com.agon.app.data.CloudBackup
 import com.agon.app.data.LocalSnapshot
 import com.agon.app.data.LocalSnapshotStore
 import com.agon.app.data.NutstoreSync
-import com.agon.app.data.QuantityChangeResult
 import com.agon.app.data.cleanupOrphanCovers
-import com.agon.app.data.daysLeft
 import com.agon.app.data.toHistoryEntry
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
@@ -313,53 +302,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setAutoSyncDays(days: Int) = viewModelScope.launch { repo.setAutoSyncDays(days) }
 
-    fun upsert(item: FoodItem) = viewModelScope.launch { repo.upsert(item) }
-
-    fun archiveBatch(ids: Set<String>, reason: ArchiveReason) =
-        viewModelScope.launch { repo.archiveItems(ids, reason) }
-
-    fun restoreArchivedBatch(ids: Set<String>) = viewModelScope.launch {
-        repo.restoreArchivedBatch(ids)
-    }
-
-    /** 恢复单条归档；回调参数 merged = 是否与现有库存合并（同名同生产日期去重）。 */
-    fun restoreArchivedSmart(id: String, onDone: (Boolean) -> Unit) = viewModelScope.launch {
-        onDone(repo.restoreArchived(id))
-    }
-
-    fun cleanExpired(onDone: ((Set<String>) -> Unit)? = null) = viewModelScope.launch {
-        val ids = items.value.filter { it.daysLeft < 0 }.map { it.id }.toSet()
-        if (ids.isNotEmpty()) {
-            repo.archiveItems(ids, ArchiveReason.EXPIRED)
-            onDone?.invoke(ids)
-        }
-    }
-
-    fun deleteArchived(id: String) = viewModelScope.launch { repo.deleteArchived(id) }
-
-    fun clearArchive() = viewModelScope.launch { repo.clearArchive() }
-
-    /**
-     * 调整数量；吃完（减到 0）时仓库层会自动归档。
-     * @param onAutoArchived 自动归档发生时回调（用于 UI 提示）
-     * @param withUndo 减少时是否暴露「撤销」请求（列表页步进器减号用，详情页吃掉一份走 consumeOne 不用）
-     */
-    fun changeQuantity(
-        id: String,
-        delta: Int,
-        onAutoArchived: (() -> Unit)? = null,
-        withUndo: Boolean = false,
-    ) = viewModelScope.launch {
-        val result: QuantityChangeResult = repo.changeQuantity(id, delta)
-        if (result.autoArchived) onAutoArchived?.invoke()
-        if (withUndo && delta < 0 && result.consumptionId != null) {
-            emit(UiEvent.UndoConsumption(id, result.consumptionId))
-        }
-    }
-
-    fun consumeOne(id: String, onAutoArchived: (() -> Unit)? = null) =
-        changeQuantity(id, -1, onAutoArchived)
-
     fun setCategoryThreshold(categoryId: String, days: Int) =
         viewModelScope.launch { repo.setCategoryThreshold(categoryId, days) }
 
@@ -392,8 +334,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         repo.setLocations(locations.value.filterNot { it == name })
     }
 
-    fun clearAll() = viewModelScope.launch { repo.clearAll() }
-
     fun setDynamicColor(enabled: Boolean) = viewModelScope.launch { repo.setDynamicColor(enabled) }
 
     fun setDarkMode(mode: Int) = viewModelScope.launch { repo.setDarkMode(mode) }
@@ -420,12 +360,4 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     internal val _loadingBackups = MutableStateFlow(false)
     val loadingBackups: StateFlow<Boolean> = _loadingBackups.asStateFlow()
-
-    /**
-     * 放弃处于损坏态的数据（UI 二次确认后调用）：删除该 key 的内容并解除损坏标记，
-     * 让相关写入恢复正常。原文留档保留在 filesDir/corrupt/。
-     */
-    fun discardCorruptData() = viewModelScope.launch {
-        repo.discardCorrupt(repo.corruptedKeys.value)
-    }
 }

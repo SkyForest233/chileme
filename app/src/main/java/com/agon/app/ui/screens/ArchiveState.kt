@@ -11,6 +11,10 @@ import com.agon.app.data.ArchiveReason
 import com.agon.app.data.ArchivedItem
 import com.agon.app.data.CategoryDef
 import com.agon.app.viewmodel.AppViewModel
+import com.agon.app.viewmodel.archiveBatch
+import com.agon.app.viewmodel.clearArchive
+import com.agon.app.viewmodel.deleteArchived
+import com.agon.app.viewmodel.restoreArchivedSmart
 
 /**
  * 归档页跨主题共享状态容器。

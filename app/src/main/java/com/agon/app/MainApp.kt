@@ -76,6 +76,8 @@ import com.agon.app.ui.theme.MotionSpring
 import com.agon.app.ui.theme.ThemeStyle
 import com.agon.app.viewmodel.AppViewModel
 import com.agon.app.viewmodel.UiEvent
+import com.agon.app.viewmodel.archiveBatch
+import com.agon.app.viewmodel.restoreArchivedBatch
 import com.agon.app.viewmodel.undoConsumption
 import kotlin.math.abs
 import kotlinx.coroutines.launch

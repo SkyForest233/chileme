@@ -94,13 +94,19 @@ class CorruptGuardTest {
     @Test
     fun `损坏数据有放弃入口且首页接上`() {
         val repo = read("com/agon/app/data/FoodRepository.kt")
-        val vm = read("com/agon/app/viewmodel/AppViewModel.kt")
+        // #10b-4：`discardCorruptData` 搬到了食物 CRUD 与批量领域文件（同包 `internal` 扩展函数）⇒
+        // 这条守卫跟着搬，别留在 `AppViewModel.kt` 里假红（#5c-2 起就是这个规矩）；断言的字面量也要带上
+        // 接收者 —— 顶层扩展函数的声明行是 `internal fun AppViewModel.discardCorruptData()`。
+        val food = read("com/agon/app/viewmodel/AppViewModelFood.kt")
         val home = read("com/agon/app/ui/screens/HomeScreen.kt")
-        assumeTrue("找不到相关源码（非 Gradle 工作目录？），跳过", listOf(repo, vm, home).all { it != null })
+        assumeTrue("找不到相关源码（非 Gradle 工作目录？），跳过", listOf(repo, food, home).all { it != null })
 
         assertTrue("FoodRepository 缺少 discardCorrupt()", repo!!.contains("suspend fun discardCorrupt(keys: Set<String>)"))
         assertTrue("discardCorrupt 必须同时解除损坏标记", repo.contains("_corruptedKeys.update { it - keys }"))
-        assertTrue("AppViewModel 缺少 discardCorruptData()", vm!!.contains("fun discardCorruptData()"))
+        assertTrue(
+            "AppViewModel 缺少 discardCorruptData()（#10b-4 起在 AppViewModelFood.kt）",
+            food!!.contains("fun AppViewModel.discardCorruptData()"),
+        )
 
         // 首页已于 2026-09-16 合并为单文件双主题（第三批 #3 第 4 对）：一份源码覆盖两套主题，
         // 所以不再逐主题点名（原来这里是 HomeScreen.kt + MiuixHomeScreen.kt 两份各断言一遍）。
