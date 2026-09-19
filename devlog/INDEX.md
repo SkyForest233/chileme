@@ -16,7 +16,7 @@
 
 | 日期 | 主题 | 状态 |
 | --- | --- | --- |
-| [2026-09-19](2026-09-19.md) | **#10b 开工**：`AppViewModel`（700 行 / 50 函数）按 7 领域搬同包 `internal` 扩展函数，一领域一提交。开工前先补 `move-importcheck` 的两个盲点（判据 4 第 4 形状「小写扩展属性当接收者」`viewModelScope.launch`；判据 7「带接收者的声明不压制同名 import」），自检 8 → **10**；四个历史对照重跑 A/C/D 不变、#10a-2 的 5 个文件 41 → **43**（查明是判据 6 让两轮真红一起复现） |
+| [2026-09-19](2026-09-19.md) | **#10b 开工**：`AppViewModel`（700 行 / 50 函数）按 7 领域搬同包 `internal` 扩展函数，一领域一提交。开工前先补 `move-importcheck` 的两个盲点（判据 4 第 4 形状「小写扩展属性当接收者」`viewModelScope.launch`；判据 7「带接收者的声明不压制同名 import」），自检 8 → **10**；四个历史对照重跑 A/C/D 不变、#10a-2 的 5 个文件 41 → **43**（查明是判据 6 让两轮真红一起复现）。**10b-1 落地**：备份领域 9 个函数 / 101 行 → 同包 `AppViewModelBackup.kt` 148 行，VM **700 → 590**、4 个成员放宽 `internal`、适配器 +8 条 import、`CorruptGuardTest` 同批改 1 个测试方法（`guard-mirror` 先抓到）；逐字复核差异 **0** |
 | [2026-09-18](2026-09-18.md) | 结构性重构第一轮 **#4 全项收官（4a+4b+4c）**：一次性事件从「可空 StateFlow + 手工 `consume`」→ `UiEvent` + `Channel`（**4** 条队列、1 个发送点）；主壳三处「按主题分流」→ `showUndoSnackbarAcrossThemes()`；**5 个回调**（4 个 `(Boolean, String)` + 1 个 `(Boolean, Boolean)`）→ `OpFailure` 三档 + `OpFailed`/`CloudBackupsEmpty` 事件；`kt-lexcheck.py` 入库；核查第 14/15/16 处；守卫交接 + 日期纠正 22 处。**+ 结构性重构第二轮 #5 全项落地（5a+5b+5c）**：手写 DI 容器（`Application` 子类 0 → 1、仓库现场构造归零）→ 时钟注入（数据层与 VM 函数体硬调 → **0**、14 处已注入）→ 仓库按领域拆完（`FoodRepository.kt` **965 → 252** 行、47 → **9** 个类级函数，拆出 7 个领域文件，`data/` 15 个文件最大 293 行、无一超 400）；`tools/guard-mirror.py` 入库；核查第 17 处 | ✅ CI 绿（4c 红过一回见 §10；**5c-4 红过两回**见 §12.4 第 3/4 条，两次都是我的搬运工具与守卫没跟上搬家）· 单测 121→127→135→143→**153** · ✅ #4 **真机复测已通过**（4 处提示 + 设置页 5 条流程，各 × 2 主题）· ✅ #5 **真机复测已通过**（debug 包、两主题、按清单全过）⇒ **#5 全项收官**（release 包未实机确认，如实记在 §12.7）|
 | [2026-09-17](2026-09-17.md) | 真机复测收尾：① MD3 输入弹窗粘性键盘避让（`stickyImePadding`）② Miuix 表单弹窗输入框与按钮零间距 ③ Miuix 弹窗主要动作按钮改蓝底白字；随后形参窄化、`ImeHandlingTest` 加固、`AppDialogs.kt` 搬进组件层；**+ 文档审计轮 P0–P4**（INDEX 重写 -70%、6 份报告补批注、抽出 `docs/ROADMAP.md`、三份组件清单合一、新增 `tools/doc-metrics.sh` 口径脚本、删 1 个孤儿文件）；**+ 文档事实核查轮**（把 8 份基础文档的可验证断言逐条拿去和仓库对：查出 **6 处确认错误 + 4 处判断题**并全部修掉，最要命的是升级手册的文件索引指着 0 个文件、只覆盖 23% 的 Miuix 调用点；另加 2 条守卫） | ✅ CI 最终全绿（当日 3 次红均已各自定位并修复）；**提交与 run 的计数不在本行手抄** —— 台账见日志末节（附取数命令）；单测 **121** 例 |
 | [2026-09-16](2026-09-16.md) | 文档对账轮（12 份文档、30+ 处，不改运行时行为）+ `Common.kt` 拆 8 文件 + `MainActivity.kt`(1,123 行) 拆 6 文件 + 双主题 8 对全数合并（§15–§22）+ 写入拆分路线图 | ✅ CI 绿（中间红过一次，真因见日志 §13） |
@@ -102,13 +102,17 @@
   仍挂着未做：`paths-ignore`、APK 体积基线、`bundleRelease`(AAB)、
   `versionCode` 改用仓库内版本文件（现为 `github.run_number`，`release.yml:112`）。
 
-- 🔨 **#10 UI/VM 层拆分收尾（`SettingsScreen.kt` 1,705 → **297** 行 + `AppViewModel.kt` 700 行）** —— **10a 已落地（2026-09-18，10a-1 + 10a-2）**：弹窗区（352–986，跨 635 行）逐字搬到同包 `SettingsBackupDialogs.kt`(233) / `SettingsCloudDialogs.kt`(368) / `SettingsSnapshotDialogs.kt`(207)；**10a-2** 再把两套 body 与两个 MD3 专用小组件搬到 `SettingsBodyMd3.kt`(260) / `SettingsBackupMd3.kt`(222) / `SettingsBodyMiuix.kt`(219) / `SettingsMd3Widgets.kt`(184)，入口只剩装配（297 行）。两轮都是行为零改动 ⇒ 都不占用复测；⚠️ 10a-2 落地后 CI 红了**两轮**（首轮 5 个文件漏 41 条 import、次轮入口漏 `getValue`/`setValue` 2 条**委托算子**，修法都只动 import 行；见 devlog §13.10 / §13.11）；10b（`AppViewModel` 50 个函数按 7 领域搬成同包 internal 扩展）起未开工。
+- 🔨 **#10 UI/VM 层拆分收尾（`SettingsScreen.kt` 1,705 → **297** 行 + `AppViewModel.kt` 700 → **590** 行）** —— **10a 已落地（2026-09-18，10a-1 + 10a-2）+ 10b-1 已落地（2026-09-19）**：弹窗区（352–986，跨 635 行）逐字搬到同包 `SettingsBackupDialogs.kt`(233) / `SettingsCloudDialogs.kt`(368) / `SettingsSnapshotDialogs.kt`(207)；**10a-2** 再把两套 body 与两个 MD3 专用小组件搬到 `SettingsBodyMd3.kt`(260) / `SettingsBackupMd3.kt`(222) / `SettingsBodyMiuix.kt`(219) / `SettingsMd3Widgets.kt`(184)，入口只剩装配（297 行）。两轮都是行为零改动 ⇒ 都不占用复测；⚠️ 10a-2 落地后 CI 红了**两轮**（首轮 5 个文件漏 41 条 import、次轮入口漏 `getValue`/`setValue` 2 条**委托算子**，修法都只动 import 行；见 devlog §13.10 / §13.11）；10b（`AppViewModel` 50 个函数按 7 领域搬成同包 internal 扩展）起未开工。
   **含 #6 的执行**（10c = 加 `WhileSubscribed`），因为两者动同一片代码、共用一轮真机复测。
   10a（设置页：645 行弹窗区抽出 + 两个 body 抽出）与 10b（VM 的 50 个函数按领域搬成同包 `internal` 扩展函数，与 #5c 同形）
   是**结构搬运、不改行为 ⇒ 不单独占用用户复测时间**；10c 是行为改动（后台不再预热、冷进页面首帧可能等一次解码）
   ⇒ 一屏一个提交，最后一轮复测。10b 的爆炸半径实测是 **10 个调用方文件 / 56 个站点 / 约 51 行 import**
-  （不是「31 个文件引用 VM」那个粗口径），且 `CorruptGuardTest`（按 4 空格缩进签名抽函数体）与
+  （不是「31 个文件引用 VM」那个粗口径；⚠️ 那是 50 个函数**全搬**的口径 —— 10b-1 的领域 1（9 个函数）实测只有
+  **1 个**跨包调用方 `SettingsState.kt` 适配器 / **8** 条 import），且 `CorruptGuardTest`（按 4 空格缩进签名抽函数体）与
   `SnackbarCopyTest`（按全仓递归统计文案分布）**必然要同批镜像** —— `tools/guard-mirror.py` 查不到这两类。
+  ⚠️ **10b-1 实测修正**：`CorruptGuardTest` 确实同批改了（1 个测试方法：读两个文件 + `indent = 0` + 新签名字面量），
+  而且**是 `guard-mirror` 报出来的**（字面量那条它查得到）；查不到的是「按缩进截函数体」那类（靠 CI）。
+  `SnackbarCopyTest` 领域 1 **不用动** —— 它唯一那条 VM 期望属领域 2（云端同步）。
   **10d 延后、不排期**：真·一屏一 VM（KernelSU 那套；要动 10 个调用方 + 导航作用域，批量选择/撤销/snackbar 通道是跨屏共享的）、
   两版 body 抽 App 级「设置行」组件、4 对手写弹窗收敛进组件层（后两条 09-16 已判定「不硬并」，
   理由在 `SettingsScreen.kt` 文件头 KDoc）。**10e 可选**：`EditFoodScreen.kt` 659 行按表单区块抽子组件（0 处主题分支，守卫面小）。

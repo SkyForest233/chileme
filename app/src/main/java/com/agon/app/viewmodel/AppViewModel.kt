@@ -7,7 +7,6 @@ import androidx.lifecycle.viewModelScope
 import com.agon.app.ChiliMeApp
 import com.agon.app.data.ArchiveReason
 import com.agon.app.data.ArchivedItem
-import com.agon.app.data.BackupData
 import com.agon.app.data.CategoryDef
 import com.agon.app.data.ConsumptionRecord
 import com.agon.app.data.DefaultCategories
@@ -30,7 +29,6 @@ import com.agon.app.data.deleteConsumption
 import com.agon.app.data.addConsumption
 import com.agon.app.data.undoConsumption
 import com.agon.app.data.buildBackupJson
-import com.agon.app.data.buildCsvExport
 import com.agon.app.data.previewBackup
 import com.agon.app.data.importBackupJson
 import com.agon.app.data.clearAll
@@ -57,7 +55,6 @@ import com.agon.app.data.QuantityChangeResult
 import com.agon.app.data.cleanupOrphanCovers
 import com.agon.app.data.daysLeft
 import com.agon.app.data.toHistoryEntry
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
@@ -73,7 +70,6 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import java.util.UUID
 
 private const val TAG = "AppViewModel"
@@ -87,6 +83,10 @@ private const val TAG = "AppViewModel"
  */
 private const val NO_CREDENTIALS_MESSAGE = "请先填写并保存坚果云账号和应用密码"
 
+// ⚠️ 下面有几个成员是 `internal` 而不是 `private`（`repo` / `clock` / `emit` 与若干 `MutableStateFlow`）：
+// #10b 把领域函数搬成**同包扩展函数**（`AppViewModel<领域>.kt`）之后，那些函数体要够得着它们
+// —— `internal` 只是**模块内**可见，不出 App 模块，与 #5c 在 data 层的口径一致。
+// 类里刻意**不留同名转发**：成员会遮蔽扩展，`fun x() = x()` 是无限递归而编译期不报（#5c 已否决那条路）。
 class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     /**
@@ -105,10 +105,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
      */
     private val container = (application as ChiliMeApp).container
 
-    private val repo = container.repo
+    internal val repo = container.repo
 
     /** 全 App 唯一的时钟（见 [com.agon.app.AppContainer.clock]）；本文件取时间一律走它。 */
-    private val clock = container.clock
+    internal val clock = container.clock
 
     val items: StateFlow<List<FoodItem>> =
         repo.itemsFlow.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
@@ -247,7 +247,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     val settingsUiEvents: Flow<UiEvent> = settingsEvents.receiveAsFlow()
 
     /** 一次性事件的**唯一发送点**：按 [UiEvent.surface] 分流到对应宿主的队列。 */
-    private suspend fun emit(event: UiEvent) {
+    internal suspend fun emit(event: UiEvent) {
         when (event.surface) {
             UiSurface.AppShell -> appShellEvents.send(event)
             UiSurface.Home -> homeEvents.send(event)
@@ -460,120 +460,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         repo.updateLocationBatch(ids, newLocation)
     }
 
-    suspend fun buildBackupJson(): String = repo.buildBackupJson()
-
-    suspend fun buildCsvExport(): String = repo.buildCsvExport()
-
-    suspend fun importBackupJson(raw: String): Boolean = repo.importBackupJson(raw)
-
-    /** 解析备份用于导入前预览（不改动数据）。非备份 / 畸形 JSON 返回 null。 */
-    suspend fun previewBackup(raw: String): BackupData? = repo.previewBackup(raw)
-
-    /**
-     * 恢复类操作的公共前置步骤：留一份「操作前状态」本地快照，返回是否保存成功。
-     *
-     * 三条恢复路径（文件导入 / 坚果云整版本恢复 / 本地快照还原）都走它，
-     * 保证任何一次整体替换之前都有一份可回退的快照。
-     * 快照失败（例如当前数据本身已损坏、无法序列化）不阻断恢复——那种情况正是恢复的用途。
-     */
-    private suspend fun snapshotBeforeRestore(): Boolean = withContext(Dispatchers.IO) {
-        runCatching { repo.buildBackupJson() }.getOrNull()
-            ?.let { json -> LocalSnapshotStore.saveSnapshot(getApplication(), json, clock = clock) != null }
-            ?: false
-    }
-
-    /**
-     * 导入备份的推荐入口：**先写一份本地快照兜底，再整体替换**。
-     *
-     * 导入是不可撤销的破坏性操作，此前点一下文件就直接覆盖。现在：
-     * 1. 先 `buildBackupJson()` + `LocalSnapshotStore.saveSnapshot()` 留一份「导入前状态」，
-     *    用户可在设置页「本地快照」里一键回到导入前；
-     * 2. 再执行 [com.agon.app.data.FoodRepository.importBackupJson]。
-     *    （这里写**全限定名**：`FoodRepository` 的 import 在 #5a 之后只剩这一处 KDoc 引用了，
-     *    而本仓的口径是 import 只服务代码 —— `tools/kt-lexcheck.py` 会把"只被注释用着的 import"
-     *    报成未使用，detekt 的 `UnusedImports` 又是关的（核查第 14 处），所以只能自己守。)
-     *
-     * 快照失败（例如当前数据本身已损坏、无法序列化）**不阻断导入**——那种情况正是导入的用途。
-     *
-     * 成败经 [UiEvent]（落点 [UiSurface.Settings]）报信：那三句话此前写在 `SettingsScreen` 里，
-     * 由界面拿 `(ok, snapshotSaved)` 两个布尔拼出来 —— 与还原快照/云端恢复的文案是同一套句式，
-     * 却分散在两个文件里。#4c 一并收到 VM，句式与用词逐字未改。
-     */
-    fun importBackupWithSnapshot(raw: String) =
-        viewModelScope.launch {
-            // 快照（含整份 JSON 序列化与落盘）与导入都放 IO 线程，避免主线程卡顿
-            val snapshotSaved = snapshotBeforeRestore()
-            if (snapshotSaved) loadLocalSnapshots()
-            val ok = withContext(Dispatchers.IO) { repo.importBackupJson(raw) }
-            if (ok) {
-                emit(
-                    UiEvent.Notice(
-                        if (snapshotSaved) "导入成功，数据已恢复 ✅（已自动留存导入前快照）"
-                        else "导入成功，数据已恢复 ✅（导入前快照未能保存）",
-                        UiSurface.Settings,
-                    ),
-                )
-            } else {
-                emit(UiEvent.OpFailed(DataOp.ImportBackup, OpFailure.Other("导入失败：文件格式不正确")))
-            }
-        }
-
     // ---- 本地快照管理 ----
 
-    private val _localSnapshots = MutableStateFlow<List<LocalSnapshot>>(emptyList())
+    internal val _localSnapshots = MutableStateFlow<List<LocalSnapshot>>(emptyList())
     val localSnapshots: StateFlow<List<LocalSnapshot>> = _localSnapshots.asStateFlow()
-
-    /**
-     * 刷新本地快照列表。读取（含逐份解析 JSON 数条数）已下沉到 IO 线程，
-     * 这里 fire-and-forget 地更新 UI 状态 —— 调用方无需等待。
-     */
-    fun loadLocalSnapshots() {
-        viewModelScope.launch {
-            _localSnapshots.value = LocalSnapshotStore.listSnapshots(getApplication())
-        }
-    }
-
-    fun saveLocalSnapshot(onDone: ((Boolean) -> Unit)? = null) = viewModelScope.launch {
-        val json = runCatching { repo.buildBackupJson() }.getOrNull()
-        if (json != null) {
-            LocalSnapshotStore.saveSnapshot(getApplication(), json, clock = clock)
-            loadLocalSnapshots()
-            onDone?.invoke(true)
-        } else {
-            onDone?.invoke(false)
-        }
-    }
-
-    /**
-     * 从本地快照还原。
-     *
-     * 顺序很重要：**先读出目标快照内容，再写「还原前状态」快照**。
-     * 反过来的话，快照份数已达上限（[LocalSnapshotStore.MAX_SNAPSHOTS] = 3）时，
-     * 新写的那份会把要还原的旧快照挤掉（按修改时间淘汰），导致「点了还原却报找不到」。
-     */
-    fun restoreLocalSnapshot(fileName: String) = viewModelScope.launch {
-        // 两条失败路径（读不出来 / 导不进去）今天是同一句话，故共用一个值 —— 写两遍就有改一处忘一处的风险。
-        val corrupt = OpFailure.Other("快照文件损坏或无法还原")
-        val raw = LocalSnapshotStore.readSnapshot(getApplication(), fileName)
-        if (raw == null) {
-            emit(UiEvent.OpFailed(DataOp.RestoreSnapshot, corrupt))
-            return@launch
-        }
-        val snapshotSaved = snapshotBeforeRestore()
-        if (snapshotSaved) loadLocalSnapshots()
-        if (repo.importBackupJson(raw)) {
-            loadLocalSnapshots()
-            emit(
-                UiEvent.Notice(
-                    if (snapshotSaved) "已从本地快照还原数据 ✅（已自动留存还原前快照）"
-                    else "已从本地快照还原数据 ✅（还原前快照未能保存）",
-                    UiSurface.Settings,
-                ),
-            )
-        } else {
-            emit(UiEvent.OpFailed(DataOp.RestoreSnapshot, corrupt))
-        }
-    }
 
     // ---- 坚果云同步 ----
 

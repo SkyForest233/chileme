@@ -144,23 +144,30 @@ class CorruptGuardTest {
 
     @Test
     fun `三条恢复路径都先留恢复前快照`() {
+        // #10b-1 起「文件导入」「本地快照还原」这两条路径，与公共前置快照方法本身，搬到了同包的
+        // AppViewModelBackup.kt（同包 internal 扩展函数 ⇒ 缩进 0，故 `indent = 0`）；
+        // 「坚果云整版本恢复」那条仍在 AppViewModel.kt 里 ⇒ 这个测试现在要读两个文件。
+        val backup = read("com/agon/app/viewmodel/AppViewModelBackup.kt")
         val vm = read("com/agon/app/viewmodel/AppViewModel.kt")
-        assumeTrue("找不到 AppViewModel.kt，跳过", vm != null)
-        val src = vm!!
+        assumeTrue("找不到 AppViewModelBackup.kt / AppViewModel.kt，跳过", backup != null && vm != null)
+        val src = backup!!
 
-        assertTrue("缺少公共前置快照方法", src.contains("private suspend fun snapshotBeforeRestore()"))
+        assertTrue(
+            "缺少公共前置快照方法",
+            src.contains("internal suspend fun AppViewModel.snapshotBeforeRestore()"),
+        )
 
-        val importBody = functionBody(src, "fun importBackupWithSnapshot(")
+        val importBody = functionBody(src, "fun AppViewModel.importBackupWithSnapshot(", indent = 0)
         assertTrue("文件导入未走公共前置快照", importBody.contains("snapshotBeforeRestore()"))
 
-        val restoreBody = functionBody(src, "fun restoreLocalSnapshot(")
+        val restoreBody = functionBody(src, "fun AppViewModel.restoreLocalSnapshot(", indent = 0)
         assertTrue("本地快照还原未走公共前置快照", restoreBody.contains("snapshotBeforeRestore()"))
         // 顺序：先读出目标快照，再写「还原前状态」——反了会在快照满 3 份时把目标挤掉
         val readIdx = restoreBody.indexOf("readSnapshot")
         val snapIdx = restoreBody.indexOf("snapshotBeforeRestore()")
         assertTrue("restoreLocalSnapshot 必须先读取目标快照再写前置快照（否则目标可能被淘汰）", readIdx in 1 until snapIdx)
 
-        val cloudBody = functionBody(src, "fun syncDownload(")
+        val cloudBody = functionBody(vm!!, "fun syncDownload(")
         assertTrue("坚果云恢复未走公共前置快照", cloudBody.contains("snapshotBeforeRestore()"))
         assertTrue("坚果云恢复必须先做 items 键校验再覆盖", cloudBody.contains("previewBackup(raw) == null"))
     }
