@@ -40,6 +40,29 @@
 - 产物：`app/build/outputs/apk/debug/app-debug.apk`
 - 频率：每完成一个功能模块就构建，不要积攒大量改动后一次性构建
 
+### 本地构建环境自检（2026-09-19，M1-5）
+
+「沙箱里没有 JDK/SDK ⇒ CI 是唯一的编译裁判」一直是本仓的**口头约定**。它的代价不体现在构建上，
+而体现在**决策上**：没有本地编译器，"改动量大但结构更对"的重构（#10c 每屏一 VM、DataStore→Room）
+就永远排不进队列 —— 一次编译失败要烧一整轮 CI（约 4 分钟，且 `concurrency` 会取消同分支中间的 run），
+错误还得从 actions 日志里人肉捞。于是这个环境事实必须先被**变成可判定的**，才谈得上摆脱它。
+
+```bash
+bash tools/bootstrap-build-env.sh              # --check：只读自检，非零退出码 = 这台机器编不了
+bash tools/bootstrap-build-env.sh --install-sdk  # 补 Android SDK 命令行工具（不含 JDK）
+bash tools/bootstrap-build-env.sh --verify       # 跑一次 :app:assembleDebug 作为唯一判据
+bash tools/bootstrap-build-env.sh --bootstrap      # = 上面两条
+```
+
+- 它**只读 + 只装 SDK 目录**，不碰仓库、不改 `gradle.properties`。发现的三件事各归各位：
+  JDK（`REQUIRED_JDK=21`）与 platform（`android-36`）都是**从别处抄来的常量**，脚本头部写明了
+  改哪边必须同步改这里；`kotlin.compiler.execution.strategy=in-process` 那条只提示不动手
+  （动它会让全部增量构建重编，属独立一轮）。
+- 没有外网的机器（含 Agent 沙箱）会在 `--install-sdk` 第一步就明确报"这台机器无解，交给 CI"，
+  **不给假的绿** —— 这个脚本的价值全在诚实：判据、缺哪个组件、怎么补，都当场给出来。
+- ⚠️ 它**不进 CI**：CI 已经有 JDK 与 SDK（`setup-java` + `android-actions/setup-android`），
+  在 CI 里跑一遍只会多一个"自检也依赖网络"的假失败面。门禁仍然只有 `tools/ci-gates.sh` 那两个工具。
+
 ### CI 静态门禁（ktlint + detekt，2026-09-15 起）
 
 - 入口脚本：`tools/ci-gates.sh`（工具版本与 sha256 固定在此文件里）；规则配置：`.editorconfig`（ktlint）、`detekt.yml`（detekt）

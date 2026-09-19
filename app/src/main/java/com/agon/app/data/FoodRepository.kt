@@ -132,7 +132,7 @@ class FoodRepository internal constructor(
      *
      * 为什么用**独立 key** 而不是"从归档长度反推"或"只在日志里说一句"：截断是 `take()`，被挤掉的条目
      * 当场就从列表里消失了 ⇒ 反推不出来；日志在用户设备上等于没有。它是只增不减的账，
-     * 与 `corruptedKeys` 那套"数据出过问题就要留痕"的思路同源（`CLAUDE.md` §5.1）。
+     * 与损坏留档（`markCorrupt`）那套"数据出过问题就要留痕"的思路同源（`CLAUDE.md` §5.1）。
      */
     internal val archiveOverflowKey = intPreferencesKey("archive_overflow_total")
 

@@ -81,7 +81,8 @@ app/src/main/java/com/agon/app/
                                 #    ⚠️ #10e（2026-09-19）起另有 **5 个**从 EditFoodScreen.kt 抽出去的**区块文件**
                                 #    （同样不是新增屏幕）：EditFoodCoverSection / EditFoodNameSection /
                                 #    EditFoodFieldSections / EditFoodThresholdSection / EditFoodChrome
-                                #    ⇒ 该目录（不含 *State.kt）16 → **21** 文件；编辑页入口 660 → **317** 行
+                                #    ⇒ 该目录（不含 *State.kt）16 → **21** 文件；编辑页入口行数不在此写死（M1-2 又加过 13 行），
+#      现值看 doc-metrics 的「#10e 五个区块文件行数」与「屏幕目录最大文件」两行
                                 #    ⇒ 所以「文件数」不再等于「屏幕数」；
                                 #    **行数账不在本文件维护**
                                 #    （此前这里手抄的 4,204 / 2,746 / 6,950 三个数已过期，且与本文件 §5 的「12 文件」自相矛盾），

@@ -50,7 +50,14 @@ echo '════ 规模与结构（行数一律 wc -l）════'
 row '屏幕目录 ui/screens（不含 *State.kt）' "$(nfiles "$SCREENS" -not -name '*State.kt') 文件 / $(find "$SCREENS" -name '*.kt' -not -name '*State.kt' | xargs wc -l | tail -1 | awk '{print $1}') 行" 'ui/screens/*.kt 排除 *State.kt；⚠️ #10a 起这里还含弹窗/body 文件，文件数增加不等于新增屏幕'
 row 'App 级组件层' "$(nfiles "$APPLAYER") 文件 / $(lines "$APPLAYER") 行" 'ui/components/app/*.kt'
 DATADIR=app/src/main/java/com/agon/app/data
-row 'FoodRepository.kt（#5c 后的核心）' "$(wc -l < $DATADIR/FoodRepository.kt | tr -d ' ') 行" '只剩 19 个 key + 19 条对外读取流 + 7 个解码包装 + 放弃损坏数据入口 = 9 个类级函数'
+# ⚠️ 这一行**原来是手抄的**（"只剩 19 个 key + 19 条对外读取流 + 7 个解码包装 … = 9 个类级函数"）：
+# M1-1（凭据拆成独立 DataStore 文件）与 M1-3（归档溢出计数器）各加了 1 个 key 与 1 条读流，
+# 抄的那两个数当场就烂 —— 正是本脚本存在要治的那种腐烂。现在四个数全部现算：
+#   key = `PreferencesKey(` 出现次数；对外读流 = 类内 `val *Flow: Flow`；
+#   解码包装 = 类内 `fun decode*`；类级函数 = 类内 `fun`（含 `internal`/`private`/`suspend` 前缀，含解码包装）。
+# 「key 分几个文件」不是数出来的、写在下面那行的口径里：`credentialsStore` 只搬走 3 个 nutstore key，
+# 声明位置仍在本文件 ⇒ 本行统计的是**声明数**，不是"同一个文件里的 key 数"。
+row 'FoodRepository.kt（#5c 后的核心）' "$(wc -l < $DATADIR/FoodRepository.kt | tr -d ' ') 行" "key $(occ '(string|int|boolean)PreferencesKey\(' $DATADIR/FoodRepository.kt) 个 + 对外读取流 $(occ '^    val [a-zA-Z]+Flow: Flow' $DATADIR/FoodRepository.kt) 条 + 解码包装 $(occ '^    (internal |private )?fun decode' $DATADIR/FoodRepository.kt) 个 + 放弃损坏数据入口 = 类级函数 $(occ '^    (internal |private |suspend )*fun ' $DATADIR/FoodRepository.kt) 个"
 row '#5c 拆出的领域文件' "$(python3 - <<'PY'
 import io, os
 D = 'app/src/main/java/com/agon/app/data'
