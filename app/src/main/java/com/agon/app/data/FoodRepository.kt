@@ -31,7 +31,7 @@ private val Context.dataStore by preferencesDataStore("pantry_store")
 /**
  * **凭据**（坚果云账号 + 应用密码的密文与明文回退）：**独立一个 DataStore 文件**，被两条备份通道整体排除。
  *
- * 为什么要拆：此前 19 个 key 同住 `pantry_store`，而 Keystore 密钥不跨设备 ⇒ 备份过去也解不开，
+ * 为什么要拆：此前凭据三件套与全部业务数据同住 `pantry_store` 一个文件，而 Keystore 密钥不跨设备 ⇒ 备份过去也解不开，
  * 于是两份备份规则直接 `<exclude path="datastore/" />` 把**整个 DataStore 目录**排除了 ——
  * 结果是"为了护一个密钥，把全部用户数据排除在备份之外"。
  * 官方 DataStore 文档给的正是另一条路：
@@ -126,6 +126,15 @@ class FoodRepository internal constructor(
     internal val lastSyncKey = stringPreferencesKey("last_sync_time")
     internal val autoSyncDaysKey = intPreferencesKey("auto_sync_days")
     internal val lastAutoSyncEpochDayKey = stringPreferencesKey("last_auto_sync_epoch_day")
+
+    /**
+     * 归档溢出累计计数器（M1-3）：到目前为止有多少条归档因为超出 `ARCHIVE_RETENTION` 被挤掉。
+     *
+     * 为什么用**独立 key** 而不是"从归档长度反推"或"只在日志里说一句"：截断是 `take()`，被挤掉的条目
+     * 当场就从列表里消失了 ⇒ 反推不出来；日志在用户设备上等于没有。它是只增不减的账，
+     * 与 `corruptedKeys` 那套"数据出过问题就要留痕"的思路同源（`CLAUDE.md` §5.1）。
+     */
+    internal val archiveOverflowKey = intPreferencesKey("archive_overflow_total")
 
     // ---- 解码 ----
     //
@@ -266,6 +275,16 @@ class FoodRepository internal constructor(
         lightFlow("last_auto_sync_epoch_day", fallback = 0L) {
             it[lastAutoSyncEpochDayKey]?.toLongOrNull() ?: 0L
         }
+
+    /**
+     * 累计有多少条归档被保留上限挤掉（M1-3，只增不减；口径与写入点见 `FoodArchive.kt` 的 `ARCHIVE_RETENTION`）。
+     *
+     * 目前**没有任何界面消费它** —— 这是刻意的：本轮只把"静默丢弃"变成"可计量的丢弃"，
+     * 用户可见文案要单独一轮（`CLAUDE.md` §2 的文案规则）。读流按 §5.2 走 `lightFlow()` 收口，
+     * 与其余轻量 key 同一条兜底路径。
+     */
+    val archiveOverflowFlow: Flow<Int> =
+        lightFlow("archive_overflow_total", fallback = 0) { it[archiveOverflowKey] ?: 0 }
 
     /** 资产型 key 的名字 → Preferences.Key，供 [discardCorrupt] 按名字删除。 */
     private val assetKeysByName: Map<String, Preferences.Key<String>> by lazy {
