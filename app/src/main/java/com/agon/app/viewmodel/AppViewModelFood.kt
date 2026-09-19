@@ -13,6 +13,7 @@ import com.agon.app.data.deleteArchived
 import com.agon.app.data.restoreArchived
 import com.agon.app.data.restoreArchivedBatch
 import com.agon.app.data.upsert
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
 /**
@@ -81,6 +82,23 @@ import kotlinx.coroutines.launch
  */
 
 internal fun AppViewModel.upsert(item: FoodItem) = viewModelScope.launch { repo.upsert(item) }
+
+/**
+ * 与 [upsert] 同一个写，但**把 Job 交回调用方等**（M1-2，2026-09-19）。
+ *
+ * 为什么不能就地 `upsert(item); onBack()`：编辑页的保存此前是 fire-and-forget —— `viewModelScope.launch`
+ * 把写排进队列后立刻返回，紧接着 `onBack()` 让屏幕出栈。今天它"碰巧"能写进去，唯一的原因是
+ * 这个 ViewModel 是 **Activity 级**的、`viewModelScope` 不会随屏幕消失而取消；而路线图 #10c 正要把
+ * VM 拆成"每屏一个"，那时屏幕一出栈、协程连同还没跑完的 `dataStore.edit` 一起被取消 ⇒
+ * **点保存 = 丢数据**（`repo.upsert` 里 `json.encodeToString(整份列表)` + 写盘都在挂起前那一段）。
+ * 这条 API 把"写完才返回"变成调用方看得见的事实，而不是依赖"VM 恰好是 Activity 级"这个巧合。
+ *
+ * 协程仍然挂在 `viewModelScope`（不是调用方的 compositionScope）⇒ 用户中途按返回、屏幕被回收，
+ * 写盘照样跑完；调用方 `join()` 被取消也不会中断它。
+ *
+ * 保留 [upsert] 是因为批量恢复/撤销那几处只需要"发出去就行"；新代码请一律用本函数。
+ */
+internal fun AppViewModel.upsertAndAwait(item: FoodItem): Job = viewModelScope.launch { repo.upsert(item) }
 
 internal fun AppViewModel.archiveBatch(ids: Set<String>, reason: ArchiveReason) =
     viewModelScope.launch { repo.archiveItems(ids, reason) }
