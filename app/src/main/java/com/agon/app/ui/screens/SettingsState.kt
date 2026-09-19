@@ -25,6 +25,12 @@ import com.agon.app.viewmodel.previewBackup
 import com.agon.app.viewmodel.restoreLocalSnapshot
 import com.agon.app.viewmodel.saveLocalSnapshot
 import com.agon.app.viewmodel.saveNutstoreCredentials
+import com.agon.app.viewmodel.setAutoSyncDays
+import com.agon.app.viewmodel.setDarkMode
+import com.agon.app.viewmodel.setDynamicColor
+import com.agon.app.viewmodel.setFloatingNav
+import com.agon.app.viewmodel.setPalette
+import com.agon.app.viewmodel.setThemeStyle
 import com.agon.app.viewmodel.syncDownload
 import com.agon.app.viewmodel.syncUpload
 

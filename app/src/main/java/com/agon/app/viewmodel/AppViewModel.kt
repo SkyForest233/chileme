@@ -17,12 +17,6 @@ import com.agon.app.data.isAutoSyncDue
 import com.agon.app.data.seedIfNeeded
 import com.agon.app.data.migrateConsumptionIds
 import com.agon.app.data.buildBackupJson
-import com.agon.app.data.setDynamicColor
-import com.agon.app.data.setDarkMode
-import com.agon.app.data.setPalette
-import com.agon.app.data.setThemeStyle
-import com.agon.app.data.setFloatingNav
-import com.agon.app.data.setAutoSyncDays
 import com.agon.app.data.setLastAutoSyncEpochDay
 import com.agon.app.data.setLastSync
 import com.agon.app.data.migratePlaintextPassword
@@ -294,18 +288,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             loadLocalSnapshots()
         }
     }
-
-    fun setAutoSyncDays(days: Int) = viewModelScope.launch { repo.setAutoSyncDays(days) }
-
-    fun setDynamicColor(enabled: Boolean) = viewModelScope.launch { repo.setDynamicColor(enabled) }
-
-    fun setDarkMode(mode: Int) = viewModelScope.launch { repo.setDarkMode(mode) }
-
-    fun setPalette(name: String) = viewModelScope.launch { repo.setPalette(name) }
-
-    fun setThemeStyle(name: String) = viewModelScope.launch { repo.setThemeStyle(name) }
-
-    fun setFloatingNav(enabled: Boolean) = viewModelScope.launch { repo.setFloatingNav(enabled) }
 
     // ---- 本地快照管理 ----
 
