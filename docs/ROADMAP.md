@@ -1149,6 +1149,19 @@
 - **合并 `EmptyState`（`Controls.kt`）与 `AppMessageScreen`** —— 前者是带动画的空态块（emoji + 标题 + 副标题），
   后者是整屏消息 + 一个动作按钮，**不是同一件事**；11b-3 只做搬家。"空态有两种实现"另记待办（体验类，需真机）。
 
+### 11a / 11b 落地记录（09-19；数字与踩坑细节只写在 `devlog/2026-09-19.md` §15，此处不重抄）
+
+- 状态：**11a ✅ / 11b ✅**，11c–11f 未开工。三条验收的实测结果：① 逐行相等 ✓（脚本 assert 每段大括号闭合）；
+  ② import 改动数 预测 0 = 实测 0 ✓（同包移动）；③ 位置守卫 ✓（`ComponentAppHomeTest` 现 20 条 + `AppColorLocationTest`）。
+- **计划改判一处**：`AppBarIconButton`（两主题共用的图标按钮底座）原写「留在 `AppChrome.kt`」，实做发现动作族要调它、
+  而它是那个文件的 `private fun` ⇒ Kotlin 的 `private` 顶层成员是**文件**级可见，同包也不行 ⇒ **底座随调用方走**，
+  搬进 `AppBarActions.kt` 改 `internal`（`9374d6b`）。这不是笔误，是判据②的结构性盲区：**"要不要改 import" 不问 "够不够得着"**。
+- **每笔统一做法补两步**（这次真红出来的，别省）：
+  1. 搬家前先 `grep -rl "<被拆文件名>.kt" app/src/test/` —— 点名该文件的源码守卫必须同批改。
+     本次只查了 `ImeHandlingTest.chromeFiles`（确实没点名 `AppChrome.kt`），漏了 `SnackbarCopyTest` 自己那份路径常量 ⇒ 红。
+  2. 再跑 `python3 tools/move-importcheck.py --old <搬家前的 git 引用> --new <新文件…>`（09-18 #10a-2 为此造的现成工具，
+     前两笔凭手写检查过关是运气，不是方法）。
+
 ### 风险与同批要处理的守卫
 
 | 风险 | 说明 | 对策 |
@@ -1157,6 +1170,8 @@
 | `doc-metrics` 的目录通配符 | 新增文件落在 `ui/components/` 与 `ui/components/app/` ⇒ 那两行的「文件数 / 行数」判据跟着变 | 那两行是**实测**（`find` 计数 + `wc`）⇒ 自动跟随，无需手抄；只需复跑确认不为 ✗ |
 | ktlint import 顺序 | 同包移动不改 import，但跨包那几笔（11b-3 / 11d）要新增行，ktlint 按 ASCII 序 + `java.*` 置尾 | 逐条改完跑 `tools/kt-lexcheck.py`（含注释闭合与别名判据） |
 | 无本地编译器 | 本项全部只能在 Actions 上判 | 一物一笔一提交；每笔自查"逐字相等 + 守卫仿真 + 词法自检"三件；log-only 提交尽量合并（`paths-ignore` 是 #9 的挂账） |
+| 同包跨文件的 `private` 顶层成员 | 新文件按名字调他文件的 `private fun` ⇒ 编译红（`it is private in file`），而 import 类判据**结构上看不见它**（它不在任何 import 里） | 守卫 `CrossFilePrivateRefTest`（整棵 `ui/` 扫，09-19 起）；或把底座随调用方搬走并改 `internal` |
+| Kotlin 2.4.10 已移除 `arrayArrayOf` | 守卫/工具测试里用它拼路径 ⇒ `testDebugUnitTest` 编译红 + 一串看不懂的连带错 | 写 `listOf(两条相对路径).map(::File)`；报错**只修最上面那条 `e:`**，其余多半是涟漪 |
 | 行为改动的边界 | 11a–11e **都不改行为** ⇒ 不占用真机复测；11f 改执行位置 | 11f 完成后请用户过一眼「升级后凭据仍在 + 首屏不闪」两条即可 |
 ## #3 收官：验收口径与偏差（**不要再引用旧数字**）
 

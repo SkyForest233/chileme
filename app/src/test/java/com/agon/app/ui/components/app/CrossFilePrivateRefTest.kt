@@ -37,7 +37,10 @@ class CrossFilePrivateRefTest {
         val homes = mutableMapOf<String, MutableList<String>>()
         for ((path, code) in codeOf) {
             for (m in decl.findAll(code)) {
-                homes.getOrPut(m.group(1)) { mutableListOf() }.add(path)
+                // Kotlin 的 MatchResult 没有 Java Matcher 那套 group(i) ⇒ 只有 groupValues[1]
+                // （09-19 就是在这里红了一次：`e: …:40:34 Unresolved reference 'group'.`）
+                val name = m.groupValues[1]
+                homes.getOrPut(name) { mutableListOf() }.add(path)
             }
         }
         val solo = homes.filter { it.value.size == 1 }.mapValues { it.value.first() }
