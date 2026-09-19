@@ -8,7 +8,9 @@
 > P0-4 `SecureStore` 建钥竞态（含"读侧不建钥"）、M1-5 本地编译可判定（`tools/bootstrap-build-env.sh`）。
 > ⚠️ **本轮结论的效力随之变化**：文中把这五条写成"现状缺陷"的段落保留原文（时点记录，不改写），
 > 但读的时候请配合同日 §14。**P0-5（这几条旅程零 UI/instrumentation 测试）没有解决** ——
-> 本轮新增的 23 条单测里，4 条属于"读源码文本"的配置守卫（原因写在各自文件的 KDoc 里），
+> 本轮新增的 23 条单测按性质分：**读源码文本的配置守卫 11 条**（`BackupRulesTest` 4 + `EditFoodSaveGuardTest` 5 +
+> `ArchiveRetentionTest` 1 + `CorruptGuardTest` 1）、**真 DataStore 行为 8 条**、纯函数 3 条、常量形状 1 条
+> （分类见 `devlog/2026-09-19.md` §14.7；守卫为什么必须读文本的理由写在各自文件的 KDoc 里）。
 > Robolectric / Compose UI Test / Macrobenchmark 仍是 0（`doc-metrics` 的「UI 测试」那行为准）。
 > P1 / P2 全部未动，其中**判为"应先于一切结构项"的那条根因**（沙箱无编译器）只做到了"可判定"，
 > 没有做到"可编译"。§10 对流程纪律的批评与"两条机械计数器 + 文档不得反向塑形源码"的建议一并保留待议。
