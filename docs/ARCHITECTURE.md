@@ -78,6 +78,10 @@ app/src/main/java/com/agon/app/
                                 #    （都不是新增屏幕）：10a-1 的 3 个**弹窗文件** SettingsBackupDialogs /
                                 #    SettingsCloudDialogs / SettingsSnapshotDialogs，10a-2 的 4 个 **body / 小组件文件**
                                 #    SettingsBodyMd3 / SettingsBackupMd3 / SettingsBodyMiuix / SettingsMd3Widgets
+                                #    ⚠️ #10e（2026-09-19）起另有 **5 个**从 EditFoodScreen.kt 抽出去的**区块文件**
+                                #    （同样不是新增屏幕）：EditFoodCoverSection / EditFoodNameSection /
+                                #    EditFoodFieldSections / EditFoodThresholdSection / EditFoodChrome
+                                #    ⇒ 该目录（不含 *State.kt）16 → **21** 文件；编辑页入口 660 → **317** 行
                                 #    ⇒ 所以「文件数」不再等于「屏幕数」；
                                 #    **行数账不在本文件维护**
                                 #    （此前这里手抄的 4,204 / 2,746 / 6,950 三个数已过期，且与本文件 §5 的「12 文件 / 3,075 行」自相矛盾），
