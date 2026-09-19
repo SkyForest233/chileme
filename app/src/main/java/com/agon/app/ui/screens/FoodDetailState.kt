@@ -20,6 +20,7 @@ import com.agon.app.data.statusForAt
 import com.agon.app.ui.theme.LocalToday
 import com.agon.app.ui.theme.MotionEasing
 import com.agon.app.viewmodel.AppViewModel
+import com.agon.app.viewmodel.archive
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 

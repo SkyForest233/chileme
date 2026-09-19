@@ -25,9 +25,6 @@ import com.agon.app.data.deleteArchived
 import com.agon.app.data.clearArchive
 import com.agon.app.data.changeQuantity
 import com.agon.app.data.migrateConsumptionIds
-import com.agon.app.data.deleteConsumption
-import com.agon.app.data.addConsumption
-import com.agon.app.data.undoConsumption
 import com.agon.app.data.buildBackupJson
 import com.agon.app.data.clearAll
 import com.agon.app.data.setDynamicColor
@@ -242,36 +239,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    /** 撤销最近一次减少消耗：删消耗记录 + 数量回滚。 */
-    fun undoConsumption(event: UiEvent.UndoConsumption) = viewModelScope.launch {
-        repo.undoConsumption(event.itemId, event.consumptionId)
-    }
-
-    fun restoreArchivedWithUndo(entry: ArchivedItem) = viewModelScope.launch {
-        val merged = repo.restoreArchived(entry.item.id)
-        emit(UiEvent.UndoRestoreArchived(entry.item, entry.reason, merged))
-    }
-
-    /** 删除单条消耗记录（修正统计），并记下原位置供撤销插回。 */
-    fun deleteConsumption(record: ConsumptionRecord) = viewModelScope.launch {
-        val sorted = consumption.value.sortedByDescending { it.epochDay }
-        // 优先按 id 精确定位；id 为 null 的旧记录按内容匹配，避免删除静默失效
-        val index = sorted.indexOfFirst {
-            if (record.id != null) it.id == record.id else it == record
-        }
-        val target = sorted.getOrNull(index) ?: return@launch
-        repo.deleteConsumption(target)
-        emit(UiEvent.UndoDeleteConsumption(target, index.coerceAtLeast(0)))
-    }
-
-    /** 撤销删除：按原下标插回，避免被提到列表最前。 */
-    fun undoDeleteConsumption(record: ConsumptionRecord, index: Int) = viewModelScope.launch {
-        repo.addConsumption(record, index)
-        // 原先这里还有一句「若待处理的撤销事件正是这条记录就清空它」的防御性代码：
-        // 收集端一直是「先 consume 再弹条」，弹条期间那个状态早已是 null，故那句永远不成立；
-        // 改用 Channel 后事件接收即出队，也没有「待处理的事件」可清 ⇒ 一并删掉。
-    }
-
     init {
         viewModelScope.launch {
             repo.seedIfNeeded()
@@ -348,9 +315,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun upsert(item: FoodItem) = viewModelScope.launch { repo.upsert(item) }
 
-    fun archive(id: String, reason: ArchiveReason) =
-        viewModelScope.launch { repo.archiveItems(setOf(id), reason) }
-
     fun archiveBatch(ids: Set<String>, reason: ArchiveReason) =
         viewModelScope.launch { repo.archiveItems(ids, reason) }
 
@@ -370,8 +334,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             onDone?.invoke(ids)
         }
     }
-
-    fun restoreArchived(id: String) = viewModelScope.launch { repo.restoreArchived(id) }
 
     fun deleteArchived(id: String) = viewModelScope.launch { repo.deleteArchived(id) }
 
