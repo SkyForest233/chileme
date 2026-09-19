@@ -121,6 +121,7 @@ bash tools/bootstrap-build-env.sh --bootstrap      # = 上面两条
 | mergeDebugResources 失败 | XML 格式错误，检查最近改过的 res 文件 |
 | 同错误重复 2 次+ | 停下来读完整报错 → read_file 定位 → 换思路；必要时 `./gradlew clean --no-daemon` |
 | ktlint 报 `Not a valid Kotlin file (N:M expecting an expression)` | **这不是格式规则，是解析失败** ⇒ 先 grep 行首 `#`：从 markdown / shell 串过来的注释习惯，Kotlin 只认 `//` 和 `/* */`。查法 `grep -rn "^[[:space:]]*#" app/src --include=*.kt`。09-19 #11c 就栽在这（一行 `# ② 协议层分家…`），ktlint 与 kotlinc 同时红，而 `tools/kt-lexcheck.py` 放过去了 —— 它查大括号、别名表、import 双向，**不查注释符**。 |
+| 搬完代码后 `Unresolved reference` 找不到源头（属性委托那一类） | `by remember` / `by animateFloatAsState` 需要 `import androidx.compose.runtime.getValue`，但**代码里永远不会出现 `getValue` 这个名字** ⇒ 按名字收敛 import 的脚本（含 `tools/move-importcheck.py`，它对属性形是「跳过」不报）双向都看不见它。⇒ 只要搬走的代码或剩下的代码里有 `by` 委托，**两侧都要各自 grep 一遍**：`grep -c " by " <文件>` > 0 ⇒ 该文件必须留着 `getValue`（`setValue` 同理，`var` 委托才需要）。09-19 #11d ① 差一点就红在 `StatsScreen.kt:305`。 |
 | detekt `LoopWithTooManyJumpStatements` | 阈值是 **1**：一个 `for` 里两条 `continue`（或 `break`）就报。改成 `filter` + `mapNotNull` + `forEach`（既有先例就是 `NutstoreWebdav.parsePropfind`，注释里写着当年为什么换）。⚠️ **守卫与工具测试的循环一样受管** —— 别觉得测试代码可以裸写。 |
 
 ## 5. 文档维护责任
