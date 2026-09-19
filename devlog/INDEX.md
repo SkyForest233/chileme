@@ -151,9 +151,13 @@
 
 ### 工具链与环境
 
-- **本地编译仍不可用**（M1-5 只做到"可判定"）：`bash tools/bootstrap-build-env.sh --check` 会在
-  Agent 沙箱里如实报「阻塞 2 / 退出 1」（无 JDK、无 SDK，且 `curl` 到 dl.google.com / Maven Central 全挂）
-  ⇒ 编译裁判还是 CI。**下一步可选**：Dev Container / 预装 JDK+SDK 的镜像，或把 `--install-sdk` 在有网机器上跑通后写回本文档。
+- **本地编译这条路已关掉**（2026-09-19 用户明确：没有本地电脑，构建只能靠 GitHub Actions）⇒
+  不要再提 Dev Container / 预装镜像 / "把编译器搬到本地"那一类。`tools/bootstrap-build-env.sh --check`
+  仍然留着，但它的作用改成**给 CI 侧决策提供依据**（说清"这台机器为什么编不了"）。
+  ⇒ 剩下的改进只在 CI 侧，且**优先级因此上升**：① `paths-ignore`（本轮 3 次 log-only 提交各烧了一次
+  4 分钟全量 run，纯浪费）；② 把 `tools/doc-metrics.sh` 接进 CI 当门禁（它是现在唯一能在合并前抓住
+  "文档与代码不符"的机器，但只在本地跑 ⇒ 等于没人跑）；③ `gradle/actions/setup-gradle@v4` 的远程缓存已开 ⇒
+  再快就只能拆 job（docs-only 不触发、`compileDebugKotlin` 单独一个快 job）。
 - `gradle.properties` 的 `kotlin.compiler.execution.strategy=in-process` 是官方**不推荐**项（自检脚本会提示，本轮刻意不动：
   改它会让全部增量构建重编，属独立一轮）· 配置缓存未开且 release 签名守卫与配置期回调冲突（见审查报告 P1-11）。
 
@@ -189,6 +193,8 @@
 
 ### 已决策不做（别再提）
 
+- **本地编译环境**（Dev Container / 预装 JDK+SDK 镜像 / 让沙箱能 `./gradlew`）—— 用户无本地电脑，
+  构建与单测只走 GitHub Actions ⇒ 这条从待办里摘掉，改进只往 CI 侧提（见上「工具链与环境」）。
 - **Glance 桌面小组件** —— 撞 `REQUIREMENTS.md` §4「明确不做」第 3 条，需用户先推翻边界才能做
 - **`WindowSizeClass` / 折叠屏铰链姿态 / 列表页 Medium+ 双栏** —— v2.6 用户确认无折叠屏
   （`840dp` 的 `widthIn` 保留，作为平板上的最大宽度约束）
