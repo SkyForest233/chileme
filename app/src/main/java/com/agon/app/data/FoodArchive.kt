@@ -1,5 +1,6 @@
 package com.agon.app.data
 
+import androidx.datastore.preferences.core.MutablePreferences
 import androidx.datastore.preferences.core.edit
 import kotlinx.coroutines.flow.update
 import java.time.LocalDate
@@ -12,10 +13,78 @@ import java.time.LocalDate
  *
  * 对外调用写法一个字没变：同包内扩展函数用隐式接收者就能解析；唯一要改的是**别的包**的调用方
  * —— `AppViewModel` 为搬走的每个函数加一行 import（本仓禁通配导入）。
+ *
+ * 本文件还管着**归档保留上限**这一件事（`trimArchiveRetention`）：归档是所有"被删掉的数据"唯一的去处，
+ * 而它是个环形截断的列表 ⇒ 上限怎么写、挤掉时留不留痕迹，都是数据安全的一部分，故收在这里共用。
  */
 
-internal suspend fun FoodRepository.archiveItems(ids: Set<String>, reason: ArchiveReason) {
-    if (ids.isEmpty()) return
+/**
+ * 归档最多保留多少条（M1-3，2026-09-19；此前是散在两处 `take(200)` 里的字面量）。
+ *
+ * 为什么这条值得改：`take` 是**静默删除**——写满之后，最老的归档条目会在下一次归档时被挤掉，
+ * 既不通知用户、也不留任何记录，"被归档的数据可以从归档里找回"这个承诺就此有个没人知道的洞。
+ * 它还在污染统计口径：`StatsState.kt` 的历史合计读的就是这份列表，被截断后统计会偏小
+ * （那里的口径注释原本只写了"受 `take(200)` 影响"，即把丢数据当成已知取舍 —— 本轮把它变成有账可查）。
+ *
+ * 上限本身要留着：`archiveKey` 与库存/消耗记录同住一个 DataStore 文件，每次写都是**整份 JSON 全量重写**，
+ * 列表长度直接决定"改一次数量"要序列化多少条、以及备份文件多大。1000 条 × 每条约 0.2KB ≈ 200KB，
+ * 仍在一秒内可完成重写的量级；再高就属于"换成按键分片存储或 Room"（见 P1-1，本条不解决那个）。
+ *
+ * 溢出不再静默：挤掉的条数会计入 [FoodRepository.archiveOverflowKey]（一个只增不减的累计计数器），
+ * 由 [FoodRepository.archiveItems] 返回给调用方。为什么不用"通知用户"解决：见 `devlog` 里那条
+ * "本轮不动用户可见文案"的说明——文案要单独一轮并真机复测（`SnackbarCopyTest` 的分布断言也在这里）。
+ */
+internal const val ARCHIVE_RETENTION = 1000
+
+/** [trimArchiveRetention] 的结果：截断后要写回的列表 + 被挤掉的条数（0 = 这次没丢东西）。 */
+internal data class ArchiveTrim(val entries: List<ArchivedItem>, val dropped: Int)
+
+/**
+ * 归档写入的统一收口：新条目接在旧列表前面 → 截断 → 报出被挤掉的条数。
+ *
+ * 刻意做成**纯函数 + 可注入的 `retention`**：这是全仓唯一一条"数据会被静默丢掉"的路径，
+ * 要能在纯 JVM 下用 3 条数据就把溢出测出来，而不是先造 1000 条。
+ * 两处调用点（手动/批量归档、吃完自动归档）共用它，避免上限只在一处生效。
+ */
+internal fun trimArchiveRetention(
+    newEntries: List<ArchivedItem>,
+    existing: List<ArchivedItem>,
+    retention: Int = ARCHIVE_RETENTION,
+): ArchiveTrim {
+    val merged = newEntries + existing
+    return ArchiveTrim(merged.take(retention), (merged.size - retention).coerceAtLeast(0))
+}
+
+/**
+ * 溢出计数落盘（与截断同一次 `edit` ⇒ 原子：不会出现"数据挤掉了但没记上一笔"）。
+ * 只增不减，`clearArchive()` 也刻意不清零 —— 它是"历史上有多少条被上限吃掉"的账，
+ * 不是当前状态；清空归档不该让这件事一笔勾销。
+ *
+ * `internal` 而非 `private`：两个调用点分居两个文件（本文件的 `archiveItems` 与 `FoodConsumption.kt`
+ * 减到 0 时的自动归档），共用这一个写入口。
+ */
+internal fun FoodRepository.bumpArchiveOverflow(prefs: MutablePreferences, dropped: Int) {
+    prefs[archiveOverflowKey] = (prefs[archiveOverflowKey] ?: 0) + dropped
+}
+
+/**
+ * 归档一批库存项。
+ *
+ * @param retention 保留上限，默认 [ARCHIVE_RETENTION]。生产没有任何调用方传这个参数；
+ *   它存在的唯一理由是"溢出"这件事要用 1000 条数据才测得出来，而注入一个上限就能用 4 条测。
+ *   与 #5b 注入 `clock` 是同一套理由（`FoodRepository` 类 KDoc 里那段）：默认值 = 改造前的行为，
+ *   生产路径逐位不变。
+ * @return 因超出 `retention` 而被挤掉的旧归档条数（0 = 没挤掉）。
+ *   调用方现在只有 `AppViewModel` 两处，都刻意**不**据此改 UI（见 [ARCHIVE_RETENTION] 那条说明）；
+ *   之所以仍要返回：让"丢了多少"这件事在类型上是可见的，接 UI 时不必再动仓库层。
+ */
+internal suspend fun FoodRepository.archiveItems(
+    ids: Set<String>,
+    reason: ArchiveReason,
+    retention: Int = ARCHIVE_RETENTION,
+): Int {
+    if (ids.isEmpty()) return 0
+    var dropped = 0
     dataStore.edit { prefs ->
         val itemsDecoded = decodeItems(prefs[itemsKey])
         val archiveDecoded = decodeArchive(prefs[archiveKey])
@@ -25,10 +94,13 @@ internal suspend fun FoodRepository.archiveItems(ids: Set<String>, reason: Archi
         if (toArchive.isEmpty()) return@edit
         val today = LocalDate.now(clock).toEpochDay()
         val archive = archiveDecoded.orElse(emptyList())
-        val newArchive = (toArchive.map { ArchivedItem(it, today, reason) } + archive).take(200)
+        val trim = trimArchiveRetention(toArchive.map { ArchivedItem(it, today, reason) }, archive, retention)
         prefs[itemsKey] = json.encodeToString(keep)
-        prefs[archiveKey] = json.encodeToString(newArchive)
+        prefs[archiveKey] = json.encodeToString(trim.entries)
+        dropped = trim.dropped
+        if (trim.dropped > 0) bumpArchiveOverflow(prefs, trim.dropped)
     }
+    return dropped
 }
 
 /**

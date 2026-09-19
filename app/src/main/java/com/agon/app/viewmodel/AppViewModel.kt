@@ -19,6 +19,7 @@ import com.agon.app.data.migrateConsumptionIds
 import com.agon.app.data.buildBackupJson
 import com.agon.app.data.setLastAutoSyncEpochDay
 import com.agon.app.data.setLastSync
+import com.agon.app.data.migrateLegacyCredentials
 import com.agon.app.data.migratePlaintextPassword
 import com.agon.app.data.CloudBackup
 import com.agon.app.data.LocalSnapshot
@@ -193,6 +194,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     init {
         viewModelScope.launch {
             repo.seedIfNeeded()
+            // 凭据搬家（M1-1）：旧版把坚果云三个 key 存在业务数据那份 DataStore 里，现在它们住在
+            // 被备份规则排除的 credentials_store。必须先搬，再跑明文加密迁移 —— 反过来的话
+            // migratePlaintextPassword 会在（空的）新文件里找不到明文，明文就永远留在会进备份的那份文件里。
+            repo.migrateLegacyCredentials()
             // 安全迁移：旧版明文密码 → Keystore 加密密文
             repo.migratePlaintextPassword()
             // 迁移：旧消耗记录补 id（供删除/撤销定位）

@@ -1,16 +1,39 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Android 11 及以下的自动备份规则（android:fullBackupContent）。
+  Android 11 及以下的自动备份规则（android:fullBackupContent）。minSdk 26 起本文件覆盖 API 26–30，
+  API 31+ 走 data_extraction_rules.xml —— 两份的排除清单**必须保持一致**，改一份就要改两份。
 
-  排除坚果云凭据：密码以 Android Keystore AES-GCM 密文形式存于 DataStore，
-  而 Keystore 密钥不跨设备。若把密文备份到云端并在新设备恢复，解密必然失败，
-  用户会得到一个"看起来已配置、却永远同步失败"的账号。
-  故整份 DataStore 不参与备份——库存数据请使用应用内的「导出备份 / 坚果云同步」。
+  2026-09-19（M1-1）改了口径，理由如下：
 
-  covers/（封面图）与 corrupt/（损坏数据留档）体积不可控，也一并排除。
+  旧做法是 `<exclude domain="file" path="datastore/" />` 把**整个 DataStore 目录**排除，
+  动机只有一个：坚果云密码是 Keystore AES-GCM 密文，而 Keystore 密钥不跨设备，
+  备份过去必然解不开。但代价被严重低估了 —— 库存/归档/消耗/历史**也全在同一个 `pantry_store` 里**，
+  于是"为护一个密钥"把全部用户数据排除在备份之外：换机或重装后库存直接归零，
+  只能指望用户当初手动导出过 JSON 或点过坚果云同步。
+
+  现在的做法按官方 DataStore 文档的建议来：敏感与非敏感数据**拆成不同的 DataStore 文件**，
+  备份规则按**文件**排除。本仓对应 `FoodRepository` 的 `dataStore`（pantry_store，进备份）
+  与 `credentialsStore`（credentials_store，排除）；旧版存在业务文件里的凭据 key 由启动期的
+  `migrateLegacyCredentials()` 搬走。
+
+  排除项与理由：
+  - datastore/credentials_store.preferences_pb —— 密文跨设备解不开；明文回退期间它是真密码。
+    留着它只会让用户在新设备上得到一个"看起来已配置、却永远同步失败"的账号
+    （`nutstoreCredentialBrokenFlow` 那条告警就是为这种状态写的，现在从源头避免它）。
+  - covers/ —— 体积不可控（每张封面最长边 1200px 的 JPEG）。注意它与库存 JSON 是**一对**：
+    业务数据进备份、封面不进，恢复后 `photoPath` 指向不存在的文件，`FoodAvatar` 回落到 emoji/coverText
+    （不是坏图 —— 渲染侧的 `File.exists()` 判定正是为此保留的，见 `docs/audits/chileme-review.md` P1-8）。
+    要连封面一起备份，就**同时**把 `covers/` 放行，别只放开一边。
+  - corrupt/ —— 解析失败的原文留档，只为人工求助；把一份已知损坏的数据恢复到新设备没有意义。
+  - snapshots/ —— 每日全量快照（最近 3 份）与 `pantry_store` 内容重复，多备份一份等于把同一批数据
+    在云上存 4 份；快照的定位是**本机**滚动冷备（`LocalSnapshotStore`），不是备份通道。
+
+  ⚠️ `domain="file"` 对应 `filesDir`，DataStore 的文件在 `filesDir/datastore/` 下。
+  守卫见 `BackupRulesTest`（两份 XML 逐条比对，防止只改一份）。
 -->
 <full-backup-content>
-    <exclude domain="file" path="datastore/" />
+    <exclude domain="file" path="datastore/credentials_store.preferences_pb" />
     <exclude domain="file" path="covers/" />
     <exclude domain="file" path="corrupt/" />
+    <exclude domain="file" path="snapshots/" />
 </full-backup-content>

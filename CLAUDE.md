@@ -23,6 +23,7 @@
 | `docs/MIUIX_UPGRADE.md` | Miuix 版本升级操作手册（上游基线查询、Version Catalog 单一版本位点、API 核对、常见坑） | 只在升级 Miuix / 工具链时读 |
 | `docs/ROADMAP.md` | **结构性改造的执行顺序 + 每项的证据/验收/风险**（第三批 #1–#9；#1–#3 已完成） | 决定「下一项做什么」前必读；开工前核对该项的风险与守卫清单 |
 | `tools/doc-metrics.sh` | **所有文档数字的测量口径**（一键复跑；含作用域、计数单位与零结果的阳性对照） | 文档里要写任何数字前先跑它；不要再手抄第二份口径 |
+| `tools/bootstrap-build-env.sh` | **本地构建环境自检/引导**（JDK 21 + Android SDK 36 + 仓库侧配置；`--check` 只读，`--install-sdk`/`--verify`/`--bootstrap` 才动手） | 第一次在新机器上要本地编译时；CI 之外想知道「这台机器编得了吗」 |
 
 ## 2.5 已安装 Skill 与审计
 
@@ -90,7 +91,7 @@
 - Miuix 弹窗两条铁律（`MiuixDialogContentTest` 拦）：`content` **必须单一根节点**（库把 title/summary/content 放进不带 `verticalArrangement` 的 Column，平级节点之间是 **0dp**）；动作按钮一律 `TextButton`，**主要动作传 `textButtonColorsPrimary()`**（不传就和「取消」同为浅灰）
 - **动屏幕文件前先 `grep -rn "<屏幕名>" app/src/test/`** —— 点名屏幕文件的静态守卫不止 `ScreenParityTest` / `ImeHandlingTest`，还有 `CorruptGuardTest`、`CompactConsumptionTest`（2026-09-16 第 4 对合并就撞上过；`CorruptGuardTest` 是**按 4 空格缩进截函数体**的，函数一搬家就红）
 - **刻意保留 MD3 的只有三处，勿擅自迁移**：编辑页（`DatePicker` 无 Miuix 对应）、`CheckSwitch`（项目特色打勾/打叉）、设置页 body（`Md3SettingsBody` / `MiuixSettingsBody`，两版排版习语根本不同）
-- 统计页图表是 `Canvas` + `layout` 自绘、与主题无关，只此一屏用 ⇒ **不进组件层**；`appChartColors()` 是「屏幕侧取色」**唯一**被承认的例外
+- 统计页图表是 `Canvas` + `layout` 自绘、与主题无关，只此一屏用 ⇒ **不进组件层**；`appChartColors()` 是「屏幕侧取色」**唯一**被承认的例外（取色口子集中在 `ui/components/app/AppColors.kt`，2026-09-19 #11a 起；位置由 `AppColorLocationTest` 守）
 - Miuix 组件 API 一律以 `.claude/skills/miuix` 的 pinned source（**v0.9.4-rc01**）为准，**不得凭 MD3 记忆臆造**参数或颜色 token
 - 迁移进度、已知缺口（MIUIX 侧无配色入口，用户已指示暂缓）与导航双形态见 `docs/DESIGN_SPEC.md` §7
 
@@ -98,5 +99,6 @@
 
 - **提交前跑静态门禁**：`bash tools/ci-gates.sh`（ktlint 与 detekt **都是 block**；`GATES_MODE=report` 只看报告不拦）。规则边界与理由见 `.editorconfig` 与 `detekt.yml` 文件头，流程见 `docs/WORKFLOW.md` §3
 - CI 在每个 PR 上跑同一脚本，外加 `assembleDebug` / `assembleRelease`（R8 验证）/ 单测 / lint。**沙箱无 JDK/SDK 时，CI 是唯一的编译裁判** —— ktlint 绿 ≠ 能编译
+  （先跑 `bash tools/bootstrap-build-env.sh` 确认这台机器到底缺什么；`--check` 只读、非零退出码 = 本地编不了，见 `docs/WORKFLOW.md` §3）
 - **release 签名**：凭据缺失时构建应当**失败**而非回退 debug 签名。看到 `Release 签名凭据缺失` 报错是**预期行为**，不要通过恢复静默回退来「修复」它
 - **写数字进文档前先跑 `bash tools/doc-metrics.sh`**，并注明「实测 N（口径见该脚本）」；**禁止在多处手抄同一个数字** —— 本仓曾因此让单测数在 91→116→117→119→120→121 之间被反复加注修正

@@ -40,6 +40,29 @@
 - 产物：`app/build/outputs/apk/debug/app-debug.apk`
 - 频率：每完成一个功能模块就构建，不要积攒大量改动后一次性构建
 
+### 本地构建环境自检（2026-09-19，M1-5）
+
+「沙箱里没有 JDK/SDK ⇒ CI 是唯一的编译裁判」一直是本仓的**口头约定**。它的代价不体现在构建上，
+而体现在**决策上**：没有本地编译器，"改动量大但结构更对"的重构（#10c 每屏一 VM、DataStore→Room）
+就永远排不进队列 —— 一次编译失败要烧一整轮 CI（约 4 分钟，且 `concurrency` 会取消同分支中间的 run），
+错误还得从 actions 日志里人肉捞。于是这个环境事实必须先被**变成可判定的**，才谈得上摆脱它。
+
+```bash
+bash tools/bootstrap-build-env.sh              # --check：只读自检，非零退出码 = 这台机器编不了
+bash tools/bootstrap-build-env.sh --install-sdk  # 补 Android SDK 命令行工具（不含 JDK）
+bash tools/bootstrap-build-env.sh --verify       # 跑一次 :app:assembleDebug 作为唯一判据
+bash tools/bootstrap-build-env.sh --bootstrap      # = 上面两条
+```
+
+- 它**只读 + 只装 SDK 目录**，不碰仓库、不改 `gradle.properties`。发现的三件事各归各位：
+  JDK（`REQUIRED_JDK=21`）与 platform（`android-36`）都是**从别处抄来的常量**，脚本头部写明了
+  改哪边必须同步改这里；`kotlin.compiler.execution.strategy=in-process` 那条只提示不动手
+  （动它会让全部增量构建重编，属独立一轮）。
+- 没有外网的机器（含 Agent 沙箱）会在 `--install-sdk` 第一步就明确报"这台机器无解，交给 CI"，
+  **不给假的绿** —— 这个脚本的价值全在诚实：判据、缺哪个组件、怎么补，都当场给出来。
+- ⚠️ 它**不进 CI**：CI 已经有 JDK 与 SDK（`setup-java` + `android-actions/setup-android`），
+  在 CI 里跑一遍只会多一个"自检也依赖网络"的假失败面。门禁仍然只有 `tools/ci-gates.sh` 那两个工具。
+
 ### CI 静态门禁（ktlint + detekt，2026-09-15 起）
 
 - 入口脚本：`tools/ci-gates.sh`（工具版本与 sha256 固定在此文件里）；规则配置：`.editorconfig`（ktlint）、`detekt.yml`（detekt）
@@ -70,6 +93,7 @@
   三个坑（都踩过）：签名 URL **约 10 分钟时效**（过期就重走 ①，别复用旧的）；URL 必须**逐字**传给抓取工具
   （传成别的地址会回一个 `SignatureDoesNotMatch` 的 XML，看着像"日志端点被墙"，其实是自己传错了）；
   日志**分段返回**（这次一个 job 分 5 段，报错在 `> Task :app:compileDebugKotlin FAILED` 那一段附近）。
+  **09-19 #11 再验一次有效**（`arrayArrayOf` 与 `it is private in file` 两条 `e:` 就是这么拿到的，一次跑通、没打扰用户）；同一天撞到一个新的环境约束：**本 session 的 GitHub App 没有 `workflows` 权限** ⇒ 任何改 `.github/workflows/**` 的提交推不上去（`remote rejected: refusing to allow a GitHub App to create or update workflow ... without workflows permission`）⇒ 要动 CI 定义得由用户自己应用与推送；能自己改的只有 `tools/` 与构建脚本。**别为此写一个「失败时 echo annotation」的步骤**——日志本来就读得到，那一步是多余的。
   **规矩：CI 红了先要日志，别先按排除法猜**（09-18 那次先猜了 5 个方向全不中，日志到手 30 秒定位）。
   令牌也死了才退回旁证：`gh api …/check-runs/<job_id>/annotations`（例如「没有测试报告 / 没有 lint 报告」
   ⇒ 红在编译阶段、单测没跑起来）与 `gh run view --json jobs` 的步骤级结论 + 起止时间，以及请用户复制签名 URL。
@@ -86,7 +110,9 @@
 
 | 错误 | 原因与处理 |
 |---|---|
-| Unresolved reference 'X' | 缺 import 或拼写错误；检查文件顶部导入。⚠️ **搬代码进新文件时最容易漏的是「别名 import」**：本仓双主题组件层有 25 条 `import top.yukonga.miuix.kmp.basic.Text as MiuixText` 这类别名，按「简单名 = 路径最后一段」算依赖的脚本看不见它们（09-18 #10a-1 因此红了 24 处）。本地 `python3 tools/kt-lexcheck.py` 的判据 4 专查这条。⚠️ **09-18 #10a-2 又漏了另一半**：按「大写开头、不含下划线」算依赖的脚本看不见**小写扩展函数/属性**（`dp` / `padding` / `fillMaxWidth` / `launch`）、**全大写常量**（`CLOUD_BACKUP_KEEP`）与**点号后面的大写成员**（`Icons.Rounded.Cloud`），5 个文件少 41 条 import ⇒ 同样红在编译，而 `kt-lexcheck` 判据 1–4 全绿。搬完代码跑 `python3 tools/move-importcheck.py --old <搬家前的 git 引用> --new <搬家后的文件…>`（拿旧文件的 import 表当参照物；三次历史真红都能逐条复现，`--selftest` 有 8 个合成对照，`--apply` 直接补齐）。它常伴着一串「`@Composable` invocations can only happen from the context of a `@Composable` function」——那是未解析的 Composable 尾随 lambda 引起的**连带错**，补好 import 就一起消失，别当成第二个问题去修 |
+| Unresolved reference 'X' | 缺 import 或拼写错误；检查文件顶部导入。⚠️ **搬代码进新文件时最容易漏的是「别名 import」**：本仓双主题组件层有 25 条 `import top.yukonga.miuix.kmp.basic.Text as MiuixText` 这类别名，按「简单名 = 路径最后一段」算依赖的脚本看不见它们（09-18 #10a-1 因此红了 24 处）。本地 `python3 tools/kt-lexcheck.py` 的判据 4 专查这条。⚠️ **09-18 #10a-2 又漏了另一半**：按「大写开头、不含下划线」算依赖的脚本看不见**小写扩展函数/属性**（`dp` / `padding` / `fillMaxWidth` / `launch`）、**全大写常量**（`CLOUD_BACKUP_KEEP`）与**点号后面的大写成员**（`Icons.Rounded.Cloud`），5 个文件少 41 条 import ⇒ 同样红在编译，而 `kt-lexcheck` 判据 1–4 全绿。搬完代码跑 `python3 tools/move-importcheck.py --old <搬家前的 git 引用> --new <搬家后的文件…>`（拿旧文件的 import 表当参照物；三次历史真红都能逐条复现，`--selftest` 有 8 个合成对照，`--apply` 直接补齐）。它常伴着一串「`@Composable` invocations can only happen from the context of a `@Composable` function」——那是未解析的 Composable 尾随 lambda 引起的**连带错**，补好 import 就一起消失，别当成第二个问题去修。⚠️ **09-19 #11b 补第三种漏法，也是 import 查不出来的那种**：被搬走的那段代码调用了**同包另一个文件的 `private` 顶层成员**（Kotlin 的 `private` 是**文件**级可见，同包也不行 ⇒ `Cannot access 'fun AppBarIconButton(...)': it is private in file`）。⇒ 搬家的判据不能只问「import 要不要改」，还得问「这个名字够不够得着」：跑 `tools/move-importcheck.py` 之外，补跑守卫 `CrossFilePrivateRefTest`（09-19 起专钉这条，整棵 `ui/` 树扫跨文件 private 引用）|
+
+| `Unresolved reference 'arrayArrayOf'`（外加一串看不懂的 `Cannot infer type parameter 'R'` / `joinToString` 未解析） | 本仓 Kotlin **2.4.10** 已**移除** stdlib 的 `arrayArrayOf`（2.2 起弃用）⇒ 别用它拼路径，写 `listOf("a", "b").map(::File)` 就好。09-19 #11a 的守卫测试红在这上面；**后面那三条连带错都源于第一个未解析符号**，改第一处即可，别逐条去修 —— 这也是「一次编译只盯最上面那条 `e:`」的原因 |
 | Unresolved reference: R | res/ 文件有误（常见 strings.xml / xml 格式） |
 | `Type 'MutableState<T>' has no method 'getValue(…)' / 'setValue(…)', so it cannot serve as a delegate` | 缺 `androidx.compose.runtime.getValue` / `setValue`。⚠️ 这是搬代码的**第二类盲区**：`var x by remember { mutableStateOf(…) }` 里这两个名字**从不以标识符出现**，所以「按名字算依赖」的脚本看不见它 —— 09-18 #10a-2 第二轮就红在这一处（`SettingsScreen.kt:138:23`；搬运脚本算"保留 import"时把它们当死 import 从入口删了，而 `move-importcheck` 判据 3/4 也放过：小写名只认调用形，`by` 一个调用形都没有）。`move-importcheck` 判据 6 用**结构判据**补上：代码里有属性委托（排除 `by lazy` / `by Delegates.`）⇒ 需要 `getValue`，其中有 `var` ⇒ 另需 `setValue`。注意这类错**一次只报一处**（同一行的 get/set 两侧共 2 行 `e:`），与上一行那种"24 处批量漏"不是一个量级，别照着找第二处 |
 | `Unresolved reference: viewModelScope`，或搬走的函数名（如 `buildCsvExport`） | 两类都是**搬代码进新文件**时漏 import：① 小写扩展**属性当接收者用**（`viewModelScope.launch { }` ⇒ 点号前那个名字也要 import）；② 新文件里的声明与某条 import **同名**（`internal fun AppViewModel.buildCsvExport()` 体内 `repo.buildCsvExport()` 要的是 data 层那个同名扩展）。`tools/move-importcheck.py` 的判据 4 第 4 形状与判据 7 专治这两类，搬完必跑；⚠️ 两类都是本地四项检查全绿、只有 CI 抓得到（2026-09-19 #10b-1 开工前实测） |
@@ -94,6 +120,10 @@
 | Platform declaration clash | 为 `var x` 又手写了 `fun setX()`；删掉手写 setter |
 | mergeDebugResources 失败 | XML 格式错误，检查最近改过的 res 文件 |
 | 同错误重复 2 次+ | 停下来读完整报错 → read_file 定位 → 换思路；必要时 `./gradlew clean --no-daemon` |
+| ktlint 报 `Not a valid Kotlin file (N:M expecting an expression)` | **这不是格式规则，是解析失败** ⇒ 先 grep 行首 `#`：从 markdown / shell 串过来的注释习惯，Kotlin 只认 `//` 和 `/* */`。查法 `grep -rn "^[[:space:]]*#" app/src --include=*.kt`。09-19 #11c 就栽在这（一行 `# ② 协议层分家…`），ktlint 与 kotlinc 同时红，而 `tools/kt-lexcheck.py` 放过去了 —— 它查大括号、别名表、import 双向，**不查注释符**。 |
+| 搬完代码后 `Unresolved reference` 找不到源头（属性委托那一类） | `by remember` / `by animateFloatAsState` 需要 `import androidx.compose.runtime.getValue`，但**代码里永远不会出现 `getValue` 这个名字** ⇒ 按名字收敛 import 的脚本（含 `tools/move-importcheck.py`，它对属性形是「跳过」不报）双向都看不见它。⇒ 只要搬走的代码或剩下的代码里有 `by` 委托，**两侧都要各自 grep 一遍**：`grep -c " by " <文件>` > 0 ⇒ 该文件必须留着 `getValue`（`setValue` 同理，`var` 委托才需要）。09-19 #11d ① 差一点就红在 `StatsScreen.kt` 的 `val animFraction by animateFloatAsState(...)` 那一处。 |
+| `Repeated 'internal'.`（kotlinc，只有它报） | 搬运脚本给新文件加可见性时改了两行：`@Composable` 前面加一个 `internal`、`fun` 前面又加一个 ⇒ 同一声明两个修饰符。全仓写法是 **`@Composable` 单独一行 + 下一行 `internal fun`**（34 处先例，例如 #11b 的 `AppBarActions.kt` 里 `internal fun AppBarIconButton` 那处）⇒ 改完必须自查「同一声明重复修饰符」：`grep -nE "^(internal|private|public)(@| )" <新文件>` 只许命中一处。ktlint / detekt 都不看这个（09-19 #11d ① 就是这么红的：静态门禁 ✅、两个 variant 编译 ❌）。 |
+| detekt `LoopWithTooManyJumpStatements` | 阈值是 **1**：一个 `for` 里两条 `continue`（或 `break`）就报。改成 `filter` + `mapNotNull` + `forEach`（既有先例就是 `NutstoreWebdav.parsePropfind`，注释里写着当年为什么换）。⚠️ **守卫与工具测试的循环一样受管** —— 别觉得测试代码可以裸写。 |
 
 ## 5. 文档维护责任
 

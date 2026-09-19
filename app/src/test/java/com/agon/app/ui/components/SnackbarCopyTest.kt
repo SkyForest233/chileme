@@ -29,6 +29,7 @@ class SnackbarCopyTest {
     private val mainApp = "com/agon/app/MainApp.kt"
     private val undoSnackbar = "com/agon/app/ui/components/UndoSnackbar.kt"
     private val appChrome = "com/agon/app/ui/components/app/AppChrome.kt"
+    private val appSnackbar = "com/agon/app/ui/components/app/AppSnackbar.kt"
     private val homeScreen = "com/agon/app/ui/screens/HomeScreen.kt"
     private val consumptionLog = "com/agon/app/ui/screens/ConsumptionLogScreen.kt"
     private val archiveScreen = "com/agon/app/ui/screens/ArchiveScreen.kt"
@@ -162,9 +163,12 @@ class SnackbarCopyTest {
         // 二级页那侧的同款分流在 AppSnackbarHostState 里（它自带两个宿主，所以能收在容器内）；
         // 主壳不能复用它：那容器是 remember(isMiuix) 建的，切主题会换宿主，而主壳的收集协程是
         // LaunchedEffect(Unit) ⇒ 协程会把提示弹到已经卸载的宿主上并永久挂住。详见 helper 的 KDoc。
-        val chrome = source(appChrome)
-        assertEquals(1, chrome.count("class AppSnackbarHostState"))
-        assertEquals(1, chrome.count("suspend fun showUndoSnackbar(message: String): Boolean"))
+        // ⚠️ 09-19 #11b 起这个容器在 ui/components/app/AppSnackbar.kt（原先与 AppScaffold 同住
+        // AppChrome.kt）⇒ 下面两条读 appSnackbar、上面那条读 appChrome，别图省事并成一个常量：
+        // 「谁定义」与「谁用默认落位」是两个不同的判据。
+        val snackbarHost = source(appSnackbar)
+        assertEquals(1, snackbarHost.count("class AppSnackbarHostState"))
+        assertEquals(1, snackbarHost.count("suspend fun showUndoSnackbar(message: String): Boolean"))
     }
 
     @Test

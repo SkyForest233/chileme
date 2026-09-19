@@ -43,7 +43,7 @@ import com.agon.app.data.FoodItem
 import com.agon.app.data.HistoryEntry
 import com.agon.app.data.copyImageToCovers
 import com.agon.app.viewmodel.AppViewModel
-import com.agon.app.viewmodel.upsert
+import com.agon.app.viewmodel.upsertAndAwait
 import java.io.File
 import java.time.LocalDate
 import java.util.UUID
@@ -89,6 +89,10 @@ fun EditFoodScreen(
     var showDatePicker by remember { mutableStateOf(false) }
     var nameError by remember { mutableStateOf(false) }
     var showSuggestions by remember { mutableStateOf(false) }
+
+    // 保存协程在跑 ⇒ 按钮此时不再受理第二次点击。刻意用 `remember` 而不是 `rememberSaveable`：
+    // 转屏/恢复时协程本来就没了，把"正在保存"跨进程保存下来只会让按钮永久点不动。
+    var saving by remember { mutableStateOf(false) }
 
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -156,13 +160,13 @@ fun EditFoodScreen(
     val shelfLife = shelfLifeText.toIntOrNull() ?: 0
     val expiry = production.plusDays(shelfLife.toLong())
 
-    // 保存：名称为空只标红不提交，否则按当前表单组装 FoodItem 落库并返回。
+    // 保存：名称为空只标红不提交，否则按当前表单组装 FoodItem，**等它落盘之后**才返回（M1-2）。
     // 逻辑留在这里（不跟着按钮搬走）：它要读全部 12 个表单状态与 existing。
     // 原来的 `return@Button` 提前返回改成 if/else，行为等价。
     val onSave: () -> Unit = {
         if (name.isBlank()) {
             nameError = true
-        } else {
+        } else if (!saving) {
             val item = FoodItem(
                 id = existing?.id ?: UUID.randomUUID().toString(),
                 name = name.trim(),
@@ -179,8 +183,17 @@ fun EditFoodScreen(
                     (customThresholdText.toIntOrNull() ?: 7).coerceIn(1, 365)
                 else null,
             )
-            viewModel.upsert(item)
-            onBack()
+            // 写协程就地启动在 viewModelScope 上（`upsertAndAwait` 内部），**不**放进下面的 `scope.launch`：
+            // `scope` 是 compositionScope，屏幕出栈就取消 —— 挂它上面的话"等写完再走"会变成"半路被砍"。
+            val job = viewModel.upsertAndAwait(item)
+            saving = true
+            scope.launch {
+                // join 只等不抛：写失败的异常仍由 viewModelScope 兜住（与改动前一致，本轮不动错误模型）。
+                // 用户在此期间按了系统返回也没关系 —— join 被取消，但上面的写已经在 VM 作用域里跑起来了。
+                job.join()
+                saving = false
+                onBack()
+            }
         }
     }
 
@@ -221,7 +234,7 @@ fun EditFoodScreen(
                 ),
             )
         },
-        bottomBar = { EditFoodSaveBar(isEdit = isEdit, onSave = onSave) },
+        bottomBar = { EditFoodSaveBar(isEdit = isEdit, onSave = onSave, enabled = !saving) },
     ) { padding ->
         Column(
             modifier = Modifier

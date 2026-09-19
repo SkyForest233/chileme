@@ -1,6 +1,7 @@
 package com.agon.app.data
 
 import android.util.Log
+import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -177,13 +178,17 @@ internal fun FoodRepository.isCorrupt(vararg decoded: Decoded<*>): Boolean =
  * 2. 仍失败则由 `catch` 记录日志并回落 [fallback]，UI 退化为「本次读到空数据」而非崩溃。
  *
  * 只影响「读」。**写**仍由 `isCorrupt` 守卫保护，损坏态下不会覆盖用户数据。
+ *
+ * `store` 默认是业务数据那份 `dataStore`；凭据三个 key 的读流必须显式传 `credentialsStore`
+ * （见 `FoodRepository.nutstoreCredentialKeysFlow`），否则会读到一个恒为空的凭据文件。
  */
 internal fun <R> FoodRepository.resilientRead(
     keyName: String,
     fallback: R,
+    store: DataStore<Preferences> = dataStore,
     transform: (Preferences) -> R,
 ): Flow<R> =
-    dataStore.data
+    store.data
         .retryWhen { cause, attempt ->
             val retry = cause is IOException && attempt < MAX_READ_RETRIES
             if (retry) {
@@ -215,9 +220,15 @@ internal fun <T> FoodRepository.rawFlow(key: Preferences.Key<String>, decode: (S
         .map { raw -> decodeCache.resolve(key.name, raw, decode) }
         .flowOn(Dispatchers.Default)
 
-/** 轻量 key（无需解码）：只做去重，不必切线程。 */
-internal fun <T> FoodRepository.lightFlow(keyName: String, fallback: T, transform: (Preferences) -> T): Flow<T> =
-    resilientRead(keyName, fallback, transform).distinctUntilChanged()
+/** 轻量 key（无需解码）：只做去重，不必切线程。`store` 同 [resilientRead]，默认业务数据那份。 */
+internal fun <T> FoodRepository.lightFlow(
+    keyName: String,
+    fallback: T,
+    store: DataStore<Preferences> = dataStore,
+    transform: (Preferences) -> T,
+): Flow<T> =
+    resilientRead(keyName = keyName, fallback = fallback, store = store, transform = transform)
+        .distinctUntilChanged()
 
 /**
  * 损坏留档目录保留上限：同一 key 最多 [maxPerKey] 份、整个目录最多 [maxTotal] 份，

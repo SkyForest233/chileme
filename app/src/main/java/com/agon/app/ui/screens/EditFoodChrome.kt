@@ -30,20 +30,26 @@ import java.time.ZoneOffset
 /**
  * 编辑页底栏的保存按钮（#10e 从 `EditFoodScreen` 抽出）。
  *
- * 只搬**渲染**：`onClick` 里那段「校验名称 → 组装 FoodItem → upsert → 返回」留在入口的
+ * 只搬**渲染**：`onClick` 里那段「校验名称 → 组装 FoodItem → 等落盘 → 返回」留在入口的
  * `onSave`（它要读全部 12 个表单状态与 `existing`，抽出来会变成十几个参数）。
  * 原来用 `return@Button` 提前返回，入口改成 if/else 后行为等价（`onSave` 是独立 lambda，
  * 标签名不再是 Button）。底栏仍在入口的 `Scaffold(bottomBar = …)` 里 ⇒
  * `ImeHandlingTest` 点名的 `imePadding()` 位置没变。
+ *
+ * `enabled` 是 M1-2 加的：保存现在要**等 DataStore 写完**才导航返回，那段时间里按钮必须不再受理
+ * 第二次点击 —— 连点两下在新增模式里会生成两个 UUID，库里就多出两条重复记录。
+ * 默认 `true`，所以除编辑页之外的调用方（若有）行为不变。
  */
 @Composable
 internal fun EditFoodSaveBar(
     isEdit: Boolean,
     onSave: () -> Unit,
+    enabled: Boolean = true,
 ) {
     Surface(color = MaterialTheme.colorScheme.background) {
         Button(
             onClick = onSave,
+            enabled = enabled,
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 20.dp, vertical = 12.dp)
