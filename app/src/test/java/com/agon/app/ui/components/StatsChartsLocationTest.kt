@@ -68,13 +68,22 @@ class StatsChartsLocationTest {
     }
 
     @Test
-    fun `统计页不再自带图表件定义`() {
-        val f = screensDir?.let { File(it, "StatsScreen.kt") }
-        assertTrue("`StatsScreen.kt` 没找到", f != null && f.exists())
-        val src = f!!.readText()
-        val leftovers = listOf("fun DonutChart(", "fun LegendRow(", "private fun DonutChart")
-            .filter { src.contains(it) }
-        assertEquals("已搬走的定义还留在屏幕文件里：" + leftovers, emptyList<String>(), leftovers)
-        assertTrue("`StatsScreen.kt` 不再调用 DonutChart ⇒ 调用点被改坏了", src.contains("DonutChart("))
+    fun `屏幕层不再自带图表件定义`() {
+        val dir = screensDir
+        assertTrue("`ui/screens` 目录没找到（工作目录变了？）", dir != null)
+        val files = ktFiles(dir!!)
+        assertTrue("扫到 0 个屏幕文件 —— 探测本身失效了", files.isNotEmpty())
+        val leftovers = files.flatMap { (name, src) ->
+            listOf("fun DonutChart(", "fun LegendRow(")
+                .filter { src.contains(it) }
+                .map { "$name 里还有定义：$it" }
+        }
+        assertEquals("已搬走的图表件定义还留在屏幕层：" + leftovers, emptyList<String>(), leftovers)
+        // ⚠️ 调用点判据的口径在 09-19 #11d② 之后从「`StatsScreen.kt` 必须调」放宽成「`ui/screens/` 里必须有人调」：
+        // 那一刀把 `DonutChart(...)` 连同整个区块搬进了 `StatsCategorySection.kt`，钉死文件名会误报
+        // （CI run `35476442138` 正红在旧口径上：194 绿 1 红）。层界守卫钉的是**哪一层**，不是**哪个文件** ——
+        // 文件会随拆分搬家，层不会。
+        val callers = files.filter { "DonutChart(" in it.second }.map { it.first }
+        assertTrue("`ui/screens/` 里没人调用 DonutChart ⇒ 调用点被删坏了", callers.isNotEmpty())
     }
 }

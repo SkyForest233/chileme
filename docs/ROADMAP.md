@@ -1159,6 +1159,9 @@
 - **每笔统一做法补两步**（这次真红出来的，别省）：
   1. 搬家前先 `grep -rl "<被拆文件名>.kt" app/src/test/` —— 点名该文件的源码守卫必须同批改。
      本次只查了 `ImeHandlingTest.chromeFiles`（确实没点名 `AppChrome.kt`），漏了 `SnackbarCopyTest` 自己那份路径常量 ⇒ 红。
+     ⚠️ **而且要把命中测试的每条断言拿去对新状态重判一遍**，不是"文件还在就算安全"：#11d② 就红在 11d① 守卫的一条
+     「`StatsScreen.kt` 必须仍调用 `DonutChart`」—— 调用点随区块搬进了 `StatsCategorySection.kt`（run `35476442138`，
+     194 绿 1 红）⇒ 层界守卫钉的是**哪一层**、不是**哪个文件**，那条断言已改成「`ui/screens/` 里必须有人调」。
   2. 再跑 `python3 tools/move-importcheck.py --old <搬家前的 git 引用> --new <新文件…>`（09-18 #10a-2 为此造的现成工具，
      前两笔凭手写检查过关是运气，不是方法）。
   3. **搬完**再跑 `python3 tools/kt-name-audit.py <新文件…>`：上面两步都以「原文件的 import 表」为全集，
