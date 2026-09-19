@@ -1,7 +1,7 @@
 package com.agon.app.ui.components.app
 
-// App 级页面骨架：Scaffold + 顶栏。09-19 #11b 把另外两件事拆出去了：撤销条宿主 → AppSnackbar.kt、
-// 顶栏动作族 → AppBarActions.kt。
+// App 级页面骨架：Scaffold + 顶栏。09-19 #11b 把另外三件事各归各位：
+// 撤销条宿主 → AppSnackbar.kt，顶栏的 5 个动作入口 → AppBarActions.kt，整屏消息页 → AppMessageScreen.kt。
 //
 // 「Miuix / MD3 双实现，靠 LocalThemeStyle 分流」的写法照抄 ui/components/Badges.kt 的 StatusBadge。
 // 与 components/ 下的叶子组件不同，本目录（components/app/）放的是**屏幕骨架级**组件：
@@ -10,19 +10,13 @@ package com.agon.app.ui.components.app
 //
 // 2026-09-16 由 ConsumptionLogScreen + MiuixConsumptionLogScreen 合并时抽出。
 
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.RowScope
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -34,25 +28,20 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
 import com.agon.app.ui.theme.LocalThemeStyle
 import com.agon.app.ui.theme.ThemeStyle
-import top.yukonga.miuix.kmp.basic.Button as MiuixButton
 import top.yukonga.miuix.kmp.basic.Icon as MiuixIcon
 import top.yukonga.miuix.kmp.basic.IconButton as MiuixIconButton
 import top.yukonga.miuix.kmp.basic.Scaffold as MiuixScaffold
-import top.yukonga.miuix.kmp.basic.Text as MiuixText
 import top.yukonga.miuix.kmp.basic.TopAppBar as MiuixTopAppBar
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.icon.extended.Close
-import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /**
  * 二级页顶栏：标题 + 可选返回键 + 右侧动作区。
@@ -177,49 +166,6 @@ private fun AppBarIconButton(
                 Icon(md3Icon, contentDescription = contentDescription, tint = tint)
             } else {
                 Icon(md3Icon, contentDescription = contentDescription)
-            }
-        }
-    }
-}
-
-/**
- * 「这一页没东西可显示」的兜底屏：**无顶栏**的空 Scaffold + 居中一句话 + 一个返回按钮。
- * 详情页在食品已归档/移除时用（合并前两版各写一份）。
- *
- * 文案走 [AppText] 的 Emphasis 档位（两版原来就是 MD3 `titleMedium` / Miuix `body1`）；
- * 按钮两版形态不同 —— MD3 是圆角 50 胶囊，Miuix 是库默认按钮 + 显式 `onSecondaryVariant` 文字色，
- * 照原样保留，所以这一处仍是两段分支。
- */
-@Composable
-fun AppMessageScreen(message: String, actionLabel: String, onAction: () -> Unit) {
-    if (LocalThemeStyle.current == ThemeStyle.MIUIX) {
-        MiuixScaffold { padding ->
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center,
-            ) {
-                AppText(message, AppTextScale.Emphasis)
-                Spacer(Modifier.height(12.dp))
-                MiuixButton(onClick = onAction) {
-                    MiuixText(actionLabel, color = MiuixTheme.colorScheme.onSecondaryVariant)
-                }
-            }
-        }
-    } else {
-        Scaffold(containerColor = MaterialTheme.colorScheme.background) { padding ->
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center,
-            ) {
-                AppText(message, AppTextScale.Emphasis)
-                Spacer(Modifier.height(12.dp))
-                Button(onClick = onAction, shape = RoundedCornerShape(50)) { Text(actionLabel) }
             }
         }
     }

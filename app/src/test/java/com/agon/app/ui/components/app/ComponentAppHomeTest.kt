@@ -6,7 +6,7 @@ import org.junit.Test
 import java.io.File
 
 /**
- * 守卫（#11b ①②，09-19）：`ui/components/app/` 里登记过的东西**只有一个家**。
+ * 守卫（#11b 三刀，09-19）：`ui/components/app/` 里登记过的东西**只有一个家**。
  *
  * #11 的判据是「一件事一个文件」，不是行数——所以这里钉的是**位置**，且刻意不钉数量：
  * 往 `AppBarActions.kt` 再加一个顶栏入口、往 `AppSnackbar.kt` 加一种条形态，都不该让这条测试变红；
@@ -42,6 +42,7 @@ class ComponentAppHomeTest {
         "AppArchiveAction" to "AppBarActions.kt",
         "AppSelectAllAction" to "AppBarActions.kt",
         "AppDestructiveAction" to "AppBarActions.kt",
+        "AppMessageScreen" to "AppMessageScreen.kt",
     )
 
     @Test
@@ -79,6 +80,7 @@ class ComponentAppHomeTest {
 "AppText.kt" to "colorScheme",
                 "AppChrome.kt" to "class AppSnackbarHostState",
                 "AppChrome.kt" to "fun AppSnackbarHost",
+                "AppChrome.kt" to "fun AppMessageScreen",
             )
         ) {
             val code = codeOf[file] ?: continue

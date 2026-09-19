@@ -123,7 +123,7 @@ StatusUi 提供三个颜色槽位，按用途严格区分：
 > （CLAUDE 里 93% 的组件名 ARCHITECTURE 已有，而 ARCHITECTURE 那条还漏了 `AppStatusCard`）。
 > 现在：**清单只在这里**，`ARCHITECTURE.md` 只留「为什么要有这一层」，`CLAUDE.md` 只留「必须/禁止」一句话 + 指针。
 >
-> 组件列由源码生成（2026-09-17 快照：12 文件 / 3,075 行（#11a 起 13 文件，见上），`wc -l` 口径；**现值一律见 doc-metrics「App 级组件层」那行** —— 2026-09-19 复核发现这两个数已与实测差 1 行，故此后不再手抄），复核命令：
+> 组件列由源码生成（2026-09-17 快照：12 文件 / 3,075 行#11a 拆出 `AppColors.kt`、#11b 拆出 `AppSnackbar.kt` / `AppBarActions.kt` / `AppMessageScreen.kt` ⇒ 现 16 文件，`wc -l` 口径；**现值一律见 doc-metrics「App 级组件层」那行** —— 2026-09-19 复核发现这两个数已与实测差 1 行，故此后不再手抄），复核命令：
 > ```bash
 > for f in app/src/main/java/com/agon/app/ui/components/app/*.kt; do
 >   echo "$(basename $f): $(grep -oE '^(internal |public )?(fun|val|class|enum class|data class) [A-Za-z][A-Za-z0-9]*' "$f" \
@@ -131,12 +131,14 @@ StatusUi 提供三个颜色槽位，按用途严格区分：
 > done
 > ```
 > **新增/删除组件时同批更新本表**（`CLAUDE.md` §3 记录规则已立此条）。
-> ⚠️ 括号里的行数是**快照**：`AppText.kt` / `AppColors.kt` 两行为 2026-09-19 #11a 当天实测，其余行仍是 09-17 的数
+> ⚠️ 括号里的行数是**快照**：`AppText.kt` / `AppColors.kt` / `AppChrome.kt` / `AppSnackbar.kt` / `AppBarActions.kt` /
+> `AppMessageScreen.kt` 六行为 2026-09-19 #11a、#11b 当天实测，其余行仍是 09-17 的数
 > ⇒ 全目录现值一律看 `tools/doc-metrics.sh` 的「App 级组件层」那行，本表这一列别拿来当结论引用。
 
-| 文件 | 组件（生成于 2026-09-17） | 用途 |
+| 文件 | 组件（多数行生成于 2026-09-17；#11a、#11b 碰过的行是当天现跑上面那条命令） | 用途 |
 |---|---|---|
-| `AppChrome.kt` (318 行) | `AppScaffold` `AppTopBar` `AppMessageScreen` `AppSnackbarHost` `rememberAppSnackbarHostState` `AppSnackbarPlacement` `AppSnackbarForm` `AppDeleteAction` `AppDestructiveAction` `AppSelectAllAction` `AppArchiveAction` | 页面骨架、顶栏（含多选态）、撤销条宿主与落位、顶栏动作按钮 || `AppSnackbar.kt` (129 行) | `AppSnackbarForm` `AppSnackbarHost` `AppSnackbarHostState` `AppSnackbarPlacement` `rememberAppSnackbarHostState` | 撤销/提示条：双主题宿主容器、落点与形态。`UndoSnackbar.kt` 的 `SwipeDismissSnackbarHost`（滑动关闭装饰）**没有**一起搬——它被 `MainApp.kt` 与 4 个屏幕直接 import，搬它要改 6 处 import，与本笔「同包零改动」不是一回事（记在 ROADMAP #11 备注里）（09-19 #11b 拆出） || `AppBarActions.kt` (82 行) | `AppArchiveAction` `AppDeleteAction` `AppDestructiveAction` `AppEditAction` `AppSelectAllAction` | 顶栏 5 个动作入口（编辑 / 删除 / 归档 / 全选 / 清空）。行内动作 `AppEditRowAction` / `AppDeleteRowAction` 仍在 `AppListRow.kt`——它们长在卡片行里，不是顶栏槽位（09-19 #11b 拆出） |
+| `AppChrome.kt` (264 行) | `AppScaffold` `AppTopBar` `AppSnackbarHost` `rememberAppSnackbarHostState` `AppSnackbarPlacement` `AppSnackbarForm` `AppDeleteAction` `AppDestructiveAction` `AppSelectAllAction` `AppArchiveAction` | 页面骨架、顶栏（含多选态）、撤销条宿主与落位、顶栏动作按钮 || `AppSnackbar.kt` (129 行) | `AppSnackbarForm` `AppSnackbarHost` `AppSnackbarHostState` `AppSnackbarPlacement` `rememberAppSnackbarHostState` | 撤销/提示条：双主题宿主容器、落点与形态。`UndoSnackbar.kt` 的 `SwipeDismissSnackbarHost`（滑动关闭装饰）**没有**一起搬——它被 `MainApp.kt` 与 4 个屏幕直接 import，搬它要改 6 处 import，与本笔「同包零改动」不是一回事（记在 ROADMAP #11 备注里）（09-19 #11b 拆出） || `AppBarActions.kt` (82 行) | `AppArchiveAction` `AppDeleteAction` `AppDestructiveAction` `AppEditAction` `AppSelectAllAction` | 顶栏 5 个动作入口（编辑 / 删除 / 归档 / 全选 / 清空）。行内动作 `AppEditRowAction` / `AppDeleteRowAction` 仍在 `AppListRow.kt`——它们长在卡片行里，不是顶栏槽位（09-19 #11b 拆出） || `AppMessageScreen.kt` (77 行) | `AppMessageScreen` | 整屏消息页（自带标题栏 + 一个动作按钮），被当作导航目标用。**刻意不与 `EmptyState` 合并**：后者是嵌在列表末尾的引导块（见 ROADMAP #11「明确不做」）（09-19 #11b 拆出） |
+
 
 
 | `AppSurface.kt` (353 行) | `AppCard` `AppPaddedCard` `AppCardTone` `AppStatusCard` `AppStatCard` `AppStatTone` `AppSection` `AppHintText` `AppStatsListMetrics` `appStatsListMetrics` | 卡片与分区外壳、统计卡、列表度量 |
