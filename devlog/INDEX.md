@@ -85,6 +85,15 @@
   （`EditFoodScreen` 3 处是输入框过滤数字字符、1 处是历史记录筛选，`StatsScreen:232` 是图表数据转换）。
   ⇒ 剩下的只是加 `WhileSubscribed` 与少量派生数据下沉，**且那是行为改动**（后台不再预热），需逐屏真机复测。
   **执行并入 #10c**（2026-09-18）：与 `AppViewModel` 拆分同批做、共用那一轮复测，本节证据原样有效。
+  ⏸ **2026-09-19 用户决定搁置**（`skip_10c`）：#10b 收官后的开工前侦察量出规划没记的一层 —— `Eagerly` 顺手保证
+  「任何时候读 `.value` 都是真数据」，而全仓有 **15 处**这样读：VM 侧 14 处都在 `launch { }` 里（可改
+  `repo.<x>Flow.first()`，`Eagerly` 下同值 ⇒ 行为等价）；`EditFoodScreen.kt:105` 那 1 处是 `remember` 里的
+  一次性读，而该屏**不收集** `items` ⇒ 进程被杀后恢复到编辑页会读到冷值 `emptyList()` ⇒ `existing == null`、
+  12 个 `rememberSaveable` 表单状态按"新增"初始化成空白 ⇒ 用户点保存就清空该食品（**会丢数据**；今天不出事是靠
+  `Eagerly` 与 `ready` 首帧门控配合）。⇒ 要做必须先加固、再按三档关预热（主题与门控 6 → 设置页 6 → 数据列表 8），
+  清单与顺序见 [`ROADMAP`](../docs/ROADMAP.md) #6 节与 [2026-09-19 日志](2026-09-19.md) §11；
+  ⚠️ 落地那一刻 `doc-metrics` 的 `WhileSubscribed` 写死数会有 **4 行**报不符（含 1 行在"只加批注不改写"的
+  历史审计报告里 ⇒ 得靠把 `docs/audits/` 排除出这项比对的工具改动解决），必须与第一档同批处理。
 - ⏳ **#7 字符串资源化 + 无障碍** —— `strings.xml` **1** 条 vs 源码中文字面量 **576** 处；
   `contentDescription = null` **50** 处、`semantics` **1** 处。
   （09-16 记的 61 / 7 已随双主题去重下降；本行 09-18 复跑，原写 583 ⇒ **核查第 19 处**，
@@ -102,7 +111,7 @@
   仍挂着未做：`paths-ignore`、APK 体积基线、`bundleRelease`(AAB)、
   `versionCode` 改用仓库内版本文件（现为 `github.run_number`，`release.yml:112`）。
 
-- 🔨 **#10 UI/VM 层拆分收尾（`SettingsScreen.kt` 1,705 → **297** 行 + `AppViewModel.kt` 700 → 590 → 469 → 431 → 363 → 322 → 304 → **277** 行 🎯 达标）** —— **10a 已落地（2026-09-18，10a-1 + 10a-2）+ 10b 七轮全部落地（2026-09-19）✅ 收官**：弹窗区（352–986，跨 635 行）逐字搬到同包 `SettingsBackupDialogs.kt`(233) / `SettingsCloudDialogs.kt`(368) / `SettingsSnapshotDialogs.kt`(207)；**10a-2** 再把两套 body 与两个 MD3 专用小组件搬到 `SettingsBodyMd3.kt`(260) / `SettingsBackupMd3.kt`(222) / `SettingsBodyMiuix.kt`(219) / `SettingsMd3Widgets.kt`(184)，入口只剩装配（297 行）。两轮都是行为零改动 ⇒ 都不占用复测；⚠️ 10a-2 落地后 CI 红了**两轮**（首轮 5 个文件漏 41 条 import、次轮入口漏 `getValue`/`setValue` 2 条**委托算子**，修法都只动 import 行；见 devlog §13.10 / §13.11）；**10b** 已搬完 **7 / 7** 个领域 ✅（备份 9 + 云端同步 4 + 归档与消耗撤销 6 + 食物 CRUD 与批量 11 + 分类与位置 7 + 设置 6 + UI 状态与事件 5 = **48 / 50** 个函数，余 2 个 private 策略函数按规划留守 ⇒ `AppViewModelBackup.kt` 149 / `AppViewModelCloud.kt` 167 / `AppViewModelArchiveUndo.kt` 87 / `AppViewModelFood.kt` 138 / `AppViewModelCategoryLocation.kt` 104 / `AppViewModelSettings.kt` 90 / `AppViewModelUiState.kt` 88 行），**验收① 已达标**（`viewmodel/` 九个文件全部 < 400，最大是 VM 的 277 行）⇒ **#10b 收官**：VM 本体 **700 → 277（−423 行，−60%）**、累计放宽 **13** 处 `private` → `internal`、调用方 **10 个文件 / +51 行 import**、守卫同批改 **3** 次（全在 `CorruptGuardTest`）、**7 个提交全部一次通过 CI**；**10c（= #6）未开工**（`stateIn(` 仍 20 处、`WhileSubscribed` 仍 0 处，10b 七轮一处没碰）。
+- 🔨 **#10 UI/VM 层拆分收尾（`SettingsScreen.kt` 1,705 → **297** 行 + `AppViewModel.kt` 700 → 590 → 469 → 431 → 363 → 322 → 304 → **277** 行 🎯 达标）** —— **10a 已落地（2026-09-18，10a-1 + 10a-2）+ 10b 七轮全部落地（2026-09-19）✅ 收官**：弹窗区（352–986，跨 635 行）逐字搬到同包 `SettingsBackupDialogs.kt`(233) / `SettingsCloudDialogs.kt`(368) / `SettingsSnapshotDialogs.kt`(207)；**10a-2** 再把两套 body 与两个 MD3 专用小组件搬到 `SettingsBodyMd3.kt`(260) / `SettingsBackupMd3.kt`(222) / `SettingsBodyMiuix.kt`(219) / `SettingsMd3Widgets.kt`(184)，入口只剩装配（297 行）。两轮都是行为零改动 ⇒ 都不占用复测；⚠️ 10a-2 落地后 CI 红了**两轮**（首轮 5 个文件漏 41 条 import、次轮入口漏 `getValue`/`setValue` 2 条**委托算子**，修法都只动 import 行；见 devlog §13.10 / §13.11）；**10b** 已搬完 **7 / 7** 个领域 ✅（备份 9 + 云端同步 4 + 归档与消耗撤销 6 + 食物 CRUD 与批量 11 + 分类与位置 7 + 设置 6 + UI 状态与事件 5 = **48 / 50** 个函数，余 2 个 private 策略函数按规划留守 ⇒ `AppViewModelBackup.kt` 149 / `AppViewModelCloud.kt` 167 / `AppViewModelArchiveUndo.kt` 87 / `AppViewModelFood.kt` 138 / `AppViewModelCategoryLocation.kt` 104 / `AppViewModelSettings.kt` 90 / `AppViewModelUiState.kt` 88 行），**验收① 已达标**（`viewmodel/` 九个文件全部 < 400，最大是 VM 的 277 行）⇒ **#10b 收官**：VM 本体 **700 → 277（−423 行，−60%）**、累计放宽 **13** 处 `private` → `internal`、调用方 **10 个文件 / +51 行 import**、守卫同批改 **3** 次（全在 `CorruptGuardTest`）、**7 个提交全部一次通过 CI**；**10c（= #6）已由用户决定搁置**（2026-09-19 `skip_10c`；`stateIn(` 仍 20 处、`WhileSubscribed` 仍是零，10b 七轮一处没碰 ⇒ 侦察量出的加固前置见 ROADMAP #6 节与 09-19 §11）。
   **含 #6 的执行**（10c = 加 `WhileSubscribed`），因为两者动同一片代码、共用一轮真机复测。
   10a（设置页：645 行弹窗区抽出 + 两个 body 抽出）与 10b（VM 的 50 个函数按领域搬成同包 `internal` 扩展函数，与 #5c 同形）
   是**结构搬运、不改行为 ⇒ 不单独占用用户复测时间**；10c 是行为改动（后台不再预热、冷进页面首帧可能等一次解码）
