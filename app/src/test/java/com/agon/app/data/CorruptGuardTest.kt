@@ -145,11 +145,12 @@ class CorruptGuardTest {
     @Test
     fun `三条恢复路径都先留恢复前快照`() {
         // #10b-1 起「文件导入」「本地快照还原」这两条路径，与公共前置快照方法本身，搬到了同包的
-        // AppViewModelBackup.kt（同包 internal 扩展函数 ⇒ 缩进 0，故 `indent = 0`）；
-        // 「坚果云整版本恢复」那条仍在 AppViewModel.kt 里 ⇒ 这个测试现在要读两个文件。
+        // AppViewModelBackup.kt；#10b-2 起「坚果云整版本恢复」也搬出去了，落在 AppViewModelCloud.kt
+        // ⇒ 三条路径现在分布在**两个领域文件**里，AppViewModel.kt 已不再参与这个测试。
+        // 两处都是同包 internal 扩展函数（缩进 0）⇒ `indent = 0`。
         val backup = read("com/agon/app/viewmodel/AppViewModelBackup.kt")
-        val vm = read("com/agon/app/viewmodel/AppViewModel.kt")
-        assumeTrue("找不到 AppViewModelBackup.kt / AppViewModel.kt，跳过", backup != null && vm != null)
+        val cloud = read("com/agon/app/viewmodel/AppViewModelCloud.kt")
+        assumeTrue("找不到 AppViewModelBackup.kt / AppViewModelCloud.kt，跳过", backup != null && cloud != null)
         val src = backup!!
 
         assertTrue(
@@ -167,7 +168,7 @@ class CorruptGuardTest {
         val snapIdx = restoreBody.indexOf("snapshotBeforeRestore()")
         assertTrue("restoreLocalSnapshot 必须先读取目标快照再写前置快照（否则目标可能被淘汰）", readIdx in 1 until snapIdx)
 
-        val cloudBody = functionBody(vm!!, "fun syncDownload(")
+        val cloudBody = functionBody(cloud!!, "fun AppViewModel.syncDownload(", indent = 0)
         assertTrue("坚果云恢复未走公共前置快照", cloudBody.contains("snapshotBeforeRestore()"))
         assertTrue("坚果云恢复必须先做 items 键校验再覆盖", cloudBody.contains("previewBackup(raw) == null"))
     }

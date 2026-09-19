@@ -13,15 +13,19 @@ import com.agon.app.data.CloudBackup
 import com.agon.app.data.FoodItem
 import com.agon.app.data.LocalSnapshot
 import com.agon.app.viewmodel.AppViewModel
-// ↓ #10b-1 起 VM 的备份领域函数搬到了 `viewmodel/AppViewModelBackup.kt`（同包 internal 扩展函数）⇒ 跨包调用要逐个 import（本仓禁通配导入）；下面的转发写法一字未改
+// ↓ #10b 起 VM 的领域函数按领域搬到了 `viewmodel/AppViewModel<领域>.kt`（同包 internal 扩展函数）⇒ 跨包调用要逐个 import（本仓禁通配导入）；下面的转发写法一字未改
 import com.agon.app.viewmodel.buildBackupJson
 import com.agon.app.viewmodel.buildCsvExport
 import com.agon.app.viewmodel.importBackupJson
 import com.agon.app.viewmodel.importBackupWithSnapshot
+import com.agon.app.viewmodel.loadCloudBackups
 import com.agon.app.viewmodel.loadLocalSnapshots
 import com.agon.app.viewmodel.previewBackup
 import com.agon.app.viewmodel.restoreLocalSnapshot
 import com.agon.app.viewmodel.saveLocalSnapshot
+import com.agon.app.viewmodel.saveNutstoreCredentials
+import com.agon.app.viewmodel.syncDownload
+import com.agon.app.viewmodel.syncUpload
 
 /**
  * 待用户确认的导入内容：原始 JSON + 预览摘要。

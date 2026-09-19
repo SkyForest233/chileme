@@ -28,8 +28,9 @@ import kotlinx.coroutines.withContext
  *    `emit`（放宽的那 4 行都在 `AppViewModel.kt` 里）。`internal` = **模块内**可见，不出 App 模块，
  *    与 #5c 在 data 层的口径一致。
  *
- * 对外调用写法一个字没变：同包内用隐式接收者就能解析 —— `AppViewModel.kt` 里留下的 `syncDownload`
- * 仍要调本文件的 [snapshotBeforeRestore]，这处「成员调同包扩展」等 #10b-2 搬云端同步时就消失了；
+ * 对外调用写法一个字没变：同包内用隐式接收者就能解析 —— #10b-2 之后 `syncDownload` 已搬到同包的
+ * `AppViewModelCloud.kt`，它仍调本文件的 [snapshotBeforeRestore]（同包 ⇒ 不需 import）；本文件当初
+ * 预告的那处「类内成员调同包扩展」的形状，也随它一起消失了。
  * 唯一要改的是**别的包**的调用方：`ui/screens/SettingsState.kt` 的适配器 `ViewModelSettingsActions`
  * 为搬走的每个函数加一行 import（本仓禁通配导入），转发写法一字未改。
  *

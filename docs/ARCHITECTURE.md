@@ -42,10 +42,11 @@ app/src/main/java/com/agon/app/
 │   ├─ ImageStore.kt            # 封面图片复制到私有目录（下采样 + EXIF 旋转校正）+ 孤儿封面清理
 │   ├─ CloudSync.kt             # 坚果云 WebDAV（NutstoreSync 单例）
 │   └─ SecureStore.kt           # Keystore AES-GCM 密码
-├─ viewmodel/                   # 3 个文件（2026-09-19 #10b-1 起：VM 的领域函数按领域搬成同包 internal 扩展函数）
-│   ├─ AppViewModel.kt          # 全局共享 VM（AndroidViewModel），StateFlow 暴露；590 行（#10b-1 前 700）
+├─ viewmodel/                   # 4 个文件（2026-09-19 #10b-1 / #10b-2 起：VM 的领域函数按领域搬成同包 internal 扩展函数）
+│   ├─ AppViewModel.kt          # 全局共享 VM（AndroidViewModel），StateFlow 暴露；469 行（#10b-1 前 700、#10b-2 前 590）
 │   ├─ UiEvent.kt               # 一次性事件：sealed interface UiEvent（6 类，#4a 建 4 类 / #4c 扩 2 类）+ enum DataOp（5 值）+ enum UiSurface（4 值）
-│   └─ AppViewModelBackup.kt    # VM 的备份领域 9 个函数（导出/文件导入/导入前快照/本地快照；#10b-1，2026-09-19）
+│   ├─ AppViewModelBackup.kt    # VM 的备份领域 9 个函数（导出/文件导入/导入前快照/本地快照；#10b-1，2026-09-19）
+│   └─ AppViewModelCloud.kt     # VM 的坚果云同步领域 4 个函数 + 顶层常量 NO_CREDENTIALS_MESSAGE（凭据/上传/列表/下载；#10b-2，2026-09-19）
 └─ ui/
     ├─ navigation/              # AppRoute（miuix-nav 二级页栈；转场用库预设 NavTransitions.MiuixDefault）
     ├─ theme/                   # Palettes.kt（15 套种子色方案）/ Color.kt（仅状态语义色）/ Theme.kt（MaterialKolor 生成 + animateColorScheme）/ ThemeStyle.kt（MATERIAL3/MIUIX 风格枚举 + LocalThemeStyle）/ MiuixRootTheme.kt（MiuixTheme + MaterialTheme 桥接，v2.8）/ Motion.kt（MD3 缓动与时长 token）/ TodayProvider.kt（LocalToday，跨零点刷新）

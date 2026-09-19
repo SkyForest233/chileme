@@ -29,8 +29,6 @@ import com.agon.app.data.deleteConsumption
 import com.agon.app.data.addConsumption
 import com.agon.app.data.undoConsumption
 import com.agon.app.data.buildBackupJson
-import com.agon.app.data.previewBackup
-import com.agon.app.data.importBackupJson
 import com.agon.app.data.clearAll
 import com.agon.app.data.setDynamicColor
 import com.agon.app.data.setDarkMode
@@ -44,9 +42,6 @@ import com.agon.app.data.setCategoryThreshold
 import com.agon.app.data.setCategories
 import com.agon.app.data.setLocations
 import com.agon.app.data.migratePlaintextPassword
-import com.agon.app.data.setNutstoreCredentials
-import com.agon.app.data.OpFailure
-import com.agon.app.data.toOpFailure
 import com.agon.app.data.CloudBackup
 import com.agon.app.data.LocalSnapshot
 import com.agon.app.data.LocalSnapshotStore
@@ -73,15 +68,6 @@ import kotlinx.coroutines.launch
 import java.util.UUID
 
 private const val TAG = "AppViewModel"
-
-/**
- * 「还没填凭据」这句话在 3 个入口（上传 / 拉列表 / 下载）各写了一遍，且字字相同 ⇒ 抽成常量。
- * 不是为省字：三处若各写一遍，改一处忘两处就会让用户在同一件事上看到三种说法。
- *
- * 放顶层而不是类内：Kotlin 的 `const val` 只能在**顶层或 companion object** 里，
- * 类体内直接写 `private const val` 编译不过（本文件的 [TAG] 同样是顶层，沿用这个惯例）。
- */
-private const val NO_CREDENTIALS_MESSAGE = "请先填写并保存坚果云账号和应用密码"
 
 // ⚠️ 下面有几个成员是 `internal` 而不是 `private`（`repo` / `clock` / `emit` 与若干 `MutableStateFlow`）：
 // #10b 把领域函数搬成**同包扩展函数**（`AppViewModel<领域>.kt`）之后，那些函数体要够得着它们
@@ -187,7 +173,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         repo.autoSyncDaysFlow.stateIn(viewModelScope, SharingStarted.Eagerly, 0)
 
     /** 云同步进行中标志 */
-    private val _syncing = MutableStateFlow(false)
+    internal val _syncing = MutableStateFlow(false)
     val syncing: StateFlow<Boolean> = _syncing.asStateFlow()
 
     /**
@@ -465,120 +451,13 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     internal val _localSnapshots = MutableStateFlow<List<LocalSnapshot>>(emptyList())
     val localSnapshots: StateFlow<List<LocalSnapshot>> = _localSnapshots.asStateFlow()
 
-    // ---- 坚果云同步 ----
-
-    fun saveNutstoreCredentials(account: String, password: String) =
-        viewModelScope.launch { repo.setNutstoreCredentials(account, password) }
-
-    /**
-     * 上传当前数据到坚果云。成败经 [UiEvent]（落点 [UiSurface.Settings]）报信，不再要回调。
-     *
-     * 本地数据异常那条走 [OpFailure.Other] 而不是 `toOpFailure()`：它不是同步失败，
-     * 用类型归类会把一个本地错误误报成"网络问题"。
-     */
-    fun syncUpload() = viewModelScope.launch {
-        val account = nutstoreAccount.value
-        val password = nutstorePassword.value
-        if (account.isBlank() || password.isBlank()) {
-            emit(UiEvent.OpFailed(DataOp.Upload, OpFailure.Other(NO_CREDENTIALS_MESSAGE)))
-            return@launch
-        }
-        _syncing.value = true
-        // 同上：损坏态下拒绝上传，避免残缺备份覆盖云端完好版本。
-        val json = runCatching { repo.buildBackupJson() }.getOrElse {
-            _syncing.value = false
-            emit(UiEvent.OpFailed(DataOp.Upload, OpFailure.Other(it.message ?: "数据异常，已取消上传")))
-            return@launch
-        }
-        val result = NutstoreSync.upload(account, password, json, clock)
-        _syncing.value = false
-        result.fold(
-            onSuccess = {
-                val time = java.time.LocalDateTime.now(clock)
-                    .format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"))
-                repo.setLastSync("上传于 $time")
-                emit(UiEvent.Notice("已上传到坚果云 ☁️", UiSurface.Settings))
-            },
-            onFailure = { emit(UiEvent.OpFailed(DataOp.Upload, it.toOpFailure("上传失败"))) },
-        )
-    }
-
     // ---- 云端备份列表（恢复时选择版本） ----
 
-    private val _cloudBackups = MutableStateFlow<List<CloudBackup>>(emptyList())
+    internal val _cloudBackups = MutableStateFlow<List<CloudBackup>>(emptyList())
     val cloudBackups: StateFlow<List<CloudBackup>> = _cloudBackups.asStateFlow()
 
-    private val _loadingBackups = MutableStateFlow(false)
+    internal val _loadingBackups = MutableStateFlow(false)
     val loadingBackups: StateFlow<Boolean> = _loadingBackups.asStateFlow()
-
-    /**
-     * 拉取云端备份列表，供用户选择恢复哪一份。
-     *
-     * 三种结果各走各路（改造前它们被压进一个 Boolean）：
-     * - **非空** ⇒ 不发事件：列表由 [cloudBackups] 这个 `StateFlow` 驱动，选择器保持打开
-     *   （改造前是 `onResult(true, "")`，界面拿到空字符串什么也不做）；
-     * - **空** ⇒ [UiEvent.CloudBackupsEmpty]：请求是成功的，只是没东西可恢复；
-     * - **失败** ⇒ [UiEvent.OpFailed] 带分类。
-     * 后两种都要关掉选择器 —— 由收集端按事件类型决定，见 `SettingsScreen`。
-     */
-    fun loadCloudBackups() = viewModelScope.launch {
-        val account = nutstoreAccount.value
-        val password = nutstorePassword.value
-        if (account.isBlank() || password.isBlank()) {
-            emit(UiEvent.OpFailed(DataOp.ListBackups, OpFailure.Other(NO_CREDENTIALS_MESSAGE)))
-            return@launch
-        }
-        _loadingBackups.value = true
-        val result = NutstoreSync.listBackups(account, password)
-        _loadingBackups.value = false
-        result.fold(
-            onSuccess = { list ->
-                _cloudBackups.value = list
-                if (list.isEmpty()) emit(UiEvent.CloudBackupsEmpty("云端暂无备份，请先上传"))
-            },
-            onFailure = { emit(UiEvent.OpFailed(DataOp.ListBackups, it.toOpFailure("获取备份列表失败"))) },
-        )
-    }
-
-    /** 从坚果云下载指定备份并恢复（整体替换）。成败经 [UiEvent]（落点 [UiSurface.Settings]）报信。 */
-    fun syncDownload(fileName: String) = viewModelScope.launch {
-        val account = nutstoreAccount.value
-        val password = nutstorePassword.value
-        if (account.isBlank() || password.isBlank()) {
-            emit(UiEvent.OpFailed(DataOp.Download, OpFailure.Other(NO_CREDENTIALS_MESSAGE)))
-            return@launch
-        }
-        _syncing.value = true
-        val result = NutstoreSync.download(account, password, fileName)
-        _syncing.value = false
-        val raw = result.getOrNull()
-        if (raw == null) {
-            val failure = result.exceptionOrNull()?.toOpFailure("下载失败") ?: OpFailure.Other("下载失败")
-            emit(UiEvent.OpFailed(DataOp.Download, failure))
-            return@launch
-        }
-        // 与「文件导入」同一套前置校验：必须含 items 键，否则拒绝覆盖（防「合法空备份」清空数据）。
-        if (repo.previewBackup(raw) == null) {
-            emit(UiEvent.OpFailed(DataOp.Download, OpFailure.Other("云端备份格式不正确")))
-            return@launch
-        }
-        val snapshotSaved = snapshotBeforeRestore()
-        if (snapshotSaved) loadLocalSnapshots()
-        if (repo.importBackupJson(raw)) {
-            val time = java.time.LocalDateTime.now(clock)
-                .format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"))
-            repo.setLastSync("恢复于 $time")
-            emit(
-                UiEvent.Notice(
-                    if (snapshotSaved) "已从坚果云恢复数据 ✅（已自动留存恢复前快照）"
-                    else "已从坚果云恢复数据 ✅（恢复前快照未能保存）",
-                    UiSurface.Settings,
-                ),
-            )
-        } else {
-            emit(UiEvent.OpFailed(DataOp.Download, OpFailure.Other("云端备份格式不正确")))
-        }
-    }
 
     /**
      * 放弃处于损坏态的数据（UI 二次确认后调用）：删除该 key 的内容并解除损坏标记，
