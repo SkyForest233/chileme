@@ -28,7 +28,7 @@
 | 7 | 字符串资源化 + 无障碍补全 | ⏳ 未开始（前置 #3 已满足 ⇒ **随时可插队做**） | — |
 | 8 | 诊断包 + 许可清单（⚠️ 09-18 复核：健康告警条**自 09-15 已在首页运行**，原「没有任何页面消费它」是错的） | ⏳ 未开始（**无前置**，可随时做）；**范围已缩小** | — |
 | 9 | CI 加固 | 🔶 用户已否掉大半，剩 4 个小项 | 09-17 §10 |
-| **10** | **UI/VM 层拆分收尾**（设置页 1,705 行（规划时）+ `AppViewModel` 700 行；**含 #6 的执行**） | 🔨 **10a 已落地**（2026-09-18）：10a-1 弹窗区（352–986，跨 635 行）搬到同包 3 个文件、10a-2 两套 body 与两个 MD3 专用小组件搬到 4 个文件，设置页入口 1,705 → **297** 行；🔨 **10b-1 … 10b-6 已落地**（2026-09-19）：备份领域 9 个函数搬到同包 `AppViewModelBackup.kt`、云端同步 4 个函数 + 1 个顶层常量搬到 `AppViewModelCloud.kt`、归档与消耗撤销 6 个函数搬到 `AppViewModelArchiveUndo.kt`、食物 CRUD 与批量 11 个函数搬到 `AppViewModelFood.kt`、分类与位置 7 个函数搬到 `AppViewModelCategoryLocation.kt`、设置 6 个一行体函数搬到 `AppViewModelSettings.kt`，`AppViewModel` 700 → 590 → 469 → 431 → 363 → 322 → **304** 行（🎯 **验收① 的 viewmodel 那一半自 10b-4 起已达标 < 400**；10b 剩 1 个领域 5 个函数，**不再是达标所需**） | 本节「#10」+「10a-1 / 10a-2 / 10b-1 … 10b-6 落地结果」+ 09-18 §13.7–§13.9 + 09-19 §1–§9 |
+| **10** | **UI/VM 层拆分收尾**（设置页 1,705 行（规划时）+ `AppViewModel` 700 行；**含 #6 的执行**） | 🔨 **10a 已落地**（2026-09-18）：10a-1 弹窗区（352–986，跨 635 行）搬到同包 3 个文件、10a-2 两套 body 与两个 MD3 专用小组件搬到 4 个文件，设置页入口 1,705 → **297** 行；✅ **10b-1 … 10b-7 全部落地**（2026-09-19，七轮收官）：备份领域 9 个函数搬到同包 `AppViewModelBackup.kt`、云端同步 4 个函数 + 1 个顶层常量搬到 `AppViewModelCloud.kt`、归档与消耗撤销 6 个函数搬到 `AppViewModelArchiveUndo.kt`、食物 CRUD 与批量 11 个函数搬到 `AppViewModelFood.kt`、分类与位置 7 个函数搬到 `AppViewModelCategoryLocation.kt`、设置 6 个一行体函数搬到 `AppViewModelSettings.kt`、UI 状态与事件 5 个函数搬到 `AppViewModelUiState.kt`，`AppViewModel` 700 → 590 → 469 → 431 → 363 → 322 → 304 → **277** 行（−60%）（🎯 **验收① 的 viewmodel 那一半自 10b-4 起已达标 < 400**；**10b 收官**：48/50 个函数搬出，余 2 个 private 策略函数按规划留守；累计放宽 13 处 `private` → `internal`、调用方 10 个文件 +51 行 import、守卫同批改 3 次、7 个提交全部一次通过 CI） | 本节「#10」+「10a-1 / 10a-2 / 10b-1 … 10b-7 落地结果」+「#10b 收官总账」+ 09-18 §13.7–§13.9 + 09-19 §1–§10 |
 
 **排序原则（原文照录，对剩余项仍适用）**：**先能拦、再去重、后补体验**。
 **为什么是这个顺序**：#1/#2 先把「已经为零的基线」变成拦截，之后任何一步的回归都会被 CI 当场抓住
@@ -492,7 +492,7 @@
   - 主代码超 400 行的文件 **6** 个，全在 UI/VM 层。**清单与行数刻意不抄进本文件** ——
     跑 `bash tools/doc-metrics.sh` 看「主代码超 400 行的文件（全清单）」那行；抄过的下场见下方「核查第 18 处」。
     最大的两个是 `SettingsScreen.kt`（规划时 1,705 行；10a-1 后 1,079 行；**10a-2 后 297 行** ⇒ 已达标，
-    超 400 行清单从 6 个减到 5 个）与 `AppViewModel.kt`（700 行；10b-1 后 590、10b-2 后 469、10b-3 后 431；**10b-4 后 363 行 ⇒ 已达标** 🎯；10b-5 后 322、10b-6 后 **304** 行）⇒ 本项就是冲这两个去的，**两个现在都达标了**（`doc-metrics` 的「viewmodel/ 最大文件」那行报 `OK 全部 < 400`）。
+    超 400 行清单从 6 个减到 5 个）与 `AppViewModel.kt`（700 行；10b-1 后 590、10b-2 后 469、10b-3 后 431；**10b-4 后 363 行 ⇒ 已达标** 🎯；10b-5 后 322、10b-6 后 304、10b-7 后 **277** 行）⇒ 本项就是冲这两个去的，**两个现在都达标了**（`doc-metrics` 的「viewmodel/ 最大文件」那行报 `OK 全部 < 400`）。
     `ExpiryCalendar.kt` 正好 400 行，卡线不计入。
   - `SettingsScreen.kt` 内部（**行号是 10a-1 搬运前的**，搬后弹窗区已在同包三个新文件里）：
     入口 `SettingsScreen` 176–994 = **819 行**，其中
@@ -542,7 +542,7 @@
 |---|---|---|---|
 | **10a-1** ✅ 已做（2026-09-18） | 弹窗区 **352–986（跨 635 行，git 记为删 632 行；差额见「10a-1 落地结果」）**按领域抽到同包 3 个文件：备份与导入 352–520 → `SettingsBackupDialogs.kt`；坚果云账号 + 云端备份选择 + 恢复二次确认 522–828 → `SettingsCloudDialogs.kt`；本地快照列表 830–986 → `SettingsSnapshotDialogs.kt`。3 个 SAF 启动器**留在入口**（它们的结果回调要用 `scope` / `snackbar` / `pendingImport`，搬走反而要多传三样），以 `ActivityResultLauncher<String>` / `<Array<String>>` 传参 | 三个新文件 234 / 372 / 211 行（⚠️ 首轮 CI 红：别名 import 漏带 9 条 ⇒ 已修，行数含补进的 import），全部 < 400 ✓；`SettingsScreen.kt` 1,705 → **1,079** 行（⚠️ 不是规划时预计的 ~350 —— 两套 body 还在里面，那是 10a-2 ⇒ 已做完，入口现 **297** 行）；逐字校验 0 缺失；`kt-lexcheck` 96 份 0 问题 | 已同批改的守卫：`ImeHandlingTest.dialogFiles`（`SettingsScreen.kt` → `SettingsCloudDialogs.kt`）+ 它两处 KDoc 的 MIME 行号；`MiuixDialogContentTest` 的调用点分布（总数仍 **8**）与「覆盖导入」引用；`ScreenParityTest` 第 8 对注释 **+ 规则 2 的扫描面加宽**（新增 `uiFiles()`：目录内除 `*State.kt` 的所有 `.kt`；原 `screenFiles()` 只收 `*Screen.kt` / `*Screens.kt`，三个 `*Dialogs.kt` 搬出后会让「禁止内联聚合」**静默失覆盖** —— 加宽前实测那 4 个禁用模式在目录内的命中全在 `*State.kt`，故只补覆盖、不改判定）。⚠️ 规划里「`SettingsActions` 可直接当参数包」被实测推翻：弹窗区用的是入口的局部回调与启动器，实测参数面 10 个（三块各 7 / 4 / 3） |
 | **10a-2** ✅ 已做（2026-09-18） | 两套 body + 两个 MD3 专用小组件抽到同包 **4** 个文件（规划写的是 2 个；MD3 侧 522 行 + 文件头必然超 400，规划已预见「还得按分区再切一刀」，实做切的是四节里最大的「备份与数据」171 行 ⇒ 抽成新函数 `Md3BackupSection`，那是本次**唯一**新增的组合边界）：`SettingsBodyMd3.kt`(260) / `SettingsBackupMd3.kt`(222) / `SettingsBodyMiuix.kt`(219) / `SettingsMd3Widgets.kt`(184)；搬走 717 行，4 个函数 `private` → `internal`（名字一个没改） | 5 个文件全部 < 400 行 ✓（入口 1,079 → **297**，import 96 → **22** 条）；入口仍含 `rememberSettingsUiState(`（规则 1）✓；逐字校验 **703** 行 0 缺失 ✓；超 400 行主代码 **6 → 5** 个；`kt-lexcheck` 100 份 0 问题（⚠️ CI 红了**两轮**：首轮 5 个文件漏 41 条 import、次轮入口漏 `getValue`/`setValue` 2 条**委托算子** ⇒ 都已修，行数与 import 数含补进的；`move-importcheck` 0 缺失）| `ScreenParityTest` 禁的是 `Miuix` + 屏幕名这种**前缀式**文件名（`MiuixSettingsScreen.kt`），`SettingsBodyMiuix.kt` 不触雷（已写进注释）；⚠️ 规划担心的「`remember` 跨组合边界搬家」实测**没有发生**（去注释口径：抽出的备份节 0 处、Miuix body 0 处、MD3 body 那 1 处 `rememberScrollState()` 留在 body）⇒ 风险从「必测」降为「顺带过一眼」，仍纳入 10c 那轮复测；**本次没有任何守卫判定需要改**（只给 `ScreenParityTest` 加注释，规则 2 的 `uiFiles()` 自动覆盖 4 个新文件、当天实测 4 个禁用模式在里面 0 命中）；⚠️ 新踩的 2 个自坑都在 import 计算里，10b 沿用同一套算法 ⇒ 见「10a-2 落地结果」 |
-| **10b** 🔨 进行中（**10b-1 … 10b-6 ✅ 2026-09-19**：备份 9 + 云端同步 4 + 归档与消耗撤销 6 + 食物 CRUD 与批量 11 + 分类与位置 7 + 设置 6 个函数；🎯 `AppViewModel.kt` **304 行**，自 10b-4 起已达标） | `AppViewModel` 的 50 个函数按领域搬成**同包 `internal` 扩展函数**（与 #5c 完全同形），一个领域一个提交：备份导入导出 9 / 云端同步 4 / 归档与消耗撤销 6 / 食物 CRUD 与批量 11 / 分类与位置 7 / 设置 6 / UI 状态与事件 5（余 2 个按实际归类） | 类本体 < 400 行；10 个调用方文件只加 import、**调用写法一字不变** | ① 20 处 `stateIn(` 属性**留在类里**（搬成扩展属性 = `get() =` 每次新建 Flow ⇒ #5c 已否决）；② 类里**不留同名转发**（成员遮蔽扩展 ⇒ 无限递归且编译期不报，#5c 已否决）；③ ⚠️ **`CorruptGuardTest` 会红**：它用 `functionBody(src, "fun syncDownload(")` 这类**按 4 空格缩进签名**抽函数体、还断言字面量 `private suspend fun snapshotBeforeRestore()` 与 `vm.contains("fun discardCorruptData()")` ⇒ 函数一旦变成 0 缩进的扩展函数，这几处全失配，必须同批改**读取路径 + 缩进参数 + 签名字面量**（✅ 已照此落地：10b-1 改了前两条、10b-2 改了 `syncDownload` 那条、**10b-4 改了 `discardCorruptData` 那条**（改读 `AppViewModelFood.kt` + 断言带接收者的声明行）⇒ 该测试方法现已不读 `AppViewModel.kt`，规划点名的三处守卫改动**全部落地**）；④ `SnackbarCopyTest` 按**全仓递归**统计文案片段落在哪些文件（期望 map 逐键相等）⇒ 带文案的函数搬家后要改期望 map 的**键**（⚠️ **10b-2 实测不受影响**：它唯一那条 VM 期望在 `maybeAutoSync` 里，属自动同步策略、不属云端同步领域 ⇒ 留在 VM）；⑤ `tools/guard-mirror.py` **查不到 ③④**（它把这类断言归入「作用域受限跳过」，今日 18 处里有 11 处正是它们）⇒ 必须人工核 |
+| **10b** ✅ **已完成**（**10b-1 … 10b-7 全部 2026-09-19**：备份 9 + 云端同步 4 + 归档与消耗撤销 6 + 食物 CRUD 与批量 11 + 分类与位置 7 + 设置 6 + UI 状态与事件 5 = **48/50** 个函数；🎯 `AppViewModel.kt` **277 行**，自 10b-4 起已达标；总账见「#10b 收官总账」） | `AppViewModel` 的 50 个函数按领域搬成**同包 `internal` 扩展函数**（与 #5c 完全同形），一个领域一个提交：备份导入导出 9 / 云端同步 4 / 归档与消耗撤销 6 / 食物 CRUD 与批量 11 / 分类与位置 7 / 设置 6 / UI 状态与事件 5（余 2 个按实际归类） | 类本体 < 400 行；10 个调用方文件只加 import、**调用写法一字不变** | ① 20 处 `stateIn(` 属性**留在类里**（搬成扩展属性 = `get() =` 每次新建 Flow ⇒ #5c 已否决）；② 类里**不留同名转发**（成员遮蔽扩展 ⇒ 无限递归且编译期不报，#5c 已否决）；③ ⚠️ **`CorruptGuardTest` 会红**：它用 `functionBody(src, "fun syncDownload(")` 这类**按 4 空格缩进签名**抽函数体、还断言字面量 `private suspend fun snapshotBeforeRestore()` 与 `vm.contains("fun discardCorruptData()")` ⇒ 函数一旦变成 0 缩进的扩展函数，这几处全失配，必须同批改**读取路径 + 缩进参数 + 签名字面量**（✅ 已照此落地：10b-1 改了前两条、10b-2 改了 `syncDownload` 那条、**10b-4 改了 `discardCorruptData` 那条**（改读 `AppViewModelFood.kt` + 断言带接收者的声明行）⇒ 该测试方法现已不读 `AppViewModel.kt`，规划点名的三处守卫改动**全部落地**）；④ `SnackbarCopyTest` 按**全仓递归**统计文案片段落在哪些文件（期望 map 逐键相等）⇒ 带文案的函数搬家后要改期望 map 的**键**（⚠️ **10b-2 实测不受影响**：它唯一那条 VM 期望在 `maybeAutoSync` 里，属自动同步策略、不属云端同步领域 ⇒ 留在 VM）；⑤ `tools/guard-mirror.py` **查不到 ③④**（它把这类断言归入「作用域受限跳过」，今日 18 处里有 11 处正是它们）⇒ 必须人工核 |
 | **10c** | = **#6**：20 处 `stateIn(` 加 `WhileSubscribed(5_000)`，**一屏一个提交** | `WhileSubscribed` 由 **0** 处 → 20 处；用户真机复测一轮（两主题，含设置页） | **行为改动**：后台不再预热，冷进页面首帧可能等一次解码（#6 原风险条目照旧）；逐屏提交 ⇒ 逐屏可回滚 |
 | **10d** | **延后、不排期**：① 真·一屏一 VM（KernelSU 那套）；② 把两版 body 的分区抽成 App 级「设置行」组件；③ 那 4 对手写弹窗收敛进组件层 | — | 三条都是**行为可见的架构改动**：① 要动 10 个调用方 + 导航作用域（批量选择、撤销、snackbar 通道是跨屏共享的，拆错了会丢状态）；②③ 与 09-16「不硬并」同类（两套设计语言：MD3 用 `Text`/`Surface`/`SegmentedButton`，Miuix 用 `ArrowPreference`/`SwitchPreference`/`OverlayDropdownPreference`）。等 10a/10b 落地后重新量收益再定 |
 | **10e** | 可选、低风险：`EditFoodScreen.kt` 660 行（**1 个** Composable、**0** 处主题分支）按表单区块抽子组件 | 每文件 < 400 行 | 纯结构、无主题分岔 ⇒ 守卫面比 10a 小得多（只需核 `ImeHandlingTest` 清单里的路径没变） |
@@ -557,7 +557,7 @@
   现口径 = 只认两块靶子（设置页入口与 `AppViewModel`），并把两个已知例外显式记在这里：
   **`StatsScreen.kt` 409（不拆，超 9 行，理由见「明确不动」表）**、**`EditFoodScreen.kt` 660（10e，未排期；659 是 #10b-4 前，那轮它多了 1 行 import）**；
   主代码超 400 行的**全清单**仍由 doc-metrics 那行给出（10a-2 后是 5 个、**10b-4 后是 4 个**：`EditFoodScreen.kt` 660 / `AppChrome.kt` 479 / `StatsScreen.kt` 409 / `AppListRow.kt` 406 —— 后三个在下方「明确不动」表里），不写死在本文件；
-  🎯 **10b-4 落地后本项两块靶子都已满足**（设置页入口 297 行、`AppViewModel.kt` 363 行）⇒ 验收① 达成，剩下的 10b-5/6/7 是用户选的「搬完」，不再是达标所需（5、6 已做完，只剩 7）；
+  🎯 **10b-4 落地后本项两块靶子都已满足**（设置页入口 297 行、`AppViewModel.kt` 363 行）⇒ 验收① 达成，剩下的 10b-5/6/7 是用户选的「搬完」，不再是达标所需（**三轮已全部做完 ⇒ #10b 收官**）；
   ② 10a/10b **不改行为**：10b 沿用 #5c 的判据（`git diff -w --stat` 的新增行数 == 放宽可见性 + 新增 import 的行数，
   其余全为删除）；10a 因为是**抽子 Composable**（必然新增签名与参数传递行），判据改成「被搬走的每一行都能在新文件里
   逐字找到（缩进除外）+ 新增的只有签名/参数/调用行」，由搬运脚本自校验（反推比对，同 #5c）；
@@ -949,6 +949,73 @@
   （**304** / 167 / 149 / 138 / 119 / 104 / 90 / 87）；只剩 10b-7「UI 状态与事件」5 个函数
   （`setFabSuppressed` / `toggleSelection` / `setSelection` / `clearSelection` / `emit`）—— 那一轮要放宽 **6** 个
   `private` 成员（累计 **13**）、并且要改搬运器的可见性断言（`emit` 原本就是 `internal suspend fun`、不是 `private`）。
+
+### 10b-7 落地结果（2026-09-19，提交见台账）—— #10b 七轮收官 🏁
+
+- **搬了什么**：领域 7「UI 状态与事件」**5 个函数 / 21 行**（`setFabSuppressed` 166–168 · `toggleSelection` 174–176 ·
+  `setSelection` 178–180 · `clearSelection` 182–184 · `emit` 210–218（含它那条单行 KDoc）；行号是搬运前的）⇒
+  新文件 `viewmodel/AppViewModelUiState.kt` **88** 行 / **1** 条 import（`kotlinx.coroutines.flow.update`）；
+  `AppViewModel.kt` **304 → 277** 行（非空 **256 → 234**）、import **40 → 39**（删掉 `update`：唯一使用者是
+  `toggleSelection`）；`viewmodel/` 8 → **9** 个文件（九个全部 < 400，最大就是 VM 的 277）。
+- **唯一一次成批放宽**：6 个 `private` 成员改成 `internal`（`_fabSuppressed` / `_selectedIds` 与 4 条一次性事件队列）
+  ⇒ 累计 **13**，正是规划向用户交底的那个数字。对外的读口（`fabSuppressed` / `selectedIds` 两个 `StateFlow` 属性、
+  4 个 `receiveAsFlow()` 出来的 `Flow`）一条没动、全留在类里 ⇒ 放宽只让**同包**够得着（`internal` 的边界是模块）。
+  ⚠️ 13 处里有 1 处是 `emit` 自己（10b-1 放宽的：那轮搬出去的备份领域要发事件）⇒ 本轮它不算新放宽、只是搬走
+  ⇒ 现在 VM 里 12 条 `internal` 成员 + 新文件里 1 条扩展（13 = 12 + 1，两处都点名过）。
+- **`emit` 的三处特殊**：① 它原本就是 `internal suspend fun`（不是 private）⇒ 搬运器的可见性断言必须放行
+  `internal`，改写后可见性一词不变、只多接收者；② 它头上那条单行 KDoc 随迁（本轮 21 行里唯一一条注释），
+  而「一次性 UI 事件（路线图 #4a，2026-09-18）」那条段标题连同底下 6 行历史注释**留在类里**（搬走 `emit` 后
+  那节仍有 8 个成员，不是孤儿）；③ 它**没有跨包调用方** ⇒ 一行 import 不加：用它的是同包 4 个兄弟文件的
+  **20 处裸调用**（Cloud 12 · Backup 5 · ArchiveUndo 2 · Food 1）+ 留守 VM 的 1 处（`maybeAutoSync` 里那条 ☁️ 提示，
+  「类成员调同包扩展」的形状，#10b-1 起已六轮编译通过）。
+- **验收②（不改行为）实测**：`git diff --numstat` = VM **+6 / −33** · 新文件 **+88** · 2 个调用方 **+5**。
+  **判据：新增行 = 放宽 + 新 import ⇒ 11 = 6 + 5**（VM 那 6 行新增恰好是 6 处 `private val` → `internal val`，
+  复核逐行点名、一行不多）。VM 减少的 33 行 = 搬走的 21 行 + 放宽前的 6 行旧文本 + 1 条死 import + 5 行折叠空行。
+  **独立复核 7 项全过**（`.tmp-verify9.py`）；⚠️ 验证器本轮自己坏了一次、改了两处：声明行不能"盲目剥掉
+  `internal` 与接收者"当逆变换（`emit` 原本就带 internal ⇒ 报差异 11 行），改成独立重推导正变换再建映射还原；
+  "VM 一行未增"那条断言（前六轮成立）改成"新增恰好是这 6 行放宽"。
+- **零守卫改动**（四个测试逐个实测）：搬走的 21 行里 **0** 个字符串字面量（☁️ 那条在 `maybeAutoSync`、留守）⇒
+  `SnackbarCopyTest` 32 个片段分布一字不变；`UiEventTest` 只读同包 `UiEvent.kt`（断言落点数）；`CorruptGuardTest`
+  读的是 Food / Backup / Cloud 三个兄弟文件、5 条断言仿真仍全真；本轮**真正**的风险是"有没有测试断言过那 6 个
+  成员的 `private` 原文"⇒ 实测整个单测树里这 6 个名字 **0** 处出现。
+- **调用面**：跨包 **2 个文件 / 9 处** ⇒ **+5 行 import**（`MainApp.kt` 6 处 = `clearSelection` ×4 +
+  `setFabSuppressed` ×2 ⇒ 2 行；`ui/screens/FoodListState.kt` 3 处 ⇒ 3 行 —— 它自己声明了 2 个同名成员
+  ⇒ 声明不压制 import；第 3 处 `viewModel.setSelection(…)` 藏在它自己的 `selectAll()` 里）。兜底：全仓扫到的
+  文件集合 == 清单、名字集合逐文件相等、同名 import 冲突预检 **0** 处、可调用引用 **0** 处。
+- **本地四项**：`kt-lexcheck` **107** 份 0 问题 · `move-importcheck` 四个文件**缺 0**（新文件 1/1 疑似多余 0 ·
+  VM 39/39 疑似多余 **0** · 两个调用方那 66 / 19 条"疑似多余"是参照物池推不出既有 import 的老噪声）·
+  `guard-mirror` **0** 问题（18 处跳过）· `doc-metrics` 表格断裂 0 / 写死的数不符 **0** / `stateIn(` 仍 **20** 处 /
+  `WhileSubscribed` 仍 **0** 处 / `Channel<` 仍 **4** 处（4 条队列都留在类里）/ `corruptedKeys` 仍 **32** 处。
+  ✅ 10b-6 诊断出的 `ChiliMeApp` 假警本轮**当场复现并被证实**：`--new` 含 `MainApp.kt`（跨 3 个目录）时 VM 那栏
+  多 1 条；只放 `viewmodel/` 两个文件时报 39/39 疑似多余 **0** ⇒ 成因确是 `same_package_decls` 取目录并集、与代码无关。
+
+### #10b 收官总账（七轮，2026-09-19 一天做完；数字取自逐轮 numstat 与 `git diff e7c89cd~1 HEAD`）
+
+| 轮 | 领域 | 函数 | 新文件（现行数） | VM 行数 | 放宽 | 调用方 import | 守卫同批改 | 提交 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 10b-1 | 备份导入导出 | 9 | `AppViewModelBackup.kt`（149） | 700 → 590 | 4（累计 4） | 1 个文件 +8 | `CorruptGuardTest` 1 个方法 | `e7c89cd` ✅ |
+| 10b-2 | 云端同步 | 4 + 1 常量 | `AppViewModelCloud.kt`（167） | 590 → 469 | 3（累计 7） | 1 个文件 +4 | `CorruptGuardTest` | `6dc80b8` ✅ |
+| 10b-3 | 归档与消耗撤销 | 6 | `AppViewModelArchiveUndo.kt`（87） | 469 → 431 | 0 | 5 个文件 +6 | 无 | `43e713f` ✅ |
+| 10b-4 | 食物 CRUD 与批量 | 11 | `AppViewModelFood.kt`（138） | 431 → **363** 🎯 | 0 | 7 个文件 +15 | `CorruptGuardTest` 1 条 | `0ac65ed` ✅ |
+| 10b-5 | 分类与位置 | 7 | `AppViewModelCategoryLocation.kt`（104） | 363 → 322 | 0 | 2 个文件 +7 | 无（删 2 条段标题） | `66a9b3a` ✅ |
+| 10b-6 | 设置 | 6 | `AppViewModelSettings.kt`（90） | 322 → 304 | 0 | 1 个文件 +6 | 无 | `dcd864d` ✅ |
+| 10b-7 | UI 状态与事件 | 5 | `AppViewModelUiState.kt`（88） | 304 → **277** | 6（累计 **13**） | 2 个文件 +5 | 无 | 本次 |
+
+- **合计**：**48 / 50** 个函数搬进 **7** 个领域文件（823 行）；VM 里只剩 `init` + 2 个 private 策略函数
+  （`maybeAutoSync` / `maybeAutoSnapshot`）+ 44 个类级属性（20 个是 `stateIn` 出来的对外 `StateFlow`、
+  12 个是放宽成 `internal` 的 backing field 与队列）；`viewmodel/` 2 → **9** 个文件、总 **1219** 行、最大 **277** 行；
+  VM 本体 **700 → 277（−423 行，−60%）**；调用方 **10 个文件 / +51 行 import**（8+4+6+15+7+6+5，与规划时估的
+  爆炸半径一致）；守卫同批改 **3** 次（全在 `CorruptGuardTest`：10b-1 / 10b-2 / 10b-4）；
+  **7 个提交全部一次通过 CI**。
+- **交底的账**（#10b-1 绿后用户问过"对后期维护有好处吗、有坏处吗"，当时量过的结论照抄在此、不改口）：
+  拿到的是「每文件 < 400 + 改一个领域只碰一个文件 + 与 #5c 同形（读者只需学一次）」；付出的是 **13** 处
+  `private` → `internal`、API 散在 **9** 个文件、「同名遮蔽」永久陷阱（`repo.setX(` 与 `viewModel.setX(` 是两个
+  不同的扩展：10b-4 撞 7 处、10b-5 撞 2 处、10b-6 撞满 6 处）、每领域都要重跑守卫仿真与 7 项复核；
+  **没有**拿到的是运行时收益（零）、god-object 的解决（那是 10d 的一屏一 VM）、detekt `TooManyFunctions` 的解锁
+  （仍 `active: false`；当初 7 处命中里 VM 53 个 / `FoodRepository` 47 个这两处已被 #10b / #5 拆掉，但重评要整份
+  报告重跑、本地跑不了 detekt ⇒ 这里不断言剩下几处）。用户可感知的收益在 **10c**（= #6），而且不依赖 10b。
+- **进度**：领域 **7 / 7** ✅ ⇒ **#10b 收官**；#10 只剩 **10c**（= #6：20 处 `stateIn(` 加 `WhileSubscribed(5_000)`，
+  行为改动、一屏一提交、需用户真机复测一轮），10d 延后不排期、10e（`EditFoodScreen.kt` 660 行）可选未排期。
 
 ---
 

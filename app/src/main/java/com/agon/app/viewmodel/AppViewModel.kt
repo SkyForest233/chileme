@@ -39,7 +39,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 private const val TAG = "AppViewModel"
@@ -160,28 +159,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             .stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
     /** 临时 UI 状态：Snackbar 展示“撤销”时隐藏 FAB，避免挡住撤销按钮 */
-    private val _fabSuppressed = MutableStateFlow(false)
+    internal val _fabSuppressed = MutableStateFlow(false)
     val fabSuppressed: StateFlow<Boolean> = _fabSuppressed.asStateFlow()
 
-    fun setFabSuppressed(suppressed: Boolean) {
-        _fabSuppressed.value = suppressed
-    }
-
     /** 多选模式选中的食品 id 集合（v2.8 提升到 VM，供 MainActivity 批量操作栏与列表页共用） */
-    private val _selectedIds = MutableStateFlow<Set<String>>(emptySet())
+    internal val _selectedIds = MutableStateFlow<Set<String>>(emptySet())
     val selectedIds: StateFlow<Set<String>> = _selectedIds.asStateFlow()
-
-    fun toggleSelection(id: String) {
-        _selectedIds.update { if (id in it) it - id else it + id }
-    }
-
-    fun setSelection(ids: Set<String>) {
-        _selectedIds.value = ids
-    }
-
-    fun clearSelection() {
-        _selectedIds.value = emptySet()
-    }
 
     // ---- 一次性 UI 事件（路线图 #4a，2026-09-18）----
     //
@@ -190,10 +173,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     // 所以「看过就撕」全靠每个收集点记得调 consume —— 4/4 都记得，但那是纪律不是机制。
     // 改成 Channel 后**接收即出队**，consume 函数与可空状态一起消失。
     // 设计理由（含「为什么是三条队列而不是一条」）见 viewmodel/UiEvent.kt 的类注释。
-    private val appShellEvents = Channel<UiEvent>(Channel.BUFFERED)
-    private val homeEvents = Channel<UiEvent>(Channel.BUFFERED)
-    private val consumptionLogEvents = Channel<UiEvent>(Channel.BUFFERED)
-    private val settingsEvents = Channel<UiEvent>(Channel.BUFFERED)
+    internal val appShellEvents = Channel<UiEvent>(Channel.BUFFERED)
+    internal val homeEvents = Channel<UiEvent>(Channel.BUFFERED)
+    internal val consumptionLogEvents = Channel<UiEvent>(Channel.BUFFERED)
+    internal val settingsEvents = Channel<UiEvent>(Channel.BUFFERED)
 
     /** 主壳覆盖层（`MainApp`）的事件：撤销消耗、恢复归档。 */
     val appShellUiEvents: Flow<UiEvent> = appShellEvents.receiveAsFlow()
@@ -206,16 +189,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     /** 设置页 `AppScaffold` 的事件：同步 / 还原的成败提示（#4c 之前是 4 个 `(Boolean, String)` 回调）。 */
     val settingsUiEvents: Flow<UiEvent> = settingsEvents.receiveAsFlow()
-
-    /** 一次性事件的**唯一发送点**：按 [UiEvent.surface] 分流到对应宿主的队列。 */
-    internal suspend fun emit(event: UiEvent) {
-        when (event.surface) {
-            UiSurface.AppShell -> appShellEvents.send(event)
-            UiSurface.Home -> homeEvents.send(event)
-            UiSurface.ConsumptionLog -> consumptionLogEvents.send(event)
-            UiSurface.Settings -> settingsEvents.send(event)
-        }
-    }
 
     init {
         viewModelScope.launch {
