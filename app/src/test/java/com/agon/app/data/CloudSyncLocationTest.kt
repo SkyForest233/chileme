@@ -9,7 +9,8 @@ import java.io.File
  * `data/` 层的**位置守卫**（09-19 #11c）。
  *
  * 与 `ui/components/app/ComponentAppHomeTest` 同一族、同一判据形态：**一个符号只有一个家**，
- * 外加一条本层专属的「协议不外泄」判定（见第 3 个测试）。
+ * 外加本层专属的两条「协议不外泄」判定（`okhttp3.` import 与 MKCOL / PROPFIND / Depth 词汇
+ * 只允许住在 `NutstoreWebdav.kt`）—— 它们才是 #11c 真正的验收物：OkHttp 5 升级只动一个文件。
  * 为什么这样写：`data/` 里全是 `internal` / 同包顶层函数，编译器不会因为「这段逻辑住在隔壁文件」而报错，
  * ktlint / detekt / `tools/kt-lexcheck.py` 也都看不见职责边界 —— 只有把住所钉进测试，
  * 下一次有人图省事往 `CloudSync.kt` 里再塞一个 `if` 时才会被拦下。
@@ -32,6 +33,10 @@ class CloudSyncLocationTest {
         "CLOUD_BACKUP_KEEP" to "CloudSync.kt",
         "CloudBackup" to "CloudSync.kt",
         "NutstoreSync" to "CloudSync.kt",
+        # ② 协议层分家（09-19）：WebDAV 细节与「云端文件名怎么认」只住在 NutstoreWebdav.kt
+        "NutstoreWebdav" to "NutstoreWebdav.kt",
+        "listDir" to "NutstoreWebdav.kt",
+        "parsePropfind" to "NutstoreWebdav.kt",
     )
 
     private fun read(name: String): String? {
@@ -57,7 +62,10 @@ class CloudSyncLocationTest {
         )
         val name = Regex("""(?:val|var|fun|object|class|interface)\s+(?:[\w.]+\.)?(\w+)""")
         for ((file, code) in files) {
-            for (line in code.split("\n")) {
+            for (raw in code.split("\n")) {
+                // 去缩进 ⇒ object 里的成员也算数（`parsePropfind` / `listDir` 就是这样住在
+                // `NutstoreWebdav` 里的；只看第 0 列的话登记表的这几行永远是「没找到」= 假守卫）
+                val line = raw.trimStart()
                 if (!head.containsMatchIn(line)) continue
                 val m = name.find(line) ?: continue
                 where.getOrPut(m.groupValues[1]) { mutableListOf() }.add(file)
@@ -82,6 +90,37 @@ class CloudSyncLocationTest {
         ).filter { code!!.contains(it) }
         assertEquals("已搬走的声明还在 CloudSync.kt 里（重复定义）", emptyList<String>(), leftovers)
     }
+
+    @Test
+    fun `okhttp 只出现在协议层`() {
+        // #11c 的全部意义在这条：P1 待办里的 OkHttp 5 升级要动的只有 `NutstoreWebdav.kt`。
+        // 只要 `data/` 里第二个文件还 import okhttp3.*，这条就红 —— 逼着后来人把细节留在一层。
+        val dir = dataDir
+        assertTrue("`data/` 目录没找到", dir != null)
+        val offenders = dir!!.listFiles { f -> f.isFile && f.name.endsWith(".kt") }
+            .orEmpty()
+            .filter { it.name != "NutstoreWebdav.kt" }
+            .filter { src -> src.readLines().any { it.startsWith("import okhttp3.") } }
+            .map { it.name }
+        assertEquals("`data/` 里 import okhttp3.* 的文件只允许 NutstoreWebdav.kt：" + offenders, emptyList<String>(), offenders)
+    }
+
+    @Test
+    fun `WebDAV 协议词汇不外泄`() {
+        val dir = dataDir
+        assertTrue("`data/` 目录没找到", dir != null)
+        // MKCOL / PROPFIND / Depth 是协议词汇，业务层不该认识它们
+        val words = listOf("MKCOL", "PROPFIND", "\"Depth\"")
+        val offenders = dir!!.listFiles { f -> f.isFile && f.name.endsWith(".kt") }
+            .orEmpty()
+            .filter { it.name != "NutstoreWebdav.kt" }
+            .filter { file -> words.any { w -> Regex(w).containsMatchIn(stripComments(file.readText())) } }
+            .map { it.name }
+        assertEquals("协议词汇漏进了业务层：" + offenders, emptyList<String>(), offenders)
+    }
+
+    private fun stripComments(src: String): String =
+        src.lines().filter { !it.trim().startsWith("//") && !it.trim().startsWith("*") && !it.trim().startsWith("/*") }.joinToString("\n")
 
     @Test
     fun `失败分类只认一个 401 文案常量`() {

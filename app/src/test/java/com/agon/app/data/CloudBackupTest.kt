@@ -72,7 +72,7 @@ class CloudBackupTest {
 
     @Test
     fun `parsePropfind 提取新版与旧版备份`() {
-        val list = NutstoreSync.parsePropfind(propfindXml)
+        val list = NutstoreWebdav.parsePropfind(propfindXml)
         // 目录自身被过滤；只留 2 个备份文件
         assertEquals(2, list.size)
         val names = list.map { it.fileName }.toSet()
@@ -90,11 +90,11 @@ class CloudBackupTest {
               </D:response>
             </D:multistatus>
         """.trimIndent()
-        assertTrue(NutstoreSync.parsePropfind(xml).isEmpty())
+        assertTrue(NutstoreWebdav.parsePropfind(xml).isEmpty())
     }
 
     @Test
     fun `parsePropfind 空响应不崩溃`() {
-        assertTrue(NutstoreSync.parsePropfind("").isEmpty())
+        assertTrue(NutstoreWebdav.parsePropfind("").isEmpty())
     }
 }

@@ -1,29 +1,30 @@
+/*
+ * 坚果云云端备份的**业务层**（09-19 #11c 之后这个文件只剩三件事：上传 + 轮转、列列表、下载）。
+ *
+ * 怎么跟 WebDAV 说话在 `NutstoreWebdav.kt`；失败怎么变成用户看得见的分类在 `OpFailure.kt`；
+ * 「今天该不该自动同步」在 `AutoSyncPolicy.kt`。本层管的是业务规则：
+ * 云端文件名里放什么（时间戳，且必须单调递增 —— 轮转就是按名字倒序删的）、留几份（[CLOUD_BACKUP_KEEP]）、
+ * 旧版单文件怎么处理（进列表、不参与删除）。
+ */
 package com.agon.app.data
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import okhttp3.Credentials
-import okhttp3.MediaType.Companion.toMediaType
-import okhttp3.OkHttpClient
-import okhttp3.Request
-import okhttp3.RequestBody.Companion.toRequestBody
-import java.net.URLDecoder
 import java.time.Clock
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
-import java.util.concurrent.TimeUnit
 
 /** 云端保留的备份份数：本次 + 之前 2 次 */
 const val CLOUD_BACKUP_KEEP = 3
 
 /** 云端备份条目（文件名内嵌时间戳，按名倒序即按时间倒序） */
 data class CloudBackup(val fileName: String, val sizeBytes: Long) {
-    val isLegacy: Boolean get() = fileName == NutstoreSync.LEGACY_FILE_NAME
+    val isLegacy: Boolean get() = fileName == NutstoreWebdav.LEGACY_FILE_NAME
 
     /** 可读时间，如 "2026年7月31日 14:05:30"；旧版单文件备份无时间戳 */
     val displayTime: String
         get() = if (isLegacy) "旧版备份（无时间信息）" else runCatching {
-            val ts = fileName.removePrefix("chileme_backup_").removeSuffix(".json")
+            val ts = fileName.removePrefix(NutstoreWebdav.PREFIX).removeSuffix(".json")
             LocalDateTime.parse(ts, DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"))
                 .format(DateTimeFormatter.ofPattern("yyyy年M月d日 HH:mm:ss"))
         }.getOrDefault(fileName)
@@ -47,37 +48,6 @@ data class CloudBackup(val fileName: String, val sizeBytes: Long) {
  * - 兼容旧版单文件 chileme_backup.json：会出现在恢复列表中，且不参与轮转删除
  */
 object NutstoreSync {
-    private const val BASE_URL = "https://dav.jianguoyun.com/dav"
-    private const val DIR = "ChiLeMe"
-    const val LEGACY_FILE_NAME = "chileme_backup.json"
-    private const val PREFIX = "chileme_backup_"
-
-    private val JSON_TYPE = "application/json; charset=utf-8".toMediaType()
-    private val XML_TYPE = "text/xml; charset=utf-8".toMediaType()
-
-    private val client = OkHttpClient.Builder()
-        .connectTimeout(15, TimeUnit.SECONDS)
-        .readTimeout(30, TimeUnit.SECONDS)
-        .writeTimeout(30, TimeUnit.SECONDS)
-        .build()
-
-    private fun request(url: String, auth: String) =
-        Request.Builder().url(url).header("Authorization", auth)
-
-    private fun authOf(account: String, password: String) =
-        Credentials.basic(account.trim(), password.trim())
-
-    /** 自动创建目录（已存在时坚果云返回 405，视为成功）。 */
-    private fun ensureDir(auth: String) {
-        val mkcol = request("$BASE_URL/$DIR/", auth).method("MKCOL", null).build()
-        client.newCall(mkcol).execute().use { resp ->
-            if (resp.code == 401) error(NUTSTORE_AUTH_MESSAGE)
-            if (!resp.isSuccessful && resp.code != 405) {
-                error("创建云端目录失败（HTTP ${resp.code}）")
-            }
-        }
-    }
-
     /**
      * 上传新备份（时间戳文件名）并轮转清理：
      * 上传成功后仅保留最近 [CLOUD_BACKUP_KEEP] 份新版备份，更旧的自动删除。
@@ -93,24 +63,24 @@ object NutstoreSync {
     ): Result<Unit> =
         withContext(Dispatchers.IO) {
             runCatching {
-                val auth = authOf(account, password)
-                ensureDir(auth)
-                val fileName = PREFIX +
+                val auth = NutstoreWebdav.authOf(account, password)
+                NutstoreWebdav.ensureDir(auth)
+                val fileName = NutstoreWebdav.PREFIX +
                     LocalDateTime.now(clock).format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss")) +
                     ".json"
-                val put = request("$BASE_URL/$DIR/$fileName", auth)
-                    .put(json.toRequestBody(JSON_TYPE))
+                val put = NutstoreWebdav.request(NutstoreWebdav.urlOf(fileName), auth)
+                    .put(NutstoreWebdav.jsonBody(json))
                     .build()
-                client.newCall(put).execute().use { resp ->
+                NutstoreWebdav.client.newCall(put).execute().use { resp ->
                     if (resp.code == 401) error(NUTSTORE_AUTH_MESSAGE)
                     if (!resp.isSuccessful) error("上传失败（HTTP ${resp.code}）")
                 }
                 // 轮转：删除多余的旧版本（仅限新版时间戳文件）
-                val versioned = listInternal(auth).filter { !it.isLegacy }
+                val versioned = NutstoreWebdav.listDir(auth).filter { !it.isLegacy }
                 versioned.drop(CLOUD_BACKUP_KEEP).forEach { old ->
                     runCatching {
-                        client.newCall(
-                            request("$BASE_URL/$DIR/${old.fileName}", auth).delete().build()
+                        NutstoreWebdav.client.newCall(
+                            NutstoreWebdav.request(NutstoreWebdav.urlOf(old.fileName), auth).delete().build()
                         ).execute().close()
                     }
                 }
@@ -120,36 +90,19 @@ object NutstoreSync {
     /** 列出云端全部备份，新的在前；旧版单文件（如存在）排在最后。 */
     suspend fun listBackups(account: String, password: String): Result<List<CloudBackup>> =
         withContext(Dispatchers.IO) {
-            runCatching { listInternal(authOf(account, password)) }
+            runCatching { NutstoreWebdav.listDir(NutstoreWebdav.authOf(account, password)) }
         }
-
-    private fun listInternal(auth: String): List<CloudBackup> {
-        val body =
-            """<?xml version="1.0" encoding="utf-8"?><D:propfind xmlns:D="DAV:"><D:prop><D:getcontentlength/></D:prop></D:propfind>"""
-        val propfind = request("$BASE_URL/$DIR/", auth)
-            .method("PROPFIND", body.toRequestBody(XML_TYPE))
-            .header("Depth", "1")
-            .build()
-        val xml = client.newCall(propfind).execute().use { resp ->
-            when {
-                resp.code == 401 -> error(NUTSTORE_AUTH_MESSAGE)
-                resp.code == 404 -> return emptyList()
-                resp.code >= 400 -> error("获取云端备份列表失败（HTTP ${resp.code}）")
-                else -> resp.body?.string() ?: ""
-            }
-        }
-        val (versioned, legacy) = parsePropfind(xml).partition { !it.isLegacy }
-        return versioned.sortedByDescending { it.fileName } + legacy
-    }
 
     /** 下载指定备份文件的 JSON 内容。 */
     suspend fun download(account: String, password: String, fileName: String): Result<String> =
         withContext(Dispatchers.IO) {
             runCatching {
-                val get = request("$BASE_URL/$DIR/$fileName", authOf(account, password))
+                val get = NutstoreWebdav.request(
+                    NutstoreWebdav.urlOf(fileName), NutstoreWebdav.authOf(account, password)
+                )
                     .get()
                     .build()
-                client.newCall(get).execute().use { resp ->
+                NutstoreWebdav.client.newCall(get).execute().use { resp ->
                     when {
                         resp.code == 401 -> error(NUTSTORE_AUTH_MESSAGE)
                         resp.code == 404 -> error("该备份已不存在，请刷新列表")
@@ -160,26 +113,4 @@ object NutstoreSync {
                 }
             }
         }
-
-    /** 解析 PROPFIND 响应，提取备份文件名与大小（容忍不同命名空间前缀）。 */
-    internal fun parsePropfind(xml: String): List<CloudBackup> {
-        val blocks = xml.split(Regex("</[a-zA-Z0-9]*:?response>", RegexOption.IGNORE_CASE))
-        val hrefRegex =
-            Regex("<[a-zA-Z0-9]*:?href>([^<]+)</[a-zA-Z0-9]*:?href>", RegexOption.IGNORE_CASE)
-        val sizeRegex =
-            Regex("<[a-zA-Z0-9]*:?getcontentlength[^>]*>(\\d+)<", RegexOption.IGNORE_CASE)
-        // 原来是 for + 两个 continue（href 缺失 / 不是备份文件），detekt 的
-        // LoopWithTooManyJumpStatements（阈值 1）报「一个循环里跳转太多」。换成 mapNotNull：
-        // 语义等价（顺序不变、两种跳过都变成返回 null）、跳转语句 0 条。
-        // 行为由 CloudBackupTest 的 3 条 parsePropfind 断言兜住（新版+旧版、忽略非备份、空响应）。
-        return blocks.mapNotNull { block ->
-            val href = hrefRegex.find(block)?.groupValues?.get(1) ?: return@mapNotNull null
-            val name = URLDecoder.decode(href, "UTF-8").trimEnd('/').substringAfterLast('/')
-            val isBackup = name == LEGACY_FILE_NAME ||
-                (name.startsWith(PREFIX) && name.endsWith(".json"))
-            if (!isBackup) return@mapNotNull null
-            val size = sizeRegex.find(block)?.groupValues?.get(1)?.toLongOrNull() ?: 0L
-            CloudBackup(name, size)
-        }
-    }
 }
