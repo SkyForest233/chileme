@@ -23,3 +23,7 @@ keystore.properties
 
 # Logs
 *.log
+
+# Python（tools/ 下的脚本用 importlib 互相借用词法器时会生成 __pycache__）
+__pycache__/
+*.pyc

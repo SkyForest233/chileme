@@ -22,13 +22,13 @@
 - 局部状态 `remember { mutableStateOf() }`；需进程重建保持用 `rememberSaveable`
 - 列表用 LazyColumn/LazyRow + `items(key = ...)`，不用 forEach 堆叠
 - 协程：组合内用 LaunchedEffect；事件回调里用 `rememberCoroutineScope().launch`；禁止在 onClick 中直接调 @Composable
-- 二级页栈：`rememberNavBackStack` + `NavDisplay` 只在 MainActivity 声明一次，向下传回调而非 backStack 本身。底栏 Tab 不走导航栈（HorizontalPager）
+- 二级页栈：`rememberNavBackStack` 只在 `MainApp.kt` 声明一次（导航状态源唯一）；全 App 唯一的 `NavDisplay` 在 `AppNavGraph.kt` 的 `AppNavHost` 里，由 `MainApp.kt` 的内容槽位调用一次。往下只传回调（`navigate`/`popRoute`），不传 backStack 本身。底栏 Tab 不走导航栈（HorizontalPager，在 `NavChrome.kt`）
 
 ### 项目约定
 - 数据读写只走 `FoodRepository`；新增持久化字段时：模型加默认值（保证旧数据兼容，Json 已配 `ignoreUnknownKeys`）→ Repository 增方法 → ViewModel 暴露 → UI
 - 删除类操作走归档 `archiveItems()`，不得直接从库存 JSON 中移除（归档页除外）
 - 状态判定用 `item.statusFor(thresholds)`，禁止硬编码 7 天
-- 颜色不得在屏幕代码写死主题色值；状态色走 `rememberStatusUi()`；统计图表调色板例外（见 StatsScreen 的 chartColors）
+- 颜色不得在屏幕代码写死主题色值；状态色走 `rememberStatusUi()`；统计图表调色板例外（见 `ui/components/app/AppText.kt` 的 `appChartColors()`，两主题各一份 8 色清单）
 - 字符串目前直接写在代码中（中文单语言）；app_name 必须在 strings.xml 维护
 
 ### 新增依赖
@@ -47,13 +47,37 @@
 - 本地跑法（首次会下载约 136 MB 工具到 `~/.cache/chileme-gates`，之后走缓存；不需要 Android SDK）：
 
   ```bash
-  bash tools/ci-gates.sh                     # 默认：ktlint 拦截 + detekt 报告
-  DETEKT_MODE=block bash tools/ci-gates.sh   # detekt 也拦截
-  GATES_MODE=report bash tools/ci-gates.sh   # 两个都只报告（调规则时用）
+  bash tools/ci-gates.sh                     # 默认：ktlint 与 detekt 都拦截（2026-09-16 起）
+  GATES_MODE=report bash tools/ci-gates.sh   # 两个都只报告（收敛规则时用）
+  DETEKT_MODE=report bash tools/ci-gates.sh  # 只把 detekt 降回报告
   ```
 
 - CI：`.github/workflows/build.yml` 的 `static-gates` job（PR 与 master 推送都会跑）。报告写 `build/reports/gates/`，CI 里同时上传为 `gate-reports` artifact 并打到日志。
+- **两个门禁现在都是 block**（2026-09-16 起）：detekt 从 report 切 block 的前提是清单归零 —— 修好空转问题后第一次拿到真实清单是 **73 条 / 6 个规则**，其中 2 条改代码修掉、71 条体量指标（`LongMethod` 33 / `LongParameterList` 24 / `TooManyFunctions` 7 / `CyclomaticComplexMethod` 7）在 `detekt.yml` 里**显式关闭并写明实测数字与归口**（路线图 #3 去重、#5 拆 Repository/VM）。**2026-09-17 复评**：App 级组件里的 `AppNavHost` 已由 9 参收窄到 6、`BatchMoveLocationDialog` 由 8 参收窄到 5（两者都是 09-16 文件头里写好的方案），但 `MainTabsPager` 11 参与 `*State.kt` 状态容器（刻意摊平）仍在清单里 ⇒ `LongParameterList` **维持关闭**，重开需要先给状态容器那类做规则豁免。`potential-bugs` / `coroutines` / `empty-blocks` / `performance` / `exceptions` / `style` 六类**全为 0**，即「疑似缺陷」那部分本来就是干净的。
+- **`detekt_selftest`（门禁自身健康检查）**：每次门禁先用一个含必然命中违规的临时文件（生成在 `build/reports/gates/selftest/`，不在 `app/src` 下，故不会被 ktlint 主扫描收到）跑一遍 detekt；**命中 0 条即 `::error::` 并判红，与 `DETEKT_MODE` 无关**（哨兵码 91）。这条是为了防止 2026-09-16 那种「门禁静默空转、报告恒为 0」再发生一次 —— 空转的门禁比没有门禁更糟，它提供虚假的安全感。若你有意关掉了自测里用到的规则，请同步改自测文件。
 - 规则边界（为什么只开这几条）写在 `.editorconfig` 与 `detekt.yml` 的文件头，改规则前先读；**未开启 ≠ 遗漏**，多为「已有明确后续计划」或「对本项目属主观项」。
+- ⚠️ **`detekt.yml` 是覆盖层，必须与 `--build-upon-default-config` 同用**（2026-09-16 实测）：只给 `--config` 时 detekt 不拿默认配置当基线，**文件里没逐条列出的规则一律不激活** —— 规则集写着 `active: true` 也白搭，报告恒为 0 条，门禁静默空转。脚本已固化该参数，并加了 `detekt_selftest`：每次门禁先用一个含 3 类必然命中违规的临时文件（放在 `build/reports/gates/selftest/`，不进 `app/src`，故不被 ktlint 主扫描收到）验一遍，**命中 0 条即判红，与 `DETEKT_MODE` 无关**。
+- 发现清单怎么读：CI 日志与 artifact 都托管在 `results-receiver` / `*.blob.core.windows.net`，受限网络里下载不到；脚本已把 ktlint/detekt 的发现**按规则聚合**成 check-run annotation（`gh api repos/SkyForest233/chileme/check-runs/<job-id>/annotations`），另有「detekt 自测」「控制台尾部」「报告文件行数」三条 notice 作为门禁健康度探针。GitHub 每级别最多留 10 条 annotation，故聚合而非逐条，完整清单仍以 artifact 为准。
+- **CI 红了怎么拿日志**（2026-09-18 实测；同日第二轮补上「自己取签名 URL」这条路，**不必再打扰用户**）：
+  `gh run view --log-failed` 与 `gh api …/jobs/<id>/logs` 都指向
+  `results-receiver.actions.githubusercontent.com`，受限网络里 EOF；沙箱 `curl` 直连 Azure blob 也被墙
+  （`SSL_ERROR_SYSCALL`）。**能用的路子（令牌活着时自己就能拿到全文）**：
+  ① 向 api.github.com 要那条日志的 **302 跳转地址**（只取响应头、不跟随跳转）：
+  `curl -sS -o /dev/null -D - -H "Authorization: Bearer $GH_TOKEN" https://api.github.com/repos/<owner>/<repo>/actions/jobs/<job-id>/logs`
+  ⇒ 响应头 `location:` 就是签名 URL（`productionresultssa*.blob.core.windows.net/…/job-logs.txt?…sig=…`）；
+  ② 把那条 URL **原样**交给**网页抓取工具**读（不是 `curl`）⇒ 拿到全文，含
+  `e: file:///…:行:列 Unresolved reference` / `… cannot serve as a delegate` 这种精确错误。
+  三个坑（都踩过）：签名 URL **约 10 分钟时效**（过期就重走 ①，别复用旧的）；URL 必须**逐字**传给抓取工具
+  （传成别的地址会回一个 `SignatureDoesNotMatch` 的 XML，看着像"日志端点被墙"，其实是自己传错了）；
+  日志**分段返回**（这次一个 job 分 5 段，报错在 `> Task :app:compileDebugKotlin FAILED` 那一段附近）。
+  **规矩：CI 红了先要日志，别先按排除法猜**（09-18 那次先猜了 5 个方向全不中，日志到手 30 秒定位）。
+  令牌也死了才退回旁证：`gh api …/check-runs/<job_id>/annotations`（例如「没有测试报告 / 没有 lint 报告」
+  ⇒ 红在编译阶段、单测没跑起来）与 `gh run view --json jobs` 的步骤级结论 + 起止时间，以及请用户复制签名 URL。
+- **`gh` 自己也 401 时**（令牌失效，但 `git push` 用的另一条凭据还活着 ⇒ 代码推上去了、run 也起来了，只是读不到结论；2026-09-18 第二次实测）：还有两条**不需要登录**的公开通道 ——
+  ① **badge**：`https://github.com/<owner>/<repo>/actions/workflows/build.yml/badge.svg?branch=<分支>` 直接给出 `Build - passing / failing`（拿 `?branch=master` 当对照，证明 badge 本身没坏）；
+  ② **run 页面的 HTML**（`…/actions/runs/<id>`，用网页抓取工具读）：`Status`、逐 job 结论与时长、Annotations 全文 —— "Process completed with exit code 1" 带 `#step:N:M` 指向具体步骤，产物步骤的 "No files were found" 能反推"红在编译期、单测没跑起来"。
+  **次序（令牌死时）：badge → run 页面 HTML → 才请用户复制签名 URL**（这次没打扰用户就定位到了阶段与步骤）。
+  令牌活着时不必降到旁证：走上一条「自己取签名 URL」就能拿到编译器原文。
 - 升级工具版本：改 `tools/ci-gates.sh` 里的版本号 + sha256，并同步改 `build.yml` 里 `actions/cache` 的 key。
 - release 侧另有 `release-r8` job：每个 PR 都跑 `assembleRelease -PallowUnsignedRelease=true`（R8 + 资源压缩 + `lintRelease`），因为这类问题只在 release 构建出现。
 - 提交代码前建议先跑一次门禁，比等 CI 反馈快。
@@ -62,8 +86,10 @@
 
 | 错误 | 原因与处理 |
 |---|---|
-| Unresolved reference 'X' | 缺 import 或拼写错误；检查文件顶部导入 |
+| Unresolved reference 'X' | 缺 import 或拼写错误；检查文件顶部导入。⚠️ **搬代码进新文件时最容易漏的是「别名 import」**：本仓双主题组件层有 25 条 `import top.yukonga.miuix.kmp.basic.Text as MiuixText` 这类别名，按「简单名 = 路径最后一段」算依赖的脚本看不见它们（09-18 #10a-1 因此红了 24 处）。本地 `python3 tools/kt-lexcheck.py` 的判据 4 专查这条。⚠️ **09-18 #10a-2 又漏了另一半**：按「大写开头、不含下划线」算依赖的脚本看不见**小写扩展函数/属性**（`dp` / `padding` / `fillMaxWidth` / `launch`）、**全大写常量**（`CLOUD_BACKUP_KEEP`）与**点号后面的大写成员**（`Icons.Rounded.Cloud`），5 个文件少 41 条 import ⇒ 同样红在编译，而 `kt-lexcheck` 判据 1–4 全绿。搬完代码跑 `python3 tools/move-importcheck.py --old <搬家前的 git 引用> --new <搬家后的文件…>`（拿旧文件的 import 表当参照物；三次历史真红都能逐条复现，`--selftest` 有 8 个合成对照，`--apply` 直接补齐）。它常伴着一串「`@Composable` invocations can only happen from the context of a `@Composable` function」——那是未解析的 Composable 尾随 lambda 引起的**连带错**，补好 import 就一起消失，别当成第二个问题去修 |
 | Unresolved reference: R | res/ 文件有误（常见 strings.xml / xml 格式） |
+| `Type 'MutableState<T>' has no method 'getValue(…)' / 'setValue(…)', so it cannot serve as a delegate` | 缺 `androidx.compose.runtime.getValue` / `setValue`。⚠️ 这是搬代码的**第二类盲区**：`var x by remember { mutableStateOf(…) }` 里这两个名字**从不以标识符出现**，所以「按名字算依赖」的脚本看不见它 —— 09-18 #10a-2 第二轮就红在这一处（`SettingsScreen.kt:138:23`；搬运脚本算"保留 import"时把它们当死 import 从入口删了，而 `move-importcheck` 判据 3/4 也放过：小写名只认调用形，`by` 一个调用形都没有）。`move-importcheck` 判据 6 用**结构判据**补上：代码里有属性委托（排除 `by lazy` / `by Delegates.`）⇒ 需要 `getValue`，其中有 `var` ⇒ 另需 `setValue`。注意这类错**一次只报一处**（同一行的 get/set 两侧共 2 行 `e:`），与上一行那种"24 处批量漏"不是一个量级，别照着找第二处 |
+| `Unresolved reference: viewModelScope`，或搬走的函数名（如 `buildCsvExport`） | 两类都是**搬代码进新文件**时漏 import：① 小写扩展**属性当接收者用**（`viewModelScope.launch { }` ⇒ 点号前那个名字也要 import）；② 新文件里的声明与某条 import **同名**（`internal fun AppViewModel.buildCsvExport()` 体内 `repo.buildCsvExport()` 要的是 data 层那个同名扩展）。`tools/move-importcheck.py` 的判据 4 第 4 形状与判据 7 专治这两类，搬完必跑；⚠️ 两类都是本地四项检查全绿、只有 CI 抓得到（2026-09-19 #10b-1 开工前实测） |
 | @Composable invocations... | 在非 Composable 作用域（onClick/协程）调了 Composable；把值提前在组合作用域获取 |
 | Platform declaration clash | 为 `var x` 又手写了 `fun setX()`；删掉手写 setter |
 | mergeDebugResources 失败 | XML 格式错误，检查最近改过的 res 文件 |

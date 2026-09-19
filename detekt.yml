@@ -17,6 +17,18 @@
 #
 # 迭代方式：门禁脚本支持 GATES_MODE=report（或 DETEKT_MODE=report）只报告不拦截，
 # 用来在不动 CI 状态的前提下收敛规则。详见 docs/WORKFLOW.md §3「CI 静态门禁」。
+#
+# ⚠️⚠️ 本文件是**覆盖层**，不是完整配置 —— 必须与 `--build-upon-default-config` 一起用
+# --------------------------------------------------------------------------
+# 2026-09-16 实测（此前 detekt 一直空转、报告恒为 0 条）：detekt CLI 只给 `--config detekt.yml`
+# 时**不会**拿默认配置当基线，于是「本文件没逐条列出的规则」一律不激活 —— 下面这些
+# `potential-bugs: active: true` / `style: active: true` 只开了**规则集**，集内规则一条都没跑。
+# 证据：一个含 4 处必然命中违规的 canary 文件，用本配置报 0 条；去掉 `--config` 用默认配置
+# 跑同一文件则 4 条全中（LongParameterList / LongMethod / FunctionOnlyReturningConstant /
+# UnusedPrivateMember）、exit=2。加上 `--build-upon-default-config` 后本文件才成为「默认之上的覆盖」。
+# 推论：**这里没写 ≠ 关闭**（没写 = 用 detekt 默认值）；要关必须显式 `active: false`。
+# `tools/ci-gates.sh` 里的 `detekt_selftest` 会在每次门禁前先验一遍「规则确实在跑」，
+# 命中 0 条直接判红 —— 别再让这个门静静失效一次。
 
 build:
   # 有任何一条 issue 就让 CI 失败（0 = 零容忍，不用权重打分）
@@ -36,17 +48,56 @@ config:
 # ---- 关闭：主观/与 ktlint 重叠的类别 ----
 comments:
   active: false
-complexity:
-  active: false
 naming:
   active: false
-# exceptions：**只开 SwallowedException / PrintStackTrace**（2026-09-15）
-# SwallowedException 找的是「catch 到异常却一个字都不用」——即静默吞掉失败。它对本项目
-# 特别相关：2026-09-15 那轮已定原则「凭据加密失败不再静默」，SecureStore 两处 catch
-# 已改为带日志（Log.e/Log.w，随 PR #7 合并）；**合并后预期剩 2 处**：
-# ImageStore.kt:114（catch → null）、:133（catch → 0）。
-# TooGenericExceptionCaught（禁止笼统 catch Exception）保持关闭——本项目的防御性 IO 代码
-# 是刻意为之，全开会变噪声；等 SwallowedException 清零后再评估是否启用。
+
+# ---- complexity：2026-09-16 开启（第三批 #2），并按实测清单收敛 ----
+# 修好 `--build-upon-default-config` 之后 detekt 第一次真跑起来，全仓 **73 条发现 / 6 个规则**：
+#
+#   LongMethod 33 · LongParameterList 24 · TooManyFunctions 7 · CyclomaticComplexMethod 7
+#   ComplexCondition 1 · LoopWithTooManyJumpStatements 1
+#
+# 即：**potential-bugs / coroutines / empty-blocks / performance / exceptions / style 全为 0** ——
+# 「疑似缺陷」那几类本来就是干净的，73 条全部是体量与复杂度指标。分两类处理：
+#
+# · 后 2 条（各 1 处）**改代码**：`CsvExport.escapeCsvField` 的 4 个 contains 串联 → `any { }`；
+#   `NutstoreSync.parsePropfind` 的 for + 2 个 continue → `mapNotNull`。规则保留（便宜、命中少、
+#   真指向「读不动」的地方）。
+# · 前 4 条（71 处）**显式关闭**，理由不是「不想管」而是「管的方式不对」：
+#   - LongMethod(33) / CyclomaticComplexMethod(7)：命中的几乎全是 Compose 屏幕（一个屏幕就是一个
+#     长 @Composable：MiuixSettingsScreen 863 行、EditFoodScreen 557 行…）。真正要做的拆分是
+#     路线图 #3（双主题去重 + App 级组件层），目标是可数的「16 个渲染层文件 → 8 个、7,205 行 →
+#     4,500 量级」，而不是让 detekt 天天报 40 条永远不拦的噪声。
+#   - LongParameterList(24)：命中的多是 `*State.kt` 状态容器（`FoodDetailUiState` 13 个形参）与
+#     App 级组件（`AppNavHost` 9、`MainTabsPager` 11、`BatchMoveLocationDialog` 8）。前者是**刻意的
+#     设计**（精确订阅要求把字段摊平，见 SettingsState.kt 说明），后者由 #3 收窄成回调后再评估阈值。
+#     ⚠️ **2026-09-17 复评（本节所有数字是 09-16 的快照，此后未重测）**：`AppNavHost` 已 9 → **6** 参、
+#     `BatchMoveLocationDialog` 已 8 → **5** 参（且该文件已搬去 `ui/components/app/AppBatchMoveDialog.kt`），
+#     故「24 条」这个总数**已失效但没人重测**：沙箱无 JDK、detekt 二进制下载被墙，而本地近似脚本不可靠
+#     （尾随逗号会多算 1 个形参、`(() -> Unit)?` 这类嵌套括号会让扫描早停，两者都实测踩过）。
+#     重测的唯一可信办法是真跑一次 detekt（`GATES_MODE=report bash tools/ci-gates.sh` 可只取数不拦截）。
+#     `MainTabsPager` 与 `*State.kt` 状态容器（精确订阅要求把字段摊平，是刻意设计）仍在清单里 ⇒
+#     **维持关闭的结论不变**，但别再把「24 条」当现状引用。
+#     另注：本节「7,205 行 / 16 个渲染层文件」与 `docs/DESIGN_SPEC.md` 的「7,541 行 / 17 个文件」
+#     是 09-16 同日**两个不同文件集口径**的快照，彼此不可换算，也都不能再当现状基线用；
+#     现状实测（09-17）：屏幕本体 9 文件 4,209 行，`ui/components/app/` 12 文件 3,075 行。
+#     另：上面「7,205 行 → 4,500 量级」那个目标**未达成**，实测口径与根因见 devlog 2026-09-16 §22。
+#   - TooManyFunctions(7)：`AppViewModel` 53 个、`FoodRepository` 47 个 —— 正是路线图 #5（Repository
+#     拆分 + 轻量 DI）要拆的对象。规则没错，但现在开着的唯一效果是噪声。
+#   噪声的代价是具体的：71 条永远红的发现会让人不再读这份报告，剩下那 2 条真问题反而被埋掉。
+#   #3 / #5 做完后应回来重新评估这 4 条（至少 LongParameterList 可以把阈值降回来）。
+complexity:
+  active: true
+  LongMethod:
+    active: false
+  CyclomaticComplexMethod:
+    active: false
+  LongParameterList:
+    active: false
+  TooManyFunctions:
+    active: false
+  # ComplexCondition 保留默认（阈值 4）：唯一那处命中已修。
+
 exceptions:
   active: true
   TooGenericExceptionCaught:
@@ -103,9 +154,16 @@ style:
     active: false        # 需要类型推断上下文，易误报
   UnderscoresInNumericLiterals:
     active: false        # 主观
-  # 保留默认开启的高价值规则（此处不写 = 用默认）：
-  #   UnusedImports        未使用的 import（ktlint 的同类规则已弃用，这里兜底）
-  #   UnusedPrivateMember  私有函数/属性没人用 = 死代码
-  #   UnusedPrivateProperty 同上
-  #   UnusedPrivateClass   私有类没人用
+  # 保留默认开启的高价值规则（此处不写 = 用 detekt 默认值，前提是 --build-upon-default-config）：
+  #   UnusedPrivateMember   私有函数/属性没人用 = 死代码（1.23.8 默认 active: true，已核对）
+  #   UnusedPrivateProperty 同上（默认 active: true）
+  #   UnusedPrivateClass    私有类没人用（默认 active: true）
+  #
+  # ⚠️ **UnusedImports 不在此列**（2026-09-18 核查第 14 处）：detekt 1.23.8 的
+  #   default-detekt-config.yml:744 写的是 `UnusedImports: active: false`（官方因误报率高默认关闭），
+  #   本仓也没有显式打开 ⇒ **未使用的 import 目前没有任何门禁在管**。此前这里写着「ktlint 的同类规则
+  #   已弃用，这里兜底」、`.editorconfig` 写着「本仓库改用 detekt 的 UnusedImports 规则」—— 两句都不成立，
+  #   已各自改正。实测确实漏了一个：`AppBatchMoveDialog.kt` 的 `import …layout.size`（09-17 搬家时留下）。
+  #   处置：本地由 `tools/kt-lexcheck.py` 的第 3 条判据兜（含 15 个内建自检对照；09-18 #10a-1 修红后另有第 4 条判据「用了别名却没 import」，查的是同一族问题的镜像）；CI 侧**暂不开启** ——
+  #   开启前要先跑一轮看 detekt 的误报面（它默认关闭正是这个原因），那是独立一轮，别混进功能改动。
   #   EqualsNullCall / UnconditionalJumpStatementInLoop / etc.

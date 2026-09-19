@@ -10,6 +10,12 @@ import com.agon.app.data.CategoryDef
 import com.agon.app.data.DEFAULT_EXPIRING_THRESHOLD
 import com.agon.app.data.FoodItem
 import com.agon.app.viewmodel.AppViewModel
+import com.agon.app.viewmodel.addCategory
+import com.agon.app.viewmodel.addLocation
+import com.agon.app.viewmodel.deleteCategory
+import com.agon.app.viewmodel.deleteLocation
+import com.agon.app.viewmodel.setCategoryThreshold
+import com.agon.app.viewmodel.updateCategory
 
 /**
  * 临期阈值管理跨主题共享状态。

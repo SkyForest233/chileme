@@ -1,5 +1,46 @@
 # chileme（吃了么）代码审查报告
 
+> ## ⚠️ 2026-09-16 复核批注（读本文前必看）
+>
+> 本文基线是 `41a728f`，**其后 PR #7（`58534fd`）与 PR #8（`db5ed69`）已修掉本文大部分 P0/P1 条目**，正文按「不改写历史」原则原样保留。逐条现状：
+>
+> | 本文条目 | 2026-09-16 状态 |
+> |---|---|
+> | P0-1 IME 遮挡 | ✅ 已修（A 方案，23 处 `imePadding` + MD3 弹窗 `decorFitsSystemWindows=false`；**修法按第三方复核修正为作用于 `Scaffold` 的 modifier 而非只动 content slot**）+ `ImeHandlingTest` 守卫 + 用户真机确认 |
+> | P0-2 `MiuixStatsScreen` 绕过状态层 | ✅ 已修（接回 `rememberStatsUiState`）+ `MiuixParityTest` 静态守卫 |
+> | P0-3 过期浪费口径 | ✅ 已修（`calculateWastedTotal` 按件数 `sumOf { quantity }`）。**「本周」文案 / TOP5 按单位 / 分类占比三项用户指示暂缓** |
+> | P0-4 冷启动主线程读快照 + 正则计数 | ✅ 已修（三方法 `suspend` + `Dispatchers.IO`；条数改为解析 JSON） |
+> | P0-5 月度聚合可被一条删除 | ✅ 已修（`aggregated` 标记 + `isDeletable()` + 仓库层拒删 + 两套 UI 不给按钮） |
+> | **P0-6 备份/迁移规则** | ❌ **主体论点不成立（误判）**：本文称 `device-transfer` 未排除 `datastore/`，实测该文件明确有 `<exclude domain="file" path="datastore/" />`，注释与代码一致，凭据不会随换机直传外泄。第三方复核（`2026-09-15-third-party-review-verification.md` §6）得出同一结论。**次要点成立**：`filesDir/snapshots/` 两份规则都没排除 → 每日快照会进 Android 系统云备份；另 `device-transfer` 放行 `covers/` 但排除 `datastore/`，换机后会产生一批待清理的孤儿封面。两点已记入 `docs/ARCHITECTURE.md`「备份排除规则」 |
+> | P1-1 守卫靠约定 | 🟡 已改按 **key 粒度** + 「放弃损坏数据」入口 + `CorruptGuardTest`/`FoodRepositoryGuardTest`；「模板化成结构性不可能忘记」未做 |
+> | P1-3 冷流收集 3 次 | ✅ 已修（`DecodeCache` + 复用 `stateIn` 流） |
+> | P1-4 设置页主线程 IO | ✅ 快照/导入路径已下沉 IO |
+> | P1-8 组合期 `File.exists()` + `photoPath` 绝对路径 | ❌ **仍未做**（`FoodAvatar.kt:43`、`EditFoodScreen.kt:284`；原文的 `Common.kt` 已于 2026-09-16 拆分） |
+>
+> **⚠️ 2026-09-17 追加：本文的无障碍数字有一处口径错误，别引用。**
+> 本文「统计：61 处 `contentDescription = null`、55 处有文字描述、**全项目仅 7 处 `semantics`**」——
+> 那个 **7 处是把 6 行 `import androidx.compose.ui.semantics.*` 一起数进去了**；真正的 `Modifier.semantics { }`
+> 调用今日实测只有 **1** 处（`ui/components/UndoSnackbar.kt:174`）。`contentDescription = null` 今日实测 **50** 处
+> （09-16 双主题合并后下降）。口径统一在 `tools/doc-metrics.sh`（该脚本对这一项专门写了警告：
+> 别用 `\bsemantics\b` 数）。结论不变且更糟：**语义树几乎完全没有**，屏幕阅读器读不出图表数据。
+> | P1-11 状态容器重组粒度 | ✅ 已修（`SettingsUiState` 19×`State` 精确订阅 + `SettingsActions` 窄接口） |
+> | P1-2 / P1-5 / P1-6 / P1-7 / P1-9 | ❌ 仍未做（`beyondViewportPageCount = 3` 在 `NavChrome.kt:125`（原 `MainActivity.kt:923`，2026-09-16 拆分后改址）；`animateColorScheme` 37 个角色动画；无 `Application` 类/无 DI；双主题一致性仍靠人工复测，无自动比对） |
+> | **P1-10 双主题渲染层收敛到组件级 style kit** | ✅ **已做完（2026-09-16 第三批 #3，八对收官）**：`Miuix*Screen.kt` 双胞胎 8 → 0，屏幕本体 17 文件 7,541 行 → 9 文件 4,204 行（**-44%**），style kit 落在 `ui/components/app/`（10 文件 2,746 行：`AppScaffold` / `AppTopBar` / `AppSnackbarHost` 骨架 + `AppConfirmDialog` / `AppFormDialog` / `AppOptionDialog` 三类弹窗 + 语义字号档位表 `AppTextScale` 13 档）；`AppNavGraph.kt` 与 `NavChrome.kt` 都已零主题分支。**唯一保留双套 body 的是设置页**（两版排版习语根本不同：MD3 滚动 `Column` + `Surface` 分组卡片 / Miuix `LazyColumn` + 库 Preference 组件；287 行逐字相同，八对最低），其 9 个弹窗里文案与动作逐字相同的 5 个（10 份实现）已收进组件层。逐对过程、验收口径与行数如实记账见 `devlog/2026-09-16.md` §15–§22 |
+> | P2-1 静态检查缺位 | ✅ 报告提交当日即落地（`.editorconfig` + `detekt.yml` + `tools/ci-gates.sh` + `static-gates` job）。**注：本文建议的 `LongParameterList`/`TooManyFunctions`/`ReturnCount` 被有意关闭**（`complexity` 规则集 `active: false`，理由见 `detekt.yml` 文件头）；`SetTextI18n` 显式 disable 与 lint `baseline.xml` 仍未做 |
+> | P2-2 CI 提速与加固 | ✅ 合并 Gradle 调用 + `concurrency` + `permissions: contents: read` + `release-r8` job；❌ 仍未做：`paths-ignore`、供应链（`verification-metadata.xml` / `dependency-review-action` / `gitleaks` / `zizmor`）、APK 体积基线、`bundleRelease`(AAB) |
+> | P2-3 `versionCode = github.run_number` | ❌ 仍未改（`release.yml:112`） |
+> | P2-4 `material-icons-extended` | 🟢 **已决策保留** + 注释记录理由（本文所述「已停止维护」成立） |
+> | P2-5 高风险处零测试 | 🟡 已补仓储写守卫集成测试 8 例（注入临时 DataStore，**未用 Robolectric**）；ViewModel 撤销状态机、双主题一致性仍缺 |
+> | P2-7 无障碍 | ❌ 仍未做（`contentDescription = null` 61 处、`semantics` 7 处，与本文统计一致） |
+> | P2-8 字符串资源化 | ❌ 仍未做（`strings.xml` 只有 `app_name`） |
+> | P3-2 / P3-4 / P3-5 / P3-6 / P3-7 / P3-9 / P3-11 | ❌ 仍未做（P3-6 MIUIX 配色入口用户指示暂缓，`MiuixSettingsScreen` KDoc 的「功能对等」声明已于 2026-09-16 改正） |
+> | P3-3 相机临时文件 / P3-8 CSV 公式注入 / P3-10 归档单条删除确认 / P3-12 `corrupt/` 上限 / P3-13 文档漂移 / P3-14 导出文件名 | ✅ 全部已修 |
+> | **P3-1 建议做 Glance 桌面小组件** | ⛔ **撞需求红线**：`docs/REQUIREMENTS.md` §4「明确不做」第 3 条就是「❌ 桌面小组件（Widget）」。要做必须先由用户推翻该边界，不要当普通待办推进 |
+>
+> **计数订正**（不影响结论）：`animateColorScheme` 是 **37** 个角色动画（本文写 36）；`Icons.*` 去重后 **34** 个（本文写 40）；`isCorrupt` 现出现 **18** 次（本文写 12 处守卫；09-15 加固后增加）；8 对双主题屏幕 16 个文件在本文基线时共 **6,903** 行（本文写 6,583），09-15 加固后现为 **7,205** 行；单测已从 73 例增至 **116** 例。
+>
+> **当前待办请以 `devlog/INDEX.md`「当前待办总览」与 `docs/audits/2026-09-15-code-review.md` §5 为准。**
+
 > 对象：`SkyForest233/chileme`，commit `41a728f`（devlog 最新 2026-08-22）
 > 审查方式：**完整静态走读**——`app/src` 全部 51 个 Kotlin 文件（14,886 行）、4 份 gradle 构建脚本、2 个 GitHub Actions workflow、manifest/res/xml、proguard 规则、10 个单测文件、CLAUDE.md + docs/ 四件套 + devlog + 既有 audits
 > **未做的事**：沙箱无 Android SDK / JDK 21（只有 JDK 11），因此**没有执行 `assembleDebug`、单测或 lint**。下面所有结论都来自源码阅读，凡涉及运行时行为的地方我都标了判断依据，不涉及"我跑出来了"。

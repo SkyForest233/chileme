@@ -44,7 +44,10 @@ internal fun escapeCsvField(value: String): String {
     // 单元格当公式执行（`=HYPERLINK(...)`、`=cmd|...`），表格被分享出去时可能变成钓鱼载体。
     // 通行做法是前置一个半角单引号让表格把它当纯文本（'' 本身也属于需要防的前缀）。
     val safe = if (value.isNotEmpty() && value[0] in "=+-@\t\r") "'$value" else value
-    if (safe.contains(',') || safe.contains('"') || safe.contains('\n') || safe.contains('\r')) {
+    // 需要加引号的 4 个字符：逗号 / 双引号 / 换行 / 回车。原来写成 4 个 contains 用 || 串起来，
+    // detekt 的 ComplexCondition（阈值 4）报「条件太多读不动」；换成 any 后语义完全等价、条件数 1。
+    // 行为由 CsvExportTest 的 `escapeCsvField` 6 条断言兜住（含 =+-@ 前缀、逗号、双引号、组合）。
+    if (safe.any { it in ",\"\n\r" }) {
         return "\"" + safe.replace("\"", "\"\"") + "\""
     }
     return safe

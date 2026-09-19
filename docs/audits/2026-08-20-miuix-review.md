@@ -1,5 +1,34 @@
 # Miuix 设计合规性审查报告
 
+> ## ⚠️ 2026-09-17 状态批注（读本文前必看）
+>
+> 本文基线是 **v2.8 刚迁完、8 对屏幕还是双实现**的时代（点名的 `MiuixHomeScreen.kt` 等 8 个文件已于
+> 2026-09-16 合并时**全部删除**）。正文原样保留，逐条现状如下。
+>
+> 今日实测口径：`git grep -o` 数**出现次数**（不是命中行数）、作用域 `app/src/main`，
+> 一键复核跑 `bash tools/doc-metrics.sh`（该脚本末尾有阳性对照：`@Composable` 158 处、虚构符号 0 处）。⚠️ **本文当年只数 8 个 Miuix 页面，今天是全仓（含 MD3 分支与组件层）
+> ⇒ 绝对值不可与本文直接相比，只看方向与「修没修」。**
+>
+> | 本文条目 | 2026-09-17 现状 |
+> |---|---|
+> | **P0 颜色语义错位**（桥接 54 处 vs `MiuixTheme` 41 处；摘要色应用 `onSurfaceVariantSummary`） | ❌ **未系统性修**，仍是主要取色方式：`MaterialTheme.colorScheme` **184** 处 vs `MiuixTheme.colorScheme` **75** 处。合并后 MD3 分支用 MD3 token 是设计本身，但「Miuix 侧仍靠桥接近似映射（`tertiary = tertiaryContainer` 这类）」这条**没解决**；摘要色也没换成 `onSurfaceVariantSummary` |
+> | **P0 字体层级未生效**（32 处显式 `fontSize`、**0** 处 `MiuixTheme.textStyles`） | 🟡 **部分已修，但走的是另一条路**：`MiuixTheme.textStyles` 现 **29** 处、显式 `fontSize` 降到 **24** 处；09-16 另建了跨主题的**语义字号档位表** `AppTextScale`（13 档，**96** 处引用，`ui/components/app/AppText.kt`）。即「统一字号节奏 + 随大字体缩放」的目标是用自建档位表达成的，不是全量换成 Miuix token |
+> | **P1 图标体系未对齐**（**0** 处 `MiuixIcons`） | 🟡 **部分已修**：`MiuixIcons` 现 **57** 处；material icons 仍 **64** 处（MD3 分支 + 部分两套图标库无对应关系的字形） |
+> | **P1 主操作按钮未用 Primary 色**（**0** 处 `buttonColorsPrimary` / `textButtonColorsPrimary`） | ✅ **已修**：`buttonColorsPrimary` **6** 处 + `textButtonColorsPrimary` **11** 处。其中弹窗那批是 **2026-09-17 当天才修的**（用户指出「Miuix 里确定/保存/添加不该是灰底」，4 处偏离改蓝底白字），并由 `MiuixDialogContentTest` 静态守卫。本文判断与上游一致：pinned tag v0.9.4-rc01 的 `DialogSection.kt` 7/7 弹窗都用 `TextButton` + `textButtonColorsPrimary()` |
+> | **P1 MD3 组件残留**（MD3 `Text` / `Surface` / `LinearProgressIndicator` / `FilterChip` / `OutlinedTextField`） | ⚠️ **判定口径已失效**：09-16 合并后是「单文件双主题」，**MD3 分支里用 MD3 组件是设计本身，不再叫残留**；要判断真残留必须按分支看，数总数没意义（例：`LinearProgressIndicator` 真正的**调用**只有 4 处 —— `AppInfo.kt:83`(Miuix)/`:93`(MD3) 与 `FoodCard.kt:161`(Miuix)/`:251`(MD3)，恰好是两对分支；按字符串数会得 11，多出来的是 import 与 KDoc 提及）。本文声明的两处妥协**仍成立**：坚果云密码框用 MD3 `OutlinedTextField`（Miuix `TextField` 无密码遮蔽）、筛选 chip 无 Miuix 等价物 |
+> | **P2-1 Snackbar 定位硬编码 84dp，建议按 `floatingNav` 分档** | ✅ **已做且更细**：`AppSnackbarPlacement`（`FloatingNav` → `bottom = 84.dp`；`SystemBars` → `navigationBarsPadding()` + 24dp）+ `AppSnackbarForm`（`UndoCountdown` / `Plain`）两个维度，落位只算一次（`ui/components/app/AppChrome.kt:150-165`） |
+> | **P2-2 装饰性图标 `contentDescription` 给/不给不一致（装饰图标应为 null）** | ❌ **仍未逐条判定，且两份报告口径相反**：本文按 Miuix 规范说装饰图标应为 `null`，而 08-22 的无障碍批把 `contentDescription = null` 当缺陷一次补了 112 处。今日实测 **50** 处 `null`、`semantics` 仅 **1** 处 ⇒ 现状是「刻意留空」与「漏填」的混合体，**没人按规范逐条区分过**。这一条与 `devlog/INDEX.md` 待办 #7（无障碍）是同一件事的两面 |
+> | **P2-3 FoodCard 选中描边手写 `Modifier.border`，未走 Miuix squircle** | 🟡 **原处已不在，同类问题换了地方**：`FoodCard` 在 09-16 合并中重构过，全仓现只剩 **1** 处 `Modifier.border`，在 `ui/components/ExpiryCalendar.kt:352`（日历选中日描边）—— 与本文那条不是同一处，squircle 能力仍未用上 |
+> | **「已符合标准的部分」5 条**（页面结构 / `OverlayDialog` / Preference 组件 / 单一 `MiuixRootTheme` / 状态提升到 VM） | ✅ 判定仍成立，但第 1 条点名的文件名已全变（`Miuix*Screen.kt` 已删除，现为单文件双主题 + `ui/components/app/` 外壳） |
+> | **改进优先级建议表（6 项）** | 第 3 项 ✅ 已做、第 1/2/4 项 🟡 部分、第 5 项口径已失效、第 6 项 ✅ 已做（squircle 除外）。现状待办以 `devlog/INDEX.md` 为准，本文这张表**不要再当 backlog 用** |
+>
+> **本文顺带暴露的一处新重复（2026-09-17 记录，未修）**：组件层已有 `AppLinearProgress`（`AppInfo.kt:76`，
+> Miuix 侧走 `MiuixLinearProgressIndicator` + `ProgressIndicatorDefaults`，高度用常量 `LinearProgressHeight = 8.dp`、
+> 宽度 `fillMaxWidth()`），但 `FoodCard.kt:161/251` 仍自己分流了一份进度条，且参数不同（高度 **6.dp**、
+> 宽度用 `weight(1f)`）。⇒ 属**未收编的重复**，但收编会改变视觉（6dp→8dp、weight→fillMaxWidth），
+> 是行为改动而非纯重构，需两主题真机复测，故未在本轮文档整理中顺手做；已登记进 `devlog/INDEX.md` 待办。
+
+
 > 日期：2026-08-20
 > 依据：`.claude/skills/miuix`（v0.9.4-rc01 @ 4a6b750b）的 `ui-review-workflow.md` / `design-language.md` / `color-lookup.md`
 > 范围：MIUIX 模式下全部已迁移页面 + 共享组件 + 桥接层

@@ -4,110 +4,69 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material.icons.rounded.DeleteForever
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.SnackbarResult
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.remember
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import com.agon.app.data.ConsumptionRecord
-import com.agon.app.data.isDeletable
 import com.agon.app.data.byId
 import com.agon.app.data.cn
+import com.agon.app.data.isDeletable
 import com.agon.app.ui.components.EmptyState
-import com.agon.app.ui.components.SwipeDismissSnackbarHost
-import com.agon.app.ui.components.showUndoSnackbar
+import com.agon.app.ui.components.app.AppHintText
+import com.agon.app.ui.components.app.AppListRow
+import com.agon.app.ui.components.app.AppScaffold
+import com.agon.app.ui.components.app.rememberAppSnackbarHostState
 import com.agon.app.ui.theme.MotionEasing
 import com.agon.app.viewmodel.AppViewModel
-import kotlinx.coroutines.flow.filterNotNull
+import com.agon.app.viewmodel.UiEvent
+import com.agon.app.viewmodel.undoDeleteConsumption
 import java.time.LocalDate
 
 /**
- * 消耗记录管理页（Material 3）：列出全部消耗流水，可删除单条以修正统计。
+ * 消耗记录管理页（双主题）：列出全部消耗流水，可删除单条以修正统计。
  * 删除仅移除统计记录，不回滚库存数量（库存可自行在列表/详情调整）。
+ *
+ * 2026-09-16 由 `ConsumptionLogScreen`（MD3）+ `MiuixConsumptionLogScreen` 合并而来：
+ * 两份 396 行的文件里，业务结构逐行相同，只有外壳（Scaffold/顶栏/卡片/字号/图标字形）不同。
+ * 外壳差异下沉到 `ui/components/app/`，本文件只剩一份结构，改口径不会再漏掉另一个主题。
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ConsumptionLogScreen(
     viewModel: AppViewModel,
     onBack: () -> Unit,
 ) {
     val state = rememberConsumptionLogUiState(viewModel)
-    val snackbarHostState = remember { SnackbarHostState() }
+    val snackbar = rememberAppSnackbarHostState()
 
-    // 删除后的撤销提示（collect 模式避免 consume 改变 key 取消协程）
-    LaunchedEffect(Unit) {
-        viewModel.deletedConsumption.filterNotNull().collect { deleted ->
-            viewModel.consumeDeletedConsumption()
-            val result = snackbarHostState.showUndoSnackbar(
-                "已删除「${deleted.record.name}」的消耗记录",
-            )
-            if (result == SnackbarResult.ActionPerformed) {
-                viewModel.undoDeleteConsumption(deleted.record, deleted.index)
+    // 删除后的撤销提示（#4a：改收 Channel，接收即出队，不再需要 consume）。
+    // key 用 snackbar：切换主题会换一个新的宿主容器，旧协程必须停掉，
+    // 否则撤销条会弹到已经卸载的那个宿主上（合并前两份文件天然分开，不存在这个问题）。
+    // 换成 Channel 后这条更稳：主题切换期间发出的事件会在队列里等着，不会像
+    // SharedFlow(replay=0) 那样直接丢掉。
+    LaunchedEffect(snackbar) {
+        viewModel.consumptionLogUiEvents.collect { event ->
+            if (event is UiEvent.UndoDeleteConsumption) {
+                val undone = snackbar.showUndoSnackbar("已删除「${event.record.name}」的消耗记录")
+                if (undone) {
+                    viewModel.undoDeleteConsumption(event.record, event.index)
+                }
             }
         }
     }
 
-    Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
-        snackbarHost = {
-            SwipeDismissSnackbarHost(
-                snackbarHostState,
-                modifier = Modifier
-                    .navigationBarsPadding()
-                    .padding(bottom = 24.dp),
-            )
-        },
-        topBar = {
-            TopAppBar(
-                title = { Text("消耗记录", fontWeight = FontWeight.Bold) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "返回")
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background,
-                ),
-            )
-        },
-    ) { padding ->
+    AppScaffold(title = "消耗记录", onBack = onBack, snackbar = snackbar) { padding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding),
         ) {
-            Text(
+            AppHintText(
                 "删除记录仅修正统计，不会回滚库存数量",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
             )
             if (state.sortedRecords.isEmpty()) {
@@ -129,77 +88,29 @@ fun ConsumptionLogScreen(
                 ) {
                     // key 用 index 兜底：旧数据 id=null，若同天同名同数量会出现 key 冲突崩溃
                     itemsIndexed(state.sortedRecords, key = { index, record -> record.id ?: "idx-$index" }) { _, record ->
-                        ConsumptionRow(
-                            record = record,
+                        // 月度聚合记录（一条 = 整月合计）：删掉它等于抹掉整月历史，所以不给删除按钮，
+                        // 只标注数据来源让用户理解「为什么这一行是几十件」。
+                        val deletable = record.isDeletable()
+                        AppListRow(
                             emoji = state.categories.byId(record.category).emoji,
-                            onDelete = { state.deleteRecord(record) },
+                            title = record.name,
+                            subtitle = LocalDate.ofEpochDay(record.epochDay).cn(),
+                            trailing = "×${record.amount} ${record.unit}",
                             modifier = Modifier.animateItem(
                                 fadeInSpec = tween(280, easing = MotionEasing.EmphasizedDecelerate),
                                 fadeOutSpec = tween(200, easing = MotionEasing.EmphasizedAccelerate),
                                 placementSpec = tween<IntOffset>(280, easing = MotionEasing.EmphasizedDecelerate),
                             ),
+                            trailingTag = if (deletable) null else "月度合计",
+                            onDelete = if (deletable) {
+                                { state.deleteRecord(record) }
+                            } else {
+                                null
+                            },
+                            deleteContentDescription = "删除 ${record.name} 的消耗记录",
                         )
                     }
                 }
-            }
-        }
-    }
-}
-
-@Composable
-private fun ConsumptionRow(
-    record: ConsumptionRecord,
-    emoji: String,
-    onDelete: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Surface(
-        shape = MaterialTheme.shapes.large,
-        color = MaterialTheme.colorScheme.surfaceContainer,
-        modifier = modifier.fillMaxWidth(),
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(emoji, fontSize = 20.sp)
-            Spacer(Modifier.width(10.dp))
-            Column(Modifier.weight(1f)) {
-                Text(
-                    record.name,
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.Medium,
-                )
-                Text(
-                    LocalDate.ofEpochDay(record.epochDay).cn(),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            Text(
-                "×${record.amount} ${record.unit}",
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.primary,
-            )
-            Spacer(Modifier.width(4.dp))
-            if (record.isDeletable()) {
-                IconButton(onClick = onDelete) {
-                    Icon(
-                        Icons.Rounded.DeleteForever,
-                        contentDescription = "删除 ${record.name} 的消耗记录",
-                        modifier = Modifier.size(20.dp),
-                        tint = MaterialTheme.colorScheme.error,
-                    )
-                }
-            } else {
-                // 月度聚合记录（一条 = 整月合计）：删掉它等于抹掉整月历史，所以不给删除按钮，
-                // 只标注数据来源让用户理解「为什么这一行是几十件」。
-                Text(
-                    "月度合计",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
             }
         }
     }

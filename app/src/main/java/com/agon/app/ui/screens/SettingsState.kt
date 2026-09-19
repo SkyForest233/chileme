@@ -13,6 +13,26 @@ import com.agon.app.data.CloudBackup
 import com.agon.app.data.FoodItem
 import com.agon.app.data.LocalSnapshot
 import com.agon.app.viewmodel.AppViewModel
+// ↓ #10b 起 VM 的领域函数按领域搬到了 `viewmodel/AppViewModel<领域>.kt`（同包 internal 扩展函数）⇒ 跨包调用要逐个 import（本仓禁通配导入）；下面的转发写法一字未改
+import com.agon.app.viewmodel.buildBackupJson
+import com.agon.app.viewmodel.buildCsvExport
+import com.agon.app.viewmodel.clearAll
+import com.agon.app.viewmodel.importBackupJson
+import com.agon.app.viewmodel.importBackupWithSnapshot
+import com.agon.app.viewmodel.loadCloudBackups
+import com.agon.app.viewmodel.loadLocalSnapshots
+import com.agon.app.viewmodel.previewBackup
+import com.agon.app.viewmodel.restoreLocalSnapshot
+import com.agon.app.viewmodel.saveLocalSnapshot
+import com.agon.app.viewmodel.saveNutstoreCredentials
+import com.agon.app.viewmodel.setAutoSyncDays
+import com.agon.app.viewmodel.setDarkMode
+import com.agon.app.viewmodel.setDynamicColor
+import com.agon.app.viewmodel.setFloatingNav
+import com.agon.app.viewmodel.setPalette
+import com.agon.app.viewmodel.setThemeStyle
+import com.agon.app.viewmodel.syncDownload
+import com.agon.app.viewmodel.syncUpload
 
 /**
  * 待用户确认的导入内容：原始 JSON + 预览摘要。
@@ -37,18 +57,18 @@ internal interface SettingsActions {
     fun setFloatingNav(enabled: Boolean)
     fun setAutoSyncDays(days: Int)
     fun saveNutstoreCredentials(account: String, pass: String)
-    fun syncUpload(onResult: (Boolean, String) -> Unit)
-    fun loadCloudBackups(onResult: (Boolean, String) -> Unit)
-    fun syncDownload(fileName: String, onResult: (Boolean, String) -> Unit)
+    fun syncUpload()
+    fun loadCloudBackups()
+    fun syncDownload(fileName: String)
     fun loadLocalSnapshots()
     fun saveLocalSnapshot(onDone: ((Boolean) -> Unit)?)
-    fun restoreLocalSnapshot(fileName: String, onResult: (Boolean, String) -> Unit)
+    fun restoreLocalSnapshot(fileName: String)
     fun clearAll()
     suspend fun buildBackupJson(): String
     suspend fun buildCsvExport(): String
     suspend fun importBackupJson(raw: String): Boolean
     suspend fun previewBackup(raw: String): BackupData?
-    fun importBackupWithSnapshot(raw: String, onResult: (ok: Boolean, snapshotSaved: Boolean) -> Unit)
+    fun importBackupWithSnapshot(raw: String)
 }
 
 /**
@@ -197,15 +217,13 @@ class SettingsUiState internal constructor(
     fun saveNutstoreCredentials(account: String, pass: String) =
         actions.saveNutstoreCredentials(account, pass)
 
-    fun syncUpload(onResult: (Boolean, String) -> Unit) = actions.syncUpload(onResult)
-    fun loadCloudBackups(onResult: (Boolean, String) -> Unit) = actions.loadCloudBackups(onResult)
-    fun syncDownload(fileName: String, onResult: (Boolean, String) -> Unit) =
-        actions.syncDownload(fileName, onResult)
+    fun syncUpload() = actions.syncUpload()
+    fun loadCloudBackups() = actions.loadCloudBackups()
+    fun syncDownload(fileName: String) = actions.syncDownload(fileName)
 
     fun loadLocalSnapshots() = actions.loadLocalSnapshots()
     fun saveLocalSnapshot(onDone: ((Boolean) -> Unit)? = null) = actions.saveLocalSnapshot(onDone)
-    fun restoreLocalSnapshot(fileName: String, onResult: (Boolean, String) -> Unit) =
-        actions.restoreLocalSnapshot(fileName, onResult)
+    fun restoreLocalSnapshot(fileName: String) = actions.restoreLocalSnapshot(fileName)
 
     fun clearAll() = actions.clearAll()
 
@@ -218,9 +236,8 @@ class SettingsUiState internal constructor(
     /** 解析备份用于导入前预览（不改动数据）；非备份 / 畸形 JSON 返回 null。 */
     suspend fun previewBackup(raw: String): BackupData? = actions.previewBackup(raw)
 
-    /** 导入前先存一份本地快照，再整体替换。参数二 = 快照是否保存成功。 */
-    fun importBackupWithSnapshot(raw: String, onResult: (ok: Boolean, snapshotSaved: Boolean) -> Unit) =
-        actions.importBackupWithSnapshot(raw, onResult)
+    /** 导入前先存一份本地快照，再整体替换。成败经设置页的 `UiEvent` 报信（#4c）。 */
+    fun importBackupWithSnapshot(raw: String) = actions.importBackupWithSnapshot(raw)
 }
 
 /** `SettingsActions` 的 ViewModel 实现（保持 `AppViewModel` 不变）。 */
@@ -247,15 +264,15 @@ private class ViewModelSettingsActions(private val viewModel: AppViewModel) : Se
         viewModel.saveNutstoreCredentials(account, pass)
     }
 
-    override fun syncUpload(onResult: (Boolean, String) -> Unit) {
-        viewModel.syncUpload(onResult)
+    override fun syncUpload() {
+        viewModel.syncUpload()
     }
-    override fun loadCloudBackups(onResult: (Boolean, String) -> Unit) {
-        viewModel.loadCloudBackups(onResult)
+    override fun loadCloudBackups() {
+        viewModel.loadCloudBackups()
     }
 
-    override fun syncDownload(fileName: String, onResult: (Boolean, String) -> Unit) {
-        viewModel.syncDownload(fileName, onResult)
+    override fun syncDownload(fileName: String) {
+        viewModel.syncDownload(fileName)
     }
 
     override fun loadLocalSnapshots() {
@@ -264,8 +281,8 @@ private class ViewModelSettingsActions(private val viewModel: AppViewModel) : Se
     override fun saveLocalSnapshot(onDone: ((Boolean) -> Unit)?) {
         viewModel.saveLocalSnapshot(onDone)
     }
-    override fun restoreLocalSnapshot(fileName: String, onResult: (Boolean, String) -> Unit) {
-        viewModel.restoreLocalSnapshot(fileName, onResult)
+    override fun restoreLocalSnapshot(fileName: String) {
+        viewModel.restoreLocalSnapshot(fileName)
     }
 
     override fun clearAll() {
@@ -275,11 +292,8 @@ private class ViewModelSettingsActions(private val viewModel: AppViewModel) : Se
     override suspend fun buildCsvExport(): String = viewModel.buildCsvExport()
     override suspend fun importBackupJson(raw: String): Boolean = viewModel.importBackupJson(raw)
     override suspend fun previewBackup(raw: String): BackupData? = viewModel.previewBackup(raw)
-    override fun importBackupWithSnapshot(
-        raw: String,
-        onResult: (ok: Boolean, snapshotSaved: Boolean) -> Unit,
-    ) {
-        viewModel.importBackupWithSnapshot(raw, onResult)
+    override fun importBackupWithSnapshot(raw: String) {
+        viewModel.importBackupWithSnapshot(raw)
     }
 }
 

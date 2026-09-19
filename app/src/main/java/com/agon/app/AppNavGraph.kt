@@ -1,0 +1,169 @@
+package com.agon.app
+
+// App 路由表：NavDisplay 的 8 个 entry<AppRoute.*>，以及它们的转场 / 圆角裁剪 / 视差配置。
+//
+// 硬约定（与 docs/ARCHITECTURE.md 一致）：
+//   · **全 App 只有一个 NavDisplay**，就在这里；`rememberNavBackStack` 仍留在 MainApp（状态源唯一）。
+//   · 二级页一律走回调（navigate / popRoute），**不得**把 backStack 继续往下传给屏幕。
+//   · 外层 Box 把内容限宽 840dp 居中（MD3 大屏可读性）；手机上无变化。
+//
+// 形参曾一度是 9 个、且名字与被捕获的 MainApp 局部**完全一致**（navigate / popRoute / openList /
+// selectTab / chromeScrollConnection …），那是忠实搬运的刻意选择：搬过来的 101 行 entry 代码因此
+// 一个字都不用改，只整体反缩进 4 空格 —— 对这一段做 `git diff -w` 是空的。
+//
+// 2026-09-17 按本文件当时写下的计划做了窄化：4 个导航动作压成 [AppNavCallbacks] 数据类，**形参 9 → 6**。
+// 关键是函数体第一行用**解构声明**把它们还原成同名的 4 个局部值 —— 于是那 101 行 entry 代码到今天
+// 仍然一个字没改（`git diff -w` 对这一段依然是空的），MainApp 里 FAB / 底栏 / `MiuixFloatingNav`
+// 共用的那几个局部函数也一个没动，调用点只是多包一层 `AppNavCallbacks(…)`（仍用 `::局部函数` 传引用）。
+//
+// 2026-09-16 由 MainActivity.kt（拆分中途在 MainApp.kt）搬出；MainActivity.kt 的 1,123 行至此拆完。
+
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.unit.dp
+import com.agon.app.ui.navigation.AppRoute
+import com.agon.app.ui.screens.ArchiveScreen
+import com.agon.app.ui.screens.CategoryManageScreen
+import com.agon.app.ui.screens.ConsumptionLogScreen
+import com.agon.app.ui.screens.EditFoodScreen
+import com.agon.app.ui.screens.LocationManageScreen
+import com.agon.app.ui.screens.ThresholdManageScreen
+import com.agon.app.ui.screens.FoodDetailScreen
+import com.agon.app.viewmodel.AppViewModel
+import top.yukonga.miuix.kmp.nav.core.NavCornerClipMode
+import top.yukonga.miuix.kmp.nav.core.NavDisplay
+import top.yukonga.miuix.kmp.nav.core.NavDisplayEffects
+import top.yukonga.miuix.kmp.nav.core.rememberNavSystemCornerRadius
+import top.yukonga.miuix.kmp.nav.transition.NavTransitions
+import top.yukonga.miuix.kmp.nav.core.NavBackStack
+import androidx.compose.foundation.pager.PagerState
+
+/**
+ * [AppNavHost] 需要的 4 个导航动作。
+ *
+ * 2026-09-17 由 4 个平铺 lambda 收窄而来（形参 9 → 6，`docs/WORKFLOW.md` 记的 `LongParameterList`
+ * 24 条里就包含这个函数）。函数体开头把这 4 个动作取成**与 MainApp 局部函数同名**的局部值，
+ * 靠它把 101 行 entry 代码保持原样（那段至今 `git diff -w` 为空）。
+ *
+ * 用 data class 而不是接口（仓库里 `SettingsActions` 是接口，那是为了让状态容器能在纯 JVM 单测里构造）：
+ * 这 4 个动作的实现是 MainApp 组合期间的**局部函数**，做成接口就得每次重组新建一个匿名对象，
+ * 而 data class 直接装 `::局部函数` 引用，与窄化前的分配行为一致。
+ */
+internal data class AppNavCallbacks(
+    val navigate: (AppRoute) -> Unit,
+    val popRoute: () -> Unit,
+    val openList: (String?) -> Unit,
+    val selectTab: (Int) -> Unit,
+)
+
+/**
+ * 唯一的 NavDisplay：按 backStack 顶端路由渲染 8 个页面（主页 Pager + 7 个二级页）。
+ *
+ * **本文件已不含任何主题分支**（2026-09-16 第三批 #3 第 6 对合并管理页后达成）：8 个页面全是
+ * 单文件双主题，MD3 / MIUIX 的差异只在 `ui/components/app/` 的骨架组件里分流。
+ * 原来这里是「每个二级页按 LocalThemeStyle 分流两套实现」，故 `LocalThemeStyle` / `ThemeStyle`
+ * 两个 import 与三处 if/else 一并删除（`ScreenParityTest.MergedScreens` 守着不许把双胞胎加回来）。
+ */
+@Composable
+internal fun AppNavHost(
+    backStack: NavBackStack,
+    chromeScrollConnection: NestedScrollConnection,
+    viewModel: AppViewModel,
+    pagerState: PagerState,
+    listFilter: String?,
+    callbacks: AppNavCallbacks,
+) {
+    // 取出与 MainApp 局部函数**同名**的 4 个局部值：下面 101 行 entry 代码因此仍一个字不用改。
+    // 这里刻意不用解构声明 `val (navigate, popRoute, openList, selectTab) = callbacks`：detekt 的
+    // DestructuringDeclarationWithTooManyEntries 默认上限是 3 项，4 项会被静态门禁拦下
+    // （2026-09-17 CI run 35179586612 实测）。写成 4 行取值效果完全相同。
+    val navigate = callbacks.navigate
+    val popRoute = callbacks.popRoute
+    val openList = callbacks.openList
+    val selectTab = callbacks.selectTab
+
+    // 大屏/折叠屏适配：内容最大宽 840dp 居中（MD3 大屏可读性要求），
+    // 手机上无变化；背景由外层 Scaffold 统一铺满。
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.TopCenter,
+    ) {
+        val cornerRadius = rememberNavSystemCornerRadius()
+        NavDisplay(
+            backStack = backStack,
+            onBack = { popRoute() },
+            // 澎湃记 / HyperOS 设置二级页同款：全宽跟手滑出 + 下层 1/4 视差。
+            // 圆角与 dim 在 NavDisplayEffects；不在转场里缩放到中心。
+            transition = NavTransitions.MiuixDefault,
+            effects = NavDisplayEffects(
+                enableCornerClip = true,
+                cornerClipRadius = cornerRadius,
+                // Leading：全宽滑只圆露出的那条边；All 是给缩放卡片用的。
+                cornerClipMode = NavCornerClipMode.Leading,
+                dimAmount = 0.5f,
+            ),
+            modifier = Modifier
+                .widthIn(max = 840.dp)
+                .fillMaxSize()
+                .nestedScroll(chromeScrollConnection),
+        ) {
+            entry<AppRoute.Main> {
+                MainTabsPager(
+                    viewModel = viewModel,
+                    pagerState = pagerState,
+                    listFilter = listFilter,
+                    onOpenList = { openList(it) },
+                    onOpenItem = { navigate(AppRoute.Detail(it)) },
+                    onOpenArchive = { navigate(AppRoute.Archive) },
+                    onOpenConsumption = { navigate(AppRoute.Consumption) },
+                    onOpenThresholds = { navigate(AppRoute.ManageThresholds) },
+                    onOpenCategories = { navigate(AppRoute.ManageCategories) },
+                    onOpenLocations = { navigate(AppRoute.ManageLocations) },
+                    onBackToHome = { selectTab(0) },
+                )
+            }
+            entry<AppRoute.Consumption> {
+                // 双主题已合并为一份（外壳差异在 ui/components/app/ 的骨架组件里分流）
+                ConsumptionLogScreen(viewModel = viewModel, onBack = { popRoute() })
+            }
+            entry<AppRoute.Detail> { route ->
+                // 双主题已合并为一份（外壳差异在 ui/components/app/ 的骨架组件里分流）
+                FoodDetailScreen(
+                    viewModel = viewModel,
+                    itemId = route.id,
+                    onEdit = { navigate(AppRoute.Edit(it)) },
+                    onBack = { popRoute() },
+                )
+            }
+            entry<AppRoute.Edit> { route ->
+                EditFoodScreen(
+                    viewModel = viewModel,
+                    editId = route.id,
+                    onBack = { popRoute() },
+                )
+            }
+            entry<AppRoute.Archive> {
+                // 双主题已合并为一份（外壳差异在 ui/components/app/ 的骨架组件里分流）
+                ArchiveScreen(viewModel = viewModel, onBack = { popRoute() })
+            }
+            entry<AppRoute.ManageThresholds> {
+                // 双主题已合并为一份（外壳差异在 ui/components/app/ 的骨架组件里分流）
+                ThresholdManageScreen(viewModel = viewModel, onBack = { popRoute() })
+            }
+            entry<AppRoute.ManageCategories> {
+                // 双主题已合并为一份（外壳差异在 ui/components/app/ 的骨架组件里分流）
+                CategoryManageScreen(viewModel = viewModel, onBack = { popRoute() })
+            }
+            entry<AppRoute.ManageLocations> {
+                // 双主题已合并为一份（外壳差异在 ui/components/app/ 的骨架组件里分流）
+                LocationManageScreen(viewModel = viewModel, onBack = { popRoute() })
+            }
+        }
+    }
+}

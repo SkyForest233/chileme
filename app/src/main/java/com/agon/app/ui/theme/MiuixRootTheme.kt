@@ -30,7 +30,7 @@ fun rememberMiuixController(darkMode: Int, dynamicColor: Boolean): ThemeControll
 /**
  * 把 Miuix [Colors] 桥接为 MD3 [ColorScheme]。
  *
- * 用途：尚未迁移到 Miuix 组件的页面与 `ui/components/Common.kt` 复用组件仍通过
+ * 用途：尚未迁移到 Miuix 组件的页面与 `ui/components/` 复用组件仍通过
  * `MaterialTheme.colorScheme` 取色；桥接后它们在 MIUIX 模式下也能取到协调的 Miuix 配色，
  * 属于渐进迁移的过渡层。
  *
@@ -87,7 +87,7 @@ fun miuixColorsToMd3ColorScheme(c: Colors): ColorScheme = ColorScheme(
  * MIUIX 模式的根主题：包一层 [MiuixTheme]（提供 Miuix 组件所需的 colorScheme/textStyles），
  * 再在其内桥接一个 [MaterialTheme]，让未迁移的 MD3 页面与复用组件仍可正常取色。
  *
- * 页面内使用 Miuix 组件时读 `MiuixTheme.colorScheme`；使用 MD3 组件/Common.kt 时读
+ * 页面内使用 Miuix 组件时读 `MiuixTheme.colorScheme`；使用 MD3 组件 / `ui/components` 复用组件时读
  * `MaterialTheme.colorScheme`（已桥接为 Miuix 配色），两者视觉一致。
  */
 @Composable

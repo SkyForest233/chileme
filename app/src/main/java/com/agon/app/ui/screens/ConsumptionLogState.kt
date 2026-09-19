@@ -7,6 +7,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.agon.app.data.CategoryDef
 import com.agon.app.data.ConsumptionRecord
 import com.agon.app.viewmodel.AppViewModel
+import com.agon.app.viewmodel.deleteConsumption
 
 /**
  * 消耗记录页跨主题共享状态容器。
