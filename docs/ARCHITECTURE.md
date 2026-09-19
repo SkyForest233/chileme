@@ -40,7 +40,9 @@ app/src/main/java/com/agon/app/
 │   ├─ CsvExport.kt             # 库存 CSV 导出（含公式注入防护 escapeCsvField）
 │   ├─ LocalSnapshotStore.kt    # 本地滚动快照 filesDir/snapshots/（保留最近 3 份，全部 suspend + Dispatchers.IO）
 │   ├─ ImageStore.kt            # 封面图片复制到私有目录（下采样 + EXIF 旋转校正）+ 孤儿封面清理
-│   ├─ CloudSync.kt             # 坚果云 WebDAV（NutstoreSync 单例）
+│   ├─ CloudSync.kt             # 坚果云备份的业务层：备份命名与轮转（CLOUD_BACKUP_KEEP）+ NutstoreSync 三个入口
+│   ├─ OpFailure.kt             # 同步失败的分类（Auth / Network / Other）与 401 文案常量（09-19 #11c 从 CloudSync.kt 拆出）
+│   ├─ AutoSyncPolicy.kt        # 自动同步间隔判定 isAutoSyncDue —— 纯函数，唯一能被单测钉死的那块（同上拆出）
 │   └─ SecureStore.kt           # Keystore AES-GCM 密码
 ├─ viewmodel/                   # 9 个文件（2026-09-19 #10b-1 … #10b-7 七轮收官：VM 的领域函数按领域搬成同包 internal 扩展函数）
 │   ├─ AppViewModel.kt          # 全局共享 VM（AndroidViewModel），StateFlow 暴露；277 行 🎯 < 400 达标（#10b-1 前 700、#10b-2 前 590、#10b-3 前 469、#10b-4 前 431、#10b-5 前 363、#10b-6 前 322、#10b-7 前 304；七轮搬出 48/50 个函数，只剩 init + 2 个 private 策略函数 + 44 个属性）
