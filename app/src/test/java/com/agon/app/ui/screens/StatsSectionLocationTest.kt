@@ -29,6 +29,12 @@ class StatsSectionLocationTest {
             noReturn = listOf("state.dailyTrend", "state.maxDaily"),
             entry = "StatsTrendSection(",
         ),
+        Cut(
+            marker = "// ---- 库存分类占比（环图 + 图例）----",
+            home = "StatsCategorySection.kt",
+            noReturn = listOf("state.categoryShare"),
+            entry = "StatsCategorySection(",
+        ),
     )
 
     private val screensDir = listOf(

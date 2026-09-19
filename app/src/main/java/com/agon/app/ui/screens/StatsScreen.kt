@@ -27,13 +27,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.agon.app.data.byId
-import com.agon.app.ui.components.DonutChart
 import com.agon.app.ui.components.EmptyState
 import com.agon.app.ui.components.ExpiryCalendarCard
-import com.agon.app.ui.components.LegendRow
 import com.agon.app.ui.components.app.AppArchiveAction
 import com.agon.app.ui.components.app.AppEmojiText
-import com.agon.app.ui.components.app.AppMutedText
 import com.agon.app.ui.components.app.AppScaffold
 import com.agon.app.ui.components.app.AppSection
 import com.agon.app.ui.components.app.AppStatCard
@@ -161,37 +158,8 @@ fun StatsScreen(
             // 近 7 天趋势：柱状图的画法在 `StatsTrendSection.kt`（本文件只管装配）
             item { StatsTrendSection(state = state) }
 
-            // ---- 库存分类占比（环图 + 图例）----
-            item {
-                AppSection(cardTitle = "库存分类占比", sectionTitle = "库存分类") {
-                    if (state.categoryShare.isEmpty()) {
-                        AppMutedText("暂无库存数据", AppTextScale.Meta)
-                    } else {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            DonutChart(
-                                data = state.categoryShare.map { it.second.toFloat() },
-                                colors = state.categoryShare.mapIndexed { i, _ -> chartColors[i % chartColors.size] },
-                                centerLabel = "${state.totalQty}",
-                                centerSub = "总件数",
-                            )
-                            Spacer(Modifier.height(16.dp))
-                            Column(
-                                verticalArrangement = Arrangement.spacedBy(8.dp),
-                                modifier = Modifier.fillMaxWidth(),
-                            ) {
-                                state.categoryShare.forEachIndexed { i, (catId, qty) ->
-                                    LegendRow(
-                                        color = chartColors[i % chartColors.size],
-                                        category = state.categories.byId(catId),
-                                        qty = qty,
-                                        percent = if (state.totalQty > 0) qty * 100 / state.totalQty else 0,
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-            }
+            // 库存分类占比：环图与图例的画法在同包 `StatsCategorySection.kt`（本文件只管装配）
+            item { StatsCategorySection(state = state, chartColors = chartColors) }
 
             // ---- 消耗排行榜 ----
             item {
