@@ -1151,7 +1151,7 @@
 
 ### 11a / 11b / 11c 落地记录（09-19；数字与踩坑细节只写在 `devlog/2026-09-19.md` §15 / §16，此处不重抄）
 
-- 状态：**11a ✅ / 11b ✅**；**11c ⏳**（两笔 `2c4e6b6` + `76978ab` 都写完了，但 09-19 14:38 沙箱 `GH_TOKEN` 失效 ⇒ 前者那个 run 读不到结果、后者还没推出去 ⇒ 按判据④不算落地）；11d–11f 未开工。三条验收的实测结果：① 逐行相等 ✓（脚本 assert 每段大括号闭合）；
+- 状态：**11a ✅ / 11b ✅ / 11c ✅**（11c 两笔 `2c4e6b6` + `76978ab`，修门禁红的那笔 `9b5c33e` 在 run `35450021031` 三 job 全绿）；11d–11f 未开工。三条验收的实测结果：① 逐行相等 ✓（脚本 assert 每段大括号闭合）；
   ② import 改动数 预测 0 = 实测 0 ✓（同包移动）；③ 位置守卫 ✓（`ComponentAppHomeTest` 现 20 条 + `AppColorLocationTest`）。
 - **计划改判一处**：`AppBarIconButton`（两主题共用的图标按钮底座）原写「留在 `AppChrome.kt`」，实做发现动作族要调它、
   而它是那个文件的 `private fun` ⇒ Kotlin 的 `private` 顶层成员是**文件**级可见，同包也不行 ⇒ **底座随调用方走**，
@@ -1173,6 +1173,7 @@
 | 同包跨文件的 `private` 顶层成员 | 新文件按名字调他文件的 `private fun` ⇒ 编译红（`it is private in file`），而 import 类判据**结构上看不见它**（它不在任何 import 里） | 守卫 `CrossFilePrivateRefTest`（整棵 `ui/` 扫，09-19 起）；或把底座随调用方搬走并改 `internal` |
 | Kotlin 2.4.10 已移除 `arrayArrayOf` | 守卫/工具测试里用它拼路径 ⇒ `testDebugUnitTest` 编译红 + 一串看不懂的连带错 | 写 `listOf(两条相对路径).map(::File)`；报错**只修最上面那条 `e:`**，其余多半是涟漪 |
 | 会话中途丢 GitHub 凭据 | `gh` 401 + `git push` 无凭据 ⇒ 已推的 run 读不到、后一笔推不出去，闭环断在最后一公里 | 台账与状态一律写 ⏳（**读不到证据就当没落地**）；重连后 push → 盯 run → 回填三处 |
+| 注释符与循环跳转数（09-19 三次红之三） | 守卫里写 `#` 注释（markdown / shell 习惯）⇒ ktlint 报 `Not a valid Kotlin file`、kotlinc 一起炸；一个 `for` 里两条 `continue` ⇒ detekt `LoopWithTooManyJumpStatements`（阈值 **1**） | 动手前两条 grep：`grep -rn "^[[:space:]]*#" app/src --include=*.kt` 应为 0；新循环跳转 ≤1（要跳就用 `filter` / `mapNotNull`，先例 `NutstoreWebdav.parsePropfind`）。`docs/WORKFLOW.md` §4 已表行化 |
 | 行为改动的边界 | 11a–11e **都不改行为** ⇒ 不占用真机复测；11f 改执行位置 | 11f 完成后请用户过一眼「升级后凭据仍在 + 首屏不闪」两条即可 |
 ## #3 收官：验收口径与偏差（**不要再引用旧数字**）
 
