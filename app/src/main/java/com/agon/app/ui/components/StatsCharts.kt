@@ -50,7 +50,7 @@ import com.agon.app.ui.theme.MotionEasing
  * （MD3 `labelSmall` + `onSurfaceVariant` / Miuix `footnote2` + `onSurfaceVariantSummary`）。
  * 弧色由调用方传（`appChartColors` 的两份清单不同，见其 KDoc）。
  */
-internal @Composable
+@Composable
 internal fun DonutChart(
     data: List<Float>,
     colors: List<Color>,
@@ -93,7 +93,7 @@ internal fun DonutChart(
  * 环图的图例一行：色点 + 「emoji 分类名」+「N 件 · P%」。
  * 两版只有文字样式不同（都是 MD3 `bodyMedium` / Miuix `body2` = [AppTextScale.Meta] 档），故并成一份。
  */
-internal @Composable
+@Composable
 internal fun LegendRow(color: Color, category: CategoryDef, qty: Int, percent: Int) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
