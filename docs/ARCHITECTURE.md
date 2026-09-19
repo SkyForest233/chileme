@@ -84,6 +84,10 @@ app/src/main/java/com/agon/app/
                                 #    ⚠️ #10e（2026-09-19）起另有 **5 个**从 EditFoodScreen.kt 抽出去的**区块文件**
                                 #    （同样不是新增屏幕）：EditFoodCoverSection / EditFoodNameSection /
                                 #    EditFoodFieldSections / EditFoodThresholdSection / EditFoodChrome
+                                #    ⚠️ #11d ②（2026-09-19）起另有从 StatsScreen.kt 抽出的区块文件（同样不是新增屏幕）：
+                                #    StatsTrendSection.kt（近 7 天趋势柱状图；其余区块逐刀补进来）。
+                                #    形状照 #10e：同包 `internal @Composable` + 参数表按入口局部审计给 ⇒ 调用点 import 零改动；
+                                #    位置判据在 `StatsSectionLocationTest`（区块标记的住所 / 画法不回流 / 调用点必须还在）。
                                 #    ⇒ 该目录（不含 *State.kt）16 → **21** 文件；编辑页入口行数不在此写死（M1-2 又加过 13 行），
 #      现值看 doc-metrics 的「#10e 五个区块文件行数」与「屏幕目录最大文件」两行
                                 #    ⇒ 所以「文件数」不再等于「屏幕数」；

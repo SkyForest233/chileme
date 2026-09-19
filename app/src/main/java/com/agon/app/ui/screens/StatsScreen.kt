@@ -22,7 +22,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.layout.layout
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -42,7 +41,6 @@ import com.agon.app.ui.components.app.AppStatTone
 import com.agon.app.ui.components.app.AppText
 import com.agon.app.ui.components.app.AppTextScale
 import com.agon.app.ui.components.app.appChartColors
-import com.agon.app.ui.components.app.appHighestContainerColor
 import com.agon.app.ui.components.app.appPrimaryColor
 import com.agon.app.ui.components.app.appPrimaryContainerColor
 import com.agon.app.ui.components.app.appStatsListMetrics
@@ -56,8 +54,9 @@ import com.agon.app.viewmodel.AppViewModel
  * 2026-09-16 由 `StatsScreen.kt`(455) + `MiuixStatsScreen.kt`(445) 合并为单文件双主题（第三批 #3 第 7 对）。
  * 两版去掉 package/import/注释后是 383 / 362 行代码，其中 **271 行逐字相同**（把 `MaterialTheme`↔`MiuixTheme`、
  * `.typography.`↔`.textStyles.`、`Miuix` 前缀归一化后是 294 行）—— **图表是 `Canvas` 与 `layout` 自绘的，本来就与主题无关**，
- * 差异只在文字档位、取色、以及「节标题放哪儿」这三类。合并后 `DonutChart` / `LegendRow` 两份变一份，
- * 柱状图与排行榜行的代码留在本文件（它们只此一处用，且已经不含任何主题分支）。
+ * 差异只在文字档位、取色、以及「节标题放哪儿」这三类。合并后 `DonutChart` / `LegendRow` 两份变一份；
+ * 09-19 #11d 之后这两个图表件下沉到 `ui/components/StatsCharts.kt`，柱状图的画法在同包 `StatsTrendSection.kt`
+ * （本文件只剩装配：状态取一次、区块按顺序排、`LazyColumn` 的度量在这里给）。
  *
  * **业务量一律走已测状态层**（这条是 2026-09-15 的修复，合并前 Miuix 版的文件头注释就是它）：
  * 此前 Miuix 那一版把 `StatsState` 的计算手抄了一遍，于是 `StatsStateTest` 测的是「MIUIX 主题下
@@ -77,7 +76,8 @@ import com.agon.app.viewmodel.AppViewModel
  * 两处非等价改动（都是收敛到更好的一边，刻意）：
  * ① 排行榜的点击目标用 `state.findItemIdByName(name)`（MD3 版的写法）—— Miuix 版在 UI 里内联了
  *   `items.firstOrNull { it.name == name }?.id`，属业务查找漏进渲染层，语义相同。
- * ② 柱高比例用 MD3 版的 `if (state.maxDaily > 0) … else 0f` 有守卫写法。Miuix 版直接除；
+ * ② 柱高比例用 MD3 版的 `if (state.maxDaily > 0) … else 0f` 有守卫写法（这段画法现在在 `StatsTrendSection.kt`）。
+ *   Miuix 版直接除；
  *   实际上 `StatsState` 里 `maxDaily` 已 `.coerceAtLeast(1)`，两版结果相同（**不存在 NaN**），
  *   取有守卫的那份只是口径统一，不是修 bug。
  * `animateFloatAsState` 的 `label` 统一用 MD3 版的（`"bar"` / `"topRankBar"`，Miuix 版带 `miuix` 前缀
@@ -158,62 +158,8 @@ fun StatsScreen(
                 )
             }
 
-            // ---- 近 7 天消耗趋势（柱状图）----
-            item {
-                AppSection(cardTitle = "近 7 天消耗趋势", sectionTitle = "消耗趋势") {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(120.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.Bottom,
-                    ) {
-                        state.dailyTrend.forEach { (date, amount) ->
-                            Column(
-                                modifier = Modifier.weight(1f),
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                            ) {
-                                if (amount > 0) {
-                                    AppText(
-                                        "$amount",
-                                        AppTextScale.Tag,
-                                        fontWeight = FontWeight.Bold,
-                                        color = appPrimaryColor(),
-                                    )
-                                    Spacer(Modifier.height(2.dp))
-                                }
-                                val ratio = if (state.maxDaily > 0) amount.toFloat() / state.maxDaily else 0f
-                                val animRatio = animateFloatAsState(
-                                    targetValue = ratio,
-                                    animationSpec = tween(600, easing = MotionEasing.EmphasizedDecelerate),
-                                    label = "bar",
-                                )
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth(0.62f)
-                                        .layout { measurable, constraints ->
-                                            val minH = if (amount > 0) 14.dp.roundToPx() else 8.dp.roundToPx()
-                                            val h = (84.dp.roundToPx() * animRatio.value).toInt().coerceAtLeast(minH)
-                                            val placeable = measurable.measure(
-                                                constraints.copy(minHeight = h, maxHeight = h),
-                                            )
-                                            layout(placeable.width, h) { placeable.placeRelative(0, 0) }
-                                        }
-                                        .clip(RoundedCornerShape(50))
-                                        .background(
-                                            if (amount > 0) appPrimaryColor() else appHighestContainerColor(),
-                                        ),
-                                )
-                                Spacer(Modifier.height(6.dp))
-                                AppMutedText(
-                                    "${date.monthValue}/${date.dayOfMonth}",
-                                    AppTextScale.Tag,
-                                )
-                            }
-                        }
-                    }
-                }
-            }
+            // 近 7 天趋势：柱状图的画法在 `StatsTrendSection.kt`（本文件只管装配）
+            item { StatsTrendSection(state = state) }
 
             // ---- 库存分类占比（环图 + 图例）----
             item {
