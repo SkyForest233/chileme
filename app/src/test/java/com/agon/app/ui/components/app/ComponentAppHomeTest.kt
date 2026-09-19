@@ -1,11 +1,12 @@
 package com.agon.app.ui.components.app
 
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
 
 /**
- * 守卫（#11b ①，09-19）：`ui/components/app/` 里登记过的东西**只有一个家**。
+ * 守卫（#11b ①②，09-19）：`ui/components/app/` 里登记过的东西**只有一个家**。
  *
  * #11 的判据是「一件事一个文件」，不是行数——所以这里钉的是**位置**，且刻意不钉数量：
  * 往 `AppBarActions.kt` 再加一个顶栏入口、往 `AppSnackbar.kt` 加一种条形态，都不该让这条测试变红；
@@ -36,6 +37,11 @@ class ComponentAppHomeTest {
         "AppSnackbarPlacement" to "AppSnackbar.kt",
         "AppSnackbarForm" to "AppSnackbar.kt",
         "AppSnackbarHost" to "AppSnackbar.kt",
+        "AppEditAction" to "AppBarActions.kt",
+        "AppDeleteAction" to "AppBarActions.kt",
+        "AppArchiveAction" to "AppBarActions.kt",
+        "AppSelectAllAction" to "AppBarActions.kt",
+        "AppDestructiveAction" to "AppBarActions.kt",
     )
 
     @Test
@@ -82,6 +88,18 @@ class ComponentAppHomeTest {
                 !code.contains(needle),
             )
         }
+    }
+
+    @Test
+    fun `顶栏动作入口只定义在 AppBarActions 里`() {
+        // 钉 #11b ② 的另一半约定：顶栏动作族集中在 AppBarActions.kt。
+        // 数量随需求增长是对的（那是正常新增）；但 `AppTopBar` 自己不许再长出动作按钮——
+        // 否则「再加一个顶栏入口」又要先考古一遍它该放哪。
+        val dir = appDir() ?: return
+        val chrome = codeByFile(dir)["AppChrome.kt"] ?: return
+        val actionInChrome = Regex("""^fun App\w+Action\(""", RegexOption.MULTILINE).findAll(chrome)
+            .map { it.value }.toList()
+        assertEquals("AppChrome.kt 里不该再定义顶栏动作入口：", emptyList<String>(), actionInChrome)
     }
 
     // ---- 辅助 ----

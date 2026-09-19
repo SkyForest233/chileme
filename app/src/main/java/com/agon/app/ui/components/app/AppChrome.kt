@@ -1,6 +1,7 @@
 package com.agon.app.ui.components.app
 
-// App 级页面骨架：Scaffold + 顶栏。09-19 #11b ① 已把撤销条宿主拆去 AppSnackbar.kt。
+// App 级页面骨架：Scaffold + 顶栏。09-19 #11b 把另外两件事拆出去了：撤销条宿主 → AppSnackbar.kt、
+// 顶栏动作族 → AppBarActions.kt。
 //
 // 「Miuix / MD3 双实现，靠 LocalThemeStyle 分流」的写法照抄 ui/components/Badges.kt 的 StatusBadge。
 // 与 components/ 下的叶子组件不同，本目录（components/app/）放的是**屏幕骨架级**组件：
@@ -21,11 +22,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material.icons.rounded.Delete
-import androidx.compose.material.icons.rounded.DeleteForever
-import androidx.compose.material.icons.rounded.Edit
-import androidx.compose.material.icons.rounded.History
-import androidx.compose.material.icons.rounded.SelectAll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -56,10 +52,6 @@ import top.yukonga.miuix.kmp.basic.TopAppBar as MiuixTopAppBar
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.icon.extended.Close
-import top.yukonga.miuix.kmp.icon.extended.Delete
-import top.yukonga.miuix.kmp.icon.extended.Edit
-import top.yukonga.miuix.kmp.icon.extended.Recent
-import top.yukonga.miuix.kmp.icon.extended.SelectAll
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /**
@@ -188,55 +180,6 @@ private fun AppBarIconButton(
             }
         }
     }
-}
-
-/** 顶栏「编辑」入口：MD3 `Edit` / Miuix `Edit`，都用默认内容色（详情页在用）。 */
-@Composable
-fun AppEditAction(onClick: () -> Unit, contentDescription: String = "编辑") {
-    AppBarIconButton(onClick, contentDescription, Icons.Rounded.Edit, MiuixIcons.Edit)
-}
-
-/** 顶栏「删除这一条」入口：MD3 `Delete` / Miuix `Delete`，error 色（详情页在用）。 */
-@Composable
-fun AppDeleteAction(onClick: () -> Unit, contentDescription: String = "删除") {
-    AppBarIconButton(onClick, contentDescription, Icons.Rounded.Delete, MiuixIcons.Delete, appErrorColor())
-}
-
-/** 顶栏「归档历史」入口：MD3 `History` / Miuix `Recent`，primary 色（列表页在用）。 */
-@Composable
-fun AppArchiveAction(onClick: () -> Unit, contentDescription: String = "归档历史") {
-    AppBarIconButton(onClick, contentDescription, Icons.Rounded.History, MiuixIcons.Recent, appPrimaryColor())
-}
-
-/**
- * 顶栏「全选 / 取消全选」入口（列表页多选态），primary 色。
- *
- * ⚠️ **两主题的字形逻辑不同，合并前就是这样，照抄不统一**：MD3 恒用 `SelectAll` 字形、只换
- * contentDescription（「全选」/「取消全选」）；Miuix 在已全选时把字形换成 `Close`。
- * 与 [AppEditButton]（MD3 有铅笔图标、Miuix 没有）同一类刻意保留的不对称。
- */
-@Composable
-fun AppSelectAllAction(allSelected: Boolean, onClick: () -> Unit) {
-    val description = if (allSelected) "取消全选" else "全选"
-    if (LocalThemeStyle.current == ThemeStyle.MIUIX) {
-        MiuixIconButton(onClick = onClick) {
-            MiuixIcon(
-                if (allSelected) MiuixIcons.Close else MiuixIcons.SelectAll,
-                contentDescription = description,
-                tint = appPrimaryColor(),
-            )
-        }
-    } else {
-        IconButton(onClick = onClick) {
-            Icon(Icons.Rounded.SelectAll, contentDescription = description, tint = appPrimaryColor())
-        }
-    }
-}
-
-/** 顶栏「清空 / 删除全部」入口：MD3 `DeleteForever` / Miuix `Delete`，error 色（归档页在用）。 */
-@Composable
-fun AppDestructiveAction(onClick: () -> Unit, contentDescription: String) {
-    AppBarIconButton(onClick, contentDescription, Icons.Rounded.DeleteForever, MiuixIcons.Delete, appErrorColor())
 }
 
 /**

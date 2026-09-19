@@ -136,7 +136,8 @@ StatusUi 提供三个颜色槽位，按用途严格区分：
 
 | 文件 | 组件（生成于 2026-09-17） | 用途 |
 |---|---|---|
-| `AppChrome.kt` (375 行) | `AppScaffold` `AppTopBar` `AppMessageScreen` `AppSnackbarHost` `rememberAppSnackbarHostState` `AppSnackbarPlacement` `AppSnackbarForm` `AppEditAction` `AppDeleteAction` `AppDestructiveAction` `AppSelectAllAction` `AppArchiveAction` | 页面骨架、顶栏（含多选态）、撤销条宿主与落位、顶栏动作按钮 || `AppSnackbar.kt` (129 行) | `AppSnackbarForm` `AppSnackbarHost` `AppSnackbarHostState` `AppSnackbarPlacement` `rememberAppSnackbarHostState` | 撤销/提示条：双主题宿主容器、落点与形态。`UndoSnackbar.kt` 的 `SwipeDismissSnackbarHost`（滑动关闭装饰）**没有**一起搬——它被 `MainApp.kt` 与 4 个屏幕直接 import，搬它要改 6 处 import，与本笔「同包零改动」不是一回事（记在 ROADMAP #11 备注里）（09-19 #11b 拆出） |
+| `AppChrome.kt` (318 行) | `AppScaffold` `AppTopBar` `AppMessageScreen` `AppSnackbarHost` `rememberAppSnackbarHostState` `AppSnackbarPlacement` `AppSnackbarForm` `AppDeleteAction` `AppDestructiveAction` `AppSelectAllAction` `AppArchiveAction` | 页面骨架、顶栏（含多选态）、撤销条宿主与落位、顶栏动作按钮 || `AppSnackbar.kt` (129 行) | `AppSnackbarForm` `AppSnackbarHost` `AppSnackbarHostState` `AppSnackbarPlacement` `rememberAppSnackbarHostState` | 撤销/提示条：双主题宿主容器、落点与形态。`UndoSnackbar.kt` 的 `SwipeDismissSnackbarHost`（滑动关闭装饰）**没有**一起搬——它被 `MainApp.kt` 与 4 个屏幕直接 import，搬它要改 6 处 import，与本笔「同包零改动」不是一回事（记在 ROADMAP #11 备注里）（09-19 #11b 拆出） || `AppBarActions.kt` (82 行) | `AppArchiveAction` `AppDeleteAction` `AppDestructiveAction` `AppEditAction` `AppSelectAllAction` | 顶栏 5 个动作入口（编辑 / 删除 / 归档 / 全选 / 清空）。行内动作 `AppEditRowAction` / `AppDeleteRowAction` 仍在 `AppListRow.kt`——它们长在卡片行里，不是顶栏槽位（09-19 #11b 拆出） |
+
 
 | `AppSurface.kt` (353 行) | `AppCard` `AppPaddedCard` `AppCardTone` `AppStatusCard` `AppStatCard` `AppStatTone` `AppSection` `AppHintText` `AppStatsListMetrics` `appStatsListMetrics` | 卡片与分区外壳、统计卡、列表度量 |
 | `AppListRow.kt` (406 行) | `AppListRow` `AppActionRow` `AppCardRow` `AppSectionHeader` `AppLocationIcon` `AppEditRowAction` `AppDeleteRowAction` | 列表行（三种形态）、分区标题、行内动作 |
