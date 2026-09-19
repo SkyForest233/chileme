@@ -149,6 +149,37 @@ class CorruptGuardTest {
     }
 
     @Test
+    fun `建钥竞态不降级且读侧不建钥`() {
+        // M1-4（2026-09-19）：首次使用时启动期的 migratePlaintextPassword 与设置页保存会同时撞进
+        // getOrCreateKey()，两边都判"没有密钥"、都去 generateKey() ⇒ 后到的抛 KeyAlreadyExistsException
+        // ⇒ 被 encrypt 的 catch 吞成 null ⇒ 调用方以为"Keystore 不可用"，把明文密码落盘并提示降级。
+        // 密钥明明建得好好的，用户却被告知加密坏了。这里钉住两层修法 + 读侧不再有写副作用。
+        val store = read("com/agon/app/data/SecureStore.kt")
+        assumeTrue("找不到 SecureStore.kt，跳过", store != null)
+
+        val create = functionBody(store!!, "private fun getOrCreateKey()", indent = 4)
+        assertTrue("建钥前必须先读一次（读→建没被串行化就会撞车）", create.contains("readKey() ?:"))
+        assertTrue("「读→建」必须整体加锁", create.contains("synchronized("))
+        val afterGenerate = create.substringAfter("generator.generateKey()")
+        assertTrue(
+            "generateKey 之后的兜底必须判「别名已存在就复用」，否则异常会冒到 encrypt 的 catch 里被当成「加密失败」",
+            afterGenerate.contains("readKey()"),
+        )
+        assertTrue(
+            "读不到现存密钥时必须把原异常抛出去（吞掉就等于把真故障说成没事）",
+            afterGenerate.contains("if (existing == null) throw e"),
+        )
+
+        val decryptBody = functionBody(store, "fun decrypt(stored: String): String?", indent = 4)
+        assertTrue("解密必须只读密钥（decrypt 是每次重发都会走的路径，带写副作用会把读操作变成抢建）",
+            decryptBody.contains("readKey()"))
+        assertTrue(
+            "解密路径又去建钥了：换机恢复后会白占 KEY_ALIAS、旧密文照样解不开，还会与并发加密抢建",
+            !decryptBody.contains("getOrCreateKey()"),
+        )
+    }
+
+    @Test
     fun `三条恢复路径都先留恢复前快照`() {
         // #10b-1 起「文件导入」「本地快照还原」这两条路径，与公共前置快照方法本身，搬到了同包的
         // AppViewModelBackup.kt；#10b-2 起「坚果云整版本恢复」也搬出去了，落在 AppViewModelCloud.kt

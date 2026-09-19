@@ -138,6 +138,8 @@ app/src/main/java/com/agon/app/
 - **吃完自动归档（v2.4）**：`changeQuantity` 在消耗导致数量归零时自动移入归档（CONSUMED）并返回 true；UI 可依此提示/返回
 - **OCR**：已移除，不要再加 `DateOcr` / ML Kit
 - **坚果云同步（v2.4，v2.7 多版本轮转）**：`NutstoreSync` 单例（OkHttp），WebDAV MKCOL+PUT/GET/PROPFIND/DELETE；账号存 DataStore（nutstore_account / last_sync_time）；**密码经 `SecureStore`（Android Keystore AES-GCM）加密后存 `nutstore_password_enc`，启动时 `migratePlaintextPassword()` 自动迁移旧明文**；上传内容即 buildBackupJson() 产物，下载走 importBackupJson()
+  - **凭据 key 的实际落点是 `credentials_store`，不是 `pantry_store`**（2026-09-19 M1-1）：读写都必须带 `store = credentialsStore`，启动时 `migrateLegacyCredentials()` 先把旧位置搬过来。业务数据那份文件现在随系统备份走，密钥一个字都不能进
+  - **`SecureStore` 三条约定**（同日 M1-4）：① **只有写侧建钥** —— `encrypt` 走 `getOrCreateKey()`、`decrypt` 走 `readKey()`（读侧建钥是纯伤害：换机后白占 `KEY_ALIAS`、旧密文照样解不开，还会与并发加密抢建）；② **`KeyAlreadyExistsException` 不是故障** —— 它是"别人刚建好了"，读回来复用；此前启动期 `migratePlaintextPassword()` 与设置页保存会同时撞进 `getOrCreateKey()`，后到的那个抛异常→被 `encrypt` 的 `catch` 吞成 null→调用方误判"Keystore 不可用"→**把明文密码落盘并提示用户安全性降级**（密钥其实好好的）；现在「读→建」整体 `synchronized` + 撞上后重读，两层都要有（锁只在本进程有效）；③ 失败一律返回 `null` 而不是空串（既有守卫 `CorruptGuardTest.凭据加密失败必须可区分且调用方按非空判定` 钉着，新增的两条钉 ①②）
   - **多版本轮转（v2.7）**：上传文件名 `chileme_backup_yyyyMMdd_HHmmss.json`，上传后 PROPFIND 列目录、自动 DELETE 多余旧版本，云端保留最近 `CLOUD_BACKUP_KEEP`（=3）份；自动同步走同一 upload 入口，同样轮转
   - **恢复选择（v2.7）**：`listBackups()` 返回 `CloudBackup(fileName, sizeBytes)` 列表（新→旧），UI 弹窗选择具体版本后 `download(fileName)` 恢复；旧版单文件 `chileme_backup.json` 兼容显示在列表末尾且不参与轮转删除
 - **自动同步（v2.4）**：`auto_sync_days`（0=关/1/3/7）+ `last_auto_sync_epoch_day`；ViewModel init 时 `maybeAutoSync()` —— 间隔到且凭据完整则静默上传，成功后 Home 页 Snackbar 提示，失败静默下次重试；无 WorkManager 无后台任务
