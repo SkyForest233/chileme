@@ -123,7 +123,7 @@ StatusUi 提供三个颜色槽位，按用途严格区分：
 > （CLAUDE 里 93% 的组件名 ARCHITECTURE 已有，而 ARCHITECTURE 那条还漏了 `AppStatusCard`）。
 > 现在：**清单只在这里**，`ARCHITECTURE.md` 只留「为什么要有这一层」，`CLAUDE.md` 只留「必须/禁止」一句话 + 指针。
 >
-> 组件列由源码生成（2026-09-17，12 文件 / 3,075 行，`wc -l` 口径），复核命令：
+> 组件列由源码生成（2026-09-17 快照：12 文件 / 3,075 行，`wc -l` 口径；**现值一律见 doc-metrics「App 级组件层」那行** —— 2026-09-19 复核发现这两个数已与实测差 1 行，故此后不再手抄），复核命令：
 > ```bash
 > for f in app/src/main/java/com/agon/app/ui/components/app/*.kt; do
 >   echo "$(basename $f): $(grep -oE '^(internal |public )?(fun|val|class|enum class|data class) [A-Za-z][A-Za-z0-9]*' "$f" \
@@ -199,7 +199,7 @@ StatusUi 提供三个颜色槽位，按用途严格区分：
     `fillMaxWidth() + height(8.dp) + clip(圆角 50)`，故这三项收进组件；Miuix 上游 `LinearProgressIndicator`
     （v0.9.4-rc01，`ProgressIndicator.kt:88-91`）**内部自带** `.fillMaxWidth().height(height)`，
     调用方不传宽度也是满宽 ⇒ 抽象前后一致，不会变宽变窄。
-    ⚠️ `FoodCard.kt:161/251` 仍自己分流了一份进度条且参数不同（**6dp** + `weight(1f)`），属未收编的重复；
+    ⚠️ `FoodCard.kt` 的两处进度条（Miuix 侧 `MiuixLinearProgressIndicator` / MD3 侧 `LinearProgressIndicator`）仍自己分流且参数不同（**6dp** + `weight(1f)`），属未收编的重复；
     收编会改变视觉，是行为改动而非纯重构，需两主题真机复测（登记在 `devlog/INDEX.md` 待办）。
 - **`AppFormDialog.kt` / `AppOptionDialog.kt` / `AppBatchMoveDialog.kt`（弹窗三条铁律）**
   - **Miuix 侧 `content` 必须是单一根节点**：库把 title / summary / `content()` 放进一个**不带
@@ -261,8 +261,8 @@ StatusUi 提供三个颜色槽位，按用途严格区分：
 - **根级主题切换 + MaterialTheme 桥接（阶段二起）**：MainActivity 在 MIUIX 模式下包 `MiuixRootTheme`（`MiuixTheme` + 桥接 `MaterialTheme`），让未迁移的 MD3 页面与 `ui/components/` 复用组件仍可经 `MaterialTheme.colorScheme` 取到 Miuix 配色；桥接映射见 `ui/theme/MiuixRootTheme.kt`（缺失角色用最接近角色近似）。
 - 迁移进度（v2.8 起，2026-09-16 校正）：
   - **已 Miuix 化（全部屏幕除编辑页）**：设置页、首页、食品列表、食品详情、归档页、管理三页（阈值/分类/位置）、**统计页**，以及底部导航（悬浮/全宽）、FAB、`ui/components/` 复用组件（StatusBadge/LocationTag/QuantityStepper/EmptyState/FoodCard/DataCorruptBanner）。统计页的**图表是 `Canvas` + `layout` 自绘**（与主题无关，两版逐字相同，合并后只有一份），外壳与组件（Scaffold/TopAppBar/Card/Text/Icon/SmallTitle）走 Miuix。
-  - **已合并为单文件双主题（2026-09-16，第三批 #3；八对收官）**：消耗记录页 / 归档页 / 食品详情页 / 首页 / 食品列表页 / 管理页三合一 / 统计页 / 设置页 —— `Miuix*Screen.kt` 双胞胎 **8 → 0**；`screens/` 下现为 **9 个屏幕文件**（含从未有双胞胎的编辑页）+ **8 个 `*State.kt`**。第 6 对之后 `AppNavGraph.kt` 已不含主题分支，第 8 对之后 `NavChrome.kt` 也不含了。
-    - **口径（复核跑 `bash tools/doc-metrics.sh`）**：⚠️ **本行的三个数是 2026-09-17 的快照，#10a-1 后又变了** （10a-1 弹窗抽到同包 3 个新文件 ⇒ 除 `*State.kt` 的文件从 9 个变 12 个；**10a-2 又加 4 个**（两套 body / 备份节 / 两个 MD3 专用小组件）⇒ 现 **16 个，其中 7 个不是屏幕**）。现值一律看 doc-metrics 的「屏幕目录 ui/screens（不含 *State.kt）」「App 级组件层」两行，本行只作历史快照保留：屏幕本体（不含 `*State.kt`）**9 文件 4,209 行**、组件层 `ui/components/app/` **12 文件 3,075 行**、渲染层合计 **7,284 行**；相对 09-16 之前的基线（17 文件 7,541 行）：屏幕本体 **-44%**、渲染层合计 **-3.4%**（2026-09-17 实测）。
+  - **已合并为单文件双主题（2026-09-16，第三批 #3；八对收官）**：消耗记录页 / 归档页 / 食品详情页 / 首页 / 食品列表页 / 管理页三合一 / 统计页 / 设置页 —— `Miuix*Screen.kt` 双胞胎 **8 → 0**；`screens/` 下**当时**为 **9 个屏幕文件**（含从未有双胞胎的编辑页）+ **8 个 `*State.kt`**。第 6 对之后 `AppNavGraph.kt` 已不含主题分支，第 8 对之后 `NavChrome.kt` 也不含了。
+    - **口径（复核跑 `bash tools/doc-metrics.sh`）**：⚠️ **本行的三个数是 2026-09-17 的快照，#10a-1 后又变了** （10a-1 弹窗抽到同包 3 个新文件 ⇒ 除 `*State.kt` 的文件从 9 个变 12 个；**10a-2 又加 4 个**（两套 body / 备份节 / 两个 MD3 专用小组件）⇒ **#10e 又加 5 个**（编辑页的封面 / 名称 / 字段 / 阈值 / 底栏五个区块文件）⇒ 现 **21 个**（其中 **12 个**不是屏幕））。现值一律看 doc-metrics 的「屏幕目录 ui/screens（不含 *State.kt）」「App 级组件层」两行，本行只作历史快照保留：屏幕本体（不含 `*State.kt`）**9 文件 4,209 行**、组件层 `ui/components/app/` **12 文件 3,075 行**、渲染层合计 **7,284 行**；相对 09-16 之前的基线（17 文件 7,541 行）：屏幕本体 **-44%**、渲染层合计 **-3.4%**（2026-09-17 实测）。
       09-16 收官时记的是 4,204 / 2,746 / 6,950（-8%）—— **当时记得没错**（在 `5788ae2` 上复核即为这三个数），是此后变了：09-17 的 IME 修复与弹窗搬家让渲染层净增 **334** 行（新增 `AppIme.kt` 85 + `AppBatchMoveDialog.kt` 211，改动 `AppFormDialog` / `AppConfirmDialog` / `SettingsScreen`；`git diff --stat 5788ae2 HEAD -- app/src/main/java/com/agon/app/ui/` 可复核）。
 ⚠️ 原验收「4,500 量级 / -24%」**不成立**；「-24%」「4,500 量级」「7,205 行 / 16 文件」「7,541 行 / 17 文件」四个数字**均已作废且彼此不可换算**（后两者是同日两个不同文件集口径）。复盘见 `devlog/2026-09-16.md` §22 与 `docs/ROADMAP.md`「#3 收官」。
     - **两个刻意的例外（别当缺陷去「修」）**：① **设置页 body 保留两套**（`Md3SettingsBody` → `ui/screens/SettingsBodyMd3.kt`；`MiuixSettingsBody` → `ui/screens/SettingsBodyMiuix.kt`；#10a-2 起各自一个文件）—— 两版排版习语根本不同（MD3 是滚动 `Column` + `Surface` 分组卡片，Miuix 是 `LazyColumn` + 库的 Preference 组件；664 行里只有 **287 行逐字相同**，八对最低），去重发生在 9 个弹窗（其中 5 个收进 `AppConfirmDialog` / `AppOptionDialog`）与骨架上，故该对收缩率只有 **-20%**；② **统计页图表**是 `Canvas` + `layout` 自绘、与主题无关（合并前就是一份语义两份拷贝，合并只删拷贝、无处可缩 ⇒ 该对 **-55%**），且只此一屏用 ⇒ **不进通用组件层**。

@@ -414,6 +414,67 @@ for d in DOCS:
 print('%d 个通配符：指向空集 %d 处，历史提及豁免 %d 处' % (tot, dead, exempt))
 PY
 )" '目标「指向空集 0 处」。2026-09-17 核查发现 `MIUIX_UPGRADE.md` 的文件索引表指着 `ui/screens/Miuix*.kt`「各页 Miuix 实现」，而那批文件 09-16 已全删 ⇒ 升级手册会让人系统性漏改 77% 的调用点。行内出现「已删除/此前/取代/原名」等字样视为**历史提及**并豁免（只计数不报警），否则报 ✗'
+row '活文档写死的 .kt:行号 指针' "$(python3 - <<'PY' 2>/dev/null || echo '需 python3'
+import io, os, re
+DOCS = ['CLAUDE.md', 'README.md', 'docs/ARCHITECTURE.md', 'docs/DESIGN_SPEC.md',
+        'docs/REQUIREMENTS.md', 'docs/WORKFLOW.md', 'docs/MIUIX_UPGRADE.md',
+        'docs/ROADMAP.md', 'devlog/INDEX.md']
+ours = set()
+for root, _, fs in os.walk('app/src'):
+    for f in fs:
+        if f.endswith('.kt'):
+            ours.add(f)
+# 三类不算「写死指针」：① 指上游库的文件（Card.kt / TopAppBar.kt …不在本仓，钉在 pinned tag 上，
+# 写行号正是它的价值）；② 编译器报错原文 file.kt:行:列（那是**引用当时 CI 的输出**，是记录不是导航）；
+# ③ devlog/20xx-xx-xx.md 与 docs/audits/（时点记录，行号本就该冻结在当天）。
+# ⚠️ 负向前瞻必须写 (?![:\d])：只写 (?!:\d) 时 "…kt:138:23" 会被回溯截成 "…kt:13" 而误报（当天撞上）。
+PAT = re.compile(r'([A-Za-z0-9_]+\.kt):(\d+)(?![:\d])')
+tot = up = 0
+for d in DOCS:
+    try:
+        ls = io.open(d, encoding='utf-8').read().split('\n')
+    except OSError:
+        continue
+    for i, line in enumerate(ls, 1):
+        for m in PAT.finditer(line):
+            f, n = m.group(1), int(m.group(2))
+            if f not in ours:
+                up += 1
+                continue
+            tot += 1
+            print('     ✗ %s:%d 写死了 %s:%d ⇒ 行号会随任何拆分/插入漂移，改成符号锚点（grep 得到的名字）'
+                  % (d, i, f, n))
+print('%d 处指本仓文件的行号指针（目标 0）；上游库引用豁免 %d 处' % (tot, up))
+PY
+)" '目标「0 处」。2026-09-19 #10 结构审计查出：活文档里 21 个这类指针（32 处提及）有 **13 个**当天就是错的 —— 3 个是 #10e 拆 `EditFoodScreen.kt` 直接漂的（`:105`→`:64`、`:284`→搬去 `EditFoodCoverSection.kt`、`:189`→`:149`），其余 10 个更早就烂了（`FoodRepository.kt:487` 在 #5c 拆分后越界、`AppViewModel.kt:277` 在 #10b 前就偏 62 行、`HomeScreen.kt:126/233` 各偏 7/3 行），**没有任何东西报警**。修法不是把 13 个数字改对（改完照样再烂），而是活文档一律改写符号锚点 + 本行守 0 处。⚠️ **本行的盲区**：判定「上游库」的依据是「该文件名不在 app/src 里」，所以**把我们的文件名拼错**（如 `EditFoodScree.kt:99`）会被当成上游引用而豁免 —— 阳性对照时特意塞过一个 `NoSuchFile.kt:12`，确实不报。要堵得改成上游白名单（Card / TopAppBar / Button / ProgressIndicator / DialogSection / MiuixPopupUtils），暂不做：拼错的文件名在通配符检查与 kt-lexcheck 那边也会露馅'
+row '#10e 五个区块文件行数（文档写死 vs 实测）' "$(python3 - <<'PY' 2>/dev/null || echo '需 python3'
+import glob, io, re
+S = 'app/src/main/java/com/agon/app/ui/screens'
+real = sorted(sum(1 for _ in io.open(f, encoding='utf-8'))
+              for f in glob.glob(S + '/EditFood*.kt') if not f.endswith('EditFoodScreen.kt'))
+DOCS = ['docs/ARCHITECTURE.md', 'docs/DESIGN_SPEC.md', 'docs/ROADMAP.md', 'devlog/INDEX.md']
+hits = bad = 0
+for d in DOCS:
+    try:
+        ls = io.open(d, encoding='utf-8').read().split('\n')
+    except OSError:
+        continue
+    # ⚠️ 正则必须①锚在 10e 的措辞上、②要求恰好 5 个数：第一版写成 r'新文件 ((?:\d+ / )+\d+)'，
+    # 于是把 ROADMAP 10a-1 行的「新文件 211 / 234 / 372」（三个设置页弹窗文件）当成 10e 的五个数报了不符。
+    # 两处措辞不同（ROADMAP 用「：入口 …，新文件 a / b / c / d / e」，INDEX 用「（a / b / c / d / e，」），各给一条。
+    PATS = [r'抽出 \*\*5\*\* 个同包文件：入口 \*\*\d+ → \d+\*\*，新文件 ((?:\d+ / ){4}\d+)',
+            r'抽出 \*\*5\*\* 个同包文件（((?:\d+ / ){4}\d+)，']
+    for i, line in enumerate(ls, 1):
+        for pat in PATS:
+          for m in re.finditer(pat, line):
+            hits += 1
+            doc = sorted(int(x) for x in m.group(1).split(' / '))
+            if doc != real:
+                bad += 1
+                print('     ✗ %s:%d 文档写 %s，实测 %s' % (d, i, doc, real))
+print('%d 处写死的五文件行数被比对，不符 %d 处（实测 %s）' % (hits, bad, real))
+PY
+)" '这五个数在 ROADMAP 的 10e 行与 INDEX 的日志表行各写了一遍；行数会变（改一行代码就变），故纳入比对'
 row '同文件内重复的长句（>=40 字符）' "$(python3 - <<'PY' 2>/dev/null || echo '需 python3'
 import glob, io, re
 from collections import Counter
@@ -523,6 +584,13 @@ def wcl(p):
     return sum(1 for _ in io.open(p, encoding='utf-8'))
 REPO = MAIN + '/java/com/agon/app/data/FoodRepository.kt'
 VMF = MAIN + '/java/com/agon/app/viewmodel/AppViewModel.kt'
+# #10 结构数（09-19 加）：屏幕目录的文件数 / 编辑页入口行数 / 目录内超 400 的个数。
+SCR = MAIN + '/java/com/agon/app/ui/screens'
+_screens = [f for f in glob.glob(SCR + '/*.kt') if not f.endswith('State.kt')]
+NSCREEN = len(_screens)
+NNOTSCREEN = len([f for f in _screens if not re.search(r'(?:Screen|Screens)\.kt$', f)])
+NSCREEN400 = len([f for f in _screens if wcl(f) > 400])
+EDITF = SCR + '/EditFoodScreen.kt'
 
 # ⚠️ 这份 strip_comments 是上面「测试」段那份的副本（两个 heredoc 各自独立，无法共享定义）。
 # 改一份必须改另一份 —— 否则「单测数」与「中文字面量」两条会各用一套剥注释逻辑，
@@ -587,6 +655,19 @@ ITEMS = [
     # 腐烂了 1 天没人报警，因为这一项此前不在比对清单里。星号两侧都吃（与 FoodRepository 那条同一个教训）。
     ('含中文的字符串字面量', r'(?:含中文的字符串字面量|源码中文字面量)\s*\*{0,2}([\d,]+)\*{0,2}\s*处',
      cn_literals()),
+    # 第 22–30 条（09-19 加，#10 结构审计）：10a/10b/10e 三轮把「文件数 / 行数 / 超 400 个数」写进了四份
+    # 活文档，而这类数**每拆一次就变**，此前一条比对项都没有 ⇒ 手写即腐烂。当天就查出 DESIGN_SPEC §7 的
+    # 口径行停在 10a-2（写「现 16 个，其中 7 个不是屏幕」，实际 21 / 12），而它自己下一句还写着「现值一律看
+    # doc-metrics」—— 被 ARCHITECTURE 明文指定为现值权威的那一行，恰恰是过期的那行。
+    ('屏幕目录文件数（ARCHITECTURE 树·计数行）', r'不含 \*State\.kt 共 \*\*(\d+)\*\* 个', NSCREEN),
+    ('屏幕目录文件数（ARCHITECTURE 树·10e 注）', r'该目录（不含 \*State\.kt）\d+ → \*\*(\d+)\*\* 文件', NSCREEN),
+    ('屏幕目录文件数（DESIGN_SPEC 口径行）', r'⇒ 现 \*\*(\d+) 个\*\*（其中', NSCREEN),
+    ('其中不是屏幕的文件数', r'（其中 \*\*(\d+) 个\*\*不是屏幕', NNOTSCREEN),
+    ('屏幕目录内超 400 行的文件数', r'屏幕目录内超 400 的 \*\*\d+ → (\d+)\*\*', NSCREEN400),
+    ('编辑页入口行数（ARCHITECTURE）', r'编辑页入口 \d+ → \*\*(\d+)\*\* 行', wcl(EDITF)),
+    ('编辑页入口行数（ROADMAP 例外清单）', r'10e 已于[^（]*（入口 \d+ → \*\*(\d+)\*\*）', wcl(EDITF)),
+    ('编辑页入口行数（ROADMAP 10e 行）', r'抽出 \*\*5\*\* 个同包文件：入口 \*\*\d+ → (\d+)\*\*', wcl(EDITF)),
+    ('编辑页入口行数（INDEX 日志表行）', r'`EditFoodScreen\.kt`\s*\*\*\d+ → (\d+)\*\* 行', wcl(EDITF)),
 ]
 bad = hits = 0
 for d in DOCS:
