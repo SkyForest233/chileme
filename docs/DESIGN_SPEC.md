@@ -123,7 +123,7 @@ StatusUi 提供三个颜色槽位，按用途严格区分：
 > （CLAUDE 里 93% 的组件名 ARCHITECTURE 已有，而 ARCHITECTURE 那条还漏了 `AppStatusCard`）。
 > 现在：**清单只在这里**，`ARCHITECTURE.md` 只留「为什么要有这一层」，`CLAUDE.md` 只留「必须/禁止」一句话 + 指针。
 >
-> 组件列由源码生成（2026-09-17 快照：12 文件 / 3,075 行，`wc -l` 口径；**现值一律见 doc-metrics「App 级组件层」那行** —— 2026-09-19 复核发现这两个数已与实测差 1 行，故此后不再手抄），复核命令：
+> 组件列由源码生成（2026-09-17 快照：12 文件 / 3,075 行（#11a 起 13 文件，见上），`wc -l` 口径；**现值一律见 doc-metrics「App 级组件层」那行** —— 2026-09-19 复核发现这两个数已与实测差 1 行，故此后不再手抄），复核命令：
 > ```bash
 > for f in app/src/main/java/com/agon/app/ui/components/app/*.kt; do
 >   echo "$(basename $f): $(grep -oE '^(internal |public )?(fun|val|class|enum class|data class) [A-Za-z][A-Za-z0-9]*' "$f" \
@@ -131,6 +131,8 @@ StatusUi 提供三个颜色槽位，按用途严格区分：
 > done
 > ```
 > **新增/删除组件时同批更新本表**（`CLAUDE.md` §3 记录规则已立此条）。
+> ⚠️ 括号里的行数是**快照**：`AppText.kt` / `AppColors.kt` 两行为 2026-09-19 #11a 当天实测，其余行仍是 09-17 的数
+> ⇒ 全目录现值一律看 `tools/doc-metrics.sh` 的「App 级组件层」那行，本表这一列别拿来当结论引用。
 
 | 文件 | 组件（生成于 2026-09-17） | 用途 |
 |---|---|---|
@@ -138,8 +140,8 @@ StatusUi 提供三个颜色槽位，按用途严格区分：
 | `AppSurface.kt` (353 行) | `AppCard` `AppPaddedCard` `AppCardTone` `AppStatusCard` `AppStatCard` `AppStatTone` `AppSection` `AppHintText` `AppStatsListMetrics` `appStatsListMetrics` | 卡片与分区外壳、统计卡、列表度量 |
 | `AppListRow.kt` (406 行) | `AppListRow` `AppActionRow` `AppCardRow` `AppSectionHeader` `AppLocationIcon` `AppEditRowAction` `AppDeleteRowAction` | 列表行（三种形态）、分区标题、行内动作 |
 | `AppControls.kt` (376 行) | `AppSearchField` `AppFilterChip` `AppChipTone` `AppFilterToggle` `AppFilterSectionLabel` `AppStepperPill` | 搜索框、筛选胶囊/开关、数量步进器 |
-| `AppText.kt` (349 行) | `AppTextScale` `AppText` `AppEmojiText` `AppMutedText` + 取色访问器 `appChartColors` `appHighestContainerColor` `appPrimaryColor` `appPrimaryContainerColor` `appSurfaceColor` `appMutedColor` `appFaintColor` `appErrorColor` `appOnPrimaryContainerColor` | **语义字号档位表**与文字组件、跨主题取色 |
-| `AppButtons.kt` (188 行) | `AppBigButton` `AppEditButton` `AppWideButton` `AppAddItemButton` | 大按钮（emoji + 文案 + 角标）、整宽按钮、新增入口 |
+| `AppText.kt` (213 行) | `AppTextScale` `AppText` `AppEmojiText` `AppMutedText` | 语义字号档位 + 文字组件；**取色访问器已于 09-19 #11a 移出去**，别再往这里加 |
+| `AppColors.kt` (165 行) | `appSurfaceColor` `appMutedColor` `appErrorColor` `appPrimaryContainerColor` `appOnPrimaryContainerColor` `appPrimaryColor` `appFaintColor` `appHighestContainerColor` `appChartColors` | 跨主题取色口子（一个语义角色一个函数）；守卫 `AppColorLocationTest` 钉住「只此一个文件」 || `AppButtons.kt` (188 行) | `AppBigButton` `AppEditButton` `AppWideButton` `AppAddItemButton` | 大按钮（emoji + 文案 + 角标）、整宽按钮、新增入口 |
 | `AppOptionDialog.kt` (188 行) | `AppOptionDialog` `AppOptionSpec` | 选项弹窗（导出格式选择 / 恢复来源选择） |
 | `AppFormDialog.kt` (173 行) | `AppFormDialog` `AppFormFieldSpec` | 带输入框的表单弹窗 |
 | `AppConfirmDialog.kt` (134 行) | `AppConfirmDialog` | 确认弹窗（MD3 `AlertDialog` 槽位 / Miuix `WindowDialog` + 等宽两个 `TextButton`） |

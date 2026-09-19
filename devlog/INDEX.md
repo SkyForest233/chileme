@@ -130,8 +130,11 @@
   ⇒ 下次动到那两片时顺带过一眼，或用户主动要求时单独走一轮（两主题）。详见 ROADMAP #10 验收⑤。
   ⚠️ 已判定**不做**的两件事：① 按功能分包（`ui/screen/settings/` 那种）—— `ImeHandlingTest` 按完整路径点名、
   `ScreenParityTest` 只遍历 `ui/screens/` 一层且反向断言入口文件必须还在 ⇒ 搬包会红 + 静默失覆盖，
-  代价换目录形状不值；② 拆 App 级组件层那 5 个文件（`AppChrome` 479 / `AppListRow` 406 / `AppControls` 376 /
-  `AppText` 349 / `AppSurface` 353）—— 吸收主题分支正是它们的职责。
+  代价换目录形状不值；② 按**行数**拆 App 级组件层那 5 个文件（`AppChrome` / `AppListRow` / `AppControls` /
+  `AppText` / `AppSurface`；行数不在此手抄 —— 现值看 `tools/doc-metrics.sh` 的「App 级组件层」与「主代码超 400 行全清单」
+  两行）—— 吸收主题分支正是它们的职责。⚠️ 09-19 把这条**改窄**：它只覆盖「成对主题实现」那一类，
+  **不是**「组件层文件不用管边界」的挡箭牌 ⇒ #11a 就从 `AppText.kt` 里抽走了 9 个取色 helper（那件事与文字无关），
+  #11b 接着拆 `AppChrome.kt` 混着的四件事。
   证据、切法与守卫清单见 [`ROADMAP`](../docs/ROADMAP.md) #10 与 [2026-09-18 日志](2026-09-18.md) §13（10a-1 首轮 CI 红与修红见 §13.8：别名 import 是搬运脚本的盲区，已固化成 `kt-lexcheck` 判据 4）
   （含 KernelSU manager 的逐文件对照：他们 219 个 `.kt`、**0** 个测试文件、每屏两份主题实现且两版体积差 4–6 KB 已在漂移）。
 

@@ -91,7 +91,7 @@
 - Miuix 弹窗两条铁律（`MiuixDialogContentTest` 拦）：`content` **必须单一根节点**（库把 title/summary/content 放进不带 `verticalArrangement` 的 Column，平级节点之间是 **0dp**）；动作按钮一律 `TextButton`，**主要动作传 `textButtonColorsPrimary()`**（不传就和「取消」同为浅灰）
 - **动屏幕文件前先 `grep -rn "<屏幕名>" app/src/test/`** —— 点名屏幕文件的静态守卫不止 `ScreenParityTest` / `ImeHandlingTest`，还有 `CorruptGuardTest`、`CompactConsumptionTest`（2026-09-16 第 4 对合并就撞上过；`CorruptGuardTest` 是**按 4 空格缩进截函数体**的，函数一搬家就红）
 - **刻意保留 MD3 的只有三处，勿擅自迁移**：编辑页（`DatePicker` 无 Miuix 对应）、`CheckSwitch`（项目特色打勾/打叉）、设置页 body（`Md3SettingsBody` / `MiuixSettingsBody`，两版排版习语根本不同）
-- 统计页图表是 `Canvas` + `layout` 自绘、与主题无关，只此一屏用 ⇒ **不进组件层**；`appChartColors()` 是「屏幕侧取色」**唯一**被承认的例外
+- 统计页图表是 `Canvas` + `layout` 自绘、与主题无关，只此一屏用 ⇒ **不进组件层**；`appChartColors()` 是「屏幕侧取色」**唯一**被承认的例外（取色口子集中在 `ui/components/app/AppColors.kt`，2026-09-19 #11a 起；位置由 `AppColorLocationTest` 守）
 - Miuix 组件 API 一律以 `.claude/skills/miuix` 的 pinned source（**v0.9.4-rc01**）为准，**不得凭 MD3 记忆臆造**参数或颜色 token
 - 迁移进度、已知缺口（MIUIX 侧无配色入口，用户已指示暂缓）与导航双形态见 `docs/DESIGN_SPEC.md` §7
 
