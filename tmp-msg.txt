@@ -1,0 +1,23 @@
+docs(roadmap): 立项 #11 —— 按职责边界重扫拆分面（不设行数门槛）
+
+用户否掉我拿 `doc-metrics` 的「主代码 > 400 行」当「要不要拆」的唯一依据 —— 那本来就是 #5/#10 的验收门槛，
+不是内聚性度量（而且它正是我在审查报告 §10 批评过的「指标变成目的」）。重扫口径改成：≥150 行的 40 个
+主代码文件逐个过顶层声明清单，问「这个文件里有几件事」。
+
+⇒ 6 笔（`docs/ROADMAP.md` 新增 #11 节：顺序 / 判据 / 不做清单 / 风险表）：
+- 11a `AppText.kt` 藏着 9 个跨主题取色 helper（全仓事实上的颜色层；同包移动 ⇒ 0 处 import 改动，最安全的一笔）
+- 11b `AppChrome.kt` 四件事（snackbar 宿主 / 顶栏 / 顶栏动作族 / **整屏组件 `AppMessageScreen`**）
+- 11c `CloudSync.kt` 四件事（WebDAV 协议 / 上传下载编排 / `OpFailure` 错误模型 / `isAutoSyncDue` 纯日期策略）
+- 11d `StatsScreen.kt` 4 个区块 + 自绘图表件下沉
+- 11e `ExpiryCalendar.kt` 月网格数学写在渲染体里且**零测试** ⇒ 抽纯函数并补它的第一份单测
+- 11f `AppViewModel.init` 的启动编排抽成 `runPantryStartup()`（#10c「一屏一 VM」的阻塞点，放最后）
+
+每笔附一条**位置守卫**（某类声明只允许出现在指定文件里），刻意不写「有 N 个函数」这种会随功能腐烂的数。
+**押后**：`FoodRepository.kt` 的 20 key / 20 flow 归位 —— 做 Room 时那 20 条 flow 本身要重写一半，现在搬可能白搬。
+
+devlog §15 记了我写错的三处，方向都是不利于我的：
+① 我说 11b 要同批改 `ImeHandlingTest` 的 `chromeFiles` —— 实测那份清单不含 `AppChrome.kt`，我照清单名字
+   推断而没去读那 5 行；② 我说 `toOpFailure` 该归位到 `OpFailure` 所在文件 —— `OpFailure` 就住在 `CloudSync.kt`
+   里，正确做法是两者一起搬出去成 `OpFailure.kt`；③ 我以为 `EmptyState` 与 `AppMessageScreen` 是两份同义实现
+   想合并 —— 读代码后否定（一个是嵌在列表里的带动画空态块，一个是整屏消息 + 按钮），只搬家、
+   并把「空态有两种实现」记成体验类待办。

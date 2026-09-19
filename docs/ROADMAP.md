@@ -29,6 +29,7 @@
 | 8 | 诊断包 + 许可清单（⚠️ 09-18 复核：健康告警条**自 09-15 已在首页运行**，原「没有任何页面消费它」是错的） | ⏳ 未开始（**无前置**，可随时做）；**范围已缩小** | — |
 | 9 | CI 加固 | 🔶 用户已否掉大半，剩 4 个小项 | 09-17 §10 |
 | **10** | **UI/VM 层拆分收尾**（设置页 1,705 行（规划时）+ `AppViewModel` 700 行；**含 #6 的执行**） | 🔨 **10a 已落地**（2026-09-18）：10a-1 弹窗区（352–986，跨 635 行）搬到同包 3 个文件、10a-2 两套 body 与两个 MD3 专用小组件搬到 4 个文件，设置页入口 1,705 → **297** 行；✅ **10b-1 … 10b-7 全部落地**（2026-09-19，七轮收官）：备份领域 9 个函数搬到同包 `AppViewModelBackup.kt`、云端同步 4 个函数 + 1 个顶层常量搬到 `AppViewModelCloud.kt`、归档与消耗撤销 6 个函数搬到 `AppViewModelArchiveUndo.kt`、食物 CRUD 与批量 11 个函数搬到 `AppViewModelFood.kt`、分类与位置 7 个函数搬到 `AppViewModelCategoryLocation.kt`、设置 6 个一行体函数搬到 `AppViewModelSettings.kt`、UI 状态与事件 5 个函数搬到 `AppViewModelUiState.kt`，`AppViewModel` 700 → 590 → 469 → 431 → 363 → 322 → 304 → **277** 行（−60%）（🎯 **验收① 的 viewmodel 那一半自 10b-4 起已达标 < 400**；**10b 收官**：48/50 个函数搬出，余 2 个 private 策略函数按规划留守；累计放宽 13 处 `private` → `internal`、调用方 10 个文件 +51 行 import、守卫同批改 3 次、7 个提交全部一次通过 CI；⏸ **10c（= #6）已由用户决定搁置**（2026-09-19：侦察发现 `Eagerly` 顺手承担的"读 `.value` 永远是真数据"这个安全职责有 15 处依赖，其中编辑页那 1 条（`EditFoodScreen.kt` 里 `remember(editId)`）会丢数据 ⇒ 要做必须先加固，清单与顺序见 #6 节），10d 延后不排期；✅ **10e 已落地**（2026-09-19：`EditFoodScreen.kt` **660 → 317**，抽出 5 个区块文件 221/150/119/106/104、6 个文件全 < 400，守卫同批改 **0** 处、可见性放宽 **0** 处）⇒ **#10 只剩 10c（搁置）与 10d（延后）**） | 本节「#10」+「10a-1 / 10a-2 / 10b-1 … 10b-7 落地结果」+「#10b 收官总账」+「10e 落地结果」+ 09-18 §13.7–§13.9 + 09-19 §1–§12 |
+| **11** | **按职责边界的第二轮拆分**（2026-09-19 立项，**不设行数门槛**；≥150 行的 40 个主代码文件逐个过声明清单） | ⏳ 未开始（11a–11f 六笔，全为行为零改动的搬运；`FoodRepository` 的 key/flow 归位押到 Room 决定） | — |
 
 **排序原则（原文照录，对剩余项仍适用）**：**先能拦、再去重、后补体验**。
 **为什么是这个顺序**：#1/#2 先把「已经为零的基线」变成拦截，之后任何一步的回归都会被 CI 当场抓住
@@ -1102,6 +1103,61 @@
 
 ---
 
+---
+
+## #11 按**职责边界**的第二轮拆分（2026-09-19 立项；**刻意不设行数门槛**）
+
+> **立项缘由是用户两次纠偏**：① 我拿 `tools/doc-metrics.sh` 的「主代码 > 400 行」当筛子报了一遍"只剩 3 个文件超标"
+> ⇒ 用户否掉：「不要遵循死板的 400 行限制，按照职责边界划分」。② 我第一轮只答了"谁超标"，漏了"谁混着几件事"
+> ⇒ 重扫范围改成 **≥150 行的 40 个主代码文件逐个过顶层声明清单**（口径：`find app/src/main -name '*.kt' | xargs wc -l`
+> 取 ≥150 的那批，再逐文件列 `fun` / `class` / `// ---- 段标题 ----`）。结论：**行数与边界错置基本无关** ——
+> 3 个超 400 的行（`AppChrome` 479 / `StatsScreen` 409 / `AppListRow` 406）里只有 1 个值得按行数动，
+> 而真正该动的 6 处里有 4 处**都在 400 行以下**（`AppText.kt` 349 就是其中之一）。
+
+### 判据（本项自己的验收口径）
+
+**一件事一个文件**，且满足三条才算数：
+1. 搬走的行与新文件**逐行相等**（#10b 的逆变换验证法：声明行剥掉可见性再比）；
+2. **调用点 import 改动数 = 预测值**（同包内移动应为 0；跨包每挪一个公开符号，调用方 +1 条 import）；
+3. 附一条**「改前必红」的位置守卫**（断言某类声明只允许出现在指定文件里），不是断言行数、不是断言"有 N 个函数"
+   —— 后者会随功能增减腐烂，是 `doc-metrics` 一直在治的那种写死数。
+
+### 执行顺序与每笔的证据（数字为 2026-09-19 实测，现值以 `bash tools/doc-metrics.sh` 为准）
+
+| 笔 | 动谁 | 里面混着几件事 | 拆成 | 为什么先/后 |
+|---|---|---|---|---|
+| **11a** | `AppText.kt` | 文本组件（`AppTextScale` / `AppText` / `AppEmojiText` / `AppMutedText`）**+ 9 个跨主题取色 helper**（`appSurfaceColor` / `appMutedColor` / `appErrorColor` / `appPrimaryContainerColor` / `appOnPrimaryContainerColor` / `appPrimaryColor` / `appFaintColor` / `appHighestContainerColor` / `appChartColors`）⇒ 一个叫「文本」的文件是全仓事实上的颜色层 | 新增 `AppColors.kt` 收那 9 个 | 同包移动 ⇒ **0 处 import 改动**，是全项最安全的一笔，先走 |
+| **11b** | `AppChrome.kt`（479） | **四件事**：① Snackbar 宿主（`AppSnackbarHostState` + `rememberAppSnackbarHostState` + `AppSnackbarHost`）——与 `UndoSnackbar.kt` 同属"snackbar 一件事"却分居两处；② 顶栏（`AppTopBar` + `AppBarNavIcon` + `AppBarIconButton`）；③ 顶栏动作族（`AppEditAction` / `AppDeleteAction` / `AppArchiveAction` / `AppSelectAllAction` / `AppDestructiveAction`）——行内动作 `AppEditRowAction` / `AppDeleteRowAction` 又在 `AppListRow.kt`；④ **`AppMessageScreen` 是整屏组件**（自带 `MiuixScaffold` + `fillMaxSize`），住在 chrome 里是硬边界错 | ① → `AppSnackbar.kt`；③ → `AppBarActions.kt`；④ → `AppMessageScreen.kt`；②留在 `AppChrome.kt`（顶栏就是 chrome，名副其实） | ①③④各自一笔，别合并成一笔（每笔只有一件事可以失败） |
+| **11c** | `CloudSync.kt`（262） | **四件事**：`object NutstoreSync`（WebDAV 协议 + 上传下载编排混在一个 object 里：`request` / `authOf` / `ensureDir` / `parsePropfind` / `upload` / `listInternal` / `download`）、`data class CloudBackup`（PROPFIND 结果模型）、`sealed interface OpFailure` + `Throwable.toOpFailure`（#4 的错误模型产物，跟网络客户端同文件）、`isAutoSyncDue`（**纯日期策略**，`AutoSyncDueTest` 在测它，却住在一个网络对象旁边） | `NutstoreWebdav.kt`（协议：request/auth/ensureDir/PROPFIND 解析 + `CloudBackup`）· `NutstoreSync.kt`（编排 upload/list/download）· `OpFailure.kt` · `AutoSyncPolicy.kt` | 拆完 **OkHttp 5 升级（P1）只动 `NutstoreWebdav.kt` 一个文件** ⇒ 这笔是给那条待办铺路 |
+| **11d** | `StatsScreen.kt`（409） | 一个 `StatsScreen` 里 4 个区块（到期日历入口 / 近 7 天柱状图 / 分类环图 / 消耗排行榜）+ 自绘图表件 `DonutChart` / `LegendRow` | 区块照 #10e 抽成同包 `Stats*.kt`；`DonutChart` / `LegendRow` 下沉 `ui/components/StatsCharts.kt` | 唯一"顺手满足 400 行判据"的一笔，但**立项理由不是那 9 行**，是 4 个区块 + 图表件混在一处 |
+| **11e** | `ExpiryCalendar.kt`（400） | 月网格数学写在渲染体里：`MonthGrid` 里 `leading = month.atDay(1).dayOfWeek.value - 1`、`rows = (cells + 6) / 7`、跨年 `yearOffset` 偏移 ⇒ 这块逻辑今天**零测试**，而月首偏移 / 闰年 2 月 / 跨年正是日历最容易错的三处 | 抽 `CalendarMonthLayout`（纯函数，出 cells / rows / day 索引）+ 首次给它写单测 | 全项**唯一带真行为判据**的一笔 |
+| **11f** | `AppViewModel.kt`（282） | 类里同时是：启动编排（`init {}` 里 `seedIfNeeded` → `migrateLegacyCredentials` → `migratePlaintextPassword` → `migrateConsumptionIds` → 封面孤儿清理（带 `corruptedKeys` 跳过护栏）→ `maybeAutoSync` → `maybeAutoSnapshot`）、事件总线（4 个 `Channel` + 4 个 `receiveAsFlow`）、快照与云备份列表 | 「启动编排」抽成同包 `AppViewModelStartup.kt` 的 `internal suspend fun AppViewModel.runPantryStartup()`（`ready` 状态位留在类里） | **放最后**：它动的是执行位置，虽然不改行为，但顺序即正确性（M1-1 学到的）；也是 #10c「一屏一 VM」真正的阻塞点 —— 迁移管道不该跟着某个 VM 的生命周期走 |
+
+**押后不做**：`FoodRepository.kt` 的 20 个 key + 20 条 flow 归各领域（09-19 讨论过，用户未拍）——
+一旦做 Room（P1-1）这 20 条 flow 本身要重写一半，现在归位可能白做一遍 ⇒ 挂到 Room 那个决定上。
+
+### 明确不做（写下来免得下一轮又提）
+
+- **按行数拆 `AppSurface.kt` / `AppControls.kt` / `AppListRow.kt`** —— 09-16 那条「吸收主题分支正是它们的职责」的判定
+  只覆盖"**成对主题实现的重复**"，我 09-19 引用时把范围放大了（已在本节改窄）。⚠️ 但**它不是"组件层文件不用管边界"的挡箭牌**：
+  11a / 11b 那两处就是边界错置，与主题吸收无关，该动还得动。
+- **拆 `ManageScreens.kt`**（3 个管理屏一文件）—— `doc-metrics` 的屏幕数口径 + `ScreenParityTest` 只扫 `ui/screens/` 一层
+  + `ImeHandlingTest` 按完整路径点名 ⇒ 拆它要同批改三处判定，换回来的只是目录好看。
+- **拆 `NavChrome.kt`**（4 套底栏实现在一个文件）—— 双主题成对，属上面第一条的适用范围。
+- **把 `Settings*Dialogs.kt` 拆成"一弹窗一文件"** —— 已按弹窗域分开，再细会产出 8 个百行文件。
+- **拆 `MiuixDialogContentTest.kt`**（480 行）—— 6 条判据与自检同文件是刻意的，拆它会伤自检的自洽性。
+- **合并 `EmptyState`（`Controls.kt`）与 `AppMessageScreen`** —— 前者是带动画的空态块（emoji + 标题 + 副标题），
+  后者是整屏消息 + 一个动作按钮，**不是同一件事**；11b-3 只做搬家。"空态有两种实现"另记待办（体验类，需真机）。
+
+### 风险与同批要处理的守卫
+
+| 风险 | 说明 | 对策 |
+|---|---|---|
+| 路径敏感的源码守卫 | `CorruptGuardTest` / `AppViewModelReadyTest` / `SnackbarCopyTest` / `ImeHandlingTest` / `BackupRulesTest` 都是**按文件路径读源码**的 ⇒ 搬走一段代码 = 让某条断言读到空串（假绿）或直接红 | 每笔先跑 `tools/guard-mirror.py`（#5c 起就在干这事），再改守卫 |
+| `doc-metrics` 的目录通配符 | 新增文件落在 `ui/components/` 与 `ui/components/app/` ⇒ 那两行的「文件数 / 行数」判据跟着变 | 那两行是**实测**（`find` 计数 + `wc`）⇒ 自动跟随，无需手抄；只需复跑确认不为 ✗ |
+| ktlint import 顺序 | 同包移动不改 import，但跨包那几笔（11b-3 / 11d）要新增行，ktlint 按 ASCII 序 + `java.*` 置尾 | 逐条改完跑 `tools/kt-lexcheck.py`（含注释闭合与别名判据） |
+| 无本地编译器 | 本项全部只能在 Actions 上判 | 一物一笔一提交；每笔自查"逐字相等 + 守卫仿真 + 词法自检"三件；log-only 提交尽量合并（`paths-ignore` 是 #9 的挂账） |
+| 行为改动的边界 | 11a–11e **都不改行为** ⇒ 不占用真机复测；11f 改执行位置 | 11f 完成后请用户过一眼「升级后凭据仍在 + 首屏不闪」两条即可 |
 ## #3 收官：验收口径与偏差（**不要再引用旧数字**）
 
 - **达成的**：`Miuix*Screen.kt` 双胞胎 **8 对 → 0**；屏幕本体 17 文件 7,541 行 → **9 文件 4,209 行（-44%）**；
