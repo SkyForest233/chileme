@@ -72,7 +72,7 @@ app/src/main/java/com/agon/app/
     │                           #   AppBatchMoveDialog.kt（批量「移动存放位置」弹窗，2026-09-17 由包根 AppDialogs.kt 搬来）
     └─ screens/                 # 每屏一文件，自带 Scaffold。两层结构（2026-08-22 B-08 起）：
                                 # ① *State.kt 状态容器（8 个）：remember*UiState + 纯计算函数，双主题共用、单测覆盖
-                                # ② 渲染层（9 个屏幕文件 + **13 个**从设置页 / 编辑页 / 统计页搬出来的文件 ⇒ 不含 *State.kt 共 **22** 个；① 的 8 个 *State.kt 另计）：
+                                # ② 渲染层（9 个屏幕文件 + **15 个**从设置页 / 编辑页 / 统计页搬出来的文件 ⇒ 不含 *State.kt 共 **24** 个；① 的 8 个 *State.kt 另计）：
                                 #    ConsumptionLog / Archive / FoodDetail / Home /
                                 #    FoodList / Manage（阈值·分类·位置）/ Stats / Settings —— **八对已于 2026-09-16 全数合并为
                                 #    单文件双主题**，Miuix*Screen.kt 双胞胎全部删除（外壳差异走 ui/components/app/）；
@@ -88,7 +88,7 @@ app/src/main/java/com/agon/app/
                                 #    StatsTrendSection.kt（近 7 天趋势柱状图；其余区块逐刀补进来）。
                                 #    形状照 #10e：同包 `internal @Composable` + 参数表按入口局部审计给 ⇒ 调用点 import 零改动；
                                 #    位置判据在 `StatsSectionLocationTest`（区块标记的住所 / 画法不回流 / 调用点必须还在）。
-                                #    ⇒ 该目录（不含 *State.kt）16 → **22** 文件（#10e 到 21，#11d② 再 +1）；编辑页入口行数不在此写死（M1-2 又加过 13 行），
+                                #    ⇒ 该目录（不含 *State.kt）16 → **24** 文件（#10e 到 21，#11d② 又 +3）；编辑页入口行数不在此写死（M1-2 又加过 13 行），
 #      现值看 doc-metrics 的「#10e 五个区块文件行数」与「屏幕目录最大文件」两行
                                 #    ⇒ 所以「文件数」不再等于「屏幕数」；
                                 #    **行数账不在本文件维护**

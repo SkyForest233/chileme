@@ -35,6 +35,12 @@ class StatsSectionLocationTest {
             noReturn = listOf("state.categoryShare"),
             entry = "StatsCategorySection(",
         ),
+        Cut(
+            marker = "// ---- 消耗排行榜 ----",
+            home = "StatsTopConsumedSection.kt",
+            noReturn = listOf("state.topConsumed", "state.hasAnyConsumption"),
+            entry = "StatsTopConsumedSection(",
+        ),
     )
 
     private val screensDir = listOf(

@@ -1,47 +1,24 @@
 package com.agon.app.ui.screens
 
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.agon.app.data.byId
-import com.agon.app.ui.components.EmptyState
 import com.agon.app.ui.components.ExpiryCalendarCard
 import com.agon.app.ui.components.app.AppArchiveAction
-import com.agon.app.ui.components.app.AppEmojiText
 import com.agon.app.ui.components.app.AppScaffold
-import com.agon.app.ui.components.app.AppSection
 import com.agon.app.ui.components.app.AppStatCard
 import com.agon.app.ui.components.app.AppStatTone
-import com.agon.app.ui.components.app.AppText
 import com.agon.app.ui.components.app.AppTextScale
 import com.agon.app.ui.components.app.appChartColors
-import com.agon.app.ui.components.app.appPrimaryColor
-import com.agon.app.ui.components.app.appPrimaryContainerColor
 import com.agon.app.ui.components.app.appStatsListMetrics
-import com.agon.app.ui.theme.MotionEasing
 import com.agon.app.viewmodel.AppViewModel
 
 /**
@@ -51,14 +28,15 @@ import com.agon.app.viewmodel.AppViewModel
  * 2026-09-16 由 `StatsScreen.kt`(455) + `MiuixStatsScreen.kt`(445) 合并为单文件双主题（第三批 #3 第 7 对）。
  * 两版去掉 package/import/注释后是 383 / 362 行代码，其中 **271 行逐字相同**（把 `MaterialTheme`↔`MiuixTheme`、
  * `.typography.`↔`.textStyles.`、`Miuix` 前缀归一化后是 294 行）—— **图表是 `Canvas` 与 `layout` 自绘的，本来就与主题无关**，
- * 差异只在文字档位、取色、以及「节标题放哪儿」这三类。合并后 `DonutChart` / `LegendRow` 两份变一份；
- * 09-19 #11d 之后这两个图表件下沉到 `ui/components/StatsCharts.kt`，柱状图的画法在同包 `StatsTrendSection.kt`
- * （本文件只剩装配：状态取一次、区块按顺序排、`LazyColumn` 的度量在这里给）。
+ * 差异只在文字档位、取色、以及「节标题放哪儿」这三类。**本文件只管装配**（状态取一次、区块按顺序排、
+ * `LazyColumn` 的度量与卡片宽度在这里给）；画法在同包三个区块文件里 —— `StatsTrendSection.kt`（柱状图）、
+ * `StatsCategorySection.kt`（环图 + 图例）、`StatsTopConsumedSection.kt`（排行榜），#11d ① 又把 `DonutChart` /
+ * `LegendRow` 这两个图表件下沉到 `ui/components/StatsCharts.kt`（合并后两份变一份）。位置判据：`StatsSectionLocationTest`。
  *
  * **业务量一律走已测状态层**（这条是 2026-09-15 的修复，合并前 Miuix 版的文件头注释就是它）：
  * 此前 Miuix 那一版把 `StatsState` 的计算手抄了一遍，于是 `StatsStateTest` 测的是「MIUIX 主题下
- * 根本不会执行」的那份代码 —— 两份实现、一份被测，是静默分叉的典型温床。现在本页只负责外壳与
- * 图表自绘，数据一律来自 [rememberStatsUiState]，业务计算禁止在本文件内重写（`ScreenParityTest` 静态拦截）。
+ * 根本不会执行」的那份代码 —— 两份实现、一份被测，是静默分叉的典型温床。现在本页只负责外壳与装配
+ * （图表自绘在 `ui/components/StatsCharts.kt`，屏幕层不许自绘由 `StatsChartsLocationTest` 守着），数据一律来自 [rememberStatsUiState]，业务计算禁止在本文件内重写（`ScreenParityTest` 静态拦截）。
  *
  * 几处照抄而非统一的地方（细节在各组件的 KDoc 里）：
  * - **节标题两边是不同控件**：MD3 在卡片内（`titleMedium` + Bold + 间隔），Miuix 是卡片外的库
@@ -155,87 +133,14 @@ fun StatsScreen(
                 )
             }
 
-            // 近 7 天趋势：柱状图的画法在 `StatsTrendSection.kt`（本文件只管装配）
+            // 近 7 天趋势：柱状图的画法在同包 `StatsTrendSection.kt`（本文件只管装配）
             item { StatsTrendSection(state = state) }
 
             // 库存分类占比：环图与图例的画法在同包 `StatsCategorySection.kt`（本文件只管装配）
             item { StatsCategorySection(state = state, chartColors = chartColors) }
 
-            // ---- 消耗排行榜 ----
-            item {
-                AppSection(
-                    cardTitle = "消耗排行榜",
-                    sectionTitle = "消耗排行",
-                    titleSpacing = 12.dp,
-                ) {
-                    if (state.topConsumed.isEmpty()) {
-                        EmptyState(
-                            emoji = "🍽️",
-                            title = "还没有消耗记录",
-                            subtitle = "在详情页点“吃掉一份”或减少库存后这里会有数据",
-                        )
-                    } else {
-                        val maxAmount = state.topConsumed.first().third.coerceAtLeast(1)
-                        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                            state.topConsumed.forEachIndexed { index, (name, cat, amount) ->
-                                // 点击进入对应食品详情（可编辑）；找不到对应食品就不可点
-                                val targetId = state.findItemIdByName(name)
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier = if (targetId != null) {
-                                        Modifier
-                                            .fillMaxWidth()
-                                            .clip(RoundedCornerShape(12.dp))
-                                            .clickable { onOpenItem(targetId) }
-                                            .padding(vertical = 4.dp)
-                                    } else {
-                                        Modifier.fillMaxWidth()
-                                    },
-                                ) {
-                                    AppText(
-                                        "${index + 1}",
-                                        AppTextScale.Heading,
-                                        modifier = Modifier.width(20.dp),
-                                        fontWeight = FontWeight.Bold,
-                                        color = appPrimaryColor(),
-                                    )
-                                    AppEmojiText(state.categories.byId(cat).emoji, fontSize = 18.sp)
-                                    Spacer(Modifier.width(8.dp))
-                                    Column(Modifier.weight(1f)) {
-                                        AppText(
-                                            name,
-                                            AppTextScale.Meta,
-                                            fontWeight = FontWeight.Medium,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis,
-                                        )
-                                        Spacer(Modifier.height(4.dp))
-                                        val animFraction by animateFloatAsState(
-                                            targetValue = (amount.toFloat() / maxAmount).coerceIn(0.04f, 1f),
-                                            animationSpec = tween(600, easing = MotionEasing.EmphasizedDecelerate),
-                                            label = "topRankBar",
-                                        )
-                                        Box(
-                                            modifier = Modifier
-                                                .fillMaxWidth(animFraction)
-                                                .height(10.dp)
-                                                .clip(RoundedCornerShape(50))
-                                                .background(appPrimaryContainerColor()),
-                                        )
-                                    }
-                                    Spacer(Modifier.width(12.dp))
-                                    AppText(
-                                        "×$amount",
-                                        AppTextScale.Action,
-                                        fontWeight = FontWeight.Bold,
-                                        color = appPrimaryColor(),
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-            }
+            // 消耗排行榜：排行条与数量的画法在同包 `StatsTopConsumedSection.kt`（本文件只管装配）
+            item { StatsTopConsumedSection(state = state, onOpenItem = onOpenItem) }
         }
     }
 }
