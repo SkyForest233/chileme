@@ -1129,7 +1129,7 @@
 | **11a** | `AppText.kt` | 文本组件（`AppTextScale` / `AppText` / `AppEmojiText` / `AppMutedText`）**+ 9 个跨主题取色 helper**（`appSurfaceColor` / `appMutedColor` / `appErrorColor` / `appPrimaryContainerColor` / `appOnPrimaryContainerColor` / `appPrimaryColor` / `appFaintColor` / `appHighestContainerColor` / `appChartColors`）⇒ 一个叫「文本」的文件是全仓事实上的颜色层 | 新增 `AppColors.kt` 收那 9 个 | 同包移动 ⇒ **0 处 import 改动**，是全项最安全的一笔，先走 |
 | **11b** | `AppChrome.kt`（479） | **四件事**：① Snackbar 宿主（`AppSnackbarHostState` + `rememberAppSnackbarHostState` + `AppSnackbarHost`）——与 `UndoSnackbar.kt` 同属"snackbar 一件事"却分居两处；② 顶栏（`AppTopBar` + `AppBarNavIcon` + `AppBarIconButton`）；③ 顶栏动作族（`AppEditAction` / `AppDeleteAction` / `AppArchiveAction` / `AppSelectAllAction` / `AppDestructiveAction`）——行内动作 `AppEditRowAction` / `AppDeleteRowAction` 又在 `AppListRow.kt`；④ **`AppMessageScreen` 是整屏组件**（自带 `MiuixScaffold` + `fillMaxSize`），住在 chrome 里是硬边界错 | ① → `AppSnackbar.kt`；③ → `AppBarActions.kt`；④ → `AppMessageScreen.kt`；②留在 `AppChrome.kt`（顶栏就是 chrome，名副其实） | ①③④各自一笔，别合并成一笔（每笔只有一件事可以失败） |
 | **11c** | `CloudSync.kt`（262） | **四件事**：`object NutstoreSync`（WebDAV 协议 + 上传下载编排混在一个 object 里：`request` / `authOf` / `ensureDir` / `parsePropfind` / `upload` / `listInternal` / `download`）、`data class CloudBackup`（PROPFIND 结果模型）、`sealed interface OpFailure` + `Throwable.toOpFailure`（#4 的错误模型产物，跟网络客户端同文件）、`isAutoSyncDue`（**纯日期策略**，`AutoSyncDueTest` 在测它，却住在一个网络对象旁边） | `NutstoreWebdav.kt`（协议：request/auth/ensureDir/PROPFIND 解析 + `CloudBackup`）· `NutstoreSync.kt`（编排 upload/list/download）· `OpFailure.kt` · `AutoSyncPolicy.kt` | 拆完 **OkHttp 5 升级（P1）只动 `NutstoreWebdav.kt` 一个文件** ⇒ 这笔是给那条待办铺路 |
-| **11d** | `StatsScreen.kt`（409） | 一个 `StatsScreen` 里 4 个区块（到期日历入口 / 近 7 天柱状图 / 分类环图 / 消耗排行榜）+ 自绘图表件 `DonutChart` / `LegendRow` | 区块照 #10e 抽成同包 `Stats*.kt`；`DonutChart` / `LegendRow` 下沉 `ui/components/StatsCharts.kt` | 唯一"顺手满足 400 行判据"的一笔，但**立项理由不是那 9 行**，是 4 个区块 + 图表件混在一处 |
+| **11d**（① 已落地） | `StatsScreen.kt`（409） | 一个 `StatsScreen` 里 4 个区块（到期日历入口 / 近 7 天柱状图 / 分类环图 / 消耗排行榜）+ 自绘图表件 `DonutChart` / `LegendRow` | 区块照 #10e 抽成同包 `Stats*.kt`；`DonutChart` / `LegendRow` 下沉 `ui/components/StatsCharts.kt` | 唯一"顺手满足 400 行判据"的一笔，但**立项理由不是那 9 行**，是 4 个区块 + 图表件混在一处 |
 | **11e** | `ExpiryCalendar.kt`（400） | 月网格数学写在渲染体里：`MonthGrid` 里 `leading = month.atDay(1).dayOfWeek.value - 1`、`rows = (cells + 6) / 7`、跨年 `yearOffset` 偏移 ⇒ 这块逻辑今天**零测试**，而月首偏移 / 闰年 2 月 / 跨年正是日历最容易错的三处 | 抽 `CalendarMonthLayout`（纯函数，出 cells / rows / day 索引）+ 首次给它写单测 | 全项**唯一带真行为判据**的一笔 |
 | **11f** | `AppViewModel.kt`（282） | 类里同时是：启动编排（`init {}` 里 `seedIfNeeded` → `migrateLegacyCredentials` → `migratePlaintextPassword` → `migrateConsumptionIds` → 封面孤儿清理（带 `corruptedKeys` 跳过护栏）→ `maybeAutoSync` → `maybeAutoSnapshot`）、事件总线（4 个 `Channel` + 4 个 `receiveAsFlow`）、快照与云备份列表 | 「启动编排」抽成同包 `AppViewModelStartup.kt` 的 `internal suspend fun AppViewModel.runPantryStartup()`（`ready` 状态位留在类里） | **放最后**：它动的是执行位置，虽然不改行为，但顺序即正确性（M1-1 学到的）；也是 #10c「一屏一 VM」真正的阻塞点 —— 迁移管道不该跟着某个 VM 的生命周期走 |
 
@@ -1151,7 +1151,7 @@
 
 ### 11a / 11b / 11c 落地记录（09-19；数字与踩坑细节只写在 `devlog/2026-09-19.md` §15 / §16，此处不重抄）
 
-- 状态：**11a ✅ / 11b ✅ / 11c ✅**（11c 两笔 `2c4e6b6` + `76978ab`，修门禁红的那笔 `9b5c33e` 在 run `35450021031` 三 job 全绿）；11d–11f 未开工。三条验收的实测结果：① 逐行相等 ✓（脚本 assert 每段大括号闭合）；
+- 状态：**11a ✅ / 11b ✅ / 11c ✅ / 11d ⏳（① 已落地：两个图表件下沉 `ui/components/StatsCharts.kt`，`StatsScreen.kt` 409 → 327，run `35450811382` 三 job 全绿；② 那 4 个区块未开工 —— 它是 #11 里唯一**不是整块搬声明**的一刀，要设计参数表，形状照 #10e）**（11c 两笔 `2c4e6b6` + `76978ab`，修门禁红的那笔 `9b5c33e` 在 run `35450021031` 三 job 全绿）；11d–11f 未开工。三条验收的实测结果：① 逐行相等 ✓（脚本 assert 每段大括号闭合）；
   ② import 改动数 预测 0 = 实测 0 ✓（同包移动）；③ 位置守卫 ✓（`ComponentAppHomeTest` 现 20 条 + `AppColorLocationTest`）。
 - **计划改判一处**：`AppBarIconButton`（两主题共用的图标按钮底座）原写「留在 `AppChrome.kt`」，实做发现动作族要调它、
   而它是那个文件的 `private fun` ⇒ Kotlin 的 `private` 顶层成员是**文件**级可见，同包也不行 ⇒ **底座随调用方走**，
@@ -1174,6 +1174,8 @@
 | Kotlin 2.4.10 已移除 `arrayArrayOf` | 守卫/工具测试里用它拼路径 ⇒ `testDebugUnitTest` 编译红 + 一串看不懂的连带错 | 写 `listOf(两条相对路径).map(::File)`；报错**只修最上面那条 `e:`**，其余多半是涟漪 |
 | 会话中途丢 GitHub 凭据 | `gh` 401 + `git push` 无凭据 ⇒ 已推的 run 读不到、后一笔推不出去，闭环断在最后一公里 | 台账与状态一律写 ⏳（**读不到证据就当没落地**）；重连后 push → 盯 run → 回填三处 |
 | 注释符与循环跳转数（09-19 三次红之三） | 守卫里写 `#` 注释（markdown / shell 习惯）⇒ ktlint 报 `Not a valid Kotlin file`、kotlinc 一起炸；一个 `for` 里两条 `continue` ⇒ detekt `LoopWithTooManyJumpStatements`（阈值 **1**） | 动手前两条 grep：`grep -rn "^[[:space:]]*#" app/src --include=*.kt` 应为 0；新循环跳转 ≤1（要跳就用 `filter` / `mapNotNull`，先例 `NutstoreWebdav.parsePropfind`）。`docs/WORKFLOW.md` §4 已表行化 |
+| 改可见性时脚本自己造出非法声明 | `@Composable` 行与 `fun` 行各插一个 `internal` ⇒ `Repeated 'internal'.`，而 **ktlint / detekt 都不报**（09-19 11d①：job2 ✅、两个 variant ❌）⇒ 「静态门禁绿」不能当成「能编译」的证据 | 改过可见性的新文件跑一遍「同声明重复修饰符」grep（每处只许命中一次）；判编译看 `compile*Kotlin`。判据 5 值得进 `tools/kt-lexcheck.py`（已登记，不阻塞） |
+| 属性委托的 import 双向失明 | `by remember` / `by animateFloatAsState` 需要 `getValue`，但代码里**不出现这个名字** ⇒ 按名字收敛 import 的脚本与 `move-importcheck`（属性形跳过、不报缺失）都看不见 | 搬代码时**两侧各自** `grep -c " by "`；>0 就必须留 `androidx.compose.runtime.getValue`（`var` 另需 `setValue`） |
 | 行为改动的边界 | 11a–11e **都不改行为** ⇒ 不占用真机复测；11f 改执行位置 | 11f 完成后请用户过一眼「升级后凭据仍在 + 首屏不闪」两条即可 |
 ## #3 收官：验收口径与偏差（**不要再引用旧数字**）
 
