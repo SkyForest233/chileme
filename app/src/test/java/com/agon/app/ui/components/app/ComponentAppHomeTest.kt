@@ -42,6 +42,7 @@ class ComponentAppHomeTest {
         "AppArchiveAction" to "AppBarActions.kt",
         "AppSelectAllAction" to "AppBarActions.kt",
         "AppDestructiveAction" to "AppBarActions.kt",
+        "AppBarIconButton" to "AppBarActions.kt",
         "AppMessageScreen" to "AppMessageScreen.kt",
     )
 

@@ -18,8 +18,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.LargeTopAppBar
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -29,14 +27,10 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.text.font.FontWeight
 import com.agon.app.ui.theme.LocalThemeStyle
 import com.agon.app.ui.theme.ThemeStyle
-import top.yukonga.miuix.kmp.basic.Icon as MiuixIcon
-import top.yukonga.miuix.kmp.basic.IconButton as MiuixIconButton
 import top.yukonga.miuix.kmp.basic.Scaffold as MiuixScaffold
 import top.yukonga.miuix.kmp.basic.TopAppBar as MiuixTopAppBar
 import top.yukonga.miuix.kmp.icon.MiuixIcons
@@ -135,39 +129,6 @@ private fun AppBarNavIcon(onBack: (() -> Unit)?, onClose: (() -> Unit)?) {
             Icons.AutoMirrored.Rounded.ArrowBack,
             MiuixIcons.Back,
         )
-    }
-}
-
-/**
- * 顶栏图标按钮的共用实现：字形由语义入口（下面三个）传进来，两主题各挑各的。
- *
- * `tint` 为 null 时**不传**这个参数，而不是传 `Color.Unspecified` —— 合并前两版在
- * 「非危险操作」上都是整个参数不写（用各自库的默认内容色），照抄最稳。
- */
-@Composable
-private fun AppBarIconButton(
-    onClick: () -> Unit,
-    contentDescription: String,
-    md3Icon: ImageVector,
-    miuixIcon: ImageVector,
-    tint: Color? = null,
-) {
-    if (LocalThemeStyle.current == ThemeStyle.MIUIX) {
-        MiuixIconButton(onClick = onClick) {
-            if (tint != null) {
-                MiuixIcon(miuixIcon, contentDescription = contentDescription, tint = tint)
-            } else {
-                MiuixIcon(miuixIcon, contentDescription = contentDescription)
-            }
-        }
-    } else {
-        IconButton(onClick = onClick) {
-            if (tint != null) {
-                Icon(md3Icon, contentDescription = contentDescription, tint = tint)
-            } else {
-                Icon(md3Icon, contentDescription = contentDescription)
-            }
-        }
     }
 }
 

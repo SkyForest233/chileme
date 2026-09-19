@@ -131,21 +131,21 @@ StatusUi 提供三个颜色槽位，按用途严格区分：
 > done
 > ```
 > **新增/删除组件时同批更新本表**（`CLAUDE.md` §3 记录规则已立此条）。
-> ⚠️ 括号里的行数是**快照**：`AppText.kt` / `AppColors.kt` / `AppChrome.kt` / `AppSnackbar.kt` / `AppBarActions.kt` /
+> ⚠️ 括号里的行数一律 **`wc -l` 口径**（2026-09-19 起与表头那句话统一，此前 #11a 两行写的是 +1 的数，已改）；且它是**快照**：`AppText.kt` / `AppColors.kt` / `AppChrome.kt` / `AppSnackbar.kt` / `AppBarActions.kt` /
 > `AppMessageScreen.kt` 六行为 2026-09-19 #11a、#11b 当天实测，其余行仍是 09-17 的数
 > ⇒ 全目录现值一律看 `tools/doc-metrics.sh` 的「App 级组件层」那行，本表这一列别拿来当结论引用。
 
 | 文件 | 组件（多数行生成于 2026-09-17；#11a、#11b 碰过的行是当天现跑上面那条命令） | 用途 |
 |---|---|---|
-| `AppChrome.kt` (264 行) | `AppScaffold` `AppTopBar` `AppSnackbarHost` `rememberAppSnackbarHostState` `AppSnackbarPlacement` `AppSnackbarForm` `AppDeleteAction` `AppDestructiveAction` `AppSelectAllAction` `AppArchiveAction` | 页面骨架、顶栏（含多选态）、撤销条宿主与落位、顶栏动作按钮 || `AppSnackbar.kt` (129 行) | `AppSnackbarForm` `AppSnackbarHost` `AppSnackbarHostState` `AppSnackbarPlacement` `rememberAppSnackbarHostState` | 撤销/提示条：双主题宿主容器、落点与形态。`UndoSnackbar.kt` 的 `SwipeDismissSnackbarHost`（滑动关闭装饰）**没有**一起搬——它被 `MainApp.kt` 与 4 个屏幕直接 import，搬它要改 6 处 import，与本笔「同包零改动」不是一回事（记在 ROADMAP #11 备注里）（09-19 #11b 拆出） || `AppBarActions.kt` (82 行) | `AppArchiveAction` `AppDeleteAction` `AppDestructiveAction` `AppEditAction` `AppSelectAllAction` | 顶栏 5 个动作入口（编辑 / 删除 / 归档 / 全选 / 清空）。行内动作 `AppEditRowAction` / `AppDeleteRowAction` 仍在 `AppListRow.kt`——它们长在卡片行里，不是顶栏槽位（09-19 #11b 拆出） || `AppMessageScreen.kt` (77 行) | `AppMessageScreen` | 整屏消息页（自带标题栏 + 一个动作按钮），被当作导航目标用。**刻意不与 `EmptyState` 合并**：后者是嵌在列表末尾的引导块（见 ROADMAP #11「明确不做」）（09-19 #11b 拆出） |
-
-
-
+| `AppChrome.kt` (224 行) | `AppScaffold` `AppTopBar` | 页面骨架与顶栏（含多选态的关闭/返回分流）。09-19 #11b 把撤销条宿主、顶栏动作族、整屏消息页各拆成一个文件；`AppBarIconButton` 跟着动作族走了 —— 它是 `private fun`，同包跨文件不可见，留在原地就是编译失败 |
+| `AppSnackbar.kt` (128 行) | `AppSnackbarForm` `AppSnackbarHost` `AppSnackbarHostState` `AppSnackbarPlacement` `rememberAppSnackbarHostState` | 撤销/提示条：双主题宿主容器、落点与形态。`UndoSnackbar.kt` 的 `SwipeDismissSnackbarHost` **没有**一起搬：它被 `MainApp.kt` 与 4 个屏幕直接 import，搬它要改 6 处 import，与「同包零改动」不是一回事（记在 ROADMAP #11 备注）（09-19 #11b 拆出） |
+| `AppBarActions.kt` (123 行) | `AppArchiveAction` `AppBarIconButton` `AppDeleteAction` `AppDestructiveAction` `AppEditAction` `AppSelectAllAction` | 顶栏 5 个动作入口 + 它们共用的 `AppBarIconButton` 底座（`AppChrome.kt` 的 `AppBarNavIcon` 也调它）。行内动作 `AppEditRowAction` / `AppDeleteRowAction` 仍在 `AppListRow.kt`：它们长在卡片行上，不是顶栏槽位（09-19 #11b 拆出） |
+| `AppMessageScreen.kt` (76 行) | `AppMessageScreen` | 整屏消息页（自带标题栏 + 一个动作按钮），被当导航目标用。**刻意不与 `EmptyState` 合并** —— 后者是嵌在列表末尾的引导块（判定见 ROADMAP #11「明确不做」）（09-19 #11b 拆出） |
 | `AppSurface.kt` (353 行) | `AppCard` `AppPaddedCard` `AppCardTone` `AppStatusCard` `AppStatCard` `AppStatTone` `AppSection` `AppHintText` `AppStatsListMetrics` `appStatsListMetrics` | 卡片与分区外壳、统计卡、列表度量 |
 | `AppListRow.kt` (406 行) | `AppListRow` `AppActionRow` `AppCardRow` `AppSectionHeader` `AppLocationIcon` `AppEditRowAction` `AppDeleteRowAction` | 列表行（三种形态）、分区标题、行内动作 |
 | `AppControls.kt` (376 行) | `AppSearchField` `AppFilterChip` `AppChipTone` `AppFilterToggle` `AppFilterSectionLabel` `AppStepperPill` | 搜索框、筛选胶囊/开关、数量步进器 |
-| `AppText.kt` (213 行) | `AppTextScale` `AppText` `AppEmojiText` `AppMutedText` | 语义字号档位 + 文字组件；**取色访问器已于 09-19 #11a 移出去**，别再往这里加 |
-| `AppColors.kt` (165 行) | `appSurfaceColor` `appMutedColor` `appErrorColor` `appPrimaryContainerColor` `appOnPrimaryContainerColor` `appPrimaryColor` `appFaintColor` `appHighestContainerColor` `appChartColors` | 跨主题取色口子（一个语义角色一个函数）；守卫 `AppColorLocationTest` 钉住「只此一个文件」 || `AppButtons.kt` (188 行) | `AppBigButton` `AppEditButton` `AppWideButton` `AppAddItemButton` | 大按钮（emoji + 文案 + 角标）、整宽按钮、新增入口 |
+| `AppText.kt` (212 行) | `AppTextScale` `AppText` `AppEmojiText` `AppMutedText` | 语义字号档位 + 文字组件；**取色访问器已于 09-19 #11a 移出去**，别再往这里加 |
+| `AppColors.kt` (164 行) | `appSurfaceColor` `appMutedColor` `appErrorColor` `appPrimaryContainerColor` `appOnPrimaryContainerColor` `appPrimaryColor` `appFaintColor` `appHighestContainerColor` `appChartColors` | 跨主题取色口子（一个语义角色一个函数）；守卫 `AppColorLocationTest` 钉住「只此一个文件」 || `AppButtons.kt` (188 行) | `AppBigButton` `AppEditButton` `AppWideButton` `AppAddItemButton` | 大按钮（emoji + 文案 + 角标）、整宽按钮、新增入口 |
 | `AppOptionDialog.kt` (188 行) | `AppOptionDialog` `AppOptionSpec` | 选项弹窗（导出格式选择 / 恢复来源选择） |
 | `AppFormDialog.kt` (173 行) | `AppFormDialog` `AppFormFieldSpec` | 带输入框的表单弹窗 |
 | `AppConfirmDialog.kt` (134 行) | `AppConfirmDialog` | 确认弹窗（MD3 `AlertDialog` 槽位 / Miuix `WindowDialog` + 等宽两个 `TextButton`） |
