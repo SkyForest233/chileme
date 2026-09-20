@@ -1142,7 +1142,7 @@
 | **11f** ✅ **已做**（09-19） | `AppViewModel.kt`（立项时 282 ⇒ 现 195） | 类里同时是：启动编排（`init {}` 里 `seedIfNeeded` → `migrateLegacyCredentials` → `migratePlaintextPassword` → `migrateConsumptionIds` → 封面孤儿清理（带 `corruptedKeys` 跳过护栏）→ `maybeAutoSync` → `maybeAutoSnapshot`）、事件总线（4 个 `Channel` + 4 个 `receiveAsFlow`）、快照与云备份列表 | 实做：新 `AppViewModelStartup.kt`(135) = `internal suspend fun AppViewModel.runPantryStartup()` + 两个 `private` 策略函数（`maybeAutoSync` / `maybeAutoSnapshot` **跟着搬了**：它们只被这一步调用，留在类里等于把同一段顺序拆在两处）；`ready` 状态位按计划留在类里；VM 282 → 197 行（修红后再删死 `TAG` ⇒ 195），`init` 只剩 `viewModelScope.launch { runPantryStartup() }` | **放最后**：它动的是执行位置，虽然不改行为，但顺序即正确性（M1-1 学到的）；也是 #10c「一屏一 VM」真正的阻塞点 —— 迁移管道不该跟着某个 VM 的生命周期走 |
 
 **押后不做**：`FoodRepository.kt` 的 20 个 key + 20 条 flow 归各领域（09-19 讨论过，用户未拍）——
-一旦做 Room（P1-1）这 20 条 flow 本身要重写一半，现在归位可能白做一遍 ⇒ 挂到 Room 那个决定上。
+一旦换存储（P1-1）这 20 条 flow 本身要重写一半，现在归位可能白做一遍 ⇒ 挂到"分片或换存储的那一次"上（**09-20 Room 决定已做：不迁**，见下方「决定记录」）。
 
 ### 明确不做（写下来免得下一轮又提）
 
@@ -1197,6 +1197,36 @@
 | 抽取时新引入的类型名 | 参数表里写 `List<Color>` 这类原文件从没 import 过的名字 ⇒ 按原文件 import 表复制/收敛的结构上看不见，只有 kotlinc 会红（09-19 第六次红） | `tools/kt-name-audit.py`（只看签名类型位置，自检 6 个对照）；11e/11f 搬完各跑一次 |
 | 本地分支被重置回会话基线 | 本支 26 个提交不在本地 ref 上、新文件全变未跟踪，看着像"一天白干" | 动手前先 `git log --oneline -1` 确认 HEAD；恢复 = 先自证工作区内容，再 `git reset --soft <远端 tip>` + `git reset`（不碰工作区）。**本地 ref 不是可信源，远端 tip 才是** |
 | 行为改动的边界 | 11a–11e **都不改行为** ⇒ 不占用真机复测；**11f 动了执行位置**（09-19 已做完，行为按逐行等价核过） | ✅ 用户 09-20 实机确认「升级后凭据仍在 + 首屏不闪」两条通过 —— #11 里唯一需要实机点头的一笔，已点头即可 |
+## 决定记录：**DataStore → Room 不迁**（2026-09-20；用户问"应该做吗"，这是判定与理由）
+
+> 三处文档一直写着"押到 Room 那个决定"（#11 的 `FoodRepository` 20 key / 20 flow 归位、#6=10c、P1-1）
+> ⇒ 决定本身此前**从没被正式做过**。本节就是把它做掉，并给押后的三项一个新指针。
+
+**判定：现在不迁。** 但不是"Room 不好"，而是"现在迁它的净收益 < 净代价"，且代价在本项目的处境下被放大：
+
+| 维度 | 实测现状（`wc -l` / `grep` 口径，2026-09-20） | 判定 |
+| --- | --- | --- |
+| 写放大是否真存在 | **存在**：`dataStore.edit {}` 共 **31** 处，`food_items` / `archived_items` / `consumption_records` / `history_entries` 是整表 JSON ⇒ 一次"吃掉一件"= 解码 3 张表 + 整文件重写（`changeQuantity` 就是这个形状） | 是真问题，但**未到痛**：仓库注释自己估的量级是 1000 条归档 ≈ 200KB，一秒内可完成 |
+| 审查报告最狠的那条 | 09-19 外部评审把"归档 `take(200)` 静默丢数据"定级 **P0** ⇒ **M1-3（09-19）已修**：`ARCHIVE_RETENTION = 1000` 常量集中 + 溢出计数 `archiveOverflowKey` 与截断同一次 `edit` 原子落盘 + 纯函数可注入 retention + 测试 | P0 已消 ⇒ **迁 Room 的最大理由被就地拆掉了** |
+| 迁移要付的账 | `DataStore` 侧 19~20 个 key、**20 条 flow 全部重写**；为绕开"整表"长出的脚手架 **21 处**（`DecodeCache` / `distinctUntilChanged` / `flowOn` / `resilientRead`）要一并处置；`data/` 层 **17** 份单测里 **5** 份是**读源码形状**的守卫（`CorruptGuardTest` 等）⇒ 必红重改；`BackupCompatTest` 钉住的是**用户可见的 JSON 备份契约**（v1→v2 字段回落、未知字段忽略、畸形 JSON 抛异常不吞）⇒ 换存储后这层格式仍须原样保留 | 工作量以"周"计（评审给的 M3 是 2 周），且**没有一步能在 CI 之外被本地验证** |
+| 只能真机验的部分 | ① Auto Backup 对 Room 的 `-wal` / `-shm` 附属文件的处理；② 换机（D2D）是否完整带走 `databases/`；③ 迁移失败时的回滚窗口 | ⚠️ 本项目的验证通道只有 GitHub Actions + 你手上的实机 ⇒ **这三条每一条都要占用你的复测时间**，而 DataStore 单文件 + 原子替换现在不需要 |
+| 数据形状是否真需要 SQL | 全仓无 JOIN 需求；筛选/排序/聚合都在 Kotlin 侧（`HomeScreen` 排序、`StatsState` 聚合、`suggestionSource` 取历史前 N）；单机单用户、无并发写者（`edit` 天然串行） | 官方那句"大数据集/部分更新/引用完整性才用 Room"的**三个条件目前一个都不成立** |
+
+**因此改为"做两件小的、把大的留作触发式"**（两件都不需要换存储）：
+
+1. **`history_entries` 的 `take(50)` 仍是静默截断**（`FoodItems.kt:79`）—— 与刚被 M1-3 修掉的归档那条**同形**，只是危害较小（它是"常用建议"的来源，不进统计）。
+   ⇒ 该做的是照抄 M1-3 的三板斧：常量集中（`HISTORY_RETENTION`）+ 溢出计数与截断同一次 `edit` + 纯函数可注入 `retention` + 一条 JVM 测试。**这是本轮唯一"结构性又便宜"的账。**
+2. **`consumption_records` 没有上限**（12 处 `consumptionKey` 用法里没有任何 `take`/裁剪）⇒ 它才是"无界增长 × 整份重写"那条曲线。
+   ⇒ 但**别照归档的做法加 `take`**（消耗记录是不可再生的历史，砍就是丢数据）：要么按年/按月**分片成多个 key**（仍是 DataStore，避开整表重写），要么等触发线出现直接上 Room。当前它排在 ① 之后。
+
+**触发线（任一成立就重新评估，写成可测的）**：
+- 单次"改数量"的写路径序列化条目数 **> 3,000**（`items + consumption + archive` 三表之和；现在按仓库自估约 10²~10³）；
+- 出现**任何**需要跨表查询/分页/全文搜索的功能（例如"按日期范围翻消耗记录"、"按备注搜库存"）——此时 Kotlin 侧 filter 会先变成卡顿；
+- `MAX_BACKUP_BYTES`（`BackupFile.kt:17` = 20 MB）被真实用户顶到（备份/恢复被拒 = 数据安全事故级）。
+
+**押后三项的新指针**：`FoodRepository` 的 20 key / 20 flow 归位 ⇒ 挂到"**分片或 Room 的那一次**"（不再写"跟 Room 一起"，因为决定已经做了）；
+#6 / 10c 仍是 `skip_10c`（与存储无关，卡的是 `Eagerly` 的安全职责）；P1-1 在审查报告里已追加项目方回复（见该文件 §5.1 末）。
+
 ## #3 收官：验收口径与偏差（**不要再引用旧数字**）
 
 - **达成的**：`Miuix*Screen.kt` 双胞胎 **8 对 → 0**；屏幕本体 17 文件 7,541 行 → **9 文件 4,209 行（-44%）**；

@@ -165,6 +165,16 @@
   1. **短期**：`FoodItem` 从"整表 JSON"改为 `dataStore` 里的**每条一个 key**（`item:<id>`）+ 一个 `index` key？——不，这条不要做，DataStore 没有前缀查询，会更糟。**正确的短期动作是**：把 `version` 写进 payload（现在只有备份文件有 `BACKUP_VERSION = 2`，DataStore 里的 JSON **没有 schema 版本**，加字段时无法判断该跑哪条迁移），并把 `Json { ignoreUnknownKeys = true }` 补上 `explicitNulls = false`，避免未来加可空字段时老数据解码行为漂移。
   2. **中期（推荐）**：迁 **Room**。三张表（`items` / `archive` / `consumption`）+ 一张 `settings` 留 DataStore。Room 一次性解决：部分更新、`take(200)` 截断、`planRestore` 去重（改成唯一索引 + `OnConflictStrategy`）、`suggestionSource` 的三表拼接（改成一次 `SELECT`）、跨零点刷新（改成查询参数）、以及**可测性**（`Room.inMemoryDatabaseBuilder` + Robolectric/`RuntimeEnvironment`）。迁移用一份 `Migration` 从 DataStore 读旧 JSON 写入 DB + 保留旧 key 一个版本做回滚。**这一条是本项目 ROI 最高的单项改动。**
 
+> **项目方回复（2026-09-20，见 `docs/ROADMAP.md` 的「决定记录：DataStore → Room 不迁」）**
+> 本节最重的那条 P0（归档 `take(200)` 静默丢数据）**已在本轮 M1-3 落地时被就地拆掉**：`ARCHIVE_RETENTION = 1000`
+> 集中成常量、溢出条数计入 `archiveOverflowKey`（与截断同一次 `edit`，原子）、上限做成可注入的纯函数 + JVM 测试。
+> ⇒ "为了不再静默丢数据而迁 Room"这条理由已不成立。**Room 迁移 09-20 判定为"现在不做"**，并写了三条可测触发线
+> （单次写路径条目数 > 3,000 / 出现跨表查询或分页搜索需求 / 备份被 `MAX_BACKUP_BYTES` 拒）。
+> 两条**留下**的账正是本节指出的、不需要换存储就能修的：① `history_entries` 的 `take(50)` **仍是静默截断**
+> （本节说的同形问题，尚未处理）；② `consumption_records` **无上限** ⇒ 无界增长 × 整份重写（刻意**不加 `take`**，
+> 消耗记录不可再生，砍就是丢数据；要改就分片成多 key，或等触发线出现直接换存储）。
+> 「按 `item:<id>` 每条一个 key」这条本项目也同意**不做**（`dataStore` 无前缀查询，会更糟）。
+
 ### 5.2 备份：为了护一个密钥，把全部用户数据排除在备份之外
 
 `backup_rules.xml` 与 `data_extraction_rules.xml` 两条通道都 `<exclude domain="file" path="datastore/"/>`。理由写在注释里（Keystore 密钥不跨设备，恢复了也解不开）——理由对，做法错。官方 DataStore 文档对此有明确建议：
