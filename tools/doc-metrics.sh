@@ -573,6 +573,65 @@ else:
           '（与 UiSurface 的 %d 个落点一一对应）' % (ch, raf, len(surfaces)))
 PY
 )" '目标「0 个」。这是 ROADMAP #4「守卫交接」那次交接的产物：#4a 之前这里放的是临时守卫「一次性事件必须有 consume 配对」（2026-09-18 核查发现本仓用「可空 StateFlow + 手工 consume」建模 4 个一次性事件，4/4 都记得清空 ⇒ 当时并没有重放 bug，靠纪律不靠机制）；4a 把 4 个全改成 `UiEvent` + `Channel`（接收即出队）之后，守卫换成「**禁止再出现**，超出即 ✗，豁免须登记理由」，同一次提交完成、不留两套。自带阳性对照（内嵌样本）与替代机制在场检查（`Channel` / `receiveAsFlow` 计数）—— 因为「0 个」这种结果若不先证明探测真的在工作，就没有意义（见本脚本头部第 3 条硬约定）。'
+row '拆分后的机械账（新文件进树 + 目录计数）' "$(python3 - <<'PY' 2>/dev/null || echo '需 python3'
+import subprocess, io, os, re, glob
+DOCS = ['docs/ARCHITECTURE.md', 'docs/DESIGN_SPEC.md', 'docs/MIUIX_UPGRADE.md', 'docs/ROADMAP.md', 'devlog/INDEX.md']
+DIRS = ['data', 'viewmodel', 'ui/screens', 'ui/components/app', 'ui/theme']
+tree = io.open('docs/ARCHITECTURE.md', encoding='utf-8', errors='ignore').read()
+bad = []
+# ── ① 新增的主代码文件必须进 ARCHITECTURE 的目录树 ────────────────────────────
+# 目录树允许「一类文件用一个 glob + 计数」描述（本项目只有 *State.kt 这一处，见「① *State.kt 状态容器（N 个）」）
+# ⇒ 命中豁免表的不算漏写。豁免表要**窄**：放宽到 `*Screen.kt` 就等于废掉这一行（新拆出的屏幕文件全能蒙过去）。
+GLOB_EXEMPT = ['State.kt']
+new = None
+try:
+    out = subprocess.run(['git', 'log', '--since=90.days.ago', '--diff-filter=A', '--name-only',
+                          '--pretty=format:', '--', 'app/src/main'], capture_output=True, text=True, check=True).stdout
+    new = sorted({l.strip() for l in out.splitlines() if l.endswith('.kt')})
+except Exception:
+    bad.append('拿不到 git 历史，①未核（CI 上请确认 actions/checkout 带 fetch-depth）')
+if new is not None:
+    miss = [f for f in new if os.path.basename(f)[:-3] not in tree
+            and not any(os.path.basename(f).endswith(g) for g in GLOB_EXEMPT)]
+    bad += ['%s 未进 ARCHITECTURE 树' % f for f in miss]
+    # 阳性对照：拿一个必然不存在的名字确认「未提到」不是匹配整体失效造成的假绿
+    if 'ZZZ_NOT_A_REAL_FILE' in tree:
+        bad.append('⚠️ 阳性对照失效（树里出现了本该不存在的符号）—— 本行结果不可信')
+# ── ② 目录文件数：文档写了就必须等于实测 ──────────────────────────────────────
+def claimed(line, d):
+    """抓 `<路径>d/`（N 文件 / N 个文件）这一族写法；反引号内允许前缀路径、`.kt`、粗体星号。"""
+    out = []
+    for m in re.finditer(re.escape(d), line):
+        tail = line[m.end():m.end() + 16]
+        hit = re.match(r'/?\*?(?:\.kt)?\*{0,2}`\*{0,2} ?[（(]\*{0,2} ?(\d+) ?(?:个文件|文件)', tail)
+        if hit:
+            out.append(int(hit.group(1)))
+    return out
+for d in DIRS:
+    real = len(glob.glob('app/src/main/java/com/agon/app/%s/*.kt' % d))
+    for f in DOCS:
+        text = io.open(f, encoding='utf-8', errors='ignore').read() if f != 'docs/ARCHITECTURE.md' else tree
+        for n, l in enumerate(text.split('\n'), 1):
+            # 只豁免明写「当时 / 原写」的历史叙述。⚠️ 不要豁免「实测」：正主行往往正是
+            # 「（N 文件；实测见 doc-metrics）」，连它一起豁免 = 这半个判据形同摆设（09-20 变异测试抓到）
+            if any(k in l for k in ('当时', '原写', '别处不要跟着抄')):
+                continue
+            for v in claimed(l, d):
+                if v != real:
+                    bad.append('%s:%d 说 `%s` %d 个，实测 %d' % (f, n, d, v, real))
+# *State.kt 是 glob 豁免项，它的账改成核那句计数本身（否则整类文件无人看管）
+real_state = len(glob.glob('app/src/main/java/com/agon/app/ui/screens/*State.kt'))
+mst = re.search(r'\*State\.kt[^（]*（(\d+) 个', tree)
+if mst and int(mst.group(1)) != real_state:
+    bad.append('ARCHITECTURE 说 *State.kt %s 个，实测 %d 个' % (mst.group(1), real_state))
+elif not mst:
+    bad.append('ARCHITECTURE 里找不到「*State.kt 状态容器（N 个）」那句 ⇒ glob 豁免无人核对')
+if not bad:
+    print('0 处 ✗ ✓（新增 %d 个主代码文件全部在树内，目录计数全部对齐）' % (len(new) if new else 0))
+else:
+    print('%d 处 ✗  ⚠️ %s' % (len(bad), '; '.join(bad)[:240]))
+PY
+)" '2026-09-20 上线当天就抓到 11 个文件在树外 + 2 处计数过期：#11a–#11f 拆出的 25 个里 `NutstoreWebdav` / `AppBarActions` / `StatsCategorySection` / `StatsTopConsumedSection` 一个都没提，更早几轮 #5c/M1-1 拆出的 `data/` 7 个领域文件与包根 `ChiliMeApp.kt` 也漏在树外（`data/` 树只列了 11 / 18）⇒ 拆分只改代码不改地图。判据自带变异测试：把 app/ 的「16 文件」或 *State.kt 的「8 个」改错必须报红'
 row '文档写死的关键数 vs 实测（不符即 ✗）' "$(python3 - <<'PY' 2>/dev/null || echo '需 python3'
 import glob, io, re
 MAIN = 'app/src/main'

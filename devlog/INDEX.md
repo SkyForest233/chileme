@@ -63,7 +63,7 @@
 - ✅ **#5 Repository 拆分 + `Clock` 注入 + 轻量 DI —— 全项收官**（5a ✅ + 5b ✅ + 5c ✅ + **真机复测 ✅**，
   均 2026-09-18；验收 ①–⑥ 全达成，③ 仅在 #5 范围内 ⇒ UI/VM 层 6 个超 400 行的文件仍是待办）—— `FoodRepository.kt` 开工时是 **965 行 / 47 个类级函数**（历史快照），
   **收官后 252 行 / 9 个类级函数**，拆出 7 个领域文件（`RepositoryCore` 244 / `FoodConsumption` 177 / `FoodBackup` 124 /
-  `FoodItems` 106 / `FoodArchive` 100 / `FoodSettings` 65 / `FoodCredentials` 49），`data/` 15 个文件**最大 293 行、无一超 400**
+  `FoodItems` 106 / `FoodArchive` 100 / `FoodSettings` 65 / `FoodCredentials` 49），`data/` 15 个文件**最大 293 行、无一超 400**（09-20 实测 18 个：坚果云那三刀加了 `NutstoreWebdav` 等；目录计数一律现测，别处不要跟着抄 15）
   （已进 `tools/doc-metrics.sh` 当判据，并做过阳性对照）；形状 = 同包 `internal` 扩展函数，对外调用写法一字未变；
   `Application` 子类 **1** 个（`ChiliMeApp` 持有 `AppContainer`，#5a 起；改造前 0 个、仓库在 `AppViewModel` 里现场构造）；
   **#5b 起数据层与 VM 取时间一律走注入的时钟**：函数体硬调 **0** 处、已注入 **14** 处（UI/主壳 **7** 处刻意保留），
