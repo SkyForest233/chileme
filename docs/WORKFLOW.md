@@ -140,3 +140,6 @@ bash tools/bootstrap-build-env.sh --bootstrap      # = 上面两条
 | 流程/规范本身调整 | WORKFLOW.md + CLAUDE.md |
 | CI 门禁规则调整（`.editorconfig` / `detekt.yml` / `tools/ci-gates.sh`） | WORKFLOW.md §3 + devlog |
 | 任何一轮开发完成 | devlog/YYYY-MM-DD.md + devlog/INDEX.md（强制） |
+| 一个多笔立项（如 #10 / #11）收官 | **`docs/ROADMAP.md` 顶部主表那一行的状态词与 CI 列** + 小节 + `devlog` 台账 + PR 描述。
+  ⚠️ 别只翻小节：`tools/doc-metrics.sh` 比对的是写死的数字与文件位置，**不比对 ⏳/✅ 这类状态词** ⇒ 主表漏翻不会有任何
+  门禁报警（09-19 #11 六笔全做完、主表还挂着「⏳ 未开始」，是记账时通读才发现的）|
