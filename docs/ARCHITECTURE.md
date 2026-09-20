@@ -63,6 +63,7 @@ app/src/main/java/com/agon/app/
     │                           #   FoodCard.kt · Controls.kt（SelectIndicator/CheckSwitch/EmptyState）· DataCorrupt.kt（corruptKeyNames/DataCorruptBanner）
     │                           #   MiuixDialog.kt（WindowDialog 封装）；另有原本就独立的 UndoSnackbar.kt · ExpiryCalendar.kt
     │   ├─ StatsCharts.kt       # 统计页两个图表件（DonutChart / LegendRow，09-19 #11d ① 从 StatsScreen.kt 下沉；层界由 StatsChartsLocationTest 守住：ui/screens/ 下不得出现 Canvas( ）
+    │   ├─ CalendarMonthLayout.kt # 月网格排版数学（leading / daysInMonth / cells / rows + 第几号），09-19 #11e 从 ExpiryCalendar 的 MonthGrid 抽出 ⇒ 渲染体里的算式变成可单测；真值表见 CalendarMonthLayoutTest
     │   └─ app/                 # App 级双主题骨架（2026-09-16 第三批 #3 新建 10 个文件 2,746 行；2026-09-17 增至 12）：
     │                           #   AppChrome.kt（AppScaffold / AppTopBar / AppSnackbarHost + Placement + Form / AppMessageScreen / 顶栏动作）
     │                           #   AppText.kt（AppTextScale 13 档语义字号 + AppText / AppEmojiText / AppMutedText + 主题色访问器）
