@@ -27,3 +27,6 @@ keystore.properties
 # Python（tools/ 下的脚本用 importlib 互相借用词法器时会生成 __pycache__）
 __pycache__/
 *.pyc
+
+# 就地改文件用的一次性脚本（09-19/09-20 两次被 git add -A 顺手吞进历史 ⇒ 明确排除）
+tools-tmp-*

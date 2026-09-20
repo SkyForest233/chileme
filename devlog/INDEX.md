@@ -109,7 +109,7 @@
   当时"待用户自己应用"这条已结（详见 09-17 §10 与 09-20 §2）。
   密钥泄漏已本地全历史扫描（207 提交）**确认干净**，故 gitleaks / zizmor / 依赖校验清单
   经成本收益复评**建议不做**（理由见 09-17 §10）。
-  仍挂着未做：`paths-ignore`、APK 体积基线、`bundleRelease`(AAB)、
+  **09-20 用户决定先不动**（等上架窗口打开再一并处理，含那份只能由用户推的补丁）。仍挂着：`paths-ignore`、APK 体积基线、`bundleRelease`(AAB)、
   `versionCode` 改用仓库内版本文件（现为 `github.run_number`，`release.yml:112`）。
 
 - 🔨 **#10 UI/VM 层拆分收尾（`SettingsScreen.kt` 1,705 → **297** 行 + `AppViewModel.kt` 700 → 590 → 469 → 431 → 363 → 322 → 304 → **277** 行 🎯 达标）** —— **10a 已落地（2026-09-18，10a-1 + 10a-2）+ 10b 七轮全部落地（2026-09-19）✅ 收官**：弹窗区（352–986，跨 635 行）逐字搬到同包 `SettingsBackupDialogs.kt`(233) / `SettingsCloudDialogs.kt`(368) / `SettingsSnapshotDialogs.kt`(207)；**10a-2** 再把两套 body 与两个 MD3 专用小组件搬到 `SettingsBodyMd3.kt`(260) / `SettingsBackupMd3.kt`(222) / `SettingsBodyMiuix.kt`(219) / `SettingsMd3Widgets.kt`(184)，入口只剩装配（297 行）。两轮都是行为零改动 ⇒ 都不占用复测；⚠️ 10a-2 落地后 CI 红了**两轮**（首轮 5 个文件漏 41 条 import、次轮入口漏 `getValue`/`setValue` 2 条**委托算子**，修法都只动 import 行；见 devlog §13.10 / §13.11）；**10b** 已搬完 **7 / 7** 个领域 ✅（备份 9 + 云端同步 4 + 归档与消耗撤销 6 + 食物 CRUD 与批量 11 + 分类与位置 7 + 设置 6 + UI 状态与事件 5 = **48 / 50** 个函数，余 2 个 private 策略函数按规划留守 ⇒ `AppViewModelBackup.kt` 149 / `AppViewModelCloud.kt` 167 / `AppViewModelArchiveUndo.kt` 87 / `AppViewModelFood.kt` 138 / `AppViewModelCategoryLocation.kt` 104 / `AppViewModelSettings.kt` 90 / `AppViewModelUiState.kt` 88 行），**验收① 已达标**（`viewmodel/` 九个文件全部 < 400，最大是 VM 的 277 行）⇒ **#10b 收官**：VM 本体 **700 → 277（−423 行，−60%）**、累计放宽 **13** 处 `private` → `internal`、调用方 **10 个文件 / +51 行 import**、守卫同批改 **3** 次（全在 `CorruptGuardTest`）、**7 个提交全部一次通过 CI**；**10c（= #6）已由用户决定搁置**（2026-09-19 `skip_10c`；`stateIn(` 仍 20 处、`WhileSubscribed` 仍是零，10b 七轮一处没碰 ⇒ 侦察量出的加固前置见 ROADMAP #6 节与 09-19 §11）。
