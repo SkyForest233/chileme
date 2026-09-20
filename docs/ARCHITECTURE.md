@@ -45,7 +45,7 @@ app/src/main/java/com/agon/app/
 │   ├─ AutoSyncPolicy.kt        # 自动同步间隔判定 isAutoSyncDue —— 纯函数，唯一能被单测钉死的那块（同上拆出）
 │   └─ SecureStore.kt           # Keystore AES-GCM 密码
 ├─ viewmodel/                   # 10 个文件（2026-09-19 #10b 七轮把 VM 的领域函数按领域搬成同包 internal 扩：VM 的领域函数按领域搬成同包 internal 扩展函数）
-│   ├─ AppViewModel.kt          # 全局共享 VM（AndroidViewModel），StateFlow 暴露；#11f 把 `init` 的启动编排搬出后 197 行 🎯 < 400 达标（#10b-1 前 700、#10b-2 前 590、#10b-3 前 469、#10b-4 前 431、#10b-5 前 363、#10b-6 前 322、#10b-7 前 304；七轮搬出 48/50 个函数，只剩 init + 2 个 private 策略函数 + 44 个属性）
+│   ├─ AppViewModel.kt          # 全局共享 VM（AndroidViewModel），StateFlow 暴露；#11f 把 `init` 的启动编排搬出后 195 行 🎯 < 400 达标（搬完那笔是 197，修红时又删掉变成死常量的 `TAG`）（#10b-1 前 700、#10b-2 前 590、#10b-3 前 469、#10b-4 前 431、#10b-5 前 363、#10b-6 前 322、#10b-7 前 304；七轮搬出 48/50 个函数，只剩 init + 2 个 private 策略函数 + 44 个属性）
 │   ├─ UiEvent.kt               # 一次性事件：sealed interface UiEvent（6 类，#4a 建 4 类 / #4c 扩 2 类）+ enum DataOp（5 值）+ enum UiSurface（4 值）
 │   ├─ AppViewModelBackup.kt    # VM 的备份领域 9 个函数（导出/文件导入/导入前快照/本地快照；#10b-1，2026-09-19）
 │   ├─ AppViewModelCloud.kt     # VM 的坚果云同步领域 4 个函数 + 顶层常量 NO_CREDENTIALS_MESSAGE（凭据/上传/列表/下载；#10b-2，2026-09-19）
