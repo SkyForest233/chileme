@@ -43,7 +43,7 @@ import kotlinx.coroutines.launch
  *
  * 领域边界（哪些「看着像」却不在本文件）：`archiveBatch` / `restoreArchivedBatch` / `restoreArchivedSmart` /
  * `deleteArchived` / `clearArchive` / `cleanExpired` 是**批量与自动**归档，归 #10b-4「食物 CRUD 与批量」；
- * `maybeAutoSync` / `maybeAutoSnapshot` 是自动同步策略，不属云端同步领域也不属这里（暂留类里）。
+ * `maybeAutoSync` / `maybeAutoSnapshot` 是自动同步策略，不属云端同步领域也不属这里（09-19 #11f 起在类里）。
  *
  * 搬运口径：函数体**逐字未动**，只做了两件事 —— 整体左移 4 空格（脱离类体）、声明行改写成
  * `internal …fun AppViewModel.原名(原参数表)`（接收者加上，**名字与参数一个没改**；这 6 个原本

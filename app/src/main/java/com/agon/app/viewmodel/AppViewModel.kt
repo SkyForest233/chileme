@@ -1,7 +1,6 @@
 package com.agon.app.viewmodel
 
 import android.app.Application
-import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.agon.app.ChiliMeApp
@@ -12,28 +11,13 @@ import com.agon.app.data.DefaultCategories
 import com.agon.app.data.DefaultLocations
 import com.agon.app.data.FoodItem
 import com.agon.app.data.HistoryEntry
-import com.agon.app.data.isAutoSyncDue
 // ↓ #5c 起仓库的领域函数搬到了各自的领域文件（同包 internal 扩展函数）⇒ 跨包调用要逐个 import
-import com.agon.app.data.seedIfNeeded
-import com.agon.app.data.migrateConsumptionIds
-import com.agon.app.data.buildBackupJson
-import com.agon.app.data.setLastAutoSyncEpochDay
-import com.agon.app.data.setLastSync
-import com.agon.app.data.migrateLegacyCredentials
-import com.agon.app.data.migratePlaintextPassword
 import com.agon.app.data.CloudBackup
 import com.agon.app.data.LocalSnapshot
-import com.agon.app.data.LocalSnapshotStore
-import com.agon.app.data.NutstoreSync
-import com.agon.app.data.cleanupOrphanCovers
 import com.agon.app.data.toHistoryEntry
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.receiveAsFlow
-import java.time.Instant
-import java.time.LocalDate
-import java.time.ZoneId
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -192,79 +176,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     val settingsUiEvents: Flow<UiEvent> = settingsEvents.receiveAsFlow()
 
     init {
-        viewModelScope.launch {
-            repo.seedIfNeeded()
-            // 凭据搬家（M1-1）：旧版把坚果云三个 key 存在业务数据那份 DataStore 里，现在它们住在
-            // 被备份规则排除的 credentials_store。必须先搬，再跑明文加密迁移 —— 反过来的话
-            // migratePlaintextPassword 会在（空的）新文件里找不到明文，明文就永远留在会进备份的那份文件里。
-            repo.migrateLegacyCredentials()
-            // 安全迁移：旧版明文密码 → Keystore 加密密文
-            repo.migratePlaintextPassword()
-            // 迁移：旧消耗记录补 id（供删除/撤销定位）
-            repo.migrateConsumptionIds()
-            // 启动时清理孤儿封面图片（未被库存/归档引用的文件）。
-            //
-            // 关键：损坏态下**必须跳过**。items/archive 解码失败时 rawFlow 会回落空集
-            // （这是读路径的预期行为），若照此清理，covers/ 下的文件会被全部当成孤儿删除——
-            // 而图片无法从 corrupt/ 的 JSON 留档里恢复，等于把「保护数据」的机制变成
-            // 「销毁数据」。（2026-09-15 修复）
-            if (repo.corruptedKeys.value.isEmpty()) {
-                val referenced = buildSet {
-                    repo.itemsFlow.first().forEach { if (it.photoPath.isNotBlank()) add(it.photoPath) }
-                    repo.archiveFlow.first().forEach { if (it.item.photoPath.isNotBlank()) add(it.item.photoPath) }
-                }
-                cleanupOrphanCovers(getApplication(), referenced)
-            } else {
-                Log.w(TAG, "检测到数据损坏（${repo.corruptedKeys.value}），跳过孤儿封面清理以免误删图片")
-            }
-            // 自动同步：到期且凭据完整时静默上传
-            maybeAutoSync()
-            // 本地滚动冷备：若今日尚无快照则静默保存一份
-            maybeAutoSnapshot()
-        }
-    }
-
-    private suspend fun maybeAutoSync() {
-        val days = repo.autoSyncDaysFlow.first()
-        if (days <= 0) return
-        val account = repo.nutstoreAccountFlow.first()
-        val password = repo.nutstorePasswordFlow.first()
-        if (account.isBlank() || password.isBlank()) return
-        val today = LocalDate.now(clock).toEpochDay()
-        val last = repo.lastAutoSyncEpochDayFlow.first()
-        // 判定抽成了纯函数（见 isAutoSyncDue 的注释）：这条跨零点边界此前长在 VM 里没法测
-        if (!isAutoSyncDue(last, today, days)) return
-        // 数据损坏时 buildBackupJson 抛异常：静默跳过本次自动同步，
-        // 绝不能把残缺备份推上云端覆盖掉云端的完好版本。
-        val payload = runCatching { repo.buildBackupJson() }.getOrNull() ?: return
-        val result = NutstoreSync.upload(account, password, payload, clock)
-        if (result.isSuccess) {
-            repo.setLastAutoSyncEpochDay(today)
-            val time = java.time.LocalDateTime.now(clock)
-                .format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"))
-            repo.setLastSync("自动同步于 $time")
-            emit(UiEvent.Notice("已自动同步到坚果云 ☁️"))
-        }
-        // 失败静默忽略，下次启动重试；不打扰用户
-    }
-
-    private suspend fun maybeAutoSnapshot() {
-        val snapshots = LocalSnapshotStore.listSnapshots(getApplication())
-        val today = LocalDate.now(clock)
-        // ⚠️ 这里两种时间来源相遇：`today` 来自注入的时钟，而快照文件的修改时刻按**系统时区**解读。
-        // 生产上两者同一个时区（容器给的就是系统时区时钟）⇒ 行为与改造前逐位相同；
-        // 但若哪天要单测这个函数并塞一个别的时区的固定时钟，这条比较会偏一天 —— 届时把下面
-        // 的时区也改成从时钟取（clock.zone），别只改一半。
-        val hasSnapshotToday = snapshots.any {
-            Instant.ofEpochMilli(it.modifiedEpochMillis)
-                .atZone(ZoneId.systemDefault())
-                .toLocalDate() == today
-        }
-        if (!hasSnapshotToday) {
-            val json = runCatching { repo.buildBackupJson() }.getOrNull() ?: return
-            LocalSnapshotStore.saveSnapshot(getApplication(), json, clock = clock)
-            loadLocalSnapshots()
-        }
+        // 启动编排整段搬到同包 `AppViewModelStartup.kt` 的 `runPantryStartup()`（#11f）：那段的正确性
+        // 是**顺序**（seed 最先 → 凭据搬家先于明文加密 → 封面清理受损坏态门拦住），单独成文才看得见。
+        // 类里刻意不留转发：成员会遮蔽扩展，`fun runPantryStartup() = runPantryStartup()` 是无限递归。
+        viewModelScope.launch { runPantryStartup() }
     }
 
     // ---- 本地快照管理 ----

@@ -63,7 +63,7 @@ import kotlinx.coroutines.launch
  *
  * 领域边界（哪些「看着像」却不在本文件）：5 个主题开关与 `setAutoSyncDays` 属 #10b-6「设置」；
  * `setFabSuppressed`、选择集三件套与 `emit` 属 #10b-7「UI 状态与事件」；`maybeAutoSync` /
- * `maybeAutoSnapshot` 是自动同步策略，暂留类里；**批量归档/批量恢复**在 `AppViewModelFood.kt`（#10b-4）
+ * `maybeAutoSnapshot` 是自动同步策略、#11f 起在 `AppViewModelStartup.kt`；**批量归档/批量恢复**在 `AppViewModelFood.kt`（#10b-4）
  * —— 本文件只有「批量改位置」这一个批量操作。
  *
  * 搬运口径：函数体**逐字未动**，只做了两件事 —— 整体左移 4 空格（脱离类体）、声明行改写成

@@ -10,7 +10,7 @@ import kotlinx.coroutines.flow.update
  * `AppViewModelBackup.kt` / `AppViewModelCloud.kt` / `AppViewModelArchiveUndo.kt` / `AppViewModelFood.kt` /
  * `AppViewModelCategoryLocation.kt` / `AppViewModelSettings.kt` 同形）。
  * 这是 #10b 的**第七轮、也是最后一轮**：搬完之后类里只剩 `init`、两个 private 策略函数
- * （`maybeAutoSync` / `maybeAutoSnapshot`）与那一大排对外的 `StateFlow` 属性。
+ * （`maybeAutoSync` / `maybeAutoSnapshot`）与那一大排对外的 `StateFlow` 属性（**09-19 #11f 又把这两个策略函数连同 `init` 的整段编排搬进了 `AppViewModelStartup.kt`** ⇒ 现在的形状是"类里只剩属性 + 一行 launch"）。
  *
  * 搬走的 5 个：
  *
@@ -44,12 +44,12 @@ import kotlinx.coroutines.flow.update
  * `selectAll()` 里（名字不同 ⇒ 不算同名相撞，但同样要 import）。
  * `emit` **没有跨包调用方**：用它的全是同包兄弟文件里的裸调用（`AppViewModelCloud.kt` 12 处 ·
  * `AppViewModelBackup.kt` 5 处 · `AppViewModelArchiveUndo.kt` 2 处 · `AppViewModelFood.kt` 1 处）
- * 加留守 VM 的 `maybeAutoSync` 1 处 ⇒ 同包扩展 + 隐式接收者，一行 import 都不用加、那些文件一个字没动。
- * ⚠️ 留守 VM 那处是「类成员调同包扩展」的形状（`maybeAutoSync` 是 `private suspend fun`、`emit` 也是 suspend
+ * 加 `maybeAutoSync` 里的 1 处（09-19 #11f 起该函数在 `AppViewModelStartup.kt`）⇒ 同包扩展 + 隐式接收者，一行 import 都不用加、那些文件一个字没动。
+ * ⚠️ 那处原本是「类成员调同包扩展」的形状，#11f 之后变成「同包扩展调同包扩展」（接收者都是 AppViewModel、`emit` 也是 suspend
  * ⇒ 调用上下文对得上）；这个形状 #10b-1 起已六轮编译通过，不是本轮的新赌注。
  *
  * 守卫本轮**一处都不用改**（实测）：5 块里 **0** 个字符串字面量（☁️ 那条自动同步提示在 `maybeAutoSync` 里、
- * 留守 VM）⇒ `SnackbarCopyTest` 的片段分布无从变化；`UiEventTest` 只读同包的 `UiEvent.kt`（断言落点数与
+ * 留守 VM）⇒ `SnackbarCopyTest` 的片段分布无从变化。**#11f 起这句更正**：☁️ 那句随 `maybeAutoSync` 搬进了 `AppViewModelStartup.kt`，该守卫的期望路径同步改了（它按"文案住哪个文件"断言 ⇒ 搬家必红，正是它该红）；`UiEventTest` 只读同包的 `UiEvent.kt`（断言落点数与
  * 4 条队列一一对应），不读 VM 也不读本文件；`CorruptGuardTest` 读的是 Food / Backup / Cloud 三个兄弟文件。
  *
  * 领域边界：一次性事件的**类型**（`UiEvent` / `DataOp` / `UiSurface`）在 `UiEvent.kt`，本轮一个字没动；

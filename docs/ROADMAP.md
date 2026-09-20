@@ -1132,7 +1132,7 @@
 | **11c** | `CloudSync.kt`（262） | **四件事**：`object NutstoreSync`（WebDAV 协议 + 上传下载编排混在一个 object 里：`request` / `authOf` / `ensureDir` / `parsePropfind` / `upload` / `listInternal` / `download`）、`data class CloudBackup`（PROPFIND 结果模型）、`sealed interface OpFailure` + `Throwable.toOpFailure`（#4 的错误模型产物，跟网络客户端同文件）、`isAutoSyncDue`（**纯日期策略**，`AutoSyncDueTest` 在测它，却住在一个网络对象旁边） | `NutstoreWebdav.kt`（协议：request/auth/ensureDir/PROPFIND 解析 + `CloudBackup`）· `NutstoreSync.kt`（编排 upload/list/download）· `OpFailure.kt` · `AutoSyncPolicy.kt` | 拆完 **OkHttp 5 升级（P1）只动 `NutstoreWebdav.kt` 一个文件** ⇒ 这笔是给那条待办铺路 |
 | **11d** ✅ **已做**（① + ②，09-19） | `StatsScreen.kt`（立项时 409） | 一个 `StatsScreen` 里 4 个区块（到期日历入口 / 近 7 天柱状图 / 分类环图 / 消耗排行榜）+ 自绘图表件 `DonutChart` / `LegendRow` | 区块照 #10e 抽成同包 `Stats*.kt`；`DonutChart` / `LegendRow` 下沉 `ui/components/StatsCharts.kt` | 唯一"顺手满足 400 行判据"的一笔，但**立项理由不是那 9 行**，是 4 个区块 + 图表件混在一处 |
 | **11e** ✅ **已做**（09-19） | `ExpiryCalendar.kt`（立项时 400） | 月网格数学写在渲染体里：`MonthGrid` 里 `leading = month.atDay(1).dayOfWeek.value - 1`、`rows = (cells + 6) / 7`、跨年靠"每个月各自算 leading"（⚠️ 立项时写的 `yearOffset` 这名字**在代码里根本不存在**，实读是 `YearMonth.plusMonths` + `leading` ⇒ 下一轮别再照抄这个符号名）⇒ 这块逻辑当时**零测试**，而月首偏移 / 闰年 2 月 / 跨年正是日历最容易错的三处 | 抽 `CalendarMonthLayout`（纯函数，出 cells / rows / day 索引）+ 首次给它写单测 | 全项**唯一带真行为判据**的一笔 |
-| **11f** | `AppViewModel.kt`（282） | 类里同时是：启动编排（`init {}` 里 `seedIfNeeded` → `migrateLegacyCredentials` → `migratePlaintextPassword` → `migrateConsumptionIds` → 封面孤儿清理（带 `corruptedKeys` 跳过护栏）→ `maybeAutoSync` → `maybeAutoSnapshot`）、事件总线（4 个 `Channel` + 4 个 `receiveAsFlow`）、快照与云备份列表 | 「启动编排」抽成同包 `AppViewModelStartup.kt` 的 `internal suspend fun AppViewModel.runPantryStartup()`（`ready` 状态位留在类里） | **放最后**：它动的是执行位置，虽然不改行为，但顺序即正确性（M1-1 学到的）；也是 #10c「一屏一 VM」真正的阻塞点 —— 迁移管道不该跟着某个 VM 的生命周期走 |
+| **11f** ✅ **已做**（09-19） | `AppViewModel.kt`（立项时 282） | 类里同时是：启动编排（`init {}` 里 `seedIfNeeded` → `migrateLegacyCredentials` → `migratePlaintextPassword` → `migrateConsumptionIds` → 封面孤儿清理（带 `corruptedKeys` 跳过护栏）→ `maybeAutoSync` → `maybeAutoSnapshot`）、事件总线（4 个 `Channel` + 4 个 `receiveAsFlow`）、快照与云备份列表 | 实做：新 `AppViewModelStartup.kt`(135) = `internal suspend fun AppViewModel.runPantryStartup()` + 两个 `private` 策略函数（`maybeAutoSync` / `maybeAutoSnapshot` **跟着搬了**：它们只被这一步调用，留在类里等于把同一段顺序拆在两处）；`ready` 状态位按计划留在类里；VM 282 → 197 行，`init` 只剩 `viewModelScope.launch { runPantryStartup() }` | **放最后**：它动的是执行位置，虽然不改行为，但顺序即正确性（M1-1 学到的）；也是 #10c「一屏一 VM」真正的阻塞点 —— 迁移管道不该跟着某个 VM 的生命周期走 |
 
 **押后不做**：`FoodRepository.kt` 的 20 个 key + 20 条 flow 归各领域（09-19 讨论过，用户未拍）——
 一旦做 Room（P1-1）这 20 条 flow 本身要重写一半，现在归位可能白做一遍 ⇒ 挂到 Room 那个决定上。
@@ -1150,10 +1150,10 @@
 - **合并 `EmptyState`（`Controls.kt`）与 `AppMessageScreen`** —— 前者是带动画的空态块（emoji + 标题 + 副标题），
   后者是整屏消息 + 一个动作按钮，**不是同一件事**；11b-3 只做搬家。"空态有两种实现"另记待办（体验类，需真机）。
 
-### 11a – 11e 落地记录（09-19；数字与踩坑细节只写在 `devlog/2026-09-19.md` §15 / §16 / §17 / §18 / §19，此处不重抄）
+### 11a – 11f 落地记录（09-19；数字与踩坑细节只写在 `devlog/2026-09-19.md` §15 / §16 / §17 / §18 / §19，此处不重抄）
 
 - 状态：**11a ✅ / 11b ✅ / 11c ✅ / 11d ✅（① 两个图表件下沉 `ui/components/StatsCharts.kt`；② 那 4 个区块里 3 个各成同包文件（到期日历那 11 行按同一判据**不拆**），装配体 409 → 327 → 146 行，守卫 `StatsSectionLocationTest` 表驱动一刀一行）；**11e ✅**（月网格算式抽成 `CalendarMonthLayout.kt` + `ui/components/` 首份单测：6 条字面真值 + 60 个月铺法性质，
-   期望值另用 Python 标准库 `calendar.monthcalendar` 独立核过）；**未开工只剩 11f**。
+   期望值另用 Python 标准库 `calendar.monthcalendar` 独立核过）；**11f ✅**（`init` 的启动编排整段抽成 `AppViewModelStartup.kt` 的 `runPantryStartup()`，VM 282 → 197 行，守卫 `AppViewModelStartupTest` 四条：顺序 / 损坏态门 / 步骤只住一处 / 装配点只此一处）⇒ **#11 六笔全部收官**。CI：11e 在 `35478453333` 三 job 全绿；11f 的 run 见 `devlog/2026-09-19.md` §20。
    CI 证据：11a–11c 各自闭环（`35450021031` 全绿）、11d ① 在 `35450811382` 全绿；**11d ② 连改两次才闭环**
    （`35476068965` 红在 `Color` import → `35476442138` 红在旧守卫口径 → **`35476775511` 三 job 全绿，195 tests / 0 失败**）。三条验收的实测结果：① 逐行相等 ✓（脚本 assert 每段大括号闭合）；
   ② import 改动数 预测 0 = 实测 0 ✓（同包移动）；③ 位置守卫 ✓（`ComponentAppHomeTest` 现 20 条 + `AppColorLocationTest`）。
@@ -1188,7 +1188,7 @@
 | 属性委托的 import 双向失明 | `by remember` / `by animateFloatAsState` 需要 `getValue`，但代码里**不出现这个名字** ⇒ 按名字收敛 import 的脚本与 `move-importcheck`（属性形跳过、不报缺失）都看不见 | 搬代码时**两侧各自** `grep -c " by "`；>0 就必须留 `androidx.compose.runtime.getValue`（`var` 另需 `setValue`） |
 | 抽取时新引入的类型名 | 参数表里写 `List<Color>` 这类原文件从没 import 过的名字 ⇒ 按原文件 import 表复制/收敛的结构上看不见，只有 kotlinc 会红（09-19 第六次红） | `tools/kt-name-audit.py`（只看签名类型位置，自检 6 个对照）；11e/11f 搬完各跑一次 |
 | 本地分支被重置回会话基线 | 本支 26 个提交不在本地 ref 上、新文件全变未跟踪，看着像"一天白干" | 动手前先 `git log --oneline -1` 确认 HEAD；恢复 = 先自证工作区内容，再 `git reset --soft <远端 tip>` + `git reset`（不碰工作区）。**本地 ref 不是可信源，远端 tip 才是** |
-| 行为改动的边界 | 11a–11e **都不改行为** ⇒ 不占用真机复测；11f 改执行位置 | 11f 完成后请用户过一眼「升级后凭据仍在 + 首屏不闪」两条即可 |
+| 行为改动的边界 | 11a–11e **都不改行为** ⇒ 不占用真机复测；**11f 动了执行位置**（09-19 已做完，行为按逐行等价核过） | **待用户在 App 内过一眼**「升级后凭据仍在 + 首屏不闪」两条 —— 这是 #11 里唯一需要实机点头的一笔即可 |
 ## #3 收官：验收口径与偏差（**不要再引用旧数字**）
 
 - **达成的**：`Miuix*Screen.kt` 双胞胎 **8 对 → 0**；屏幕本体 17 文件 7,541 行 → **9 文件 4,209 行（-44%）**；

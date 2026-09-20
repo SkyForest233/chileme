@@ -68,12 +68,12 @@ import kotlinx.coroutines.launch
  * 原先读 `AppViewModel.kt` 并断言字面量 `fun discardCorruptData()` ⇒ 函数搬走后必须改成读**本文件**、
  * 断言 `fun AppViewModel.discardCorruptData()`，否则那条守卫会红。`SnackbarCopyTest` 不受影响：
  * 11 块里 0 个中文字面量（实测），它唯一那条 VM 期望（「已自动同步到坚果云 ☁️」）在 `maybeAutoSync` 里，
- * 属自动同步策略 ⇒ 留在 `AppViewModel.kt`。
+ * 属自动同步策略 ⇒ 当时留在 `AppViewModel.kt`；09-19 #11f 起随启动编排进了 `AppViewModelStartup.kt`，那条守卫的期望路径跟着改。
  *
  * 领域边界（哪些「看着像」却不在本文件）：**单件**归档/恢复与消耗记录的删除撤销在
  * `AppViewModelArchiveUndo.kt`（#10b-3）；`setCategoryThreshold` 与分类/位置的增删改在 #10b-5；
  * `setAutoSyncDays` 与 5 个主题开关在 #10b-6；`setFabSuppressed`、选择集三件套与 `emit` 在 #10b-7；
- * `maybeAutoSync` / `maybeAutoSnapshot` 是自动同步策略，暂留类里。
+ * `maybeAutoSync` / `maybeAutoSnapshot` 是自动同步策略，09-19 #11f 起在 `AppViewModelStartup.kt`。
  *
  * 搬运口径：函数体**逐字未动**，只做了两件事 —— 整体左移 4 空格（脱离类体）、声明行改写成
  * `internal …fun AppViewModel.原名(原参数表)`（接收者加上，**名字与参数一个没改**；这 11 个原本

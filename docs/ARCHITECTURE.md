@@ -44,8 +44,8 @@ app/src/main/java/com/agon/app/
 │   ├─ OpFailure.kt             # 同步失败的分类（Auth / Network / Other）与 401 文案常量（09-19 #11c 从 CloudSync.kt 拆出）
 │   ├─ AutoSyncPolicy.kt        # 自动同步间隔判定 isAutoSyncDue —— 纯函数，唯一能被单测钉死的那块（同上拆出）
 │   └─ SecureStore.kt           # Keystore AES-GCM 密码
-├─ viewmodel/                   # 9 个文件（2026-09-19 #10b-1 … #10b-7 七轮收官：VM 的领域函数按领域搬成同包 internal 扩展函数）
-│   ├─ AppViewModel.kt          # 全局共享 VM（AndroidViewModel），StateFlow 暴露；277 行 🎯 < 400 达标（#10b-1 前 700、#10b-2 前 590、#10b-3 前 469、#10b-4 前 431、#10b-5 前 363、#10b-6 前 322、#10b-7 前 304；七轮搬出 48/50 个函数，只剩 init + 2 个 private 策略函数 + 44 个属性）
+├─ viewmodel/                   # 10 个文件（2026-09-19 #10b 七轮把 VM 的领域函数按领域搬成同包 internal 扩：VM 的领域函数按领域搬成同包 internal 扩展函数）
+│   ├─ AppViewModel.kt          # 全局共享 VM（AndroidViewModel），StateFlow 暴露；#11f 把 `init` 的启动编排搬出后 197 行 🎯 < 400 达标（#10b-1 前 700、#10b-2 前 590、#10b-3 前 469、#10b-4 前 431、#10b-5 前 363、#10b-6 前 322、#10b-7 前 304；七轮搬出 48/50 个函数，只剩 init + 2 个 private 策略函数 + 44 个属性）
 │   ├─ UiEvent.kt               # 一次性事件：sealed interface UiEvent（6 类，#4a 建 4 类 / #4c 扩 2 类）+ enum DataOp（5 值）+ enum UiSurface（4 值）
 │   ├─ AppViewModelBackup.kt    # VM 的备份领域 9 个函数（导出/文件导入/导入前快照/本地快照；#10b-1，2026-09-19）
 │   ├─ AppViewModelCloud.kt     # VM 的坚果云同步领域 4 个函数 + 顶层常量 NO_CREDENTIALS_MESSAGE（凭据/上传/列表/下载；#10b-2，2026-09-19）
@@ -53,7 +53,8 @@ app/src/main/java/com/agon/app/
 │   ├─ AppViewModelFood.kt      # VM 的食物 CRUD 与批量领域 11 个函数（新增/编辑、数量增减、批量归档与恢复、清空与放弃损坏数据；#10b-4，2026-09-19）
 │   ├─ AppViewModelCategoryLocation.kt # VM 的分类与位置领域 7 个函数（分类增删改与阈值、位置增删与批量改位置；#10b-5，2026-09-19）
 │   ├─ AppViewModelSettings.kt   # VM 的设置领域 6 个一行体函数（自动同步天数 + 5 个外观/主题开关；6 个名字与 data/FoodSettings.kt 全撞；#10b-6，2026-09-19）
-│   └─ AppViewModelUiState.kt    # VM 的 UI 状态与事件领域 5 个函数（FAB 抑制 / 多选集三件套 / emit 唯一发送点；#10b-7，2026-09-19）
+│   ├─ AppViewModelUiState.kt    # VM 的 UI 状态与事件领域 5 个函数（FAB 抑制 / 多选集三件套 / emit 唯一发送点；#10b-7，2026-09-19）
+│   └─ AppViewModelStartup.kt   # 启动编排（#11f，2026-09-19）：`runPantryStartup()` = 播种 → 凭据搬家 → 明文加密 → 消耗 ID 迁移 → 损坏态门内的孤儿封面清理 → 自动同步 → 自动快照；顺序即正确性，判据在 `AppViewModelStartupTest`
 └─ ui/
     ├─ navigation/              # AppRoute（miuix-nav 二级页栈；转场用库预设 NavTransitions.MiuixDefault）
     ├─ theme/                   # Palettes.kt（15 套种子色方案）/ Color.kt（仅状态语义色）/ Theme.kt（MaterialKolor 生成 + animateColorScheme）/ ThemeStyle.kt（MATERIAL3/MIUIX 风格枚举 + LocalThemeStyle）/ MiuixRootTheme.kt（MiuixTheme + MaterialTheme 桥接，v2.8）/ Motion.kt（MD3 缓动与时长 token）/ TodayProvider.kt（LocalToday，跨零点刷新）

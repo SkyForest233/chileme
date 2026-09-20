@@ -34,6 +34,7 @@ class SnackbarCopyTest {
     private val consumptionLog = "com/agon/app/ui/screens/ConsumptionLogScreen.kt"
     private val archiveScreen = "com/agon/app/ui/screens/ArchiveScreen.kt"
     private val appViewModel = "com/agon/app/viewmodel/AppViewModel.kt"
+    private val startup = "com/agon/app/viewmodel/AppViewModelStartup.kt"
     private val uiEvent = "com/agon/app/viewmodel/UiEvent.kt"
 
     /** 源码根：Gradle 跑测试时 CWD 是模块目录（`app/`），从仓库根跑时多一层前缀 —— 两种都认。 */
@@ -110,7 +111,7 @@ class SnackbarCopyTest {
             "件食品移入归档" to mapOf(mainApp to 1),
             "已删除「" to mapOf(consumptionLog to 1),
             "」的消耗记录" to mapOf(consumptionLog to 1),
-            "已自动同步到坚果云 ☁️" to mapOf(appViewModel to 1),
+            "已自动同步到坚果云 ☁️" to mapOf(startup to 1),
         ).forEach { (fragment, want) ->
             assertEquals("「$fragment」的分布变了（文案漂移或被复制到别处）", want, occurrences(fragment))
         }
