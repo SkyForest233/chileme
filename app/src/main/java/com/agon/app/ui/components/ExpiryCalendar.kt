@@ -257,19 +257,15 @@ private fun MonthGrid(
     thresholds: Map<String, Int>,
     onSelect: (LocalDate) -> Unit,
 ) {
-    // 周一 = 1 ... 周日 = 7；前导空格数
-    val leading = month.atDay(1).dayOfWeek.value - 1
-    val daysInMonth = month.lengthOfMonth()
-    val cells = leading + daysInMonth
-    val rows = (cells + 6) / 7
+    // 月网格的四行算式（含"几号"的取法）住在同包 `CalendarMonthLayout.kt` —— 抽出去是为了能被单测钉住
+    val layout = CalendarMonthLayout(month)
 
     Column {
-        repeat(rows) { row ->
+        repeat(layout.rows) { row ->
             Row(Modifier.fillMaxWidth()) {
                 repeat(7) { col ->
-                    val index = row * 7 + col
-                    val dayNum = index - leading + 1
-                    if (dayNum in 1..daysInMonth) {
+                    val dayNum = layout.dayNumAt(row, col)
+                    if (dayNum != null) {
                         val date = month.atDay(dayNum)
                         DayCell(
                             date = date,
