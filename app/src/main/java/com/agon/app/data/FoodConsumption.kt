@@ -74,11 +74,20 @@ internal suspend fun FoodRepository.changeQuantity(id: String, delta: Int): Quan
             )
         }
         if (newQty == 0 && delta < 0 && archiveOk) {
-            // 吃完了 → 自动归档
+            // 吃完了 → 自动归档。截断与溢出计数走 `trimArchiveRetention`（与手动归档同一条口径，
+            // M1-3：这里原来是第二处 `(listOf(entry) + archive).take(200)`，上限改动极易只改一处）。
             val today = LocalDate.now(clock).toEpochDay()
             val archive = archiveDecoded.orElse(emptyList())
             val entry = ArchivedItem(item.copy(quantity = 0), today, ArchiveReason.CONSUMED)
-            prefs[archiveKey] = json.encodeToString((listOf(entry) + archive).take(200))
+            val trim = trimArchiveRetention(listOf(entry), archive)
+            prefs[archiveKey] = json.encodeToString(trim.entries)
+            if (trim.dropped > 0) {
+                // 自动归档是用户**没有主动点**的写路径（减数量减到 0 就发生），挤掉旧归档时
+                // 至少要在 logcat 留一行；累计账本先写盘再读出来，省得自己再算一遍。
+                bumpArchiveOverflow(prefs, trim.dropped)
+                val total = prefs[archiveOverflowKey] ?: 0
+                Log.w(TAG, "自动归档挤出 ${trim.dropped} 条历史归档（上限 $ARCHIVE_RETENTION），累计 $total 条")
+            }
             prefs[itemsKey] = json.encodeToString(current.filterNot { it.id == id })
             autoArchived = true
         } else {

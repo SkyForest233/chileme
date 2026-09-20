@@ -22,7 +22,28 @@ import kotlinx.serialization.json.Json
 import java.io.File
 import java.time.Clock
 
+/**
+ * **业务数据**（库存/归档/消耗/历史/设置/统计）：随 Android 系统备份与换机直传走。
+ * 2026-09-19（M1-1）起不再被备份规则排除 —— 用户换机/重装后库存能自己回来。
+ */
 private val Context.dataStore by preferencesDataStore("pantry_store")
+
+/**
+ * **凭据**（坚果云账号 + 应用密码的密文与明文回退）：**独立一个 DataStore 文件**，被两条备份通道整体排除。
+ *
+ * 为什么要拆：此前凭据三件套与全部业务数据同住 `pantry_store` 一个文件，而 Keystore 密钥不跨设备 ⇒ 备份过去也解不开，
+ * 于是两份备份规则直接 `<exclude path="datastore/" />` 把**整个 DataStore 目录**排除了 ——
+ * 结果是"为了护一个密钥，把全部用户数据排除在备份之外"。
+ * 官方 DataStore 文档给的正是另一条路：
+ * 「若 DataStore 同时含非敏感偏好与敏感数据，把它们**拆成不同的 DataStore 文件**，再按文件配
+ * `res/xml/data_extraction_rules.xml`」。拆完之后：业务数据进备份，只排除 `credentials_store.preferences_pb`。
+ * 顺带解掉原来"换机时 `covers/` 进得来、库存 JSON 进不来 ⇒ `cleanupOrphanCovers()` 把封面全删掉"那处不一致
+ * （现在两边同时到位）。
+ *
+ * ⚠️ **坚果云三个 key 只许住在这里**：明文回退（`nutstore_password`）也写本文件 ——
+ * 业务数据那份文件是进备份的，一个密钥都不该被上传到用户 Google 账号里。`CredentialsStoreTest` 钉住这点。
+ */
+private val Context.credentialsDataStore by preferencesDataStore("credentials_store")
 
 // ⚠️ 与 `RepositoryCore.kt` / 各领域文件里的 TAG 是同一个字符串的**副本**，刻意不提成包级共享常量：
 // 本包已有 `BackupFile.kt` / `ImageStore.kt` 各自的文件级 private TAG，再放一个包级 internal TAG
@@ -36,6 +57,7 @@ private const val TAG = "FoodRepository"
  * `filesDir/corrupt` 留档目录 + App 级时钟）；主构造是 `internal` 的「依赖显式版」，单测可以传
  * 一个临时文件上的 DataStore、临时留档目录与一个**固定时钟**，从而在**纯 JVM** 下测仓储的
  * 写入守卫与「跨零点」这类日期行为（不需要 Robolectric —— 少一个 SDK 模拟层，也少一份依赖）。
+ * 凭据的 DataStore 是主构造的第 4 个参数、默认回落到 `dataStore`（见下面的注释）。
  *
  * **时钟为什么带默认值**（#5b）：默认值就是改造前的行为（系统时钟）⇒ 生产路径逐位不变，
  * 而且单测不传时钟也照样编译（既有的守卫单测就是两参构造）。生产唯一的构造点在 `AppContainer`，
@@ -50,12 +72,21 @@ class FoodRepository internal constructor(
     internal val dataStore: DataStore<Preferences>,
     internal val corruptDir: File,
     internal val clock: Clock = Clock.systemDefaultZone(),
+    /**
+     * 凭据专用 DataStore（`credentials_store.preferences_pb`，被备份规则排除）。
+     *
+     * **默认值 = `dataStore`**，刻意如此：单测里不传它就是"两个文件退化成同一个临时文件"，
+     * 既不用改任何既有测试的构造调用，也能照常验证凭据读写与迁移的行为语义；
+     * 生产唯一的构造点在 `AppContainer` ⇒ 走的是下面那个 `Context` 构造，两个文件是真的分开。
+     */
+    internal val credentialsStore: DataStore<Preferences> = dataStore,
 ) {
-    /** 生产路径：`pantry_store` DataStore + `filesDir/corrupt`，时钟由 App 容器注入。 */
+    /** 生产路径：`pantry_store` + `credentials_store` 两个 DataStore + `filesDir/corrupt`，时钟由 App 容器注入。 */
     constructor(context: Context, clock: Clock) : this(
         context.dataStore,
         File(context.filesDir, "corrupt"),
         clock,
+        context.credentialsDataStore,
     )
 
     internal val json = Json { ignoreUnknownKeys = true }
@@ -84,12 +115,26 @@ class FoodRepository internal constructor(
     internal val paletteKey = stringPreferencesKey("palette")
     internal val themeStyleKey = stringPreferencesKey("theme_style")
     internal val floatingNavKey = booleanPreferencesKey("floating_nav")
+
+    // ⚠️ 下面 3 个是**凭据 key，住在 `credentialsStore`（`credentials_store.preferences_pb`）里、不在 `dataStore`**：
+    // 业务数据那份文件随系统备份走，密钥一个字都不能进。读写两侧都必须显式带 `store = credentialsStore`
+    // （见 `nutstoreAccountFlow` / `nutstoreCredentialKeysFlow` 与 `FoodCredentials.kt` 的两个写入口），
+    // 旧版把它们写在 `dataStore` 里，启动时由 `migrateLegacyCredentials()` 一次性搬走。
     internal val nutstoreAccountKey = stringPreferencesKey("nutstore_account")
     internal val nutstorePasswordKey = stringPreferencesKey("nutstore_password")
     internal val nutstorePasswordEncKey = stringPreferencesKey("nutstore_password_enc")
     internal val lastSyncKey = stringPreferencesKey("last_sync_time")
     internal val autoSyncDaysKey = intPreferencesKey("auto_sync_days")
     internal val lastAutoSyncEpochDayKey = stringPreferencesKey("last_auto_sync_epoch_day")
+
+    /**
+     * 归档溢出累计计数器（M1-3）：到目前为止有多少条归档因为超出 `ARCHIVE_RETENTION` 被挤掉。
+     *
+     * 为什么用**独立 key** 而不是"从归档长度反推"或"只在日志里说一句"：截断是 `take()`，被挤掉的条目
+     * 当场就从列表里消失了 ⇒ 反推不出来；日志在用户设备上等于没有。它是只增不减的账，
+     * 与损坏留档（`markCorrupt`）那套"数据出过问题就要留痕"的思路同源（`CLAUDE.md` §5.1）。
+     */
+    internal val archiveOverflowKey = intPreferencesKey("archive_overflow_total")
 
     // ---- 解码 ----
     //
@@ -165,11 +210,12 @@ class FoodRepository internal constructor(
         lightFlow("floating_nav", fallback = true) { it[floatingNavKey] ?: true }
 
     val nutstoreAccountFlow: Flow<String> =
-        lightFlow("nutstore_account", fallback = "") { it[nutstoreAccountKey] ?: "" }
+        lightFlow("nutstore_account", fallback = "", store = credentialsStore) { it[nutstoreAccountKey] ?: "" }
 
     /**
      * 密码仅以 Keystore 加密密文存储；读取时解密。
-     * 兼容迁移：若发现旧版明文 key 尚存，优先读明文（随后 seedIfNeeded/save 会完成迁移并抹除明文）。
+     * 兼容迁移：若发现旧版明文 key 尚存，优先读明文（随后 seedIfNeeded/save 会完成迁移并抹除明文）；
+     * 旧版把凭据写在业务数据那份 DataStore 里，启动时先由 `migrateLegacyCredentials()` 搬到凭据文件。
      *
      * 解密是 Keystore 操作（非平凡开销），先按密文去重再切到 Default 线程，
      * 避免每次 DataStore 重发都在主线程做一次 AES-GCM。
@@ -194,8 +240,11 @@ class FoodRepository internal constructor(
         .flowOn(Dispatchers.Default)
 
     /**
-     * 密码是否以「未加密明文」形式落在 DataStore 里（Keystore 不可用时的极端回退）。
+     * 密码是否以「未加密明文」形式落在**凭据** DataStore 里（Keystore 不可用时的极端回退）。
      * 功能可用但安全性降级，UI 必须明确告知用户；下次启动 [migratePlaintextPassword] 会重试加密。
+     *
+     * 明文的落点刻意也是 `credentialsStore` 而不是 `dataStore`：业务数据那份文件随系统备份走，
+     * 降级期间也不能把密钥推到用户的 Google 账号里。`CredentialsStoreTest` 钉住这条。
      */
     val nutstorePlaintextFallbackFlow: Flow<Boolean> = nutstoreCredentialKeysFlow()
         .map { (plain, _) -> !plain.isNullOrBlank() }
@@ -203,11 +252,14 @@ class FoodRepository internal constructor(
     /**
      * 凭据两个 key 的原始值（明文待迁移 / 密文），已做读兜底与去重。
      * 上面两个 flow 共用它，避免各自重复一遍 resilientRead 与解密去重逻辑。
+     *
+     * 读的是 [credentialsStore]（凭据文件），不是业务数据那份 —— 见 [nutstoreAccountKey] 上方那条警告。
      */
     private fun nutstoreCredentialKeysFlow(): Flow<Pair<String?, String?>> =
         resilientRead(
             keyName = "nutstore_password",
             fallback = Pair<String?, String?>(null, null),
+            store = credentialsStore,
         ) { prefs ->
             prefs[nutstorePasswordKey] to prefs[nutstorePasswordEncKey]
         }.distinctUntilChanged()
@@ -223,6 +275,16 @@ class FoodRepository internal constructor(
         lightFlow("last_auto_sync_epoch_day", fallback = 0L) {
             it[lastAutoSyncEpochDayKey]?.toLongOrNull() ?: 0L
         }
+
+    /**
+     * 累计有多少条归档被保留上限挤掉（M1-3，只增不减；口径与写入点见 `FoodArchive.kt` 的 `ARCHIVE_RETENTION`）。
+     *
+     * 目前**没有任何界面消费它** —— 这是刻意的：本轮只把"静默丢弃"变成"可计量的丢弃"，
+     * 用户可见文案要单独一轮（`CLAUDE.md` §2 的文案规则）。读流按 §5.2 走 `lightFlow()` 收口，
+     * 与其余轻量 key 同一条兜底路径。
+     */
+    val archiveOverflowFlow: Flow<Int> =
+        lightFlow("archive_overflow_total", fallback = 0) { it[archiveOverflowKey] ?: 0 }
 
     /** 资产型 key 的名字 → Preferences.Key，供 [discardCorrupt] 按名字删除。 */
     private val assetKeysByName: Map<String, Preferences.Key<String>> by lazy {

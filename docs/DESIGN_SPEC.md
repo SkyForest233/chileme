@@ -123,7 +123,7 @@ StatusUi 提供三个颜色槽位，按用途严格区分：
 > （CLAUDE 里 93% 的组件名 ARCHITECTURE 已有，而 ARCHITECTURE 那条还漏了 `AppStatusCard`）。
 > 现在：**清单只在这里**，`ARCHITECTURE.md` 只留「为什么要有这一层」，`CLAUDE.md` 只留「必须/禁止」一句话 + 指针。
 >
-> 组件列由源码生成（2026-09-17 快照：12 文件 / 3,075 行，`wc -l` 口径；**现值一律见 doc-metrics「App 级组件层」那行** —— 2026-09-19 复核发现这两个数已与实测差 1 行，故此后不再手抄），复核命令：
+> 组件列由源码生成（2026-09-17 快照：12 文件 / 3,075 行#11a 拆出 `AppColors.kt`、#11b 拆出 `AppSnackbar.kt` / `AppBarActions.kt` / `AppMessageScreen.kt` ⇒ 现 16 文件，`wc -l` 口径；**现值一律见 doc-metrics「App 级组件层」那行** —— 2026-09-19 复核发现这两个数已与实测差 1 行，故此后不再手抄），复核命令：
 > ```bash
 > for f in app/src/main/java/com/agon/app/ui/components/app/*.kt; do
 >   echo "$(basename $f): $(grep -oE '^(internal |public )?(fun|val|class|enum class|data class) [A-Za-z][A-Za-z0-9]*' "$f" \
@@ -131,15 +131,21 @@ StatusUi 提供三个颜色槽位，按用途严格区分：
 > done
 > ```
 > **新增/删除组件时同批更新本表**（`CLAUDE.md` §3 记录规则已立此条）。
+> ⚠️ 括号里的行数一律 **`wc -l` 口径**（2026-09-19 起与表头那句话统一，此前 #11a 两行写的是 +1 的数，已改）；且它是**快照**：`AppText.kt` / `AppColors.kt` / `AppChrome.kt` / `AppSnackbar.kt` / `AppBarActions.kt` /
+> `AppMessageScreen.kt` 六行为 2026-09-19 #11a、#11b 当天实测，其余行仍是 09-17 的数
+> ⇒ 全目录现值一律看 `tools/doc-metrics.sh` 的「App 级组件层」那行，本表这一列别拿来当结论引用。
 
-| 文件 | 组件（生成于 2026-09-17） | 用途 |
+| 文件 | 组件（多数行生成于 2026-09-17；#11a、#11b 碰过的行是当天现跑上面那条命令） | 用途 |
 |---|---|---|
-| `AppChrome.kt` (479 行) | `AppScaffold` `AppTopBar` `AppMessageScreen` `AppSnackbarHost` `AppSnackbarHostState` `rememberAppSnackbarHostState` `AppSnackbarPlacement` `AppSnackbarForm` `AppEditAction` `AppDeleteAction` `AppDestructiveAction` `AppSelectAllAction` `AppArchiveAction` | 页面骨架、顶栏（含多选态）、撤销条宿主与落位、顶栏动作按钮 |
+| `AppChrome.kt` (224 行) | `AppScaffold` `AppTopBar` | 页面骨架与顶栏（含多选态的关闭/返回分流）。09-19 #11b 把撤销条宿主、顶栏动作族、整屏消息页各拆成一个文件；`AppBarIconButton` 跟着动作族走了 —— 它是 `private fun`，同包跨文件不可见，留在原地就是编译失败 |
+| `AppSnackbar.kt` (128 行) | `AppSnackbarForm` `AppSnackbarHost` `AppSnackbarHostState` `AppSnackbarPlacement` `rememberAppSnackbarHostState` | 撤销/提示条：双主题宿主容器、落点与形态。`UndoSnackbar.kt` 的 `SwipeDismissSnackbarHost` **没有**一起搬：它被 `MainApp.kt` 与 4 个屏幕直接 import，搬它要改 6 处 import，与「同包零改动」不是一回事（记在 ROADMAP #11 备注）（09-19 #11b 拆出） |
+| `AppBarActions.kt` (123 行) | `AppArchiveAction` `AppBarIconButton` `AppDeleteAction` `AppDestructiveAction` `AppEditAction` `AppSelectAllAction` | 顶栏 5 个动作入口 + 它们共用的 `AppBarIconButton` 底座（`AppChrome.kt` 的 `AppBarNavIcon` 也调它）。行内动作 `AppEditRowAction` / `AppDeleteRowAction` 仍在 `AppListRow.kt`：它们长在卡片行上，不是顶栏槽位（09-19 #11b 拆出） |
+| `AppMessageScreen.kt` (76 行) | `AppMessageScreen` | 整屏消息页（自带标题栏 + 一个动作按钮），被当导航目标用。**刻意不与 `EmptyState` 合并** —— 后者是嵌在列表末尾的引导块（判定见 ROADMAP #11「明确不做」）（09-19 #11b 拆出） |
 | `AppSurface.kt` (353 行) | `AppCard` `AppPaddedCard` `AppCardTone` `AppStatusCard` `AppStatCard` `AppStatTone` `AppSection` `AppHintText` `AppStatsListMetrics` `appStatsListMetrics` | 卡片与分区外壳、统计卡、列表度量 |
 | `AppListRow.kt` (406 行) | `AppListRow` `AppActionRow` `AppCardRow` `AppSectionHeader` `AppLocationIcon` `AppEditRowAction` `AppDeleteRowAction` | 列表行（三种形态）、分区标题、行内动作 |
 | `AppControls.kt` (376 行) | `AppSearchField` `AppFilterChip` `AppChipTone` `AppFilterToggle` `AppFilterSectionLabel` `AppStepperPill` | 搜索框、筛选胶囊/开关、数量步进器 |
-| `AppText.kt` (349 行) | `AppTextScale` `AppText` `AppEmojiText` `AppMutedText` + 取色访问器 `appChartColors` `appHighestContainerColor` `appPrimaryColor` `appPrimaryContainerColor` `appSurfaceColor` `appMutedColor` `appFaintColor` `appErrorColor` `appOnPrimaryContainerColor` | **语义字号档位表**与文字组件、跨主题取色 |
-| `AppButtons.kt` (188 行) | `AppBigButton` `AppEditButton` `AppWideButton` `AppAddItemButton` | 大按钮（emoji + 文案 + 角标）、整宽按钮、新增入口 |
+| `AppText.kt` (212 行) | `AppTextScale` `AppText` `AppEmojiText` `AppMutedText` | 语义字号档位 + 文字组件；**取色访问器已于 09-19 #11a 移出去**，别再往这里加 |
+| `AppColors.kt` (164 行) | `appSurfaceColor` `appMutedColor` `appErrorColor` `appPrimaryContainerColor` `appOnPrimaryContainerColor` `appPrimaryColor` `appFaintColor` `appHighestContainerColor` `appChartColors` | 跨主题取色口子（一个语义角色一个函数）；守卫 `AppColorLocationTest` 钉住「只此一个文件」 || `AppButtons.kt` (188 行) | `AppBigButton` `AppEditButton` `AppWideButton` `AppAddItemButton` | 大按钮（emoji + 文案 + 角标）、整宽按钮、新增入口 |
 | `AppOptionDialog.kt` (188 行) | `AppOptionDialog` `AppOptionSpec` | 选项弹窗（导出格式选择 / 恢复来源选择） |
 | `AppFormDialog.kt` (173 行) | `AppFormDialog` `AppFormFieldSpec` | 带输入框的表单弹窗 |
 | `AppConfirmDialog.kt` (134 行) | `AppConfirmDialog` | 确认弹窗（MD3 `AlertDialog` 槽位 / Miuix `WindowDialog` + 等宽两个 `TextButton`） |
@@ -262,7 +268,7 @@ StatusUi 提供三个颜色槽位，按用途严格区分：
 - 迁移进度（v2.8 起，2026-09-16 校正）：
   - **已 Miuix 化（全部屏幕除编辑页）**：设置页、首页、食品列表、食品详情、归档页、管理三页（阈值/分类/位置）、**统计页**，以及底部导航（悬浮/全宽）、FAB、`ui/components/` 复用组件（StatusBadge/LocationTag/QuantityStepper/EmptyState/FoodCard/DataCorruptBanner）。统计页的**图表是 `Canvas` + `layout` 自绘**（与主题无关，两版逐字相同，合并后只有一份），外壳与组件（Scaffold/TopAppBar/Card/Text/Icon/SmallTitle）走 Miuix。
   - **已合并为单文件双主题（2026-09-16，第三批 #3；八对收官）**：消耗记录页 / 归档页 / 食品详情页 / 首页 / 食品列表页 / 管理页三合一 / 统计页 / 设置页 —— `Miuix*Screen.kt` 双胞胎 **8 → 0**；`screens/` 下**当时**为 **9 个屏幕文件**（含从未有双胞胎的编辑页）+ **8 个 `*State.kt`**。第 6 对之后 `AppNavGraph.kt` 已不含主题分支，第 8 对之后 `NavChrome.kt` 也不含了。
-    - **口径（复核跑 `bash tools/doc-metrics.sh`）**：⚠️ **本行的三个数是 2026-09-17 的快照，#10a-1 后又变了** （10a-1 弹窗抽到同包 3 个新文件 ⇒ 除 `*State.kt` 的文件从 9 个变 12 个；**10a-2 又加 4 个**（两套 body / 备份节 / 两个 MD3 专用小组件）⇒ **#10e 又加 5 个**（编辑页的封面 / 名称 / 字段 / 阈值 / 底栏五个区块文件）⇒ 现 **21 个**（其中 **12 个**不是屏幕））。现值一律看 doc-metrics 的「屏幕目录 ui/screens（不含 *State.kt）」「App 级组件层」两行，本行只作历史快照保留：屏幕本体（不含 `*State.kt`）**9 文件 4,209 行**、组件层 `ui/components/app/` **12 文件 3,075 行**、渲染层合计 **7,284 行**；相对 09-16 之前的基线（17 文件 7,541 行）：屏幕本体 **-44%**、渲染层合计 **-3.4%**（2026-09-17 实测）。
+    - **口径（复核跑 `bash tools/doc-metrics.sh`）**：⚠️ **本行的三个数是 2026-09-17 的快照，#10a-1 后又变了** （10a-1 弹窗抽到同包 3 个新文件 ⇒ 除 `*State.kt` 的文件从 9 个变 12 个；**10a-2 又加 4 个**（两套 body / 备份节 / 两个 MD3 专用小组件）⇒ **#10e 又加 5 个**（编辑页的封面 / 名称 / 字段 / 阈值 / 底栏五个区块文件）⇒ 现 **24 个**（其中 **15 个**不是屏幕））。现值一律看 doc-metrics 的「屏幕目录 ui/screens（不含 *State.kt）」「App 级组件层」两行，本行只作历史快照保留：屏幕本体（不含 `*State.kt`）**9 文件 4,209 行**、组件层 `ui/components/app/` **12 文件 3,075 行**、渲染层合计 **7,284 行**；相对 09-16 之前的基线（17 文件 7,541 行）：屏幕本体 **-44%**、渲染层合计 **-3.4%**（2026-09-17 实测）。
       09-16 收官时记的是 4,204 / 2,746 / 6,950（-8%）—— **当时记得没错**（在 `5788ae2` 上复核即为这三个数），是此后变了：09-17 的 IME 修复与弹窗搬家让渲染层净增 **334** 行（新增 `AppIme.kt` 85 + `AppBatchMoveDialog.kt` 211，改动 `AppFormDialog` / `AppConfirmDialog` / `SettingsScreen`；`git diff --stat 5788ae2 HEAD -- app/src/main/java/com/agon/app/ui/` 可复核）。
 ⚠️ 原验收「4,500 量级 / -24%」**不成立**；「-24%」「4,500 量级」「7,205 行 / 16 文件」「7,541 行 / 17 文件」四个数字**均已作废且彼此不可换算**（后两者是同日两个不同文件集口径）。复盘见 `devlog/2026-09-16.md` §22 与 `docs/ROADMAP.md`「#3 收官」。
     - **两个刻意的例外（别当缺陷去「修」）**：① **设置页 body 保留两套**（`Md3SettingsBody` → `ui/screens/SettingsBodyMd3.kt`；`MiuixSettingsBody` → `ui/screens/SettingsBodyMiuix.kt`；#10a-2 起各自一个文件）—— 两版排版习语根本不同（MD3 是滚动 `Column` + `Surface` 分组卡片，Miuix 是 `LazyColumn` + 库的 Preference 组件；664 行里只有 **287 行逐字相同**，八对最低），去重发生在 9 个弹窗（其中 5 个收进 `AppConfirmDialog` / `AppOptionDialog`）与骨架上，故该对收缩率只有 **-20%**；② **统计页图表**是 `Canvas` + `layout` 自绘、与主题无关（合并前就是一份语义两份拷贝，合并只删拷贝、无处可缩 ⇒ 该对 **-55%**），且只此一屏用 ⇒ **不进通用组件层**。

@@ -29,10 +29,11 @@ class SnackbarCopyTest {
     private val mainApp = "com/agon/app/MainApp.kt"
     private val undoSnackbar = "com/agon/app/ui/components/UndoSnackbar.kt"
     private val appChrome = "com/agon/app/ui/components/app/AppChrome.kt"
+    private val appSnackbar = "com/agon/app/ui/components/app/AppSnackbar.kt"
     private val homeScreen = "com/agon/app/ui/screens/HomeScreen.kt"
     private val consumptionLog = "com/agon/app/ui/screens/ConsumptionLogScreen.kt"
     private val archiveScreen = "com/agon/app/ui/screens/ArchiveScreen.kt"
-    private val appViewModel = "com/agon/app/viewmodel/AppViewModel.kt"
+    private val appViewModelStartup = "com/agon/app/viewmodel/AppViewModelStartup.kt"
     private val uiEvent = "com/agon/app/viewmodel/UiEvent.kt"
 
     /** 源码根：Gradle 跑测试时 CWD 是模块目录（`app/`），从仓库根跑时多一层前缀 —— 两种都认。 */
@@ -109,7 +110,7 @@ class SnackbarCopyTest {
             "件食品移入归档" to mapOf(mainApp to 1),
             "已删除「" to mapOf(consumptionLog to 1),
             "」的消耗记录" to mapOf(consumptionLog to 1),
-            "已自动同步到坚果云 ☁️" to mapOf(appViewModel to 1),
+            "已自动同步到坚果云 ☁️" to mapOf(appViewModelStartup to 1),
         ).forEach { (fragment, want) ->
             assertEquals("「$fragment」的分布变了（文案漂移或被复制到别处）", want, occurrences(fragment))
         }
@@ -162,9 +163,12 @@ class SnackbarCopyTest {
         // 二级页那侧的同款分流在 AppSnackbarHostState 里（它自带两个宿主，所以能收在容器内）；
         // 主壳不能复用它：那容器是 remember(isMiuix) 建的，切主题会换宿主，而主壳的收集协程是
         // LaunchedEffect(Unit) ⇒ 协程会把提示弹到已经卸载的宿主上并永久挂住。详见 helper 的 KDoc。
-        val chrome = source(appChrome)
-        assertEquals(1, chrome.count("class AppSnackbarHostState"))
-        assertEquals(1, chrome.count("suspend fun showUndoSnackbar(message: String): Boolean"))
+        // ⚠️ 09-19 #11b 起这个容器在 ui/components/app/AppSnackbar.kt（原先与 AppScaffold 同住
+        // AppChrome.kt）⇒ 下面两条读 appSnackbar、上面那条读 appChrome，别图省事并成一个常量：
+        // 「谁定义」与「谁用默认落位」是两个不同的判据。
+        val snackbarHost = source(appSnackbar)
+        assertEquals(1, snackbarHost.count("class AppSnackbarHostState"))
+        assertEquals(1, snackbarHost.count("suspend fun showUndoSnackbar(message: String): Boolean"))
     }
 
     @Test

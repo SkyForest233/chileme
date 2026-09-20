@@ -33,17 +33,28 @@ app/src/main/java/com/agon/app/
 #   ↑ 以上 5 个文件同属包 com.agon.app（App 外壳），2026-09-16 由原 MainActivity.kt（1,123 行）按职责拆出；
 #     拆出的第 6 份是弹窗 AppDialogs.kt，2026-09-17 又搬去 ui/components/app/AppBatchMoveDialog.kt（见下）；
 #     跨文件引用的顶层声明由 private 放宽为 internal（模块内可见，非公开 API；R8 照常裁剪）
+#     ↑ 2026-09-18 #5a 起本包另有一个非拆分的文件 ChiliMeApp.kt（唯一的 Application 子类，73 行）。上面「以上 5 个文件」指 09-16 那次拆分的产物，不含它 ——这一行是 09-20 文档审计补的：#5a 当时只写了条目正文，没进目录树，doc-metrics 的「拆分后的机械账」抓出来的。
 ├─ data/                        # 数据层（无 UI 依赖）
 │   ├─ FoodModels.kt            # 数据模型 + 派生属性（过期计算/状态判定）+ 纯函数（compactConsumptionAt 等）
 │   ├─ FoodRepository.kt        # 唯一持久化入口（DataStore）；含 Decoded 三态、写守卫、DecodeCache
+│   ├─ RepositoryCore.kt        # 仓库内核：DataStore 实例 + key 表 + Decoded 三态 + 写守卫 + 7 个 decode* 包装 + corrupt 目录处置。领域扩展「为什么是同包 internal 扩展函数、而不是类成员 / 门面转发 / 领域对象」的完整取舍就写在本文件 KDoc 里，别处只指路（#5c）
+│   ├─ FoodItems.kt             # 库存领域：种子数据、新增 / 编辑一条库存、批量改存放位置（#5c，106 行）
+│   ├─ FoodConsumption.kt       # 消耗与库存变动：改数量（含临期自动归档）、增删消耗记录、撤销、旧数据补 id（#5c，186 行）
+│   ├─ FoodArchive.kt           # 归档领域：归档、单条与批量恢复、删除归档条目、清空归档 + `ARCHIVE_RETENTION` 截断与溢出计数（#5c / M1-3，172 行）
+│   ├─ FoodSettings.kt          # 设置写入域：外观、同步节奏、分类阈值、分类与位置清单（都只写自己那一两个 key）（#5c，65 行）
+│   ├─ FoodCredentials.kt       # 凭据域：坚果云账号与密码的加密写入、旧版明文密码的启动迁移、凭据文件搬迁（#5c；凭据独立 DataStore 为 M1-1，91 行）
+│   ├─ FoodBackup.kt            # 备份、导出与整体清空：这三类都要一次性读写全部 key（#5c，124 行）
 │   ├─ BackupFile.kt            # 备份文件读写：readBackupText（IO 线程 + 20MB 上限）/ previewBackup / fileStamp
 │   ├─ CsvExport.kt             # 库存 CSV 导出（含公式注入防护 escapeCsvField）
 │   ├─ LocalSnapshotStore.kt    # 本地滚动快照 filesDir/snapshots/（保留最近 3 份，全部 suspend + Dispatchers.IO）
 │   ├─ ImageStore.kt            # 封面图片复制到私有目录（下采样 + EXIF 旋转校正）+ 孤儿封面清理
-│   ├─ CloudSync.kt             # 坚果云 WebDAV（NutstoreSync 单例）
+│   ├─ CloudSync.kt             # 坚果云备份的业务层：备份命名与轮转（CLOUD_BACKUP_KEEP）+ NutstoreSync 三个入口
+│   ├─ NutstoreWebdav.kt        # 坚果云 WebDAV 协议层：PROPFIND / MKCOL / GET / PUT / DELETE 与 XML 解析，只认识 URL + 凭据 + DAV 条目；凭证/设置仍走 FoodRepository ⇒ 单向依赖、不成环。层界由 CloudSyncLocationTest 守住（data/ 不得 import ui.*）—— 2026-09-19 #11c 从 CloudSync.kt 拆出，113 行，逐行等价
+│   ├─ OpFailure.kt             # 同步失败的分类（Auth / Network / Other）与 401 文案常量（09-19 #11c 从 CloudSync.kt 拆出）
+│   ├─ AutoSyncPolicy.kt        # 自动同步间隔判定 isAutoSyncDue —— 纯函数，唯一能被单测钉死的那块（同上拆出）
 │   └─ SecureStore.kt           # Keystore AES-GCM 密码
-├─ viewmodel/                   # 9 个文件（2026-09-19 #10b-1 … #10b-7 七轮收官：VM 的领域函数按领域搬成同包 internal 扩展函数）
-│   ├─ AppViewModel.kt          # 全局共享 VM（AndroidViewModel），StateFlow 暴露；277 行 🎯 < 400 达标（#10b-1 前 700、#10b-2 前 590、#10b-3 前 469、#10b-4 前 431、#10b-5 前 363、#10b-6 前 322、#10b-7 前 304；七轮搬出 48/50 个函数，只剩 init + 2 个 private 策略函数 + 44 个属性）
+├─ viewmodel/                   # 10 个文件（2026-09-19 #10b 七轮把 VM 的领域函数按领域搬成同包 internal 扩：VM 的领域函数按领域搬成同包 internal 扩展函数）
+│   ├─ AppViewModel.kt          # 全局共享 VM（AndroidViewModel），StateFlow 暴露；#11f 把 `init` 的启动编排搬出后 195 行 🎯 < 400 达标（搬完那笔是 197，修红时又删掉变成死常量的 `TAG`）（#10b-1 前 700、#10b-2 前 590、#10b-3 前 469、#10b-4 前 431、#10b-5 前 363、#10b-6 前 322、#10b-7 前 304；七轮搬出 48/50 个函数，只剩 init + 2 个 private 策略函数 + 44 个属性）
 │   ├─ UiEvent.kt               # 一次性事件：sealed interface UiEvent（6 类，#4a 建 4 类 / #4c 扩 2 类）+ enum DataOp（5 值）+ enum UiSurface（4 值）
 │   ├─ AppViewModelBackup.kt    # VM 的备份领域 9 个函数（导出/文件导入/导入前快照/本地快照；#10b-1，2026-09-19）
 │   ├─ AppViewModelCloud.kt     # VM 的坚果云同步领域 4 个函数 + 顶层常量 NO_CREDENTIALS_MESSAGE（凭据/上传/列表/下载；#10b-2，2026-09-19）
@@ -51,7 +62,8 @@ app/src/main/java/com/agon/app/
 │   ├─ AppViewModelFood.kt      # VM 的食物 CRUD 与批量领域 11 个函数（新增/编辑、数量增减、批量归档与恢复、清空与放弃损坏数据；#10b-4，2026-09-19）
 │   ├─ AppViewModelCategoryLocation.kt # VM 的分类与位置领域 7 个函数（分类增删改与阈值、位置增删与批量改位置；#10b-5，2026-09-19）
 │   ├─ AppViewModelSettings.kt   # VM 的设置领域 6 个一行体函数（自动同步天数 + 5 个外观/主题开关；6 个名字与 data/FoodSettings.kt 全撞；#10b-6，2026-09-19）
-│   └─ AppViewModelUiState.kt    # VM 的 UI 状态与事件领域 5 个函数（FAB 抑制 / 多选集三件套 / emit 唯一发送点；#10b-7，2026-09-19）
+│   ├─ AppViewModelUiState.kt    # VM 的 UI 状态与事件领域 5 个函数（FAB 抑制 / 多选集三件套 / emit 唯一发送点；#10b-7，2026-09-19）
+│   └─ AppViewModelStartup.kt   # 启动编排（#11f，2026-09-19）：`runPantryStartup()` = 播种 → 凭据搬家 → 明文加密 → 消耗 ID 迁移 → 损坏态门内的孤儿封面清理 → 自动同步 → 自动快照；顺序即正确性，判据在 `AppViewModelStartupTest`
 └─ ui/
     ├─ navigation/              # AppRoute（miuix-nav 二级页栈；转场用库预设 NavTransitions.MiuixDefault）
     ├─ theme/                   # Palettes.kt（15 套种子色方案）/ Color.kt（仅状态语义色）/ Theme.kt（MaterialKolor 生成 + animateColorScheme）/ ThemeStyle.kt（MATERIAL3/MIUIX 风格枚举 + LocalThemeStyle）/ MiuixRootTheme.kt（MiuixTheme + MaterialTheme 桥接，v2.8）/ Motion.kt（MD3 缓动与时长 token）/ TodayProvider.kt（LocalToday，跨零点刷新）
@@ -60,8 +72,14 @@ app/src/main/java/com/agon/app/
     │                           #   Badges.kt（StatusBadge/LocationTag）· FoodAvatar.kt（FoodAvatar/EmojiAvatar）· QuantityStepper.kt
     │                           #   FoodCard.kt · Controls.kt（SelectIndicator/CheckSwitch/EmptyState）· DataCorrupt.kt（corruptKeyNames/DataCorruptBanner）
     │                           #   MiuixDialog.kt（WindowDialog 封装）；另有原本就独立的 UndoSnackbar.kt · ExpiryCalendar.kt
-    │   └─ app/                 # App 级双主题骨架（2026-09-16 第三批 #3 新建 10 个文件 2,746 行；2026-09-17 增至 12）：
-    │                           #   AppChrome.kt（AppScaffold / AppTopBar / AppSnackbarHost + Placement + Form / AppMessageScreen / 顶栏动作）
+    │   ├─ StatsCharts.kt       # 统计页两个图表件（DonutChart / LegendRow，09-19 #11d ① 从 StatsScreen.kt 下沉；层界由 StatsChartsLocationTest 守住：ui/screens/ 下不得出现 Canvas( ）
+    │   ├─ CalendarMonthLayout.kt # 月网格排版数学（leading / daysInMonth / cells / rows + 第几号），09-19 #11e 从 ExpiryCalendar 的 MonthGrid 抽出 ⇒ 渲染体里的算式变成可单测；真值表见 CalendarMonthLayoutTest
+    │   └─ app/                 # App 级双主题骨架（2026-09-16 第三批 #3 新建 10 个文件 2,746 行；2026-09-17 增至 12，09-19 #11a/#11b 各拆一刀 → 现 16 个）：
+    │                           #   AppChrome.kt（AppScaffold / AppTopBar / AppBarNavIcon —— 11b 之后只剩这三件，其余在下面四行）
+    │                           #   AppSnackbar.kt（AppSnackbarHost / rememberAppSnackbarHostState / AppSnackbarHostState + Placement / Form，11b 从 AppChrome.kt 拆出：235 行 7 个顶层声明）
+    │                           #   AppMessageScreen.kt（通用「消息 + 单个动作」屏，导入成功页在用；11b 拆出）
+    │                           #   AppBarActions.kt（顶栏动作族：AppBarIconButton + AppEditAction / AppDeleteAction / AppArchiveAction / AppSelectAllAction / AppDestructiveAction，11b 拆出）
+    │                           #   AppColors.kt（主题取色访问器 appPrimaryColor / appSurfaceColor / appMutedColor / appChartColors …，11a 从 AppTheme.kt 拆出）
     │                           #   AppText.kt（AppTextScale 13 档语义字号 + AppText / AppEmojiText / AppMutedText + 主题色访问器）
     │                           #   AppSurface.kt · AppListRow.kt · AppControls.kt · AppButtons.kt · AppInfo.kt
     │                           #   AppConfirmDialog.kt · AppFormDialog.kt · AppOptionDialog.kt（确认 / 带输入框 / 选项列表 三类弹窗）
@@ -69,7 +87,7 @@ app/src/main/java/com/agon/app/
     │                           #   AppBatchMoveDialog.kt（批量「移动存放位置」弹窗，2026-09-17 由包根 AppDialogs.kt 搬来）
     └─ screens/                 # 每屏一文件，自带 Scaffold。两层结构（2026-08-22 B-08 起）：
                                 # ① *State.kt 状态容器（8 个）：remember*UiState + 纯计算函数，双主题共用、单测覆盖
-                                # ② 渲染层（9 个屏幕文件 + **12 个**从设置页 / 编辑页搬出来的文件 ⇒ 不含 *State.kt 共 **21** 个；① 的 8 个 *State.kt 另计）：
+                                # ② 渲染层（9 个屏幕文件 + **15 个**从设置页 / 编辑页 / 统计页搬出来的文件 ⇒ 不含 *State.kt 共 **24** 个；① 的 8 个 *State.kt 另计）：
                                 #    ConsumptionLog / Archive / FoodDetail / Home /
                                 #    FoodList / Manage（阈值·分类·位置）/ Stats / Settings —— **八对已于 2026-09-16 全数合并为
                                 #    单文件双主题**，Miuix*Screen.kt 双胞胎全部删除（外壳差异走 ui/components/app/）；
@@ -81,10 +99,17 @@ app/src/main/java/com/agon/app/
                                 #    ⚠️ #10e（2026-09-19）起另有 **5 个**从 EditFoodScreen.kt 抽出去的**区块文件**
                                 #    （同样不是新增屏幕）：EditFoodCoverSection / EditFoodNameSection /
                                 #    EditFoodFieldSections / EditFoodThresholdSection / EditFoodChrome
-                                #    ⇒ 该目录（不含 *State.kt）16 → **21** 文件；编辑页入口 660 → **317** 行
+                                #    ⚠️ #11d ②（2026-09-19）起另有从 StatsScreen.kt 抽出的区块文件（同样不是新增屏幕）：
+                                #    StatsTrendSection.kt（近 7 天趋势柱状图）· StatsCategorySection.kt（分类占比，含 donutSlices 扇区分配）·
+                                #    StatsTopConsumedSection.kt（最常消耗）—— #11d ② 三块全部拆完，没有「待补」。
+                                #    形状照 #10e：同包 `internal @Composable` + 参数表按入口局部审计给 ⇒ 调用点 import 零改动；
+                                #    位置判据在 `StatsSectionLocationTest`（区块标记的住所 / 画法不回流 / 调用点必须还在）。
+                                #    ⇒ 该目录（不含 *State.kt）16 → **24** 文件（#10e 到 21，#11d② 又 +3）；编辑页入口行数不在此写死（M1-2 又加过 13 行），
+#      现值看 doc-metrics 的「#10e 五个区块文件行数」与「屏幕目录最大文件」两行
                                 #    ⇒ 所以「文件数」不再等于「屏幕数」；
                                 #    **行数账不在本文件维护**
-                                #    （此前这里手抄的 4,204 / 2,746 / 6,950 三个数已过期，且与本文件 §5 的「12 文件」自相矛盾），
+                                #    （此前这里手抄的 4,204 / 2,746 / 6,950 三个数已过期，且与本文件 §5 的「12 文件」自相矛盾 —— §5 那个 12 已于 09-20 跟上实测 16），
+                                #    ⚠️ 本树是「谁住在哪个文件」的唯一地图（2026-09-20 §7 之后加了机械核）：新增或拆分文件，除了记账，**必须同时补这棵树**；目录文件数也不许手抄过期 —— 两者都由 `bash tools/doc-metrics.sh` 的「拆分后的机械账」那行比对实测。
                                 #    现值见 docs/DESIGN_SPEC.md §7 的「口径」行，复核跑 bash tools/doc-metrics.sh
                                 # 仅编辑页（EditFoodScreen）与 CheckSwitch 刻意保留 MD3+桥接：DatePicker 无 Miuix 对应；
                                 # CheckSwitch 是项目特色打勾/打叉样式（规范禁止 material3 Switch），自绘 + 颜色桥接。
@@ -100,7 +125,7 @@ app/src/main/java/com/agon/app/
 | `FoodItem` | `food_items` | 库存记录；日期存 epochDay(Long)；`category` 存 CategoryDef.id 字符串；`expiringThresholdDays: Int?` 为单条阈值覆盖；`coverText` 自定义封面 emoji/短文字（≤4 字符） |
 | `CategoryDef` | `custom_categories` | 可编辑分类(id/label/emoji)；默认 8 个 id 沿用旧枚举名，新增用 UUID；孤儿 id 由 `byId()` 回退 FallbackCategory("其他") |
 | `List<String>` | `custom_locations` | 可编辑位置预设列表 |
-| `ArchivedItem` | `archived_items` | 归档：原 item + 归档日 + 原因(DELETED/CONSUMED/EXPIRED)；上限 200 |
+| `ArchivedItem` | `archived_items` | 归档：原 item + 归档日 + 原因(DELETED/CONSUMED/EXPIRED)；保留上限是常量 `FoodArchive.ARCHIVE_RETENTION`（两处写入点共用 `trimArchiveRetention`），被上限挤掉的条数累计记在 `archive_overflow_total` |
 | `ConsumptionRecord` | `consumption_records` | 消耗流水（减库存时自动记录）；90 天内逐笔，更早按「年×月×名称×单位」聚合成一条并标记 `aggregated=true`（见 `compactConsumptionAt`），无条数硬上限 |
 | `HistoryEntry` | `history_entries` | 录入历史（名称去重，上限 50） |
 | `Map<String,Int>` | `category_thresholds` | 分类临期阈值；key 为 `CategoryDef.id`（不是枚举名/显示名） |
@@ -138,6 +163,8 @@ app/src/main/java/com/agon/app/
 - **吃完自动归档（v2.4）**：`changeQuantity` 在消耗导致数量归零时自动移入归档（CONSUMED）并返回 true；UI 可依此提示/返回
 - **OCR**：已移除，不要再加 `DateOcr` / ML Kit
 - **坚果云同步（v2.4，v2.7 多版本轮转）**：`NutstoreSync` 单例（OkHttp），WebDAV MKCOL+PUT/GET/PROPFIND/DELETE；账号存 DataStore（nutstore_account / last_sync_time）；**密码经 `SecureStore`（Android Keystore AES-GCM）加密后存 `nutstore_password_enc`，启动时 `migratePlaintextPassword()` 自动迁移旧明文**；上传内容即 buildBackupJson() 产物，下载走 importBackupJson()
+  - **凭据 key 的实际落点是 `credentials_store`，不是 `pantry_store`**（2026-09-19 M1-1）：读写都必须带 `store = credentialsStore`，启动时 `migrateLegacyCredentials()` 先把旧位置搬过来。业务数据那份文件现在随系统备份走，密钥一个字都不能进
+  - **`SecureStore` 三条约定**（同日 M1-4）：① **只有写侧建钥** —— `encrypt` 走 `getOrCreateKey()`、`decrypt` 走 `readKey()`（读侧建钥是纯伤害：换机后白占 `KEY_ALIAS`、旧密文照样解不开，还会与并发加密抢建）；② **`KeyAlreadyExistsException` 不是故障** —— 它是"别人刚建好了"，读回来复用；此前启动期 `migratePlaintextPassword()` 与设置页保存会同时撞进 `getOrCreateKey()`，后到的那个抛异常→被 `encrypt` 的 `catch` 吞成 null→调用方误判"Keystore 不可用"→**把明文密码落盘并提示用户安全性降级**（密钥其实好好的）；现在「读→建」整体 `synchronized` + 撞上后重读，两层都要有（锁只在本进程有效）；③ 失败一律返回 `null` 而不是空串（既有守卫 `CorruptGuardTest.凭据加密失败必须可区分且调用方按非空判定` 钉着，新增的两条钉 ①②）
   - **多版本轮转（v2.7）**：上传文件名 `chileme_backup_yyyyMMdd_HHmmss.json`，上传后 PROPFIND 列目录、自动 DELETE 多余旧版本，云端保留最近 `CLOUD_BACKUP_KEEP`（=3）份；自动同步走同一 upload 入口，同样轮转
   - **恢复选择（v2.7）**：`listBackups()` 返回 `CloudBackup(fileName, sizeBytes)` 列表（新→旧），UI 弹窗选择具体版本后 `download(fileName)` 恢复；旧版单文件 `chileme_backup.json` 兼容显示在列表末尾且不参与轮转删除
 - **自动同步（v2.4）**：`auto_sync_days`（0=关/1/3/7）+ `last_auto_sync_epoch_day`；ViewModel init 时 `maybeAutoSync()` —— 间隔到且凭据完整则静默上传，成功后 Home 页 Snackbar 提示，失败静默下次重试；无 WorkManager 无后台任务
@@ -159,22 +186,30 @@ app/src/main/java/com/agon/app/
 - **本地快照 IO（2026-09-15）**：`LocalSnapshotStore` 的 `saveSnapshot` / `listSnapshots` / `readSnapshot` 均为 `suspend` + `withContext(Dispatchers.IO)`（此前在主线程写盘/读盘）；列表条数用 `countItemsInSnapshot()` **解析 JSON** 得到，禁止再用正则数 `"id":`（会把归档/消耗/历史里的 id 也算进去）
 - **导入备份加固（2026-09-15）**：SAF 选文件 → `readBackupText()`（IO 线程，20 MB 上限）→ `previewBackup()`（必须含 `items` 键且可解析，否则拒收）→ 二次确认弹窗（导出日期 / 各表条数 / schema 版本）→ `importBackupWithSnapshot()`（**先写一份本地快照兜底**再整体替换）。禁止退回「选完即覆盖」
 - **Flow 读取规约（2026-08-21）**：DataStore 每次 `edit` 都会重发整份 Preferences。所有重型（需 JSON 解码）key 一律走 `rawFlow()` —— 先取原始串 → `distinctUntilChanged()` → 解码 → `flowOn(Dispatchers.Default)`；轻量 key 走 `lightFlow()`（仅去重）。**禁止**直接 `dataStore.data.map { decodeXxx(...) }`：那会让改一次主题色就重新解析全部 JSON 并产生新 List 实例（全屏重组），且解码发生在 `viewModelScope`（`Main.immediate`）即主线程
-- **备份排除规则（2026-08-21，2026-09-16 校正）**：`res/xml/backup_rules.xml`（API ≤30，`fullBackupContent`）排除 `datastore/` + `covers/` + `corrupt/`；`res/xml/data_extraction_rules.xml`（API 31+，`dataExtractionRules`）分两条通道——`cloud-backup` 排除 `datastore/` + `covers/` + `corrupt/`，`device-transfer` 排除 `datastore/` + `corrupt/`（**放行 `covers/`**）。坚果云密码是 Keystore AES-GCM 密文，**密钥不跨设备**，备份恢复后必然解不开，故两条通道都必须排除 `datastore/`；`nutstoreCredentialBrokenFlow` 检测该状态并在设置页提示重新填写
-  - **已知不一致（待决策，见 `devlog/2026-09-16.md`）**：① `device-transfer` 放行 `covers/` 却排除 `datastore/` → 换机直传后封面图到了、引用它的库存 JSON 没到，新设备启动时 `cleanupOrphanCovers()` 会把它们当孤儿删掉（不致命，但白传一轮图片）；② `filesDir/snapshots/`（每日全量库存 JSON，最近 3 份）**两份规则都没排除** → 会随 Android 系统备份进入用户自己的 Google 账号，README「数据默认只存本机」的表述未覆盖这条通道
+- **备份排除规则（2026-08-21 · 2026-09-16 校正 · 2026-09-19 M1-1 改口径）**：**凭据与业务数据分住两个 DataStore 文件**（`FoodRepository` 的 `credentialsStore` = `credentials_store.preferences_pb`，`dataStore` = `pantry_store.preferences_pb`，都在 `filesDir/datastore/` 下），排除规则因此可以**精确到文件**：
+  - `res/xml/backup_rules.xml`（API 26–30，`fullBackupContent`）与 `data_extraction_rules.xml`（API 31+）的 `<cloud-backup>` 排除清单**逐条相同**：`datastore/credentials_store.preferences_pb` + `covers/` + `corrupt/` + `snapshots/`
+  - `<device-transfer>` 同上但**放行 `covers/`**（唯一被承认的不对称，理由见下）
+  - ⇒ **业务数据（库存/归档/消耗/历史）现在进备份**；坚果云凭据不进（Keystore AES-GCM 密文的密钥不跨设备，恢复后必然解不开；`nutstoreCredentialBrokenFlow` 仍保留，用来兜"密文比账号先到位"这类残留状态）
+  - **旧口径为什么必须废掉**：此前凭据与业务数据同住 `pantry_store` 一个文件，为了挡一个密钥只能 `<exclude domain="file" path="datastore/" />` 整目录排除 ⇒ **用户的库存数据也不在备份里**，换机/重装后归零，只能靠当初手动导出过 JSON 或点过坚果云同步。官方 DataStore 文档给的正是"敏感与非敏感拆成不同文件、再按文件配 `data_extraction_rules.xml`"这条路
+  - **老用户不丢凭据**：启动期 `migrateLegacyCredentials()`（`FoodCredentials.kt`）先把业务文件里的 3 个 nutstore key 搬到凭据文件、再从业务文件删除；顺序是先写新后删旧 ⇒ 中途被杀最坏是两处各一份（读侧只看新文件），不会丢凭据。`CredentialsStoreTest` 5 条钉住读写接线与迁移幂等
+  - 2026-09-16 记的两条"已知不一致"**同时消解**：① `device-transfer` 放行 `covers/` 却排除 `datastore/` ⇒ 图到了 JSON 没到 ⇒ `cleanupOrphanCovers()` 把封面当孤儿删；现在两者一起到位。② `snapshots/` 未排除 ⇒ 每日全量快照进用户 Google 账号（与 README 的"只存本机"表述冲突）；现在显式排除，README 那句已按新行为改写
+  - 守卫：`BackupRulesTest`（两份 XML 逐条比对，含"不许再出现整目录 `datastore/` 排除"这条反向断言）；`CredentialsStoreTest`（含"Keystore 不可用时的明文回退也只进凭据文件"）
 - **归档恢复去重（v2.4）**：`restoreArchived()` —— 同 ID 只移除归档；同名+同生产日期合并数量（返回 merged 供 UI 提示）；否则新增，数量 0 恢复为 1
 - **主题渐变（v2.4）**：Theme.kt `animateColorScheme()` 对全部 **36** 个颜色角色 450ms tween（`animatedColor(target.*)` 逐角色调用，正好是 `ColorScheme` 的完整参数表；
   2026-09-17 复核：此前写 37 是错的，重数跑 `grep -c "animatedColor(target\." app/src/main/java/com/agon/app/ui/theme/Theme.kt`）；新增颜色角色时需同步加入该函数
 - **图片存储**：封面统一通过 `copyImageToCovers()` 落盘到 `filesDir/covers/`，FoodItem 只存绝对路径；展示用 `FoodAvatar`，优先级：照片 > coverText > 分类 emoji
+  - **落盘是 tmp→rename 两步（2026-09-19，M1-2）**：字节先写 `covers/.tmp-<uuid>.jpg`，写完才 `renameTo` 成正式名（同目录改名在 Linux 上原子）；`finally` 里删掉残留的 tmp。为什么：调用点在 `rememberCoroutineScope` 里，用户选完图立刻返回会让协程被取消，直接写正式名会留下一份**截断的 JPEG** —— 而 `exists()` 为真、`photoPath` 指着它 ⇒ 渲染侧判定通过、Coil 解码失败 = 永久坏图。现在任何早退/取消只留下一个不被任何记录引用的临时名 ⇒ 下次启动 `cleanupOrphanCovers()` 收走（⚠️ 那个函数**不许**加"只删 .jpg 结尾 / 跳过点开头"的过滤，`EditFoodSaveGuardTest` 钉着）；`Bitmap.compress` 返回 false 也按失败处理（文件写完了但内容不合法，`exists()` 看不出来）
+  - **编辑页保存要等落盘（同轮 M1-2）**：`EditFoodScreen` 的 `onSave` 从「`viewModel.upsert(item)` + 立刻 `onBack()`」改成 `viewModel.upsertAndAwait(item)` 拿到 `Job` → `join()` → 再 `onBack()`，期间按钮 `enabled = !saving` 挡住二次点击（连点两下在新增模式里会生成两个 UUID = 两条重复记录）。旧写法今天能写进去**只是因为 VM 是 Activity 级**、`viewModelScope` 不随屏幕出栈而取消；#10c 一旦拆成每屏一 VM，它就是「点保存 = 丢数据」。写协程仍起在 `viewModelScope` 上（`join` 被取消也不影响写完）
   - **已知待办**：① `photoPath` 存**绝对路径**，换设备/清数据后必然悬空，应改存文件名（`covers/<uuid>.jpg` 的 basename）运行时用 `context.filesDir` 拼；② 存在性判断目前在**组合期**同步调 `File.exists()`（`FoodAvatar.kt` 的 `File(item.photoPath).exists()`、`EditFoodCoverSection.kt` 的 `File(photoPath).exists()`；后者 #10e 前在 `EditFoodScreen.kt`），列表滚动每帧重算 syscall，应移到 VM/IO 侧或改由 Coil `onError` 回落 emoji。见 `docs/audits/chileme-review.md` P1-8
 - **进度条语义**：一律用 `elapsedRatio`（正相关，时间过去多少走多少），禁止再用 freshness 直接作进度
 - **键盘避让（2026-09-15）**：Android 15+ 强制 edge-to-edge 后 manifest 的 `adjustResize` **不再缩窗口**，键盘只是叠在窗口上，必须自己消费 `WindowInsets.ime`。三条硬规则：① **含输入框的屏幕**一律 `Scaffold(modifier = Modifier.imePadding())`（整屏缩到键盘之上，滚动区同步变矮）；② **不在 Scaffold 内的 App 级浮层**用 `.navigationBarsPadding().imePadding()` 两段式（等价于旧的 `navigationBarsWithImePadding()`，内层只补差额，不会叠加成一条大空隙）——**底栏按产品决定不跟随抬升（A 方案）**，是全 App 唯一「键盘弹出时允许被遮挡」的元素；③ **MD3 弹窗**是独立浮动窗口，必须 `DialogProperties(decorFitsSystemWindows = false)` 才会把 IME inset 透给内容，否则底部按钮被键盘盖住。**Miuix `WindowDialog` 例外**：库内 `DialogContent` 根节点自带 `imePadding()`（窗口属性 `decorFitsSystemWindows = false` + `usePlatformDefaultWidth = false`），本项目**不要**传 `defaultWindowInsetsPadding = false`，也不要给 Miuix 弹窗再加 padding。**带输入框的 MD3 弹窗自 2026-09-17 起改用 `stickyImePadding()`**（`ui/components/app/AppIme.kt`，三处：`AppFormDialog` / `AppBatchMoveDialog` 批量移动位置 / `SettingsCloudDialogs` 坚果云 —— #10a-1 前在 `SettingsScreen`）：焦点在同一弹窗的两个输入框之间切换时平台会 restartInput、输入法窗口整个消失再出现，`WindowInsets.ime` 瞬时归零，居中弹窗随之上下坠一下（用户真机报告；类型相同的两个文本框也会，故与 `keyboardOptions` 无关）。粘性避让在 inset 变小时先按住 `holdMillis`（默认 300ms）再平滑落回，焦点切换因此零位移，代价是主动收起键盘时弹窗晚 300ms 才落回居中。**Miuix 侧无法同样处理**：库的 `imePadding()` 在 `DialogContentLayout.DialogContent` 内部，唯一开关 `defaultWindowInsetsPadding = false` 会连带关掉 `navigationBarsPadding` / `captionBarPadding`（弹窗底边掉到导航栏下、圆角被压），且已查证上游 pinned tag v0.9.4-rc01 全库只有两处用 ime（`.imePadding()` 与关闭弹窗时 `keyboardController.hide()`），无任何 IME 平滑能力 —— 按用户 2026-09-17 决定 Miuix 侧不动，要根治需上游支持。屏幕级 `AppScaffold(modifier = Modifier.imePadding())` 刻意不改（内容高、幅度小，且要动第 1 条整份屏幕清单）**content 必须是单一根节点**：库把 title / summary / `content()` 放进一个不带 `verticalArrangement` 的 Column，两个平级节点之间是 0dp（2026-09-17 真机复测踩到，`MiuixDialogContentTest` 静态拦截）。回归守卫见 `ImeHandlingTest`
-- **统计口径（2026-09-15）**：「过期浪费」= `calculateWastedTotal(archived)`，按**件数**（`sumOf { item.quantity }`）而非归档条数，与同屏按件求和的「本周消耗」保持一致。注意该指标仍受归档上限 `take(200)` 影响，长期不失真需独立计数器（见 `docs/audits/2026-09-15-code-review.md` §1.8）
+- **统计口径（2026-09-15）**：「过期浪费」= `calculateWastedTotal(archived)`，按**件数**（`sumOf { item.quantity }`）而非归档条数，与同屏按件求和的「本周消耗」保持一致。注意该指标仍受归档保留上限影响（`FoodArchive.ARCHIVE_RETENTION`，被挤掉的旧归档不计入，见 `StatsState` 的口径注释）；2026-09-19（M1-3）已把「静默截断」变成「有账可查」——上限抬高到常量所指的值，且每次挤掉的条数累计写入 `archive_overflow_total`（`FoodRepository.archiveOverflowFlow`，目前无 UI 消费，接提示时不必再动仓库层），长期不失真那一步（独立计数器）即由此达成
 - **「件」与「条」的用词规则（2026-09-15）**：写给用户的**带「件」的文案必须是 `quantity` 求和**（`BackupData.itemQuantity` / `HomeScreenState.quantityOfStatus` / `StatsState` 的按件字段），`items.size` 只能出现在「条/记录」语境或**不带单位**的筛选计数里（首页三张统计卡不带单位、点进去是记录列表）。归档/消耗/历史一律「条」。已按此修正：首页新鲜度横幅、一键清理按钮及其撤销提示、导入预览的库存位数
 - **屏幕只换外壳（2026-09-15 立规，2026-09-16 扩大范围）**：屏幕文件（`*Screen.kt` / `*Screens.kt`）必须调用 `remember*UiState` 复用已测状态容器，**禁止在 UI 文件里重写聚合计算**；`ScreenParityTest`（原名 `MiuixParityTest`，因双主题合并后文件名不再带 `Miuix` 前缀，按前缀枚举会漏掉刚合并的屏幕，故改为覆盖全部屏幕文件；⚠️ #10a-1 起两条规则的扫描面**不再同宽** —— 规则 1（必须调 `remember*UiState`）仍只按 `*Screen.kt` / `*Screens.kt` 点名，规则 2（禁止内联聚合）加宽到目录内除 `*State.kt` 的所有文件，否则搬进 `*Dialogs.kt` 的弹窗代码会静默逃出守卫）会静态拦截（此前 `MiuixStatsScreen` 手抄了一份统计逻辑，导致 `StatsStateTest` 测的是 MIUIX 下不执行的代码）
-- **App 级组件层（2026-09-16，第三批 #3）**：屏幕骨架下沉到 `ui/components/app/`（12 文件；**行数不在本文件维护**，实测见 doc-metrics「App 级组件层」那行），屏幕本体只保留一份业务结构，主题分流全部发生在组件层内部（`LocalThemeStyle`）。**组件清单与每个组件的关键约定（含已踩过的坑）见 `docs/DESIGN_SPEC.md` §4.1 —— 那是唯一事实源**。本条此前是一份 4,254 字符的逐轮累加清单，与 `CLAUDE.md` §5、`DESIGN_SPEC.md` §7 的两份手抄清单互为重复（三份分别提到 56 / 43 / 55 个组件名，CLAUDE 那份 93% 与本文重叠，而本文这份还**漏了 `AppStatusCard`**），2026-09-17 合并为一处。这里只留**架构层**的三条约定：
+- **App 级组件层（2026-09-16，第三批 #3）**：屏幕骨架下沉到 `ui/components/app/`（16 文件，#11a/#11b 各加过一刀；**行数不在本文件维护**，实测见 doc-metrics「App 级组件层」那行），屏幕本体只保留一份业务结构，主题分流全部发生在组件层内部（`LocalThemeStyle`）。**组件清单与每个组件的关键约定（含已踩过的坑）见 `docs/DESIGN_SPEC.md` §4.1 —— 那是唯一事实源**。本条此前是一份 4,254 字符的逐轮累加清单，与 `CLAUDE.md` §5、`DESIGN_SPEC.md` §7 的两份手抄清单互为重复（三份分别提到 56 / 43 / 55 个组件名，CLAUDE 那份 93% 与本文重叠，而本文这份还**漏了 `AppStatusCard`**），2026-09-17 合并为一处。这里只留**架构层**的三条约定：
   - **为什么要有这一层**：合并前加一个功能要「改两个文件 + 一处 if/else」；组件层让主题差异只有一个合法落点，边际成本降到「改一个文件」。八对合并后 `AppNavGraph.kt` 与 `NavChrome.kt` 都已零主题分支，唯一保留双份的是设置页 body（理由见 `DESIGN_SPEC.md` §7）。
   - **跨主题的宿主对象不得漏回屏幕层**：MD3 与 Miuix 的 `SnackbarHostState` 是**两个不相干的类型**，故 `AppSnackbarHostState` 对外只暴露 `showUndoSnackbar(): Boolean`，免得两个主题的 `SnackbarResult` 顺着签名漏回屏幕层（`isMiuix` 参与 `remember` key 的坑见 §4.1）。
-  - **取色例外只有一个**：`appChartColors()`（统计页图表调色板）是「屏幕侧取色」**唯一**被承认的例外，其余一律走组件层的取色访问器；Miuix 色板没有 `tertiary` / `inversePrimary`，两份 8 色清单照抄不统一。
+  - **取色例外只有一个**：`appChartColors()`（统计页图表调色板）是「屏幕侧取色」**唯一**被承认的例外，其余一律走组件层的取色访问器（这些访问器 2026-09-19 #11a 起全部集中在 `ui/components/app/AppColors.kt`，位置由 `AppColorLocationTest` 钉住）；Miuix 色板没有 `tertiary` / `inversePrimary`，两份 8 色清单照抄不统一。
   - **四条从上游源码核出来的硬约束**：① Miuix 的 `Card` 与 `Surface` **不等价** —— `Card`（v0.9.4-rc01，`Card.kt:50`）圆角默认值同为 16dp，但内部还套一层 `Column(Modifier.padding(CardDefaults.InsideMargin))` 且 content 是 `ColumnScope`。合并前两版**两种都在用**（消耗记录行 = `Surface`，归档行与详情页两张信息卡 = `Card`），所以组件层留了两个：`AppCard`（无内衬）与 `AppPaddedCard`（Miuix 侧官方 `Card`、多一层内衬）。**谁用哪个由「合并前那一版用的是什么」决定，不许顺手统一** —— 统一掉就是只有真机看得出来的视觉改动。② 两主题的字号档位不是一一对应：Miuix 的 `body1` 同时承接 MD3 的 `titleMedium` 与 `bodyLarge`（`MiuixFoodDetailScreen` 原本就这么用），档位表按「合并前两版各自的取值」逐项登记，便于逐行核对等价性。③ 弹窗必须放在 `AppScaffold` 的 content lambda **里面**并无条件调用、靠 `show` 控制（Miuix `WindowDialog` 的库约束，见 `MiuixDialog.kt`）；MD3 的 `AlertDialog` 放里放外都是独立窗口、渲染无差别，故统一按 Miuix 的要求落位。④ Miuix `TopAppBar` 的 `subtitle: String = ""`（v0.9.4-rc01 `TopAppBar.kt:100` 已核对），所以「传空串」与「不传」逐字等价 —— `AppTopBar` 用一个 `subtitle` 参数喂两边：Miuix 直接吃，MD3 侧「带副标题」即折叠式 `LargeTopAppBar` + `nestedScroll` + `fillMaxSize`（合并前 MD3 首页正是这么写的）。Miuix 也有 `largeTitle` + `scrollBehavior` 可做折叠顶栏，但合并前没用，**不替它开**。⑤ 撤销条落位有两种且不是一个数字能表达的：二级页 MD3 侧 `navigationBarsPadding() + 24dp`、Miuix 侧不抬；Tab 页两版都抬 `84dp` 且 MD3 侧**不再**叠 `navigationBarsPadding`。故做成具名枚举 `AppSnackbarPlacement` 而不是 `Dp` 参数。⑥ **只在一个主题生效的参数必须在 KDoc 里点名哪边不生效**：`AppCardTone.ContainerLow` 只改 MD3 底色（Miuix 两版都是库 `Card` 默认色，上游 `colors` 默认走 `CardDefaults.cardColors()`，不替它猜「低一档」是哪个色）、`AppChipTone` 只有 `Primary` 显式指定选中态文字色、`AppTopBar(selectionMode = true)` 只让 MD3 换底色。「参数被静默忽略」与「参数 documented 地单边生效」是两回事，前者迟早有人踩（这条规矩是第 2 对给 `AppTopBar.subtitle` 立的，第 5 对起写进总约束）。
   - **键盘避让仍由屏幕自己声明**：`AppScaffold` 不无条件加 `imePadding()`（没有输入框的屏幕不需要），需要的屏幕传 `modifier = Modifier.imePadding()`。这与路线图原先设想的「组件层统一吃掉 inset、守卫改查 `AppScaffold` 一处」不同 —— 显式声明让「哪一屏要避让」在屏幕文件里可见，`ImeHandlingTest` 第 1 条也仍能按屏幕点名，且合并后**一个条目覆盖两套主题**（清单由 5 项缩到 4 项）
 - **启动门控**：MainActivity 用 core-splashscreen `setKeepOnScreenCondition` 持住启动画面，直到 `viewModel.ready`（DataStore 首发）才渲染，避免主题/内容闪烁；新增首屏依赖的 Flow 时要加入 ready 的 combine

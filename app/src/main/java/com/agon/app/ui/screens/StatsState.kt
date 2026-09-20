@@ -65,7 +65,9 @@ fun calculateDailyTrend(consumption: List<ConsumptionRecord>, todayDate: LocalDa
  * 那类归属 CONSUMED 不在此列）。所以「冰箱里 6 瓶冰红茶过期」应当是 6，不是 1；
  * 同屏的「本周消耗」也是按件求和（`sumOf { it.amount }`），两者口径必须一致。
  *
- * 注意：本指标仍受归档上限 `take(200)` 影响——超出上限被淘汰的旧归档不再计入。
+ * 注意：本指标仍受**归档保留上限**影响（常量 `ARCHIVE_RETENTION`，定义在 `FoodArchive.kt`）——
+ * 超出上限被淘汰的旧归档不再计入。上限从 200 提到 1000（M1-3，2026-09-19）后这个偏差小了一个量级、
+ * 但没消除；被挤掉的条数由 `archive_overflow_total` 记账，见 `FoodRepository.archiveOverflowFlow`。
  * 若要长期不失真，需要独立的单调计数器（见 docs/audits/2026-09-15-code-review.md §1.8）。
  */
 fun calculateWastedTotal(archived: List<ArchivedItem>): Int =
