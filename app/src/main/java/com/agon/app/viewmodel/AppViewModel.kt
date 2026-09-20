@@ -26,8 +26,6 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
-private const val TAG = "AppViewModel"
-
 // ⚠️ 下面有几个成员是 `internal` 而不是 `private`（`repo` / `clock` / `emit` 与若干 `MutableStateFlow`）：
 // #10b 把领域函数搬成**同包扩展函数**（`AppViewModel<领域>.kt`）之后，那些函数体要够得着它们
 // —— `internal` 只是**模块内**可见，不出 App 模块，与 #5c 在 data 层的口径一致。
