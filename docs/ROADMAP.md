@@ -1153,7 +1153,7 @@
 ### 11a – 11f 落地记录（09-19；数字与踩坑细节只写在 `devlog/2026-09-19.md` §15 / §16 / §17 / §18 / §19，此处不重抄）
 
 - 状态：**11a ✅ / 11b ✅ / 11c ✅ / 11d ✅（① 两个图表件下沉 `ui/components/StatsCharts.kt`；② 那 4 个区块里 3 个各成同包文件（到期日历那 11 行按同一判据**不拆**），装配体 409 → 327 → 146 行，守卫 `StatsSectionLocationTest` 表驱动一刀一行）；**11e ✅**（月网格算式抽成 `CalendarMonthLayout.kt` + `ui/components/` 首份单测：6 条字面真值 + 60 个月铺法性质，
-   期望值另用 Python 标准库 `calendar.monthcalendar` 独立核过）；**11f ✅**（`init` 的启动编排整段抽成 `AppViewModelStartup.kt` 的 `runPantryStartup()`，VM 282 → 197 行，守卫 `AppViewModelStartupTest` 四条：顺序 / 损坏态门 / 步骤只住一处 / 装配点只此一处）⇒ **#11 六笔全部收官**。CI：11e 在 `35478453333` 三 job 全绿；11f 的 run 见 `devlog/2026-09-19.md` §20。
+   期望值另用 Python 标准库 `calendar.monthcalendar` 独立核过）；**11f ✅**（`init` 的启动编排整段抽成 `AppViewModelStartup.kt` 的 `runPantryStartup()`，VM 282 → 197 行，守卫 `AppViewModelStartupTest` 四条：顺序 / 损坏态门 / 步骤只住一处 / 装配点只此一处）⇒ **#11 六笔全部收官**。CI：11e 在 `35478453333` 三 job 全绿；**11f 连红一次才闭环** —— `35479338135` 的 debug（206 条单测）+ release/R8 都绿、只红静态门禁（detekt `UnusedPrivateProperty` ×2 = 搬走使用点后留下的死 `TAG` 与测试里的旧键名）⇒ 修红后 `35479524217` 三 job 全绿。细节见 `devlog/2026-09-19.md` §20.6（第八次红）。
    CI 证据：11a–11c 各自闭环（`35450021031` 全绿）、11d ① 在 `35450811382` 全绿；**11d ② 连改两次才闭环**
    （`35476068965` 红在 `Color` import → `35476442138` 红在旧守卫口径 → **`35476775511` 三 job 全绿，195 tests / 0 失败**）。三条验收的实测结果：① 逐行相等 ✓（脚本 assert 每段大括号闭合）；
   ② import 改动数 预测 0 = 实测 0 ✓（同包移动）；③ 位置守卫 ✓（`ComponentAppHomeTest` 现 20 条 + `AppColorLocationTest`）。
