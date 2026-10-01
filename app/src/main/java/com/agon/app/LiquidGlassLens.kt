@@ -1,3 +1,9 @@
+// Copyright 2026, chileme contributors
+// Portions adapted from Miuix v0.9.4's Apache-2.0 example:
+// Copyright 2026, compose-miuix-ui contributors
+// Original example attribution: Kyant0/AndroidLiquidGlass (Apache-2.0).
+// SPDX-License-Identifier: Apache-2.0
+
 package com.agon.app
 
 import top.yukonga.miuix.kmp.blur.BackdropEffectScope
