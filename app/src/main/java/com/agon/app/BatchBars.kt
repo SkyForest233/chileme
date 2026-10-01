@@ -1,14 +1,14 @@
 package com.agon.app
 
-// 多选批量操作：MD3 保留全局底部操作栏，Miuix 食品页改用页内 Scaffold 的 FloatingToolbar。
+// 多选批量操作栏：取消 / 移动位置 / 归档 N 项（进入多选时替换底部导航）。
 //
-// 旧操作栏仍兼容「悬浮 / 常驻」两种底栏形态；两套主题按钮按 isMiuix 分流。
+// 跟随「悬浮 / 常驻」两种底栏形态各一套布局，MD3 与 MIUIX 两套按钮按 isMiuix 分流。
 // 两条栏都必须同时避让导航栏与键盘（.navigationBarsPadding().imePadding() —— 两段式等价于旧的
 // navigationBarsWithImePadding()，取 max 不叠加）；ImeHandlingTest 按**文件清单**点数并求和，
 // 搬动这些浮层时必须同步改那份清单。
 //
 // 2026-09-16 由 MainActivity.kt 拆分而来（纯搬运：除 private→internal 外，签名与实现逐字节未改）。
-// BatchActionBar / MiuixBatchSelectionToolbar 由 MainApp / FoodListScreen 调用 → internal；底层按钮只在本文件内使用。
+// BatchActionBar 被 MainApp 调用 → internal；其余三个按钮只在本文件内使用 → 保持 private。
 
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.Arrangement
@@ -33,14 +33,9 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import top.yukonga.miuix.kmp.basic.Button as MiuixButton
 import top.yukonga.miuix.kmp.basic.ButtonDefaults as MiuixButtonDefaults
-import top.yukonga.miuix.kmp.basic.FloatingToolbar as MiuixFloatingToolbar
 import top.yukonga.miuix.kmp.basic.Icon as MiuixIcon
-import top.yukonga.miuix.kmp.basic.IconButton as MiuixIconButton
-import top.yukonga.miuix.kmp.basic.Text as MiuixText
 import top.yukonga.miuix.kmp.basic.TextButton as MiuixTextButton
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Close
-import top.yukonga.miuix.kmp.icon.extended.Delete
 import top.yukonga.miuix.kmp.icon.extended.Location
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import androidx.compose.runtime.Composable
@@ -96,48 +91,6 @@ internal fun BatchActionBar(
                 BatchCancelButton(isMiuix = isMiuix, onClick = onCancel, modifier = Modifier.weight(1f))
                 BatchMoveLocationButton(isMiuix = isMiuix, onClick = onMoveLocation, modifier = Modifier.weight(1.3f))
                 BatchArchiveButton(isMiuix = isMiuix, count = count, onClick = onArchive, modifier = Modifier.weight(1.4f))
-            }
-        }
-    }
-}
-
-/** Miuix-only contextual actions for list selection, hosted by the page's Scaffold floatingToolbar slot. */
-@Composable
-internal fun MiuixBatchSelectionToolbar(
-    count: Int,
-    onCancel: () -> Unit,
-    onMoveLocation: () -> Unit,
-    onArchive: () -> Unit,
-) {
-    MiuixFloatingToolbar {
-        Row(
-            modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(2.dp),
-        ) {
-            MiuixText(
-                text = "$count 项已选",
-                style = MiuixTheme.textStyles.body2,
-                fontWeight = FontWeight.SemiBold,
-                color = MiuixTheme.colorScheme.onSurface,
-                modifier = Modifier.padding(start = 8.dp, end = 2.dp),
-            )
-            MiuixIconButton(onClick = onCancel) {
-                MiuixIcon(MiuixIcons.Close, contentDescription = "退出多选")
-            }
-            MiuixIconButton(onClick = onMoveLocation) {
-                MiuixIcon(
-                    MiuixIcons.Location,
-                    contentDescription = "移动所选食品",
-                    tint = MiuixTheme.colorScheme.primary,
-                )
-            }
-            MiuixIconButton(onClick = onArchive) {
-                MiuixIcon(
-                    MiuixIcons.Delete,
-                    contentDescription = "归档 $count 项",
-                    tint = MiuixTheme.colorScheme.error,
-                )
             }
         }
     }

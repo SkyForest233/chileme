@@ -151,7 +151,7 @@ fun MainApp(viewModel: AppViewModel) {
         drawRect(backdropSurface)
         drawContent()
     }
-    // 多选状态提升到 VM；MD3 用全局底部操作栏，Miuix 食品页用 Scaffold FloatingToolbar，两者均隐藏底栏。
+    // 多选模式：选中状态提升到 VM，多选时用批量操作栏替换底部导航
     val selectedIds by viewModel.selectedIds.collectAsStateWithLifecycle()
     val selectionMode = selectedIds.isNotEmpty()
     var showMoveLocationDialog by rememberSaveable { mutableStateOf(false) }
@@ -255,7 +255,7 @@ fun MainApp(viewModel: AppViewModel) {
                 bottomBar = {
                     Box {
                         AnimatedVisibility(
-                            visible = selectionMode && !isMiuix,
+                            visible = selectionMode,
                             enter = slideInVertically(MotionSpring.expand<IntOffset>()) { it } + fadeIn(MotionSpring.expand<Float>()),
                             exit = slideOutVertically(MotionSpring.collapse<IntOffset>()) { it } + fadeOut(MotionSpring.collapse<Float>()),
                         ) {
@@ -344,8 +344,6 @@ fun MainApp(viewModel: AppViewModel) {
                             popRoute = ::popRoute,
                             openList = ::openList,
                             selectTab = ::selectTab,
-                            moveSelection = { showMoveLocationDialog = true },
-                            archiveSelection = ::archiveSelected,
                         ),
                     )
                 }

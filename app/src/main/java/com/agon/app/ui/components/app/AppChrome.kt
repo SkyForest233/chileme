@@ -156,7 +156,6 @@ private fun AppBarNavIcon(onBack: (() -> Unit)?, onClose: (() -> Unit)?) {
 
 /**
  * 屏幕骨架：顶栏 + 撤销条宿主 + 内容区。
- * `miuixFloatingToolbar` 仅转发到 Miuix Scaffold 的浮动工具栏槽；MD3 分支不消费该槽位。
  *
  * MD3 侧保留原来的 `containerColor = background`（顶栏与内容区同底色，否则会出现色差）；
  * Miuix 侧用它自己的默认底色（`colorScheme.surface`），与合并前一致。
@@ -191,7 +190,6 @@ fun AppScaffold(
     snackbarPlacement: AppSnackbarPlacement = AppSnackbarPlacement.SystemBars,
     snackbarForm: AppSnackbarForm = AppSnackbarForm.UndoCountdown,
     snackbarModifier: Modifier = Modifier,
-    miuixFloatingToolbar: @Composable () -> Unit = {},
     actions: @Composable RowScope.() -> Unit = {},
     content: @Composable (PaddingValues) -> Unit,
 ) {
@@ -213,7 +211,6 @@ fun AppScaffold(
                         AppSnackbarHost(snackbar, snackbarModifier, snackbarPlacement, snackbarForm)
                     }
                 },
-                floatingToolbar = miuixFloatingToolbar,
                 topBar = {
                     AppTopBar(
                         title = title,

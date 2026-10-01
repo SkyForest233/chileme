@@ -126,7 +126,6 @@ private val MiuixLiquidGlassTabs = MiuixMainTabs.map { tab ->
  * 四个底栏 Tab 用 HorizontalPager 按索引左右连滑。
  * Miuix-nav 的 MultiPush 是堆栈推进（中间页被盖住），Tab 切换要露出中间页，故用 Pager。
  * 关闭手势翻页，避免和列表里横向 Chip 抢手势；点击底栏 / 首页卡片走 MainTabsPagerState 的主题分流动画。
- * `callbacks` 仅用于把 MainApp 的移动/归档操作继续传给食品列表，复用原有弹窗和撤销 Snackbar 流程。
  */
 @Composable
 internal fun MainTabsPager(
@@ -142,7 +141,6 @@ internal fun MainTabsPager(
     onOpenCategories: () -> Unit,
     onOpenLocations: () -> Unit,
     onBackToHome: () -> Unit,
-    callbacks: AppNavCallbacks,
 ) {
     BackHandler(enabled = selectedTabIndex != 0) { onBackToHome() }
     HorizontalPager(
@@ -164,8 +162,6 @@ internal fun MainTabsPager(
                 initialFilter = listFilter,
                 onOpenItem = onOpenItem,
                 onOpenArchive = onOpenArchive,
-                onMoveSelection = callbacks.moveSelection,
-                onArchiveSelection = callbacks.archiveSelection,
             )
             // 统计页已于 2026-09-16 合并为单文件双主题（第三批 #3 第 7 对）
             2 -> StatsScreen(
