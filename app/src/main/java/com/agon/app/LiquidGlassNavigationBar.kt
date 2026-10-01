@@ -390,7 +390,10 @@ internal fun MiuixLiquidGlassNavigationBar(
     Column(modifier = modifier.fillMaxWidth()) {
         Box(
             modifier = Modifier
-                .padding(bottom = bottomPaddingValue, start = 24.dp, end = 24.dp)
+                // Keep the 10dp drop shadow inside the bottom bar's measured/animated bounds.
+                // The added top space is balanced by the bottom-anchored Scaffold, so the pill's
+                // final screen position does not move.
+                .padding(top = 12.dp, bottom = bottomPaddingValue, start = 24.dp, end = 24.dp)
                 .fillMaxWidth(),
             contentAlignment = Alignment.CenterStart,
         ) {

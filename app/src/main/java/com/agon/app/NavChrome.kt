@@ -16,8 +16,14 @@ package com.agon.app
 // 的推断类型暴露，也必须 internal（见下方声明处注释）；MiuixMainTabs 只在本文件内使用 → 保持 private。
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.expandVertically
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -71,6 +77,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import com.agon.app.ui.screens.FoodListScreen
 import com.agon.app.ui.screens.HomeScreen
@@ -81,6 +88,7 @@ import com.agon.app.ui.components.app.LocalMiuixBlurEnabled
 import com.agon.app.ui.components.app.LocalMiuixLiquidGlassNavEnabled
 import com.agon.app.ui.components.app.rememberMiuixSurfaceBlurColors
 import com.agon.app.ui.theme.MotionEasing
+import com.agon.app.ui.theme.MotionSpring
 import com.agon.app.viewmodel.AppViewModel
 import kotlin.math.roundToInt
 
@@ -117,12 +125,13 @@ private val MiuixLiquidGlassTabs = MiuixMainTabs.map { tab ->
 /**
  * 四个底栏 Tab 用 HorizontalPager 按索引左右连滑。
  * Miuix-nav 的 MultiPush 是堆栈推进（中间页被盖住），Tab 切换要露出中间页，故用 Pager。
- * 关闭手势翻页，避免和列表里横向 Chip 抢手势；点击底栏 / 首页卡片驱动 animateScrollToPage。
+ * 关闭手势翻页，避免和列表里横向 Chip 抢手势；点击底栏 / 首页卡片走 MainTabsPagerState 的主题分流动画。
  */
 @Composable
 internal fun MainTabsPager(
     viewModel: AppViewModel,
     pagerState: PagerState,
+    selectedTabIndex: Int,
     listFilter: String?,
     onOpenList: (String?) -> Unit,
     onOpenItem: (String) -> Unit,
@@ -133,7 +142,7 @@ internal fun MainTabsPager(
     onOpenLocations: () -> Unit,
     onBackToHome: () -> Unit,
 ) {
-    BackHandler(enabled = pagerState.currentPage != 0) { onBackToHome() }
+    BackHandler(enabled = selectedTabIndex != 0) { onBackToHome() }
     HorizontalPager(
         state = pagerState,
         userScrollEnabled = false,
@@ -235,26 +244,44 @@ internal fun MiuixFloatingNav(selectedIndex: Int, onSelect: (Int) -> Unit) {
             Modifier
         }).then(Modifier.border(width = 0.8.dp, color = edgeColor, shape = pillShape))
 
-        MiuixFloatingNavigationBar(
-            modifier = barModifier,
-            color = if (blurActive) Color.Transparent else surfaceContainerColor,
-            cornerRadius = 50.dp,
-            // Positive values enable Miuix's built-in 10dp-radius drop shadow.
-            shadowElevation = 1.dp,
-            showDivider = false,
-        ) {
-            MiuixMainTabs.forEachIndexed { index, tab ->
-                val selected = index == selectedIndex
-                MiuixFloatingNavigationBarItem(
-                    selected = selected,
-                    onClick = { if (!selected) onSelect(index) },
-                    icon = tab.icon,
-                    label = tab.label,
-                )
+        // Reserve the built-in 10dp shadow above the row inside the Scaffold/visibility bounds.
+        Box(modifier = Modifier.padding(top = 12.dp)) {
+            MiuixFloatingNavigationBar(
+                modifier = barModifier,
+                color = if (blurActive) Color.Transparent else surfaceContainerColor,
+                cornerRadius = 50.dp,
+                // Positive values enable Miuix's built-in 10dp-radius drop shadow.
+                shadowElevation = 1.dp,
+                showDivider = false,
+            ) {
+                MiuixMainTabs.forEachIndexed { index, tab ->
+                    val selected = index == selectedIndex
+                    MiuixFloatingNavigationBarItem(
+                        selected = selected,
+                        onClick = { if (!selected) onSelect(index) },
+                        icon = tab.icon,
+                        label = tab.label,
+                    )
+                }
             }
         }
     }
 }
+
+/** Miuix demo's non-clipping fade/expand keeps the floating pill's drop shadow visible. */
+internal fun miuixFloatingNavEnterTransition(): EnterTransition =
+    expandVertically(
+        animationSpec = MotionSpring.expand<IntSize>(),
+        expandFrom = Alignment.Bottom,
+        clip = false,
+    ) + fadeIn(MotionSpring.expand<Float>())
+
+internal fun miuixFloatingNavExitTransition(): ExitTransition =
+    shrinkVertically(
+        animationSpec = MotionSpring.collapse<IntSize>(),
+        shrinkTowards = Alignment.Bottom,
+        clip = false,
+    ) + fadeOut(MotionSpring.collapse<Float>())
 
 /** Material 3：全宽图标+文字底栏（非悬浮态）。 */
 @Composable

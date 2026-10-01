@@ -30,10 +30,11 @@ object MotionEasing {
 
 /**
  * 对齐 Miuix CascadingListPopupLayout 的 folmeSpring（damping=0.95）。
- * 展开略快（0.2s），收起略慢（0.3s）；跨页平移用更长 response。
+ * 展开略快（0.2s），收起略慢（0.3s）。
  *
  * 二级页进出由 miuix-nav NavDisplay 的 NavTransitions.MiuixDefault 驱动，不要把
- * 弹簧套进已废弃的 NavHost enter/exit。Tab 连滑仍用本对象的 page()。
+ * 弹簧套进已废弃的 NavHost enter/exit。MIUIX Tab pager 使用 Miuix v0.9.4 的
+ * `PagerState.springAnimateToPage()`；MD3 保留按距离调参的 [page]。
  */
 object MotionSpring {
     const val Damping = 0.95f

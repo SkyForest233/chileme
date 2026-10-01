@@ -90,7 +90,6 @@ import com.agon.app.viewmodel.restoreArchivedBatch
 import com.agon.app.viewmodel.setFabSuppressed
 import com.agon.app.viewmodel.undoConsumption
 import com.agon.app.viewmodel.updateLocationBatch
-import kotlin.math.abs
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.nav.core.rememberNavBackStack
 
@@ -114,7 +113,10 @@ fun MainApp(viewModel: AppViewModel) {
         if (backStack.size > 1) backStack.removeLastOrNull()
     }
     val pagerState = rememberPagerState(pageCount = { MainTabs.size })
-    val selectedTabIndex = pagerState.currentPage
+    val isMiuix = LocalThemeStyle.current == ThemeStyle.MIUIX
+    val tabPagerState = rememberMainTabsPagerState(pagerState)
+    LaunchedEffect(pagerState.currentPage) { tabPagerState.syncPage() }
+    val selectedTabIndex = if (isMiuix) tabPagerState.selectedPage else pagerState.currentPage
     var listFilter by rememberSaveable { mutableStateOf<String?>(null) }
 
     // 下滑隐藏底栏与 FAB，上滑恢复：监听子屏幕列表的 nested scroll 事件
@@ -141,7 +143,6 @@ fun MainApp(viewModel: AppViewModel) {
     val floatingNav by viewModel.floatingNav.collectAsStateWithLifecycle()
     val miuixBlurPreference by viewModel.miuixBlurEnabled.collectAsStateWithLifecycle()
     val liquidGlassPreference by viewModel.liquidGlassNavEnabled.collectAsStateWithLifecycle()
-    val isMiuix = LocalThemeStyle.current == ThemeStyle.MIUIX
     val runtimeShaderSupported = remember { isRuntimeShaderSupported() }
     val blurActive = isMiuix && miuixBlurPreference && runtimeShaderSupported
     val liquidGlassActive = blurActive && floatingNav && liquidGlassPreference
@@ -204,14 +205,7 @@ fun MainApp(viewModel: AppViewModel) {
     }
 
     fun selectTab(index: Int) {
-        if (index == pagerState.currentPage) return
-        scope.launch {
-            val distance = abs(index - pagerState.currentPage)
-            pagerState.animateScrollToPage(
-                index,
-                animationSpec = MotionSpring.page<Float>(distance),
-            )
-        }
+        tabPagerState.animateToPage(index) { pagerState.animateMainTabToPage(index, isMiuix) }
     }
 
     fun openList(filter: String?) {
@@ -276,14 +270,22 @@ fun MainApp(viewModel: AppViewModel) {
                         }
                         AnimatedVisibility(
                             visible = !selectionMode && showChrome,
-                            enter = slideInVertically(MotionSpring.expand<IntOffset>()) { it } + fadeIn(MotionSpring.expand<Float>()),
-                            exit = slideOutVertically(MotionSpring.collapse<IntOffset>()) { it } + fadeOut(MotionSpring.collapse<Float>()),
+                            enter = if (isMiuix && floatingNav) {
+                                miuixFloatingNavEnterTransition()
+                            } else {
+                                slideInVertically(MotionSpring.expand<IntOffset>()) { it } + fadeIn(MotionSpring.expand<Float>())
+                            },
+                            exit = if (isMiuix && floatingNav) {
+                                miuixFloatingNavExitTransition()
+                            } else {
+                                slideOutVertically(MotionSpring.collapse<IntOffset>()) { it } + fadeOut(MotionSpring.collapse<Float>())
+                            },
                         ) {
                             when {
                                 isMiuix && floatingNav -> MiuixFloatingNav(selectedTabIndex, ::selectTab)
                                 isMiuix -> MiuixBottomNav(selectedTabIndex, ::selectTab)
                                 floatingNav -> FloatingPillNav(
-                                    pagePosition = selectedTabIndex + pagerState.currentPageOffsetFraction,
+                                    pagePosition = pagerState.currentPage + pagerState.currentPageOffsetFraction,
                                     onSelect = ::selectTab,
                                 )
                                 else -> Md3BottomNav(selectedTabIndex, ::selectTab)
@@ -333,6 +335,7 @@ fun MainApp(viewModel: AppViewModel) {
                         chromeScrollConnection = chromeScrollConnection,
                         viewModel = viewModel,
                         pagerState = pagerState,
+                        selectedTabIndex = selectedTabIndex,
                         listFilter = listFilter,
                         // 4 个导航动作压成一个持有者（AppNavHost 形参 9 → 6）；FAB / 底栏 / MiuixFloatingNav
                         // 仍直接用这几个局部函数，未受影响。

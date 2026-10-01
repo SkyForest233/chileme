@@ -101,7 +101,7 @@ grep -rn "top.yukonga.miuix.kmp" app/src/main/java | sed 's/.*import //' | sort 
 - 弹窗显示与返回、深浅色切换、动态取色（Android 12+）
 - squircle 圆角（需 API 33+ 设备）
 - 图标显示、底部导航分流
-- Miuix 背景模糊与 iOS-like 液态玻璃开关；玻璃悬浮底栏可点击/拖拽切换 Tab，指示器跟手并自然回弹；上边缘阴影在显隐动画中不延迟、无闪边；API 26–32 实色回退、API 33+ backdrop/vibrancy/lens 显示正常
+- Miuix 背景模糊与 iOS-like 液态玻璃开关；玻璃悬浮底栏可点击/拖拽切换 Tab，跨多页的指示器与 Pager 连续平滑移动并自然回弹；上边缘阴影在显隐动画中同步显示、无裁切/闪边；API 26–32 实色回退、API 33+ backdrop/vibrancy/lens 显示正常
 
 ---
 
@@ -162,6 +162,7 @@ grep -rn "top.yukonga.miuix.kmp" app/src/main/java | sed 's/.*import //' | sort 
 | `app/src/main/AndroidManifest.xml` | API 33+ `miuix-blur` 的受控 `overrideLibrary`；需与 `isRuntimeShaderSupported()` fallback 一起审计 |
 | `app/src/main/java/com/agon/app/LiquidGlassLens.kt` | 基于 Miuix 公共 `runtimeShaderEffect` 的圆角折射 lens，支持色散 |
 | `app/src/main/java/com/agon/app/LiquidGlassNavigationBar.kt` | Miuix v0.9.4 demo 风格的可拖拽玻璃底栏：Tab 选择、弹性指示器、按压缩放与传感器高光 |
+| `app/src/main/java/com/agon/app/MainTabsPagerState.kt` | 对齐 Miuix demo 的跨页协调器：目标页与 Pager 中间页分离；MIUIX 用 `springAnimateToPage()` 连续跨页，MD3 保留原动画 |
 | `app/src/main/java/com/agon/app/DampedDragAnimation.kt` / `InteractiveHighlight.kt` | 阻尼拖拽回弹与交互高光 |
 | `app/src/main/java/com/agon/app/CombinedBackdrop.kt` / `InnerShadow.kt` / `LiquidGlassVibrancy.kt` | 多层 backdrop 采样、指示器内阴影及 vibrancy 辅助效果 |
 | `app/src/main/java/com/agon/app/ui/components/app/MiuixBlurLocals.kt` | 页面 backdrop 与 Miuix blur / glass 控制的 CompositionLocal |

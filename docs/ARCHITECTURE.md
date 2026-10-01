@@ -27,7 +27,8 @@
 ```
 app/src/main/java/com/agon/app/
 ├─ MainActivity.kt              # 单 Activity：深浅色/风格分流、启动放行超时（READY_TIMEOUT_MS）、splash、CompositionLocalProvider
-├─ MainApp.kt                   # App 外壳：backStack / pagerState / 多选 / nestedScroll + Scaffold；MIUIX blur backdrop 只从页面内容采样，底栏不捕获自身
+├─ MainApp.kt                   # App 外壳：backStack / PagerState / 多选 / nestedScroll + Scaffold；导航选择状态交给 MainTabsPagerState，避免跨页动画同步中间页
+├─ MainTabsPagerState.kt        # selectedPage 与 PagerState.currentPage 分离；MIUIX 用 demo 的 springAnimateToPage，MD3 保留 MotionSpring.page
 ├─ LiquidGlassLens.kt           # Miuix blur 公开 runtimeShaderEffect API 上的圆角折射 lens（仅 API 33+ 液态玻璃底栏启用）
 ├─ LiquidGlassNavigationBar.kt  # Miuix demo 风格的可拖拽液态玻璃导航、弹性指示器与按压反馈
 ├─ DampedDragAnimation.kt       # 导航槽位的阻尼拖拽、回弹与缩放动画
