@@ -14,9 +14,6 @@ internal val LocalMiuixBackdrop = staticCompositionLocalOf<LayerBackdrop?> { nul
 /** Runtime capability + user preference, already gated to the Miuix theme by the app shell. */
 internal val LocalMiuixBlurEnabled = staticCompositionLocalOf { false }
 
-/** Disable grain dithering, one possible source of shimmer as the sampled backdrop changes. */
-internal const val MiuixBlurNoiseCoefficient = 0f
-
 /** Liquid-glass is a separate presentation choice for the Miuix floating navigation bar. */
 internal val LocalMiuixLiquidGlassNavEnabled = staticCompositionLocalOf { false }
 

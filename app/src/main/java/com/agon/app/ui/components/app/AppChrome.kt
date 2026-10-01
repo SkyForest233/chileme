@@ -85,21 +85,24 @@ fun AppTopBar(
             Modifier.textureBlur(
                 backdrop = activeBackdrop,
                 shape = RectangleShape,
-                blurRadius = 22f,
-                noiseCoefficient = MiuixBlurNoiseCoefficient,
-                colors = rememberMiuixSurfaceBlurColors(alpha = 0.82f),
+                blurRadius = 25f,
+                colors = rememberMiuixSurfaceBlurColors(alpha = 0.8f),
             )
         } else {
             Modifier
         }
-        MiuixTopAppBar(
-            title = title,
-            modifier = topBarModifier,
-            color = if (blurActive) Color.Transparent else MiuixTheme.colorScheme.surface,
-            subtitle = subtitle ?: "",
-            navigationIcon = { AppBarNavIcon(onBack, onClose) },
-            actions = actions,
-        )
+        // Match the demo's BlurredBar: blur an outer wrapper, leaving TopAppBar's own
+        // background, inset, and clipping modifiers inside the backdrop effect.
+        Box(modifier = topBarModifier) {
+            MiuixTopAppBar(
+                title = title,
+                modifier = Modifier,
+                color = if (blurActive) Color.Transparent else MiuixTheme.colorScheme.surface,
+                subtitle = subtitle ?: "",
+                navigationIcon = { AppBarNavIcon(onBack, onClose) },
+                actions = actions,
+            )
+        }
     } else if (subtitle != null) {
         LargeTopAppBar(
             title = {

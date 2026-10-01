@@ -90,7 +90,6 @@ import com.agon.app.ui.screens.StatsScreen
 import com.agon.app.ui.components.app.LocalMiuixBackdrop
 import com.agon.app.ui.components.app.LocalMiuixBlurEnabled
 import com.agon.app.ui.components.app.LocalMiuixLiquidGlassNavEnabled
-import com.agon.app.ui.components.app.MiuixBlurNoiseCoefficient
 import com.agon.app.ui.components.app.rememberMiuixSurfaceBlurColors
 import com.agon.app.ui.theme.MotionEasing
 import com.agon.app.ui.theme.MotionSpring
@@ -151,7 +150,8 @@ internal fun MainTabsPager(
     HorizontalPager(
         state = pagerState,
         userScrollEnabled = false,
-        beyondViewportPageCount = 3,
+        // Keep Pager's default offscreen window. Every tab owns a full-page backdrop and blurred
+        // top bar; retaining all four pages would keep unnecessary blur layers alive during scroll.
         modifier = Modifier.fillMaxSize(),
     ) { page ->
         when (page) {
@@ -197,7 +197,6 @@ internal fun MiuixBottomNav(selectedIndex: Int, onSelect: (Int) -> Unit) {
             backdrop = activeBackdrop,
             shape = RectangleShape,
             blurRadius = 22f,
-            noiseCoefficient = MiuixBlurNoiseCoefficient,
             colors = rememberMiuixSurfaceBlurColors(alpha = 0.82f),
         )
     } else {
@@ -248,7 +247,6 @@ internal fun MiuixFloatingNav(selectedIndex: Int, onSelect: (Int) -> Unit) {
                 backdrop = activeBackdrop,
                 shape = pillShape,
                 blurRadius = 25f,
-                noiseCoefficient = MiuixBlurNoiseCoefficient,
                 colors = BlurDefaults.blurColors(
                     blendColors = listOf(
                         BlendColorEntry(color = surfaceContainerColor.copy(alpha = 0.6f)),
