@@ -79,7 +79,7 @@ StatusUi 提供三个颜色槽位，按用途严格区分：
 | 列表项间距 | 10~12dp；分组间距 16dp |
 | 卡片内边距 | 16~20dp |
 | 列表底部 contentPadding | +96dp（避免 FAB/底栏遮挡） |
-| 阴影 | 主卡片 elevation ≤ 1dp，其余 0dp（靠色彩分层）；MD3 悬浮导航 shadowElevation 6dp；Miuix 悬浮导航固定 0dp（边缘/玻璃高光替代，避免显隐动画的阴影闪边） |
+| 阴影 | 主卡片 elevation ≤ 1dp，其余 0dp（靠色彩分层）；MD3 悬浮导航 shadowElevation 6dp；Miuix 悬浮导航 `shadowElevation=1dp` 启用库内置 drop shadow（半径 10dp、黑色 alpha 0.2），阴影随显隐动画移动 |
 | 柱状图柱子 | 胶囊形（RoundedCornerShape(50)），宽度约列宽 62%，最小高度 14dp（无数据 8dp 底座） |
 | 排行榜进度条 | 胶囊，高 10dp，primaryContainer 色 |
 
@@ -277,6 +277,6 @@ StatusUi 提供三个颜色槽位，按用途严格区分：
   - **单实现铁律（2026-09-16 起取代「双实现铁律」）**：屏幕文件（`*Screen.kt` / `*Screens.kt`）必须调 `remember*UiState` 复用状态容器，**禁止在 UI 文件里重写聚合计算**（`ScreenParityTest` 静态拦截，原名 `MiuixParityTest`——合并后文件名不再带 `Miuix` 前缀，按前缀枚举会让刚合并的屏幕逃出守卫，故扩到全部屏幕文件；此前 `MiuixStatsScreen` 手抄过一份统计逻辑，导致 `StatsStateTest` 测的是 MIUIX 下不执行的代码）。**新屏幕不再建 `Miuix*Screen.kt` 双胞胎**，主题差异一律走 `ui/components/app/` 的骨架组件；已合并的屏幕由该测试的 `MergedScreens` 守着不许回退。
   - **已知缺口**：MIUIX 风格下**没有配色方案入口**（设置页 Miuix 分支 `MiuixSettingsBody`，`ui/screens/SettingsBodyMiuix.kt`，含深色模式/动态取色/悬浮导航/背景模糊/液态玻璃开关），15 套 `AppPalette` 选不了，且 MD3 下选好的配色切到 Miuix 后无提示地失效——根因是 `MiuixRootTheme` 只消费 `darkMode` + `dynamicColor`，没有种子色通道。2026-09-16 第 8 对合并后，这条非对等已写进 `SettingsScreen.kt` 的文件头 KDoc（「已知非对等…勿再声明完全对等」），不再靠两份文件各自的措辞表达；功能本身**用户已指示暂缓**（见 `devlog/INDEX.md`）。
   - **导航双形态**：新增「悬浮导航」开关（`floating_nav`，默认 true）。MD3 悬浮=自绘 `FloatingPillNav`（图标+标签）、非悬浮=MD3 `NavigationBar`；MIUIX 悬浮=Miuix `FloatingNavigationBar`（仅图标）、非悬浮=Miuix `NavigationBar`（全宽图标+文字）。
-  - **MIUIX 玻璃效果（2026-10-01）**：`miuix_blur_enabled` 默认 true，为 MIUIX 顶栏、常驻底栏与悬浮底栏启用 backdrop blur；`liquid_glass_nav_enabled` 默认 false，仅作用于 MIUIX 悬浮底栏，开启时自动确保 blur 开启。Miuix 悬浮栏的 `shadowElevation` 固定为 0dp，显隐层次使用稳定边缘或玻璃高光。`miuix-blur-android` 需要 API 33+；API 26–32 设置项禁用、导航自动回退实色，`minSdk=26` 不变。
+  - **MIUIX 玻璃效果（2026-10-01）**：`miuix_blur_enabled` 默认 true，为 MIUIX 顶栏、常驻底栏与悬浮底栏启用 backdrop blur；`liquid_glass_nav_enabled` 默认 false，仅作用于 MIUIX 悬浮底栏，开启时自动确保 blur 开启。悬浮栏使用 `shadowElevation=1dp` 恢复 Miuix 内置 drop shadow；液态玻璃参照 Miuix demo 的 vibrancy（saturation 1.5）→ 4dp blur → 24dp lens 链路，并将 surfaceContainer tint 降至 alpha 0.24 提高通透感。`miuix-blur-android` 需要 API 33+；API 26–32 设置项禁用、导航自动回退实色，`minSdk=26` 不变。
 - Miuix 主题由 `ThemeController` 驱动，语义对齐 MD3 侧：动态取色→Monet（keyColor=null 跟随壁纸），否则按 darkMode 映射 System/Light/Dark。
 - Miuix 组件 API 一律以**目标项目实际 Miuix 版本**（现为 `gradle/libs.versions.toml` 的 `0.9.4`）的 pinned source 为准，禁止凭 MD3 记忆臆造参数/颜色 token；`.claude/skills/miuix` 基线同为 stable `v0.9.4`；后续版本不一致时先声明再使用。

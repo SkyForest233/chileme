@@ -55,8 +55,9 @@ import top.yukonga.miuix.kmp.basic.NavigationBar as MiuixNavigationBar
 import top.yukonga.miuix.kmp.basic.NavigationBarItem as MiuixNavigationBarItem
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.blur.blur
-import top.yukonga.miuix.kmp.blur.highlight.Highlight
+import top.yukonga.miuix.kmp.blur.colorControls
 import top.yukonga.miuix.kmp.blur.drawBackdrop
+import top.yukonga.miuix.kmp.blur.highlight.Highlight
 import top.yukonga.miuix.kmp.blur.textureBlur
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.icon.extended.GridView
@@ -202,7 +203,7 @@ internal fun MiuixBottomNav(selectedIndex: Int, onSelect: (Int) -> Unit) {
     }
 }
 
-/** MIUIX：居中悬浮底栏；阴影固定关闭，层次由稳定边缘/玻璃高光提供，避免显隐时阴影闪烁。 */
+/** MIUIX：居中悬浮底栏；保留库默认 drop shadow，并可选用 backdrop blur / 液态玻璃表面。 */
 @Composable
 internal fun MiuixFloatingNav(selectedIndex: Int, onSelect: (Int) -> Unit) {
     val backdrop = LocalMiuixBackdrop.current
@@ -211,6 +212,7 @@ internal fun MiuixFloatingNav(selectedIndex: Int, onSelect: (Int) -> Unit) {
     val liquidGlass = blurActive && LocalMiuixLiquidGlassNavEnabled.current
     val pillShape = remember { RoundedCornerShape(50.dp) }
     val surfaceColor = MiuixTheme.colorScheme.surface
+    val surfaceContainerColor = MiuixTheme.colorScheme.surfaceContainer
     val glassHighlight = if (surfaceColor.luminance() < 0.5f) {
         Highlight.GlassStrokeSmallDark
     } else {
@@ -222,14 +224,18 @@ internal fun MiuixFloatingNav(selectedIndex: Int, onSelect: (Int) -> Unit) {
             backdrop = activeBackdrop,
             shape = { pillShape },
             effects = {
-                blur(radiusX = 4.dp.toPx())
+                // Follow Miuix's liquid demo: reserve sampling reach, boost backdrop vibrancy,
+                // then layer a light blur before the rounded-pill lens.
+                padding = maxOf(padding, 40.dp.toPx())
+                colorControls(brightness = 0f, contrast = 1f, saturation = 1.5f)
+                blur(radiusX = 4.dp.toPx(), radiusY = 4.dp.toPx())
                 liquidGlassPillLens(
                     refractionHeight = 24.dp.toPx(),
                     refractionAmount = 24.dp.toPx(),
                 )
             },
             highlight = { glassHighlight },
-            onDrawSurface = { drawRect(surfaceColor.copy(alpha = 0.34f)) },
+            onDrawSurface = { drawRect(surfaceContainerColor.copy(alpha = 0.24f)) },
         )
         activeBackdrop != null -> Modifier.textureBlur(
             backdrop = activeBackdrop,
@@ -247,11 +253,11 @@ internal fun MiuixFloatingNav(selectedIndex: Int, onSelect: (Int) -> Unit) {
 
     MiuixFloatingNavigationBar(
         modifier = glassModifier.then(edgeModifier),
-        color = if (blurActive) Color.Transparent else MiuixTheme.colorScheme.surfaceContainer,
+        color = if (blurActive) Color.Transparent else surfaceContainerColor,
         cornerRadius = 50.dp,
-        // Miuix v0.9.4 draws this drop shadow outside the bar. Keeping it disabled for every
-        // animation frame removes the one-frame shadow fringe when AnimatedVisibility slides it.
-        shadowElevation = 0.dp,
+        // Miuix v0.9.4 treats any positive value as enabling its 10dp-radius drop shadow;
+        // 1dp is the library default and lets the shadow move with AnimatedVisibility again.
+        shadowElevation = 1.dp,
         showDivider = false,
     ) {
         MiuixMainTabs.forEachIndexed { index, tab ->

@@ -101,7 +101,7 @@ grep -rn "top.yukonga.miuix.kmp" app/src/main/java | sed 's/.*import //' | sort 
 - 弹窗显示与返回、深浅色切换、动态取色（Android 12+）
 - squircle 圆角（需 API 33+ 设备）
 - 图标显示、底部导航分流
-- Miuix 背景模糊与 iOS-like 液态玻璃开关；悬浮底栏反复隐藏/出现时无阴影闪边；API 26–32 实色回退、API 33+ backdrop/lens 显示正常
+- Miuix 背景模糊与 iOS-like 液态玻璃开关；悬浮底栏阴影正常显示，反复隐藏/出现时随动画平滑移动、无闪边；API 26–32 实色回退、API 33+ backdrop/vibrancy/lens 显示正常
 
 ---
 
