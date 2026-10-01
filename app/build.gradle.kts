@@ -45,7 +45,7 @@ val projectDebugKeystore = rootProject.file("debug.keystore")
 
 android {
     namespace = "com.agon.app"
-    // Miuix 0.9.4-rc01 及其传递依赖（Compose 1.12.0-rc01 等）要求 compileSdk ≥ 37。
+    // Miuix 0.9.4 及其传递依赖（Compose 1.12.0 等）要求 compileSdk ≥ 37。
     // compileSdk 与 targetSdk/minSdk 相互独立，仅此一项升级即可。
     compileSdk = 37
 

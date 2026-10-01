@@ -1,7 +1,7 @@
 [versions]
 # Build & Toolchain
-agp = "9.3.1"
-kotlin = "2.4.10"
+agp = "9.4.1"
+kotlin = "2.4.20"
 foojay = "0.10.0"
 
 # AndroidX & Compose (BOM 2026.08.00 跨 7 个月升级)
@@ -13,7 +13,7 @@ coreSplashscreen = "1.2.0"
 datastore = "1.2.0"
 
 # Miuix (HyperOS Style Compose, 对齐 skill 基线)
-miuix = "0.9.4-rc01"
+miuix = "0.9.4"
 
 # Third-party Libraries
 coil = "3.3.0"

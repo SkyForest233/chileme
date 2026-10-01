@@ -41,7 +41,7 @@
 
 ## 🛠️ 技术栈
 
-- **语言 / 工具链**：Kotlin 2.4.10 / Gradle 9.7.1 (Version Catalog)
+- **语言 / 工具链**：Kotlin 2.4.20 / Gradle 9.7.1 (Version Catalog)
 - **UI 框架**：Jetpack Compose (BOM 2026.08.00)
 - **设计系统**：Material 3 / Miuix KMP (`top.yukonga.miuix.kmp`) / MaterialKolor
 - **持久化**：AndroidX DataStore Preferences + Kotlinx Serialization

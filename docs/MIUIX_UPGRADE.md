@@ -7,11 +7,11 @@
 
 ## 0. 升级前必读的前提
 
-1. **Miuix 是 KMP 库，版本与工具链强绑定**。每个 Miuix 版本都要求特定的 Kotlin / AGP / Compose 版本。升级 Miuix 大概率要**连带升级整套工具链**，不是只改依赖版本号。
-2. **本项目当前锁定在 `0.9.4-rc01`（候选版）**，工具链为 Kotlin 2.4.10 / AGP 9.3.1 / **Gradle 9.7.1** / compileSdk 37 / **minSdk 26** / JDK 21。（2026-09-16 校正：此前本文写 Gradle 9.6.1、minSdk 24，均已过期）
+1. **Miuix 是 KMP 库，版本与工具链强绑定**。升级时需核对产物 metadata / Android AAR 要求与上游构建基线；上游构建版本不全等于消费者最低要求，不应盲目复制所有工具。
+2. **本项目当前锁定在 `0.9.4`（稳定版）**，工具链为 Kotlin 2.4.20 / AGP 9.4.1 / **Gradle 9.7.1** / compileSdk 37 / **minSdk 26** / JDK 21。（2026-09-16 校正：此前本文写 Gradle 9.6.1、minSdk 24，均已过期）
 3. **优先升级到稳定版**（如 `0.9.4` 正式 tag），候选版/快照版风险高。
 4. **升级前确保工作区干净、PR 已合并**，避免在未合并改动上叠加升级。
-5. **严禁凭记忆臆造 Miuix API**。本项目已安装 skill（`.claude/skills/miuix/`）；所有组件签名一律以**目标项目实际 Miuix 版本**的 pinned source 为准，升级后需用**新版本的 source** 重新核对。当前 skill 证据基线已随上游更新为 stable `v0.9.4`，但本项目依赖仍是 `0.9.4-rc01`。
+5. **严禁凭记忆臆造 Miuix API**。本项目已安装 skill（`.claude/skills/miuix/`）；所有组件签名一律以**目标项目实际 Miuix 版本**的 pinned source 为准，升级后需用**新版本的 source** 重新核对。当前 skill 证据基线已随上游更新为 stable `v0.9.4`，本项目依赖已对齐 `0.9.4`。
 
 ---
 
@@ -35,7 +35,7 @@ https://raw.githubusercontent.com/compose-miuix-ui/miuix/<tag>/gradle/libs.versi
 ```
 
 **判断规则**：
-- 用 Miuix 要求的 Kotlin 版本（Kotlin 编译器无法读取更高版本产物的 metadata，不能低于也不能明显高于）。
+- 优先对齐上游 Kotlin 构建版本，并确认 Compose / serialization 插件与实际编译器兼容；不能把所有补丁版本差异一概视为 metadata 不兼容。
 - AGP/Gradle 跟着 Miuix 的 Android 基线走。
 - `compileSdk` 要 ≥ Miuix 依赖要求的版本（否则 `checkDebugAarMetadata` 报错，本项目历史上踩过这个坑）。
 
@@ -45,7 +45,7 @@ https://raw.githubusercontent.com/compose-miuix-ui/miuix/<tag>/gradle/libs.versi
 
 ```toml
 [versions]
-miuix = "0.9.4-rc01"     # ← 只改这一行
+miuix = "0.9.4"     # ← 只改这一行
 ```
 
 四个坐标都 `version.ref = "miuix"`，改一处即可全部对齐（注意 `miuix-ui` / `miuix-preference` / `miuix-icons` 保持 **common 坐标**，勿加 `-android` 后缀；只有导航用 `miuix-nav-android`）：
@@ -64,7 +64,7 @@ miuix-icons       = { module = "top.yukonga.miuix.kmp:miuix-icons",       versio
 - `gradle/libs.versions.toml` 的 `[versions]`：`agp`、`kotlin`、`composeBom`（`[plugins]` 里 `kotlin-compose` / `kotlin-serialization` 的版本都 `version.ref = "kotlin"`，改 `kotlin` 一处即可；根 `build.gradle.kts` 与 `app/build.gradle.kts` 均用 `alias(libs.plugins.*)` 引用）。**注意：本项目是 AGP 9 内置 Kotlin，勿重新加 `org.jetbrains.kotlin.android`**。
 - `gradle/wrapper/gradle-wrapper.properties`：Gradle distributionUrl。
 - `app/build.gradle.kts`：`compileSdk`（如需更高）。
-- ⚠️ Miuix 依赖 Compose 1.12.0-rc01，升 `composeBom` 与升 `miuix` 有连带关系，**不要和功能改动混在同一个 PR**，保证能独立回滚。
+- ⚠️ Miuix 0.9.4 使用 Compose Multiplatform 1.12.0；本项目现有 BOM 2026.08.00 已约束 AndroidX Compose 1.12.0，本轮保持不变。以后升级需分别核对 KMP 与 AndroidX 产物，**不要和功能改动混在同一个 PR**，保证能独立回滚。
 
 ### 第 4 步：扫描并核对受影响的 API
 
@@ -86,7 +86,7 @@ grep -rn "top.yukonga.miuix.kmp" app/src/main/java | sed 's/.*import //' | sort 
 ### 第 5 步：编译验证
 
 - 本地：`./gradlew assembleDebug`
-- CI：推送到分支触发 `build.yml`（本项目的 PR/push 会自动跑 `assembleDebug`）。
+- CI：本仓 `build.yml` 由 PR、master push 或手动 dispatch 触发；只推工作分支不会自动运行。须检查 debug / 单测 / lint 与 release R8 三个 job。
 - 若报 `checkDebugAarMetadata` 要求更高 compileSdk → 升 `compileSdk`。
 - 若报依赖解析失败 → 检查 Maven Central 是否可达（本项目历史上遇过间歇 403，已加 gradle.properties 重试）。
 
@@ -162,7 +162,7 @@ grep -rn "top.yukonga.miuix.kmp" app/src/main/java | sed 's/.*import //' | sort 
 | `app/src/main/java/com/agon/app/ui/components/*.kt` | 复用组件（12 个文件 —— 09-19 #11d① 加 `StatsCharts.kt`、#11e 加 `CalendarMonthLayout.kt`；现值 = `ls app/src/main/java/com/agon/app/ui/components/*.kt | wc -l`，**单文件双主题** —— 分流在组件内部走 `LocalThemeStyle`，不是两份实现）；2026-09-16 由**已删除**的 `Common.kt` 拆出 8 个，另有原本就独立的 `UndoSnackbar.kt` / `ExpiryCalendar.kt` |
 | `app/src/main/java/com/agon/app/ui/screens/*.kt` | 屏幕：9 个渲染文件 + 3 个设置页弹窗文件（`Settings*Dialogs.kt`，#10a-1 起，不是新增屏幕）+ 8 个 `*State.kt`。⚠️ **`Miuix*Screen.kt` 双胞胎已于 2026-09-16 全部删除**，别照旧清单去找「各页 Miuix 实现」—— Miuix 分支现在就写在同一个屏幕文件里 |
 | 包根 `app/src/main/java/com/agon/app/*.kt` | `MainActivity` / `MainApp` / `AppNavGraph` / `NavChrome` / `BatchBars` —— 底栏四套形态、`NavDisplay` 转场与系统圆角、Snackbar / FAB / 批量栏都在这层调 Miuix API |
-| `.claude/skills/miuix/` | skill（证据路由；上游基线 stable `v0.9.4`；本项目依赖仍以 `libs.versions.toml` 为准） |
+| `.claude/skills/miuix/` | skill（证据路由；上游基线 stable `v0.9.4`，已与 App 对齐；具体依赖以 `libs.versions.toml` 为准） |
 | `docs/audits/2026-08-20-miuix-review.md` | 设计审查报告 |
 
 > ⚠️ **本表刻意不写「各层有多少处 Miuix 调用」** —— 这类数字会随重构悄悄过期（本表此前就指着
