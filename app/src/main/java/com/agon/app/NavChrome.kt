@@ -70,6 +70,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
@@ -210,6 +211,11 @@ internal fun MiuixFloatingNav(selectedIndex: Int, onSelect: (Int) -> Unit) {
     val liquidGlass = blurActive && LocalMiuixLiquidGlassNavEnabled.current
     val pillShape = remember { RoundedCornerShape(50.dp) }
     val surfaceColor = MiuixTheme.colorScheme.surface
+    val glassHighlight = if (surfaceColor.luminance() < 0.5f) {
+        Highlight.GlassStrokeSmallDark
+    } else {
+        Highlight.GlassStrokeSmallLight
+    }
     val edgeColor = MiuixTheme.colorScheme.dividerLine.copy(alpha = 0.58f)
     val glassModifier = when {
         liquidGlass && activeBackdrop != null -> Modifier.drawBackdrop(
@@ -222,7 +228,7 @@ internal fun MiuixFloatingNav(selectedIndex: Int, onSelect: (Int) -> Unit) {
                     refractionAmount = 24.dp.toPx(),
                 )
             },
-            highlight = { Highlight.GlassStrokeSmallLight },
+            highlight = { glassHighlight },
             onDrawSurface = { drawRect(surfaceColor.copy(alpha = 0.34f)) },
         )
         activeBackdrop != null -> Modifier.textureBlur(
