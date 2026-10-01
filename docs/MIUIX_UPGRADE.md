@@ -11,7 +11,7 @@
 2. **本项目当前锁定在 `0.9.4-rc01`（候选版）**，工具链为 Kotlin 2.4.10 / AGP 9.3.1 / **Gradle 9.7.1** / compileSdk 37 / **minSdk 26** / JDK 21。（2026-09-16 校正：此前本文写 Gradle 9.6.1、minSdk 24，均已过期）
 3. **优先升级到稳定版**（如 `0.9.4` 正式 tag），候选版/快照版风险高。
 4. **升级前确保工作区干净、PR 已合并**，避免在未合并改动上叠加升级。
-5. **严禁凭记忆臆造 Miuix API**。本项目已安装 skill（`.claude/skills/miuix/`），所有组件签名一律以 skill 的 pinned source 为准；升级后需用**新版本的 source** 重新核对。
+5. **严禁凭记忆臆造 Miuix API**。本项目已安装 skill（`.claude/skills/miuix/`）；所有组件签名一律以**目标项目实际 Miuix 版本**的 pinned source 为准，升级后需用**新版本的 source** 重新核对。当前 skill 证据基线已随上游更新为 stable `v0.9.4`，但本项目依赖仍是 `0.9.4-rc01`。
 
 ---
 
@@ -68,7 +68,7 @@ miuix-icons       = { module = "top.yukonga.miuix.kmp:miuix-icons",       versio
 
 ### 第 4 步：扫描并核对受影响的 API
 
-1. 读 skill 的迁移笔记（如 `.claude/skills/miuix/references/release-v0.9.4-rc01.md`、`release-v0.9.3.md`），以及**目标版本**的官方 release notes。
+1. 读 skill 的迁移笔记（当前为 `.claude/skills/miuix/references/release-v0.9.4.md`；上游已删除 rc01/0.9.3 两份迁移笔记），以及**目标版本**的官方 release notes。
 2. 扫描本项目所有 Miuix 调用点，重点核对易变组件：
    - 弹窗：`OverlayDialog` / `WindowDialog`（`maxWidth` / `largeScreen` / `cornerRadius` 等参数）
    - Preference：`SwitchPreference` / `ArrowPreference` / `RadioButtonPreference` / `OverlayDropdownPreference`
@@ -162,7 +162,7 @@ grep -rn "top.yukonga.miuix.kmp" app/src/main/java | sed 's/.*import //' | sort 
 | `app/src/main/java/com/agon/app/ui/components/*.kt` | 复用组件（12 个文件 —— 09-19 #11d① 加 `StatsCharts.kt`、#11e 加 `CalendarMonthLayout.kt`；现值 = `ls app/src/main/java/com/agon/app/ui/components/*.kt | wc -l`，**单文件双主题** —— 分流在组件内部走 `LocalThemeStyle`，不是两份实现）；2026-09-16 由**已删除**的 `Common.kt` 拆出 8 个，另有原本就独立的 `UndoSnackbar.kt` / `ExpiryCalendar.kt` |
 | `app/src/main/java/com/agon/app/ui/screens/*.kt` | 屏幕：9 个渲染文件 + 3 个设置页弹窗文件（`Settings*Dialogs.kt`，#10a-1 起，不是新增屏幕）+ 8 个 `*State.kt`。⚠️ **`Miuix*Screen.kt` 双胞胎已于 2026-09-16 全部删除**，别照旧清单去找「各页 Miuix 实现」—— Miuix 分支现在就写在同一个屏幕文件里 |
 | 包根 `app/src/main/java/com/agon/app/*.kt` | `MainActivity` / `MainApp` / `AppNavGraph` / `NavChrome` / `BatchBars` —— 底栏四套形态、`NavDisplay` 转场与系统圆角、Snackbar / FAB / 批量栏都在这层调 Miuix API |
-| `.claude/skills/miuix/` | skill（组件 API 证据基线） |
+| `.claude/skills/miuix/` | skill（证据路由；上游基线 stable `v0.9.4`；本项目依赖仍以 `libs.versions.toml` 为准） |
 | `docs/audits/2026-08-20-miuix-review.md` | 设计审查报告 |
 
 > ⚠️ **本表刻意不写「各层有多少处 Miuix 调用」** —— 这类数字会随重构悄悄过期（本表此前就指着

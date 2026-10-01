@@ -28,7 +28,7 @@
 ## 2.5 已安装 Skill 与审计
 
 - `.claude/skills/material-3/`：Material Design 3 实现与审计 skill（hamen/material-3-skill v1.1.1）。做 UI 相关任务时可参考其 SKILL.md 与 references/。
-- `.claude/skills/miuix/`：Miuix（HyperOS）Compose UI skill（limczhh/miuix-skill，证据基线 v0.9.4-rc01 @ 4a6b750b）。做「主题风格切换 / Miuix 组件」相关任务时参考其 SKILL.md 与 references/（组件 API 一律以 pinned source 为准，禁止凭 MD3 记忆臆造 Miuix 参数）。
+- `.claude/skills/miuix/`：Miuix（HyperOS）Compose UI skill（limczhh/miuix-skill；上游证据基线已更新为 **v0.9.4 稳定版 @ 39c40f99**）。做「主题风格切换 / Miuix 组件」相关任务时参考其 SKILL.md 与 references/。⚠️ **本项目依赖仍是 `0.9.4-rc01`**（`gradle/libs.versions.toml` 未升级）：改现有代码前仍以**目标项目实际版本**的 pinned source 复核，不得把 skill 里 stable-only API 当成 rc01 现有 API。
 - 审计报告与历史快照存放于 `docs/audits/`（**份数不要手抄** —— 用 `ls docs/audits/*.md | wc -l`；例如 `2026-07-31-md3-audit.md`，
   以及 2026-10-01 冻结的路线图全文快照 `2026-10-01-roadmap-snapshot.md`）。修复审计问题时对照报告的 file:line 引用与优先级列表。
   ⚠️ **这些是历史快照，`file:line` 一律按当时基线读**（`Common.kt` 与 8 个 `Miuix*Screen.kt` 等文件此后已删除）。
@@ -93,7 +93,7 @@
 - **动屏幕文件前先 `grep -rn "<屏幕名>" app/src/test/`** —— 点名屏幕文件的静态守卫不止 `ScreenParityTest` / `ImeHandlingTest`，还有 `CorruptGuardTest`、`CompactConsumptionTest`（2026-09-16 第 4 对合并就撞上过；`CorruptGuardTest` 是**按 4 空格缩进截函数体**的，函数一搬家就红）
 - **刻意保留 MD3 的只有三处，勿擅自迁移**：编辑页（`DatePicker` 无 Miuix 对应）、`CheckSwitch`（项目特色打勾/打叉）、设置页 body（`Md3SettingsBody` / `MiuixSettingsBody`，两版排版习语根本不同）
 - 统计页图表是 `Canvas` + `layout` 自绘、与主题无关，只此一屏用 ⇒ **不进组件层**；`appChartColors()` 是「屏幕侧取色」**唯一**被承认的例外（取色口子集中在 `ui/components/app/AppColors.kt`，2026-09-19 #11a 起；位置由 `AppColorLocationTest` 守）
-- Miuix 组件 API 一律以 `.claude/skills/miuix` 的 pinned source（**v0.9.4-rc01**）为准，**不得凭 MD3 记忆臆造**参数或颜色 token
+- Miuix 组件 API 一律以**目标项目实际 Miuix 版本**（现为 `gradle/libs.versions.toml` 的 `0.9.4-rc01`）的 pinned source 为准，**不得凭 MD3 记忆臆造**参数或颜色 token；`.claude/skills/miuix` 已随上游更新到 stable `v0.9.4`，用于升级规划与证据路由，版本不一致时先声明再使用
 - 迁移进度、已知缺口（MIUIX 侧无配色入口，用户已指示暂缓）与导航双形态见 `docs/DESIGN_SPEC.md` §7
 
 ### 5.4 构建、门禁与签名

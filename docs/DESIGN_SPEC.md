@@ -278,4 +278,4 @@ StatusUi 提供三个颜色槽位，按用途严格区分：
   - **已知缺口**：MIUIX 风格下**没有配色方案入口**（设置页 Miuix 分支 `MiuixSettingsBody`，`ui/screens/SettingsBodyMiuix.kt`，只有深色模式/动态取色/悬浮导航），15 套 `AppPalette` 选不了，且 MD3 下选好的配色切到 Miuix 后无提示地失效——根因是 `MiuixRootTheme` 只消费 `darkMode` + `dynamicColor`，没有种子色通道。2026-09-16 第 8 对合并后，这条非对等已写进 `SettingsScreen.kt` 的文件头 KDoc（「已知非对等…勿再声明完全对等」），不再靠两份文件各自的措辞表达；功能本身**用户已指示暂缓**（见 `devlog/INDEX.md`）。
   - **导航双形态**：新增「悬浮导航」开关（`floating_nav`，默认 true）。MD3 悬浮=自绘 `FloatingPillNav`（图标+标签）、非悬浮=MD3 `NavigationBar`；MIUIX 悬浮=Miuix `FloatingNavigationBar`（仅图标）、非悬浮=Miuix `NavigationBar`（全宽图标+文字）。
 - Miuix 主题由 `ThemeController` 驱动，语义对齐 MD3 侧：动态取色→Monet（keyColor=null 跟随壁纸），否则按 darkMode 映射 System/Light/Dark。
-- Miuix 组件 API 一律以 `.claude/skills/miuix` pinned source（v0.9.4-rc01）为准，禁止凭 MD3 记忆臆造参数/颜色 token。
+- Miuix 组件 API 一律以**目标项目实际 Miuix 版本**（现为 `gradle/libs.versions.toml` 的 `0.9.4-rc01`）的 pinned source 为准，禁止凭 MD3 记忆臆造参数/颜色 token；`.claude/skills/miuix` 已更新到 stable `v0.9.4`，版本不一致时先声明再使用。
