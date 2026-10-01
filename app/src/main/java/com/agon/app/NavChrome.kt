@@ -44,6 +44,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.PieChart
@@ -61,6 +62,9 @@ import top.yukonga.miuix.kmp.basic.NavigationBar as MiuixNavigationBar
 import top.yukonga.miuix.kmp.basic.NavigationBarItem as MiuixNavigationBarItem
 import top.yukonga.miuix.kmp.basic.NavigationItem
 import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.blur.BlendColorEntry
+import top.yukonga.miuix.kmp.blur.BlurDefaults
+import top.yukonga.miuix.kmp.blur.highlight.Highlight
 import top.yukonga.miuix.kmp.blur.textureBlur
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.icon.extended.GridView
@@ -213,7 +217,7 @@ internal fun MiuixBottomNav(selectedIndex: Int, onSelect: (Int) -> Unit) {
     }
 }
 
-/** Miuix：常规悬浮栏沿用原有 surface 毛玻璃配置；液态玻璃另走自定义栏。 */
+/** Miuix：常规悬浮栏的毛玻璃参数与 v0.9.4 演示 app 对齐；液态玻璃另走自定义栏。 */
 @Composable
 internal fun MiuixFloatingNav(selectedIndex: Int, onSelect: (Int) -> Unit) {
     val backdrop = LocalMiuixBackdrop.current
@@ -232,17 +236,26 @@ internal fun MiuixFloatingNav(selectedIndex: Int, onSelect: (Int) -> Unit) {
             isBlurActive = true,
         )
     } else {
+        val isDark = MiuixTheme.colorScheme.surface.luminance() < 0.5f
+        val floatingHighlight = remember(isDark) {
+            if (isDark) Highlight.GlassStrokeMiddleDark else Highlight.GlassStrokeMiddleLight
+        }
         val edgeColor = MiuixTheme.colorScheme.dividerLine.copy(alpha = 0.58f)
-        val barModifier = (if (activeBackdrop != null) {
+        val barModifier = if (activeBackdrop != null) {
             Modifier.textureBlur(
                 backdrop = activeBackdrop,
                 shape = pillShape,
-                blurRadius = 22f,
-                colors = rememberMiuixSurfaceBlurColors(alpha = 0.72f),
+                blurRadius = 25f,
+                colors = BlurDefaults.blurColors(
+                    blendColors = listOf(
+                        BlendColorEntry(color = surfaceContainerColor.copy(alpha = 0.6f)),
+                    ),
+                ),
+                highlight = floatingHighlight,
             )
         } else {
-            Modifier
-        }).then(Modifier.border(width = 0.8.dp, color = edgeColor, shape = pillShape))
+            Modifier.border(width = 0.8.dp, color = edgeColor, shape = pillShape)
+        }
 
         // Reserve the built-in 10dp shadow above the row inside the Scaffold/visibility bounds.
         Box(modifier = Modifier.padding(top = 12.dp)) {
@@ -268,7 +281,7 @@ internal fun MiuixFloatingNav(selectedIndex: Int, onSelect: (Int) -> Unit) {
     }
 }
 
-/** Miuix demo's non-clipping fade/expand keeps the floating pill's drop shadow visible. */
+/** Keep the app's floating pill shadow visible during its expand/collapse transition. */
 internal fun miuixFloatingNavEnterTransition(): EnterTransition =
     expandVertically(
         animationSpec = MotionSpring.expand<IntSize>(),

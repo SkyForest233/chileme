@@ -146,6 +146,12 @@ fun MainApp(viewModel: AppViewModel) {
     val runtimeShaderSupported = remember { isRuntimeShaderSupported() }
     val blurActive = isMiuix && miuixBlurPreference && runtimeShaderSupported
     val liquidGlassActive = blurActive && floatingNav && liquidGlassPreference
+    // Miuix's demo keeps its frosted floating bar stationary while page content scrolls.
+    // This app auto-hides chrome on scroll; animating a blur surface over the changing backdrop
+    // can look like shimmer, so keep only the ordinary (non-liquid) Miuix frosted bar stationary.
+    val showBottomNav = onTabs && (
+        scrollChromeVisible || (isMiuix && floatingNav && blurActive && !liquidGlassActive)
+    )
     val backdropSurface = if (isMiuix) MiuixTheme.colorScheme.surface else MaterialTheme.colorScheme.background
     val navigationBackdrop = rememberLayerBackdrop {
         drawRect(backdropSurface)
@@ -238,7 +244,7 @@ fun MainApp(viewModel: AppViewModel) {
 
     // Snackbar 底部偏移：跟随底栏可见状态平滑过渡（不瞬移）。
     val snackbarOffset by animateDpAsState(
-        targetValue = if (showChrome) 84.dp else 8.dp,
+        targetValue = if (showBottomNav) 84.dp else 8.dp,
         animationSpec = tween(250, easing = MotionEasing.Standard),
         label = "snackbarOffset",
     )
@@ -269,7 +275,7 @@ fun MainApp(viewModel: AppViewModel) {
                             )
                         }
                         AnimatedVisibility(
-                            visible = !selectionMode && showChrome,
+                            visible = !selectionMode && showBottomNav,
                             enter = if (isMiuix && floatingNav) {
                                 miuixFloatingNavEnterTransition()
                             } else {
