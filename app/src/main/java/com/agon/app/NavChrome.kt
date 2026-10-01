@@ -53,11 +53,8 @@ import top.yukonga.miuix.kmp.basic.FloatingNavigationBar as MiuixFloatingNavigat
 import top.yukonga.miuix.kmp.basic.FloatingNavigationBarItem as MiuixFloatingNavigationBarItem
 import top.yukonga.miuix.kmp.basic.NavigationBar as MiuixNavigationBar
 import top.yukonga.miuix.kmp.basic.NavigationBarItem as MiuixNavigationBarItem
+import top.yukonga.miuix.kmp.basic.NavigationItem
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.blur.blur
-import top.yukonga.miuix.kmp.blur.colorControls
-import top.yukonga.miuix.kmp.blur.drawBackdrop
-import top.yukonga.miuix.kmp.blur.highlight.Highlight
 import top.yukonga.miuix.kmp.blur.textureBlur
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.icon.extended.GridView
@@ -71,7 +68,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
@@ -112,6 +108,11 @@ private val MiuixMainTabs = listOf(
     TabSpec("stats", "统计", MiuixIcons.GridView),
     TabSpec("settings", "设置", MiuixIcons.Settings),
 )
+
+/** Miuix liquid-glass demo model, keeping the app's existing Miuix icons and tab order. */
+private val MiuixLiquidGlassTabs = MiuixMainTabs.map { tab ->
+    NavigationItem(label = tab.label, icon = tab.icon)
+}
 
 /**
  * 四个底栏 Tab 用 HorizontalPager 按索引左右连滑。
@@ -203,7 +204,7 @@ internal fun MiuixBottomNav(selectedIndex: Int, onSelect: (Int) -> Unit) {
     }
 }
 
-/** MIUIX：居中悬浮底栏；保留库默认 drop shadow，并可选用 backdrop blur / 液态玻璃表面。 */
+/** MIUIX：常规悬浮栏走库组件；液态玻璃开关启用时使用 demo 同款可拖拽玻璃栏。 */
 @Composable
 internal fun MiuixFloatingNav(selectedIndex: Int, onSelect: (Int) -> Unit) {
     val backdrop = LocalMiuixBackdrop.current
@@ -211,63 +212,46 @@ internal fun MiuixFloatingNav(selectedIndex: Int, onSelect: (Int) -> Unit) {
     val blurActive = activeBackdrop != null
     val liquidGlass = blurActive && LocalMiuixLiquidGlassNavEnabled.current
     val pillShape = remember { RoundedCornerShape(50.dp) }
-    val surfaceColor = MiuixTheme.colorScheme.surface
     val surfaceContainerColor = MiuixTheme.colorScheme.surfaceContainer
-    val glassHighlight = if (surfaceColor.luminance() < 0.5f) {
-        Highlight.GlassStrokeSmallDark
-    } else {
-        Highlight.GlassStrokeSmallLight
-    }
-    val edgeColor = MiuixTheme.colorScheme.dividerLine.copy(alpha = 0.58f)
-    val glassModifier = when {
-        liquidGlass && activeBackdrop != null -> Modifier.drawBackdrop(
-            backdrop = activeBackdrop,
-            shape = { pillShape },
-            effects = {
-                // Follow Miuix's liquid demo: reserve sampling reach, boost backdrop vibrancy,
-                // then layer a light blur before the rounded-pill lens.
-                padding = maxOf(padding, 40.dp.toPx())
-                colorControls(brightness = 0f, contrast = 1f, saturation = 1.5f)
-                blur(radiusX = 4.dp.toPx(), radiusY = 4.dp.toPx())
-                liquidGlassPillLens(
-                    refractionHeight = 24.dp.toPx(),
-                    refractionAmount = 24.dp.toPx(),
-                )
-            },
-            highlight = { glassHighlight },
-            onDrawSurface = { drawRect(surfaceContainerColor.copy(alpha = 0.24f)) },
-        )
-        activeBackdrop != null -> Modifier.textureBlur(
-            backdrop = activeBackdrop,
-            shape = pillShape,
-            blurRadius = 22f,
-            colors = rememberMiuixSurfaceBlurColors(alpha = 0.72f),
-        )
-        else -> Modifier
-    }
-    val edgeModifier = if (liquidGlass) {
-        Modifier
-    } else {
-        Modifier.border(width = 0.8.dp, color = edgeColor, shape = pillShape)
-    }
 
-    MiuixFloatingNavigationBar(
-        modifier = glassModifier.then(edgeModifier),
-        color = if (blurActive) Color.Transparent else surfaceContainerColor,
-        cornerRadius = 50.dp,
-        // Miuix v0.9.4 treats any positive value as enabling its 10dp-radius drop shadow;
-        // 1dp is the library default and lets the shadow move with AnimatedVisibility again.
-        shadowElevation = 1.dp,
-        showDivider = false,
-    ) {
-        MiuixMainTabs.forEachIndexed { index, tab ->
-            val selected = index == selectedIndex
-            MiuixFloatingNavigationBarItem(
-                selected = selected,
-                onClick = { if (!selected) onSelect(index) },
-                icon = tab.icon,
-                label = tab.label,
+    if (liquidGlass && activeBackdrop != null) {
+        MiuixLiquidGlassNavigationBar(
+            items = MiuixLiquidGlassTabs,
+            selectedIndex = selectedIndex,
+            onItemClick = onSelect,
+            backdrop = activeBackdrop,
+            isBlurActive = true,
+        )
+    } else {
+        val edgeColor = MiuixTheme.colorScheme.dividerLine.copy(alpha = 0.58f)
+        val barModifier = (if (activeBackdrop != null) {
+            Modifier.textureBlur(
+                backdrop = activeBackdrop,
+                shape = pillShape,
+                blurRadius = 22f,
+                colors = rememberMiuixSurfaceBlurColors(alpha = 0.72f),
             )
+        } else {
+            Modifier
+        }).then(Modifier.border(width = 0.8.dp, color = edgeColor, shape = pillShape))
+
+        MiuixFloatingNavigationBar(
+            modifier = barModifier,
+            color = if (blurActive) Color.Transparent else surfaceContainerColor,
+            cornerRadius = 50.dp,
+            // Positive values enable Miuix's built-in 10dp-radius drop shadow.
+            shadowElevation = 1.dp,
+            showDivider = false,
+        ) {
+            MiuixMainTabs.forEachIndexed { index, tab ->
+                val selected = index == selectedIndex
+                MiuixFloatingNavigationBarItem(
+                    selected = selected,
+                    onClick = { if (!selected) onSelect(index) },
+                    icon = tab.icon,
+                    label = tab.label,
+                )
+            }
         }
     }
 }

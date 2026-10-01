@@ -28,14 +28,20 @@
 app/src/main/java/com/agon/app/
 ├─ MainActivity.kt              # 单 Activity：深浅色/风格分流、启动放行超时（READY_TIMEOUT_MS）、splash、CompositionLocalProvider
 ├─ MainApp.kt                   # App 外壳：backStack / pagerState / 多选 / nestedScroll + Scaffold；MIUIX blur backdrop 只从页面内容采样，底栏不捕获自身
-├─ LiquidGlassLens.kt           # Miuix blur 公开 runtimeShaderEffect API 上的胶囊折射 lens（仅 API 33+ 液态玻璃底栏启用）
+├─ LiquidGlassLens.kt           # Miuix blur 公开 runtimeShaderEffect API 上的圆角折射 lens（仅 API 33+ 液态玻璃底栏启用）
+├─ LiquidGlassNavigationBar.kt  # Miuix demo 风格的可拖拽液态玻璃导航、弹性指示器与按压反馈
+├─ DampedDragAnimation.kt       # 导航槽位的阻尼拖拽、回弹与缩放动画
+├─ InteractiveHighlight.kt      # 指针按压位置的高光反馈
+├─ CombinedBackdrop.kt          # 主页面与导航项采样层合成，供玻璃指示器折射
+├─ InnerShadow.kt               # 选中玻璃指示器的内阴影绘制
+├─ LiquidGlassVibrancy.kt       # backdrop saturation 1.5 的 Miuix demo vibrancy helper
 ├─ AppNavGraph.kt               # 全 App 唯一的 NavDisplay + 8 个 entry<AppRoute.*>（外层 Box 限宽 840dp 居中）
 ├─ BatchBars.kt                 # 批量操作栏：悬浮 / 常驻两条（BatchActionBar + 3 个按钮）
-├─ NavChrome.kt                 # TabSpec / MainTabs + MainTabsPager + 4 套底栏（MD3/MIUIX × 常驻/悬浮）
+├─ NavChrome.kt                 # TabSpec / MainTabs + MainTabsPager + 4 套底栏入口（MD3/MIUIX × 常驻/悬浮；MIUIX 悬浮按设置切换库组件/拖拽液态玻璃栏）
 #   ↑ 原始 5 个拆分文件（MainActivity / MainApp / AppNavGraph / BatchBars / NavChrome）同属包 com.agon.app，2026-09-16 由原 MainActivity.kt（1,123 行）按职责拆出；
 #     拆出的第 6 份是弹窗 AppDialogs.kt，2026-09-17 又搬去 ui/components/app/AppBatchMoveDialog.kt（见下）；
 #     跨文件引用的顶层声明由 private 放宽为 internal（模块内可见，非公开 API；R8 照常裁剪）
-#     ↑ 2026-09-18 #5a 起本包另有非拆分文件 ChiliMeApp.kt；2026-10-01 又加 LiquidGlassLens.kt。上面「原始 5 个文件」指 09-16 拆分产物，不含这两者；ChiliMeApp 是 Application 子类。
+#     ↑ 2026-09-18 #5a 起本包另有非拆分文件 ChiliMeApp.kt；2026-10-01 加入 Miuix blur/lens 与 demo 风格可拖拽液态玻璃导航组件。上面「原始 5 个文件」指 09-16 拆分产物，不含这些后续文件；ChiliMeApp 是 Application 子类。
 ├─ data/                        # 数据层（无 UI 依赖）
 │   ├─ FoodModels.kt            # 数据模型 + 派生属性（过期计算/状态判定）+ 纯函数（compactConsumptionAt 等）
 │   ├─ FoodRepository.kt        # 唯一持久化入口（DataStore）；含 Decoded 三态、写守卫、DecodeCache

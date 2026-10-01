@@ -101,7 +101,7 @@ grep -rn "top.yukonga.miuix.kmp" app/src/main/java | sed 's/.*import //' | sort 
 - 弹窗显示与返回、深浅色切换、动态取色（Android 12+）
 - squircle 圆角（需 API 33+ 设备）
 - 图标显示、底部导航分流
-- Miuix 背景模糊与 iOS-like 液态玻璃开关；悬浮底栏阴影正常显示，反复隐藏/出现时随动画平滑移动、无闪边；API 26–32 实色回退、API 33+ backdrop/vibrancy/lens 显示正常
+- Miuix 背景模糊与 iOS-like 液态玻璃开关；玻璃悬浮底栏可点击/拖拽切换 Tab，指示器跟手并自然回弹；上边缘阴影在显隐动画中不延迟、无闪边；API 26–32 实色回退、API 33+ backdrop/vibrancy/lens 显示正常
 
 ---
 
@@ -160,7 +160,10 @@ grep -rn "top.yukonga.miuix.kmp" app/src/main/java | sed 's/.*import //' | sort 
 | `gradle/libs.versions.toml` | **Miuix 版本的唯一位点**（`miuix = "..."`）+ 插件/工具链版本 |
 | `app/build.gradle.kts` | 依赖别名引用（`libs.miuix.*`）+ compileSdk / minSdk / targetSdk |
 | `app/src/main/AndroidManifest.xml` | API 33+ `miuix-blur` 的受控 `overrideLibrary`；需与 `isRuntimeShaderSupported()` fallback 一起审计 |
-| `app/src/main/java/com/agon/app/LiquidGlassLens.kt` | 基于 Miuix 公共 `runtimeShaderEffect` 的液态玻璃胶囊边缘折射 |
+| `app/src/main/java/com/agon/app/LiquidGlassLens.kt` | 基于 Miuix 公共 `runtimeShaderEffect` 的圆角折射 lens，支持色散 |
+| `app/src/main/java/com/agon/app/LiquidGlassNavigationBar.kt` | Miuix v0.9.4 demo 风格的可拖拽玻璃底栏：Tab 选择、弹性指示器、按压缩放与传感器高光 |
+| `app/src/main/java/com/agon/app/DampedDragAnimation.kt` / `InteractiveHighlight.kt` | 阻尼拖拽回弹与交互高光 |
+| `app/src/main/java/com/agon/app/CombinedBackdrop.kt` / `InnerShadow.kt` / `LiquidGlassVibrancy.kt` | 多层 backdrop 采样、指示器内阴影及 vibrancy 辅助效果 |
 | `app/src/main/java/com/agon/app/ui/components/app/MiuixBlurLocals.kt` | 页面 backdrop 与 Miuix blur / glass 控制的 CompositionLocal |
 | `build.gradle.kts` | 插件声明（`alias(libs.plugins.*)`，均 `apply false`） |
 | `gradle/wrapper/gradle-wrapper.properties` | Gradle 版本 |

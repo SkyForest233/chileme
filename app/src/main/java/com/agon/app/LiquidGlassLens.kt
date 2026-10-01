@@ -1,85 +1,228 @@
 // Copyright 2026, chileme contributors
-// Portions adapted from Miuix v0.9.4's Apache-2.0 example:
-// Copyright 2026, compose-miuix-ui contributors
-// Original example attribution: Kyant0/AndroidLiquidGlass (Apache-2.0).
+// Portions adapted from the Miuix demo at 106af3001977f4e189e569ec760a9061dc9a4238 and
+// Kyant0/AndroidLiquidGlass; original source: Copyright 2026, compose-miuix-ui contributors.
 // SPDX-License-Identifier: Apache-2.0
 
 package com.agon.app
 
+// Adapted from Kyant0/AndroidLiquidGlass — https://github.com/Kyant0/AndroidLiquidGlass (Apache 2.0).
+
+import androidx.compose.foundation.shape.CornerBasedShape
+import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.util.fastCoerceAtMost
 import top.yukonga.miuix.kmp.blur.BackdropEffectScope
 import top.yukonga.miuix.kmp.blur.isRuntimeShaderSupported
 import top.yukonga.miuix.kmp.blur.runtimeShaderEffect
 
 /**
- * Subtle rounded-pill edge refraction for the optional liquid-glass navigation surface.
+ * Rounded-rect refraction lens with optional chromatic dispersion.
  *
- * The SDF lens follows the rounded-rectangle pattern in Miuix v0.9.4's Apache-2.0 example,
- * simplified for this pill and built only on the library's public backdrop-effect API.
- * Pixel uniforms are scaled to the backdrop's current downsampled recording size.
+ * @param chromaticAberration Strength of the rim chromatic dispersion. `0` disables the
+ *  effect (cheaper non-dispersion shader is used). Typical values: `0.1` for subtle,
+ *  `0.2` for Apple-pill-like, `0.3+` for pronounced rainbow halo. The dispersion offset
+ *  scales with the refraction depth so it concentrates at the rim band's outer edge.
  */
-internal fun BackdropEffectScope.liquidGlassPillLens(
+internal fun BackdropEffectScope.liquidGlassLens(
     refractionHeight: Float,
     refractionAmount: Float,
+    depthEffect: Boolean = false,
+    chromaticAberration: Float = 0f,
 ) {
-    if (!isRuntimeShaderSupported() || refractionHeight <= 0f || refractionAmount <= 0f) return
-    if (size.width <= 0f || size.height <= 0f) return
+    if (!isRuntimeShaderSupported()) return
+    if (refractionHeight <= 0f || refractionAmount <= 0f) return
 
-    if (padding < refractionAmount) padding = refractionAmount
+    if (padding < refractionAmount) {
+        padding = refractionAmount
+    }
 
-    val scale = downscaleFactor.coerceAtLeast(1).toFloat()
+    val radii = roundedRectCornerRadii() ?: return
+
+    val dispersionEnabled = chromaticAberration > 0f
+    val shaderString =
+        if (dispersionEnabled) {
+            ROUNDED_RECT_REFRACTION_WITH_DISPERSION_SHADER
+        } else {
+            ROUNDED_RECT_REFRACTION_SHADER
+        }
+    val key = if (dispersionEnabled) "ChilemeLiquidGlassLensDispersion" else "ChilemeLiquidGlassLens"
+
+    val sf = downscaleFactor.coerceAtLeast(1).toFloat()
+    val scaledSizeW = size.width / sf
+    val scaledSizeH = size.height / sf
+    val scaledPadding = padding / sf
+    val scaledRefractionHeight = refractionHeight / sf
+    val scaledRefractionAmount = refractionAmount / sf
+    val scaledRadii = FloatArray(radii.size) { radii[it] / sf }
+
     runtimeShaderEffect(
-        key = "ChilemeLiquidGlassPillLens",
-        shaderString = LIQUID_GLASS_PILL_LENS_SHADER,
+        key = key,
+        shaderString = shaderString,
         uniformShaderName = "content",
     ) {
-        setFloatUniform("size", size.width / scale, size.height / scale)
-        setFloatUniform("offset", -padding / scale, -padding / scale)
-        setFloatUniform("refractionHeight", refractionHeight / scale)
-        setFloatUniform("refractionAmount", -refractionAmount / scale)
+        setFloatUniform("size", scaledSizeW, scaledSizeH)
+        setFloatUniform("offset", -scaledPadding, -scaledPadding)
+        setFloatUniform("cornerRadii", scaledRadii)
+        setFloatUniform("refractionHeight", scaledRefractionHeight)
+        setFloatUniform("refractionAmount", -scaledRefractionAmount)
+        setFloatUniform("depthEffect", if (depthEffect) 1f else 0f)
+        if (dispersionEnabled) {
+            setFloatUniform("chromaticAberration", chromaticAberration)
+        }
     }
 }
 
-private const val LIQUID_GLASS_PILL_LENS_SHADER = """
-uniform shader content;
-uniform float2 size;
-uniform float2 offset;
-uniform float refractionHeight;
-uniform float refractionAmount;
+private fun BackdropEffectScope.roundedRectCornerRadii(): FloatArray? {
+    val cornerShape = shape as? CornerBasedShape ?: return null
+    val sizePx = size
+    val maxRadius = sizePx.minDimension / 2f
+    val isLtr = layoutDirection == LayoutDirection.Ltr
+    val topLeft = if (isLtr) cornerShape.topStart.toPx(sizePx, this) else cornerShape.topEnd.toPx(sizePx, this)
+    val topRight = if (isLtr) cornerShape.topEnd.toPx(sizePx, this) else cornerShape.topStart.toPx(sizePx, this)
+    val bottomRight = if (isLtr) cornerShape.bottomEnd.toPx(sizePx, this) else cornerShape.bottomStart.toPx(sizePx, this)
+    val bottomLeft = if (isLtr) cornerShape.bottomStart.toPx(sizePx, this) else cornerShape.bottomEnd.toPx(sizePx, this)
+    return floatArrayOf(
+        topLeft.fastCoerceAtMost(maxRadius),
+        topRight.fastCoerceAtMost(maxRadius),
+        bottomRight.fastCoerceAtMost(maxRadius),
+        bottomLeft.fastCoerceAtMost(maxRadius),
+    )
+}
 
-float sdRoundedRect(float2 point, float2 halfSize, float radius) {
-    float2 corner = abs(point) - (halfSize - float2(radius));
-    float outside = length(max(corner, float2(0.0))) - radius;
-    float inside = min(max(corner.x, corner.y), 0.0);
+private const val ROUNDED_RECT_SDF = """
+float radiusAt(float2 coord, float4 radii) {
+    if (coord.x >= 0.0) {
+        if (coord.y <= 0.0) return radii.y;
+        else return radii.z;
+    } else {
+        if (coord.y <= 0.0) return radii.x;
+        else return radii.w;
+    }
+}
+
+float sdRoundedRect(float2 coord, float2 halfSize, float radius) {
+    float2 cornerCoord = abs(coord) - (halfSize - float2(radius));
+    float outside = length(max(cornerCoord, 0.0)) - radius;
+    float inside = min(max(cornerCoord.x, cornerCoord.y), 0.0);
     return outside + inside;
 }
 
-float2 roundedRectGradient(float2 point, float2 halfSize, float radius) {
-    float2 corner = abs(point) - (halfSize - float2(radius));
-    float2 outside = max(corner, float2(0.0));
-    float outsideLength = length(outside);
-    if (outsideLength > 0.0001) {
-        return sign(point) * outside / outsideLength;
+float2 gradSdRoundedRect(float2 coord, float2 halfSize, float radius) {
+    float2 cornerCoord = abs(coord) - (halfSize - float2(radius));
+    if (cornerCoord.x >= 0.0 || cornerCoord.y >= 0.0) {
+        return sign(coord) * normalize(max(cornerCoord, 0.0));
+    } else {
+        float gradX = step(cornerCoord.y, cornerCoord.x);
+        return sign(coord) * float2(gradX, 1.0 - gradX);
     }
-    float chooseX = step(corner.y, corner.x);
-    return sign(point) * float2(chooseX, 1.0 - chooseX);
 }
+"""
 
-float circleMap(float value) {
-    return 1.0 - sqrt(max(0.0, 1.0 - value * value));
+private const val ROUNDED_RECT_REFRACTION_SHADER = """
+uniform shader content;
+
+uniform float2 size;
+uniform float2 offset;
+uniform float4 cornerRadii;
+uniform float refractionHeight;
+uniform float refractionAmount;
+uniform float depthEffect;
+
+$ROUNDED_RECT_SDF
+
+float circleMap(float x) {
+    return 1.0 - sqrt(1.0 - x * x);
 }
 
 half4 main(float2 coord) {
     float2 halfSize = size * 0.5;
-    float2 centered = coord + offset - halfSize;
-    float radius = min(halfSize.x, halfSize.y);
-    float signedDistance = sdRoundedRect(centered, halfSize, radius);
-    if (-signedDistance >= refractionHeight) {
+    float2 centeredCoord = (coord + offset) - halfSize;
+    float radius = radiusAt(centeredCoord, cornerRadii);
+
+    float sd = sdRoundedRect(centeredCoord, halfSize, radius);
+    if (-sd >= refractionHeight) {
         return content.eval(coord);
     }
+    sd = min(sd, 0.0);
 
-    float edge = clamp(1.0 + signedDistance / refractionHeight, 0.0, 1.0);
-    float displacement = circleMap(edge) * refractionAmount;
-    float2 gradient = roundedRectGradient(centered, halfSize, radius);
-    return content.eval(coord + displacement * gradient);
+    float d = circleMap(1.0 - -sd / refractionHeight) * refractionAmount;
+    float gradRadius = min(radius * 1.5, min(halfSize.x, halfSize.y));
+    float2 grad = normalize(gradSdRoundedRect(centeredCoord, halfSize, gradRadius) + depthEffect * normalize(centeredCoord));
+
+    float2 refractedCoord = coord + d * grad;
+    return content.eval(refractedCoord);
+}
+"""
+
+private const val ROUNDED_RECT_REFRACTION_WITH_DISPERSION_SHADER = """
+uniform shader content;
+
+uniform float2 size;
+uniform float2 offset;
+uniform float4 cornerRadii;
+uniform float refractionHeight;
+uniform float refractionAmount;
+uniform float depthEffect;
+uniform float chromaticAberration;
+
+$ROUNDED_RECT_SDF
+
+float circleMap(float x) {
+    return 1.0 - sqrt(1.0 - x * x);
+}
+
+half4 main(float2 coord) {
+    float2 halfSize = size * 0.5;
+    float2 centeredCoord = (coord + offset) - halfSize;
+    float radius = radiusAt(centeredCoord, cornerRadii);
+
+    float sd = sdRoundedRect(centeredCoord, halfSize, radius);
+    if (-sd >= refractionHeight) {
+        return content.eval(coord);
+    }
+    sd = min(sd, 0.0);
+
+    float d = circleMap(1.0 - -sd / refractionHeight) * refractionAmount;
+    float gradRadius = min(radius * 1.5, min(halfSize.x, halfSize.y));
+    float2 grad = normalize(gradSdRoundedRect(centeredCoord, halfSize, gradRadius) + depthEffect * normalize(centeredCoord));
+
+    float2 refractedCoord = coord + d * grad;
+    float dispersionIntensity = chromaticAberration * ((centeredCoord.x * centeredCoord.y) / (halfSize.x * halfSize.y));
+    float2 dispersedCoord = d * grad * dispersionIntensity;
+
+    half4 color = half4(0.0);
+
+    half4 red = content.eval(refractedCoord + dispersedCoord);
+    color.r += red.r / 3.5;
+    color.a += red.a / 7.0;
+
+    half4 orange = content.eval(refractedCoord + dispersedCoord * (2.0 / 3.0));
+    color.r += orange.r / 3.5;
+    color.g += orange.g / 7.0;
+    color.a += orange.a / 7.0;
+
+    half4 yellow = content.eval(refractedCoord + dispersedCoord * (1.0 / 3.0));
+    color.r += yellow.r / 3.5;
+    color.g += yellow.g / 3.5;
+    color.a += yellow.a / 7.0;
+
+    half4 green = content.eval(refractedCoord);
+    color.g += green.g / 3.5;
+    color.a += green.a / 7.0;
+
+    half4 cyan = content.eval(refractedCoord - dispersedCoord * (1.0 / 3.0));
+    color.g += cyan.g / 3.5;
+    color.b += cyan.b / 3.0;
+    color.a += cyan.a / 7.0;
+
+    half4 blue = content.eval(refractedCoord - dispersedCoord * (2.0 / 3.0));
+    color.b += blue.b / 3.0;
+    color.a += blue.a / 7.0;
+
+    half4 purple = content.eval(refractedCoord - dispersedCoord);
+    color.r += purple.r / 7.0;
+    color.b += purple.b / 3.0;
+    color.a += purple.a / 7.0;
+
+    return color;
 }
 """
