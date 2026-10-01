@@ -12,9 +12,7 @@ package com.agon.app
 // 一个字都不用改，只整体反缩进 4 空格 —— 对这一段做 `git diff -w` 是空的。
 //
 // 2026-09-17 按本文件当时写下的计划做了窄化：4 个导航动作压成 [AppNavCallbacks] 数据类，**形参 9 → 6**。
-// 关键是函数体第一行用**解构声明**把它们还原成同名的 4 个局部值 —— 于是那 101 行 entry 代码到今天
-// 仍然一个字没改（`git diff -w` 对这一段依然是空的），MainApp 里 FAB / 底栏 / `MiuixFloatingNav`
-// 共用的那几个局部函数也一个没动，调用点只是多包一层 `AppNavCallbacks(…)`（仍用 `::局部函数` 传引用）。
+// 本轮另将移动与归档多选操作沿同一回调持有者传入食品页；路由 entry 仍通过局部函数转发，不将业务逻辑搬进页面。
 //
 // 2026-09-16 由 MainActivity.kt（拆分中途在 MainApp.kt）搬出；MainActivity.kt 的 1,123 行至此拆完。
 
@@ -45,21 +43,21 @@ import top.yukonga.miuix.kmp.nav.core.NavBackStack
 import androidx.compose.foundation.pager.PagerState
 
 /**
- * [AppNavHost] 需要的 4 个导航动作。
+ * [AppNavHost] 需要的导航动作，以及食品列表多选的移动、归档动作。
  *
- * 2026-09-17 由 4 个平铺 lambda 收窄而来（形参 9 → 6，`docs/WORKFLOW.md` 记的 `LongParameterList`
- * 24 条里就包含这个函数）。函数体开头把这 4 个动作取成**与 MainApp 局部函数同名**的局部值，
- * 靠它把 101 行 entry 代码保持原样（那段至今 `git diff -w` 为空）。
+ * 2026-09-17 的 4 个路由动作由平铺 lambda 收窄而来；本轮把 2 个批量动作一并放进该持有者，
+ * 供食品页调用 MainApp 中既有的弹窗与归档/Snackbar 流程。
  *
- * 用 data class 而不是接口（仓库里 `SettingsActions` 是接口，那是为了让状态容器能在纯 JVM 单测里构造）：
- * 这 4 个动作的实现是 MainApp 组合期间的**局部函数**，做成接口就得每次重组新建一个匿名对象，
- * 而 data class 直接装 `::局部函数` 引用，与窄化前的分配行为一致。
+ * 用 data class 而不是接口：路由与归档动作可直接装 MainApp 的 `::局部函数` 引用，移动动作则捕获弹窗状态；
+ * 统一持有这些回调可避免把批量业务实现搬进食品页。
  */
 internal data class AppNavCallbacks(
     val navigate: (AppRoute) -> Unit,
     val popRoute: () -> Unit,
     val openList: (String?) -> Unit,
     val selectTab: (Int) -> Unit,
+    val moveSelection: () -> Unit,
+    val archiveSelection: () -> Unit,
 )
 
 /**
@@ -80,10 +78,7 @@ internal fun AppNavHost(
     listFilter: String?,
     callbacks: AppNavCallbacks,
 ) {
-    // 取出与 MainApp 局部函数**同名**的 4 个局部值：下面 101 行 entry 代码因此仍一个字不用改。
-    // 这里刻意不用解构声明 `val (navigate, popRoute, openList, selectTab) = callbacks`：detekt 的
-    // DestructuringDeclarationWithTooManyEntries 默认上限是 3 项，4 项会被静态门禁拦下
-    // （2026-09-17 CI run 35179586612 实测）。写成 4 行取值效果完全相同。
+    // 逐个取出路由动作，避免超过 detekt 解构声明默认 3 项上限；多选动作随 callbacks 持有者转发给 Pager。
     val navigate = callbacks.navigate
     val popRoute = callbacks.popRoute
     val openList = callbacks.openList
@@ -128,6 +123,7 @@ internal fun AppNavHost(
                     onOpenCategories = { navigate(AppRoute.ManageCategories) },
                     onOpenLocations = { navigate(AppRoute.ManageLocations) },
                     onBackToHome = { selectTab(0) },
+                    callbacks = callbacks,
                 )
             }
             entry<AppRoute.Consumption> {
