@@ -210,7 +210,7 @@ dependencies {
 
     implementation(libs.androidx.datastore.preferences)
 
-    // Miuix（HyperOS 风格 Compose 组件库），版本对齐 skill 基线 v0.9.4-rc01。
+    // Miuix（HyperOS 风格 Compose 组件库），版本对齐 skill 基线 v0.9.4。
     // 使用 common 坐标，Gradle Module Metadata 会自动解析到 android 变体。
     implementation(libs.miuix.ui)
     implementation(libs.miuix.preference)
