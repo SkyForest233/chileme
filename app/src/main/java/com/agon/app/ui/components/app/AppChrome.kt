@@ -86,6 +86,7 @@ fun AppTopBar(
                 backdrop = activeBackdrop,
                 shape = RectangleShape,
                 blurRadius = 22f,
+                noiseCoefficient = MiuixBlurNoiseCoefficient,
                 colors = rememberMiuixSurfaceBlurColors(alpha = 0.82f),
             )
         } else {

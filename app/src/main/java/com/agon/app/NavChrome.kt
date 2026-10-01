@@ -90,6 +90,7 @@ import com.agon.app.ui.screens.StatsScreen
 import com.agon.app.ui.components.app.LocalMiuixBackdrop
 import com.agon.app.ui.components.app.LocalMiuixBlurEnabled
 import com.agon.app.ui.components.app.LocalMiuixLiquidGlassNavEnabled
+import com.agon.app.ui.components.app.MiuixBlurNoiseCoefficient
 import com.agon.app.ui.components.app.rememberMiuixSurfaceBlurColors
 import com.agon.app.ui.theme.MotionEasing
 import com.agon.app.ui.theme.MotionSpring
@@ -196,6 +197,7 @@ internal fun MiuixBottomNav(selectedIndex: Int, onSelect: (Int) -> Unit) {
             backdrop = activeBackdrop,
             shape = RectangleShape,
             blurRadius = 22f,
+            noiseCoefficient = MiuixBlurNoiseCoefficient,
             colors = rememberMiuixSurfaceBlurColors(alpha = 0.82f),
         )
     } else {
@@ -246,6 +248,7 @@ internal fun MiuixFloatingNav(selectedIndex: Int, onSelect: (Int) -> Unit) {
                 backdrop = activeBackdrop,
                 shape = pillShape,
                 blurRadius = 25f,
+                noiseCoefficient = MiuixBlurNoiseCoefficient,
                 colors = BlurDefaults.blurColors(
                     blendColors = listOf(
                         BlendColorEntry(color = surfaceContainerColor.copy(alpha = 0.6f)),
