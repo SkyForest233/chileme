@@ -29,6 +29,8 @@ import com.agon.app.viewmodel.setAutoSyncDays
 import com.agon.app.viewmodel.setDarkMode
 import com.agon.app.viewmodel.setDynamicColor
 import com.agon.app.viewmodel.setFloatingNav
+import com.agon.app.viewmodel.setLiquidGlassNavEnabled
+import com.agon.app.viewmodel.setMiuixBlurEnabled
 import com.agon.app.viewmodel.setPalette
 import com.agon.app.viewmodel.setThemeStyle
 import com.agon.app.viewmodel.syncDownload
@@ -55,6 +57,8 @@ internal interface SettingsActions {
     fun setPalette(name: String)
     fun setThemeStyle(style: String)
     fun setFloatingNav(enabled: Boolean)
+    fun setMiuixBlurEnabled(enabled: Boolean)
+    fun setLiquidGlassNavEnabled(enabled: Boolean)
     fun setAutoSyncDays(days: Int)
     fun saveNutstoreCredentials(account: String, pass: String)
     fun syncUpload()
@@ -94,6 +98,8 @@ class SettingsUiState internal constructor(
     private val paletteNameState: State<String>,
     private val themeStyleNameState: State<String>,
     private val floatingNavState: State<Boolean>,
+    private val miuixBlurEnabledState: State<Boolean>,
+    private val liquidGlassNavEnabledState: State<Boolean>,
     private val itemsState: State<List<FoodItem>>,
     private val archivedState: State<List<ArchivedItem>>,
     private val categoriesState: State<List<CategoryDef>>,
@@ -114,6 +120,8 @@ class SettingsUiState internal constructor(
     val paletteName: String get() = paletteNameState.value
     val themeStyleName: String get() = themeStyleNameState.value
     val floatingNav: Boolean get() = floatingNavState.value
+    val miuixBlurEnabled: Boolean get() = miuixBlurEnabledState.value
+    val liquidGlassNavEnabled: Boolean get() = liquidGlassNavEnabledState.value
     val items: List<FoodItem> get() = itemsState.value
     val archived: List<ArchivedItem> get() = archivedState.value
     val categories: List<CategoryDef> get() = categoriesState.value
@@ -212,6 +220,8 @@ class SettingsUiState internal constructor(
     fun setPalette(name: String) = actions.setPalette(name)
     fun setThemeStyle(style: String) = actions.setThemeStyle(style)
     fun setFloatingNav(enabled: Boolean) = actions.setFloatingNav(enabled)
+    fun setMiuixBlurEnabled(enabled: Boolean) = actions.setMiuixBlurEnabled(enabled)
+    fun setLiquidGlassNavEnabled(enabled: Boolean) = actions.setLiquidGlassNavEnabled(enabled)
     fun setAutoSyncDays(days: Int) = actions.setAutoSyncDays(days)
 
     fun saveNutstoreCredentials(account: String, pass: String) =
@@ -256,6 +266,12 @@ private class ViewModelSettingsActions(private val viewModel: AppViewModel) : Se
     }
     override fun setFloatingNav(enabled: Boolean) {
         viewModel.setFloatingNav(enabled)
+    }
+    override fun setMiuixBlurEnabled(enabled: Boolean) {
+        viewModel.setMiuixBlurEnabled(enabled)
+    }
+    override fun setLiquidGlassNavEnabled(enabled: Boolean) {
+        viewModel.setLiquidGlassNavEnabled(enabled)
     }
     override fun setAutoSyncDays(days: Int) {
         viewModel.setAutoSyncDays(days)
@@ -308,6 +324,8 @@ fun rememberSettingsUiState(viewModel: AppViewModel): SettingsUiState {
     val paletteName = viewModel.palette.collectAsStateWithLifecycle()
     val themeStyleName = viewModel.themeStyle.collectAsStateWithLifecycle()
     val floatingNav = viewModel.floatingNav.collectAsStateWithLifecycle()
+    val miuixBlurEnabled = viewModel.miuixBlurEnabled.collectAsStateWithLifecycle()
+    val liquidGlassNavEnabled = viewModel.liquidGlassNavEnabled.collectAsStateWithLifecycle()
     val items = viewModel.items.collectAsStateWithLifecycle()
     val archived = viewModel.archived.collectAsStateWithLifecycle()
     val categories = viewModel.categories.collectAsStateWithLifecycle()
@@ -331,6 +349,8 @@ fun rememberSettingsUiState(viewModel: AppViewModel): SettingsUiState {
             paletteNameState = paletteName,
             themeStyleNameState = themeStyleName,
             floatingNavState = floatingNav,
+            miuixBlurEnabledState = miuixBlurEnabled,
+            liquidGlassNavEnabledState = liquidGlassNavEnabled,
             itemsState = items,
             archivedState = archived,
             categoriesState = categories,

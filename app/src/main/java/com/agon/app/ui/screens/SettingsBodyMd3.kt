@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.dp
 import com.agon.app.ui.components.CheckSwitch
 import com.agon.app.ui.theme.AppPalette
 import com.agon.app.ui.theme.ThemeStyle
+import top.yukonga.miuix.kmp.blur.isRuntimeShaderSupported
 
 /**
  * MD3 版设置节：滚动 `Column` + `Surface` 分组卡片（外观 / 物品管理 / 备份与数据 / 关于）。
@@ -56,6 +57,7 @@ internal fun Md3SettingsBody(
     onOpenLocations: () -> Unit,
     onOpenArchive: () -> Unit,
 ) {
+    val blurSupported = isRuntimeShaderSupported()
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -173,6 +175,52 @@ internal fun Md3SettingsBody(
                     CheckSwitch(
                         checked = state.floatingNav,
                         onCheckedChange = { state.setFloatingNav(it) },
+                    )
+                }
+                Spacer(Modifier.height(12.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            "Miuix 背景模糊",
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.Medium,
+                        )
+                        Text(
+                            if (blurSupported) "为 Miuix 顶栏与底栏启用毛玻璃效果"
+                            else "需要 Android 13+；此设备自动使用实色背景",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    CheckSwitch(
+                        checked = state.miuixBlurEnabled,
+                        onCheckedChange = { state.setMiuixBlurEnabled(it) },
+                        enabled = blurSupported,
+                    )
+                }
+                Spacer(Modifier.height(12.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            "iOS-like 液态玻璃底栏",
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.Medium,
+                        )
+                        Text(
+                            when {
+                                !blurSupported -> "需要 Android 13+；此设备使用普通悬浮底栏"
+                                !state.floatingNav -> "请先开启悬浮导航；仅影响 Miuix 悬浮底栏"
+                                !state.miuixBlurEnabled -> "请先开启 Miuix 背景模糊；仅影响悬浮底栏"
+                                else -> "折射与高光效果；仅影响 Miuix 悬浮底栏"
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    CheckSwitch(
+                        checked = state.liquidGlassNavEnabled,
+                        onCheckedChange = { state.setLiquidGlassNavEnabled(it) },
+                        enabled = blurSupported && state.floatingNav && state.miuixBlurEnabled,
                     )
                 }
             }

@@ -49,6 +49,7 @@ import top.yukonga.miuix.kmp.basic.Icon as MiuixIcon
 import top.yukonga.miuix.kmp.basic.SnackbarHost as MiuixSnackbarHost
 import top.yukonga.miuix.kmp.basic.SnackbarHostState as MiuixSnackbarHostState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -65,11 +66,18 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import top.yukonga.miuix.kmp.blur.isRuntimeShaderSupported
+import top.yukonga.miuix.kmp.blur.layerBackdrop
+import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
+import top.yukonga.miuix.kmp.theme.MiuixTheme
 import com.agon.app.data.ArchiveReason
 import com.agon.app.ui.navigation.AppRoute
 import com.agon.app.ui.components.SwipeDismissSnackbarHost
 import com.agon.app.ui.components.showUndoSnackbarAcrossThemes
 import com.agon.app.ui.components.app.BatchMoveLocationDialog
+import com.agon.app.ui.components.app.LocalMiuixBackdrop
+import com.agon.app.ui.components.app.LocalMiuixBlurEnabled
+import com.agon.app.ui.components.app.LocalMiuixLiquidGlassNavEnabled
 import com.agon.app.ui.theme.LocalThemeStyle
 import com.agon.app.ui.theme.MotionEasing
 import com.agon.app.ui.theme.MotionSpring
@@ -131,7 +139,17 @@ fun MainApp(viewModel: AppViewModel) {
     val fabSuppressed by viewModel.fabSuppressed.collectAsStateWithLifecycle()
     // 悬浮导航开关 + 主题风格：决定底栏与 FAB 用哪套组件
     val floatingNav by viewModel.floatingNav.collectAsStateWithLifecycle()
+    val miuixBlurPreference by viewModel.miuixBlurEnabled.collectAsStateWithLifecycle()
+    val liquidGlassPreference by viewModel.liquidGlassNavEnabled.collectAsStateWithLifecycle()
     val isMiuix = LocalThemeStyle.current == ThemeStyle.MIUIX
+    val runtimeShaderSupported = remember { isRuntimeShaderSupported() }
+    val blurActive = isMiuix && miuixBlurPreference && runtimeShaderSupported
+    val liquidGlassActive = blurActive && floatingNav && liquidGlassPreference
+    val backdropSurface = if (isMiuix) MiuixTheme.colorScheme.surface else MaterialTheme.colorScheme.background
+    val navigationBackdrop = rememberLayerBackdrop {
+        drawRect(backdropSurface)
+        drawContent()
+    }
     // 多选模式：选中状态提升到 VM，多选时用批量操作栏替换底部导航
     val selectedIds by viewModel.selectedIds.collectAsStateWithLifecycle()
     val selectionMode = selectedIds.isNotEmpty()
@@ -231,133 +249,145 @@ fun MainApp(viewModel: AppViewModel) {
         label = "snackbarOffset",
     )
 
-    Box(modifier = Modifier.fillMaxSize()) {
-    Scaffold(
-        modifier = Modifier.fillMaxSize(),
-        containerColor = MaterialTheme.colorScheme.background,
-        bottomBar = {
-            Box {
-                AnimatedVisibility(
-                    visible = selectionMode,
-                    enter = slideInVertically(MotionSpring.expand<IntOffset>()) { it } + fadeIn(MotionSpring.expand<Float>()),
-                    exit = slideOutVertically(MotionSpring.collapse<IntOffset>()) { it } + fadeOut(MotionSpring.collapse<Float>()),
+    CompositionLocalProvider(
+        LocalMiuixBackdrop provides navigationBackdrop.takeIf { blurActive },
+        LocalMiuixBlurEnabled provides blurActive,
+        LocalMiuixLiquidGlassNavEnabled provides liquidGlassActive,
+    ) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            Scaffold(
+                modifier = Modifier.fillMaxSize(),
+                containerColor = MaterialTheme.colorScheme.background,
+                bottomBar = {
+                    Box {
+                        AnimatedVisibility(
+                            visible = selectionMode,
+                            enter = slideInVertically(MotionSpring.expand<IntOffset>()) { it } + fadeIn(MotionSpring.expand<Float>()),
+                            exit = slideOutVertically(MotionSpring.collapse<IntOffset>()) { it } + fadeOut(MotionSpring.collapse<Float>()),
+                        ) {
+                            BatchActionBar(
+                                count = selectedIds.size,
+                                isMiuix = isMiuix,
+                                floating = floatingNav,
+                                onCancel = { viewModel.clearSelection() },
+                                onMoveLocation = { showMoveLocationDialog = true },
+                                onArchive = { archiveSelected() },
+                            )
+                        }
+                        AnimatedVisibility(
+                            visible = !selectionMode && showChrome,
+                            enter = slideInVertically(MotionSpring.expand<IntOffset>()) { it } + fadeIn(MotionSpring.expand<Float>()),
+                            exit = slideOutVertically(MotionSpring.collapse<IntOffset>()) { it } + fadeOut(MotionSpring.collapse<Float>()),
+                        ) {
+                            when {
+                                isMiuix && floatingNav -> MiuixFloatingNav(selectedTabIndex, ::selectTab)
+                                isMiuix -> MiuixBottomNav(selectedTabIndex, ::selectTab)
+                                floatingNav -> FloatingPillNav(
+                                    pagePosition = selectedTabIndex + pagerState.currentPageOffsetFraction,
+                                    onSelect = ::selectTab,
+                                )
+                                else -> Md3BottomNav(selectedTabIndex, ::selectTab)
+                            }
+                        }
+                    }
+                },
+                floatingActionButton = {
+                    AnimatedVisibility(
+                        visible = showChrome && !fabSuppressed && !selectionMode && selectedTabIndex != 2 && selectedTabIndex != 3,
+                        enter = scaleIn(tween(250, easing = EmphasizedDecelerate)) +
+                            fadeIn(tween(250, easing = EmphasizedDecelerate)) +
+                            slideInVertically(tween(250, easing = EmphasizedDecelerate)) { it / 2 },
+                        exit = scaleOut(tween(200, easing = EmphasizedAccelerate)) +
+                            fadeOut(tween(200, easing = EmphasizedAccelerate)) +
+                            slideOutVertically(tween(200, easing = EmphasizedAccelerate)) { it / 2 },
+                    ) {
+                        if (isMiuix) {
+                            MiuixFloatingActionButton(onClick = { navigate(AppRoute.Edit()) }) {
+                                MiuixIcon(Icons.Rounded.Add, contentDescription = "添加食品")
+                            }
+                        } else {
+                            FloatingActionButton(
+                                onClick = { navigate(AppRoute.Edit()) },
+                                containerColor = MaterialTheme.colorScheme.primary,
+                                contentColor = MaterialTheme.colorScheme.onPrimary,
+                                shape = RoundedCornerShape(50),
+                            ) {
+                                Icon(Icons.Rounded.Add, contentDescription = "添加食品")
+                            }
+                        }
+                    }
+                },
+            ) { _ ->
+                // 刻意不消费外层 Scaffold 的 contentPadding：底栏是浮层
+                // （AnimatedVisibility 显隐，还可能是悬浮胶囊导航），inset 由各屏自己的
+                // Scaffold + LazyColumn.contentPadding 处理（见 HomeScreen 的
+                // calculateBottomPadding() + 96.dp）。在此再消费一次会把内容重复下推。
+                // 对应函数上的 @Suppress("UnusedMaterial3ScaffoldPaddingParameter")。
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .then(if (blurActive) Modifier.layerBackdrop(navigationBackdrop) else Modifier),
                 ) {
-                    BatchActionBar(
-                        count = selectedIds.size,
-                        isMiuix = isMiuix,
-                        floating = floatingNav,
-                        onCancel = { viewModel.clearSelection() },
-                        onMoveLocation = { showMoveLocationDialog = true },
-                        onArchive = { archiveSelected() },
+                    AppNavHost(
+                        backStack = backStack,
+                        chromeScrollConnection = chromeScrollConnection,
+                        viewModel = viewModel,
+                        pagerState = pagerState,
+                        listFilter = listFilter,
+                        // 4 个导航动作压成一个持有者（AppNavHost 形参 9 → 6）；FAB / 底栏 / MiuixFloatingNav
+                        // 仍直接用这几个局部函数，未受影响。
+                        callbacks = AppNavCallbacks(
+                            navigate = ::navigate,
+                            popRoute = ::popRoute,
+                            openList = ::openList,
+                            selectTab = ::selectTab,
+                        ),
                     )
                 }
-                AnimatedVisibility(
-                    visible = !selectionMode && showChrome,
-                    enter = slideInVertically(MotionSpring.expand<IntOffset>()) { it } + fadeIn(MotionSpring.expand<Float>()),
-                    exit = slideOutVertically(MotionSpring.collapse<IntOffset>()) { it } + fadeOut(MotionSpring.collapse<Float>()),
-                ) {
-                    when {
-                        isMiuix && floatingNav -> MiuixFloatingNav(selectedTabIndex, ::selectTab)
-                        isMiuix -> MiuixBottomNav(selectedTabIndex, ::selectTab)
-                        floatingNav -> FloatingPillNav(
-                            pagePosition = selectedTabIndex + pagerState.currentPageOffsetFraction,
-                            onSelect = ::selectTab,
-                        )
-                        else -> Md3BottomNav(selectedTabIndex, ::selectTab)
-                    }
-                }
             }
-        },
-        floatingActionButton = {
-            AnimatedVisibility(
-                visible = showChrome && !fabSuppressed && !selectionMode && selectedTabIndex != 2 && selectedTabIndex != 3,
-                enter = scaleIn(tween(250, easing = EmphasizedDecelerate)) +
-                    fadeIn(tween(250, easing = EmphasizedDecelerate)) +
-                    slideInVertically(tween(250, easing = EmphasizedDecelerate)) { it / 2 },
-                exit = scaleOut(tween(200, easing = EmphasizedAccelerate)) +
-                    fadeOut(tween(200, easing = EmphasizedAccelerate)) +
-                    slideOutVertically(tween(200, easing = EmphasizedAccelerate)) { it / 2 },
+
+            // Snackbar 覆盖层（自定义定位：底栏可见→悬浮导航上方，隐藏→贴底，平滑过渡不瞬移）
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .navigationBarsPadding()
+                    // 键盘打开时也要能看见/点到「撤销」：两段式书写 = max(导航栏, 键盘)，
+                    // 内层只补差额，不会叠加成一条大空隙（等价于旧的 navigationBarsWithImePadding）。
+                    .imePadding()
+                    .padding(bottom = snackbarOffset),
             ) {
                 if (isMiuix) {
-                    MiuixFloatingActionButton(onClick = { navigate(AppRoute.Edit()) }) {
-                        MiuixIcon(Icons.Rounded.Add, contentDescription = "添加食品")
-                    }
+                    MiuixSnackbarHost(miuixSnackbarHostState)
                 } else {
-                    FloatingActionButton(
-                        onClick = { navigate(AppRoute.Edit()) },
-                        containerColor = MaterialTheme.colorScheme.primary,
-                        contentColor = MaterialTheme.colorScheme.onPrimary,
-                        shape = RoundedCornerShape(50),
-                    ) {
-                        Icon(Icons.Rounded.Add, contentDescription = "添加食品")
-                    }
+                    SwipeDismissSnackbarHost(snackbarHostState)
                 }
             }
-        },
-    ) { _ ->
-        // 刻意不消费外层 Scaffold 的 contentPadding：底栏是浮层
-        // （AnimatedVisibility 显隐，还可能是悬浮胶囊导航），inset 由各屏自己的
-        // Scaffold + LazyColumn.contentPadding 处理（见 HomeScreen 的
-        // calculateBottomPadding() + 96.dp）。在此再消费一次会把内容重复下推。
-        // 对应函数上的 @Suppress("UnusedMaterial3ScaffoldPaddingParameter")。
-        AppNavHost(
-            backStack = backStack,
-            chromeScrollConnection = chromeScrollConnection,
-            viewModel = viewModel,
-            pagerState = pagerState,
-            listFilter = listFilter,
-            // 4 个导航动作压成一个持有者（AppNavHost 形参 9 → 6）；FAB / 底栏 / MiuixFloatingNav
-            // 仍直接用这几个局部函数，未受影响。
-            callbacks = AppNavCallbacks(
-                navigate = ::navigate,
-                popRoute = ::popRoute,
-                openList = ::openList,
-                selectTab = ::selectTab,
-            ),
-        )
-    }
 
-    // Snackbar 覆盖层（自定义定位：底栏可见→悬浮导航上方，隐藏→贴底，平滑过渡不瞬移）
-    Box(
-        modifier = Modifier
-            .align(Alignment.BottomCenter)
-            .fillMaxWidth()
-            .navigationBarsPadding()
-            // 键盘打开时也要能看见/点到「撤销」：两段式书写 = max(导航栏, 键盘)，
-            // 内层只补差额，不会叠加成一条大空隙（等价于旧的 navigationBarsWithImePadding）。
-            .imePadding()
-            .padding(bottom = snackbarOffset),
-    ) {
-        if (isMiuix) {
-            MiuixSnackbarHost(miuixSnackbarHostState)
-        } else {
-            SwipeDismissSnackbarHost(snackbarHostState)
+            // ---- 批量修改存放位置弹窗（实现在 ui/components/app/AppBatchMoveDialog.kt）----
+            BatchMoveLocationDialog(
+                show = showMoveLocationDialog,
+                locationsFlow = viewModel.locations,
+                selectedCount = selectedIds.size,
+                onDismiss = { showMoveLocationDialog = false },
+                // VM 与 Snackbar 逻辑回到调用方（2026-09-17 按该组件文件头既定方案收窄，形参 8 → 5）。
+                // 顺序与收窄前逐句一致：先记住件数（clearSelection 之后 selectedIds 就空了）→ 改数据 → 清选择
+                // → 关弹窗 → 弹提示；提示文案两主题本来就相同，只有宿主不同。
+                onConfirm = { target ->
+                    val count = selectedIds.size
+                    viewModel.updateLocationBatch(selectedIds, target)
+                    viewModel.clearSelection()
+                    showMoveLocationDialog = false
+                    scope.launch {
+                        val message = "已将 $count 件食品移动到「$target」"
+                        if (isMiuix) {
+                            miuixSnackbarHostState.showSnackbar(message)
+                        } else {
+                            snackbarHostState.showSnackbar(message)
+                        }
+                    }
+                },
+            )
         }
-    }
-
-    // ---- 批量修改存放位置弹窗（实现在 ui/components/app/AppBatchMoveDialog.kt）----
-    BatchMoveLocationDialog(
-        show = showMoveLocationDialog,
-        locationsFlow = viewModel.locations,
-        selectedCount = selectedIds.size,
-        onDismiss = { showMoveLocationDialog = false },
-        // VM 与 Snackbar 逻辑回到调用方（2026-09-17 按该组件文件头既定方案收窄，形参 8 → 5）。
-        // 顺序与收窄前逐句一致：先记住件数（clearSelection 之后 selectedIds 就空了）→ 改数据 → 清选择
-        // → 关弹窗 → 弹提示；提示文案两主题本来就相同，只有宿主不同。
-        onConfirm = { target ->
-            val count = selectedIds.size
-            viewModel.updateLocationBatch(selectedIds, target)
-            viewModel.clearSelection()
-            showMoveLocationDialog = false
-            scope.launch {
-                val message = "已将 $count 件食品移动到「$target」"
-                if (isMiuix) {
-                    miuixSnackbarHostState.showSnackbar(message)
-                } else {
-                    snackbarHostState.showSnackbar(message)
-                }
-            }
-        },
-    )
     }
 }

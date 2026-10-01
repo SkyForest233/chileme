@@ -1,7 +1,9 @@
 package com.agon.app.ui.screens
 
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.runtime.Composable
@@ -10,6 +12,7 @@ import androidx.compose.ui.unit.dp
 import com.agon.app.data.CLOUD_BACKUP_KEEP
 import com.agon.app.ui.theme.ThemeStyle
 import top.yukonga.miuix.kmp.basic.BasicComponentDefaults
+import top.yukonga.miuix.kmp.blur.isRuntimeShaderSupported
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon as MiuixIcon
 import top.yukonga.miuix.kmp.basic.SmallTitle
@@ -44,6 +47,7 @@ internal fun MiuixSettingsBody(
     onOpenLocations: () -> Unit,
     onOpenArchive: () -> Unit,
 ) {
+    val blurSupported = isRuntimeShaderSupported()
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
@@ -81,6 +85,30 @@ internal fun MiuixSettingsBody(
                     summary = "关闭后底部导航改为全宽常驻底栏",
                     checked = state.floatingNav,
                     onCheckedChange = { state.setFloatingNav(it) },
+                )
+                Spacer(Modifier.height(4.dp))
+                SwitchPreference(
+                    title = "Miuix 背景模糊",
+                    summary = if (blurSupported) {
+                        "为 Miuix 顶栏与底栏启用毛玻璃效果"
+                    } else {
+                        "需要 Android 13+；此设备自动使用实色背景"
+                    },
+                    checked = state.miuixBlurEnabled,
+                    onCheckedChange = { state.setMiuixBlurEnabled(it) },
+                    enabled = blurSupported,
+                )
+                SwitchPreference(
+                    title = "iOS-like 液态玻璃底栏",
+                    summary = when {
+                        !blurSupported -> "需要 Android 13+；此设备使用普通悬浮底栏"
+                        !state.floatingNav -> "请先开启悬浮导航；仅影响 Miuix 悬浮底栏"
+                        !state.miuixBlurEnabled -> "请先开启 Miuix 背景模糊；仅影响悬浮底栏"
+                        else -> "折射与高光效果；仅影响 Miuix 悬浮底栏"
+                    },
+                    checked = state.liquidGlassNavEnabled,
+                    onCheckedChange = { state.setLiquidGlassNavEnabled(it) },
+                    enabled = blurSupported && state.floatingNav && state.miuixBlurEnabled,
                 )
             }
         }

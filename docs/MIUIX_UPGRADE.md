@@ -48,16 +48,19 @@ https://raw.githubusercontent.com/compose-miuix-ui/miuix/<tag>/gradle/libs.versi
 miuix = "0.9.4"     # ← 只改这一行
 ```
 
-四个坐标都 `version.ref = "miuix"`，改一处即可全部对齐（注意 `miuix-ui` / `miuix-preference` / `miuix-icons` 保持 **common 坐标**，勿加 `-android` 后缀；只有导航用 `miuix-nav-android`）：
+五个坐标都 `version.ref = "miuix"`，改一处即可全部对齐（`miuix-ui` / `miuix-preference` / `miuix-icons` 保持 **common 坐标**；导航与 blur 使用 Android artifact，其中 blur 的 API 33+ gate 见下）：
 
 ```toml
 miuix-nav-android = { module = "top.yukonga.miuix.kmp:miuix-nav-android", version.ref = "miuix" }
 miuix-ui          = { module = "top.yukonga.miuix.kmp:miuix-ui",          version.ref = "miuix" }
 miuix-preference  = { module = "top.yukonga.miuix.kmp:miuix-preference",  version.ref = "miuix" }
 miuix-icons       = { module = "top.yukonga.miuix.kmp:miuix-icons",       version.ref = "miuix" }
+miuix-blur-android = { module = "top.yukonga.miuix.kmp:miuix-blur-android", version.ref = "miuix" }
 ```
 
 `app/build.gradle.kts` 里只写 `implementation(libs.miuix.ui)` 这类别名，**不要再写死坐标字符串**。
+
+**minSdk 例外必须双重门控**：stable `miuix-blur-android` 的 Android 运行时能力为 API 33+，但项目 `minSdk` 保持 26。manifest 用 `tools:overrideLibrary="top.yukonga.miuix.kmp.blur"` 仅覆盖 AAR SDK 元数据；所有 blur / lens 入口必须先由 `isRuntimeShaderSupported()` 或已门控的 backdrop CompositionLocal 保证旧系统回退实色。不要把 manifest override 当成 API 兼容证明。
 
 ### 第 3 步：连带升级工具链（若基线变化）
 
@@ -75,6 +78,7 @@ miuix-icons       = { module = "top.yukonga.miuix.kmp:miuix-icons",       versio
    - 主题：`MiuixTheme` / `ThemeController` / `ColorSchemeMode` / `Colors` 字段
    - 基础：`Button` / `TextButton` / `TextField` / `InputField` / `Card` / `Snackbar`
    - squircle：`squircleBorder` / `squircleSurface`
+   - blur：`textureBlur` / `drawBackdrop` / `isRuntimeShaderSupported`；重点复核 backdrop 捕获边界，不能采样浮栏自身
    - 图标：`MiuixIcons.Regular.*` 的图标名是否仍存在
 3. 用新版本的 pinned source 逐一核对签名，不要凭旧版本记忆。
 
@@ -97,6 +101,7 @@ grep -rn "top.yukonga.miuix.kmp" app/src/main/java | sed 's/.*import //' | sort 
 - 弹窗显示与返回、深浅色切换、动态取色（Android 12+）
 - squircle 圆角（需 API 33+ 设备）
 - 图标显示、底部导航分流
+- Miuix 背景模糊与 iOS-like 液态玻璃开关；悬浮底栏反复隐藏/出现时无阴影闪边；API 26–32 实色回退、API 33+ backdrop/lens 显示正常
 
 ---
 
@@ -110,7 +115,7 @@ grep -rn "top.yukonga.miuix.kmp" app/src/main/java | sed 's/.*import //' | sort 
 4. **图标分流**：MIUIX 用 `MiuixIcons.Regular.*`，MD3 用 material 图标；`CleaningServices`/`Inventory2` 无 Miuix 对应，保留 material。
 5. **桥接层**：`MiuixRootTheme.kt` 的 `miuixColorsToMd3ColorScheme` 是「MD3 页面取色」的过渡层，升级时若 Miuix `Colors` 字段变化，需同步修正映射。
 6. **状态色**：安全/临期/过期是硬编码语义色（`Color.kt`），不随主题/版本变。
-7. **minSdk 26 不变**（2026-08-21 由 24 提升：全项目 28 处 `java.time` 未开脱糖，API 24/25 会 `NoClassDefFoundError`。除非新 Miuix 强制要求更高，需评估）。
+7. **minSdk 26 不变**（2026-08-21 由 24 提升：全项目 28 处 `java.time` 未开脱糖，API 24/25 会 `NoClassDefFoundError`）。`miuix-blur-android` 的 API 33+ 限制只能在确认所有入口都有 runtime gate + 实色 fallback 后，通过 manifest `tools:overrideLibrary` 接入；不能因此提高 app minSdk。
 8. **Miuix 弹窗的 `content` 必须是单一根节点**（2026-09-17 真机复测踩坑）：库 `DialogContent` 把 `title` / `summary` / `content()` 依次放进一个**不带 `verticalArrangement` 的 Column**（间距只由 title、summary 各自的 `padding(bottom = 12.dp)` 提供），所以 content 里两个平级节点之间是 **0dp**。标准写法：单一 `Column(verticalArrangement = Arrangement.spacedBy(12.dp))`，按钮区再额外留 4~8.dp（上游示例 `example/shared/.../component/DialogSection.kt:351`；本仓 `app/AppBatchMoveDialog.kt` / `AppFormDialog.kt` / `SettingsCloudDialogs.kt` 坚果云弹窗 —— #10a-1 前在 `SettingsScreen.kt`）。静态守卫：`MiuixDialogContentTest`。
 9. **Miuix 弹窗的动作按钮一律用 `TextButton`，主要动作传 `ButtonDefaults.textButtonColorsPrimary()`**（2026-09-17 真机复测踩坑）：库的 `TextButton` **不是**无底文字按钮 —— 它内部就是 `Button`，用 `.squircleSurface(color = containerColor)` 实心填充（`basic/Button.kt:76`）；默认 `textButtonColors()` 的容器色是 `secondaryVariant`（浅灰），所以不传 `colors` 时「确定 / 保存 / 添加」和「取消」完全同色。`textButtonColorsPrimary()` = 容器 `primary` 蓝 + 文字 `onPrimary` 白 + 对应 disabled 角色 ⇒ 蓝底白字胶囊（上游 `DialogSection.kt` 的 7 个弹窗一律如此）。弹窗里**不要**用 `Button` + `buttonColorsPrimary()`：颜色虽同，但要自己补文字色与字重、拿不到 `textStyles.button` 与 disabled 角色。静态守卫：`MiuixDialogContentTest.dialogActionsFollowMiuixButtonConvention`。
 
@@ -154,6 +159,9 @@ grep -rn "top.yukonga.miuix.kmp" app/src/main/java | sed 's/.*import //' | sort 
 |---|---|
 | `gradle/libs.versions.toml` | **Miuix 版本的唯一位点**（`miuix = "..."`）+ 插件/工具链版本 |
 | `app/build.gradle.kts` | 依赖别名引用（`libs.miuix.*`）+ compileSdk / minSdk / targetSdk |
+| `app/src/main/AndroidManifest.xml` | API 33+ `miuix-blur` 的受控 `overrideLibrary`；需与 `isRuntimeShaderSupported()` fallback 一起审计 |
+| `app/src/main/java/com/agon/app/LiquidGlassLens.kt` | 基于 Miuix 公共 `runtimeShaderEffect` 的液态玻璃胶囊边缘折射 |
+| `app/src/main/java/com/agon/app/ui/components/app/MiuixBlurLocals.kt` | 页面 backdrop 与 Miuix blur / glass 控制的 CompositionLocal |
 | `build.gradle.kts` | 插件声明（`alias(libs.plugins.*)`，均 `apply false`） |
 | `gradle/wrapper/gradle-wrapper.properties` | Gradle 版本 |
 | `app/src/main/java/com/agon/app/ui/theme/MiuixRootTheme.kt` | 根主题 + 桥接 |

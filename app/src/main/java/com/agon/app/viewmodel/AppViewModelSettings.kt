@@ -5,12 +5,14 @@ import com.agon.app.data.setAutoSyncDays
 import com.agon.app.data.setDarkMode
 import com.agon.app.data.setDynamicColor
 import com.agon.app.data.setFloatingNav
+import com.agon.app.data.setLiquidGlassNavEnabled
+import com.agon.app.data.setMiuixBlurEnabled
 import com.agon.app.data.setPalette
 import com.agon.app.data.setThemeStyle
 import kotlinx.coroutines.launch
 
 /**
- * ViewModel 的**设置领域：自动同步天数 + 5 个外观/主题开关**（路线图 #10b-6，2026-09-19）。
+ * ViewModel 的设置领域：同步节奏 + 外观/主题偏好写入（原始 6 个函数来自路线图 #10b-6，2026-09-19）。
  *
  * 形状为什么是「同包 `internal` 扩展函数」而不是类成员、以及为什么不选「门面转发」和「领域对象」，
  * 完整取舍写在 `data/RepositoryCore.kt` 的文件 KDoc 里（#5c 一次说清，这里只指路 —— 本文件与
@@ -75,6 +77,9 @@ import kotlinx.coroutines.launch
  * 搬运口径：函数体**逐字未动**，只做了两件事 —— 整体左移 4 空格（脱离类体）、声明行改写成
  * `internal fun AppViewModel.原名(原参数表)`（接收者加上，**名字与参数一个没改**；这 6 个原本都不是
  * `private` ⇒ 连可见性都没变）。本领域 6 块里一条注释都没有 ⇒ 没有 KDoc 随迁。
+ *
+ * 2026-10-01 新增 `setMiuixBlurEnabled` / `setLiquidGlassNavEnabled` 两个同形写入扩展；上文的「6 个」
+ * 描述仍专指 #10b-6 原始搬迁，不把后加的两项混入当时台账。
  */
 
 internal fun AppViewModel.setAutoSyncDays(days: Int) = viewModelScope.launch { repo.setAutoSyncDays(days) }
@@ -88,3 +93,7 @@ internal fun AppViewModel.setPalette(name: String) = viewModelScope.launch { rep
 internal fun AppViewModel.setThemeStyle(name: String) = viewModelScope.launch { repo.setThemeStyle(name) }
 
 internal fun AppViewModel.setFloatingNav(enabled: Boolean) = viewModelScope.launch { repo.setFloatingNav(enabled) }
+
+internal fun AppViewModel.setMiuixBlurEnabled(enabled: Boolean) = viewModelScope.launch { repo.setMiuixBlurEnabled(enabled) }
+
+internal fun AppViewModel.setLiquidGlassNavEnabled(enabled: Boolean) = viewModelScope.launch { repo.setLiquidGlassNavEnabled(enabled) }

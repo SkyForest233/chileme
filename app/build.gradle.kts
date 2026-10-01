@@ -216,6 +216,8 @@ dependencies {
     implementation(libs.miuix.preference)
     // 图标库：仅 MIUIX 主题使用（MD3 主题继续用 material-icons-extended）。
     implementation(libs.miuix.icons)
+    // Backdrop 模糊 / 液态玻璃；API 33 以下由 runtime shader capability gate 回退到实色组件。
+    implementation(libs.miuix.blur.android)
 
     implementation(libs.material.kolor)
 

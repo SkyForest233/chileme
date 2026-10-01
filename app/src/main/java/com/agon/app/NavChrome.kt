@@ -19,6 +19,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerState
@@ -36,6 +37,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.RectangleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.PieChart
@@ -52,6 +54,11 @@ import top.yukonga.miuix.kmp.basic.FloatingNavigationBarItem as MiuixFloatingNav
 import top.yukonga.miuix.kmp.basic.NavigationBar as MiuixNavigationBar
 import top.yukonga.miuix.kmp.basic.NavigationBarItem as MiuixNavigationBarItem
 import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.blur.blur
+import top.yukonga.miuix.kmp.blur.highlight.Highlight
+import top.yukonga.miuix.kmp.blur.drawBackdrop
+import top.yukonga.miuix.kmp.blur.textureBlur
+import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.icon.extended.GridView
 import top.yukonga.miuix.kmp.icon.extended.Home
 import top.yukonga.miuix.kmp.icon.extended.ListView
@@ -62,6 +69,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
@@ -70,6 +78,10 @@ import com.agon.app.ui.screens.FoodListScreen
 import com.agon.app.ui.screens.HomeScreen
 import com.agon.app.ui.screens.SettingsScreen
 import com.agon.app.ui.screens.StatsScreen
+import com.agon.app.ui.components.app.LocalMiuixBackdrop
+import com.agon.app.ui.components.app.LocalMiuixBlurEnabled
+import com.agon.app.ui.components.app.LocalMiuixLiquidGlassNavEnabled
+import com.agon.app.ui.components.app.rememberMiuixSurfaceBlurColors
 import com.agon.app.ui.theme.MotionEasing
 import com.agon.app.viewmodel.AppViewModel
 import kotlin.math.roundToInt
@@ -157,10 +169,26 @@ internal fun MainTabsPager(
     }
 }
 
-/** MIUIX：全宽图标+文字底栏（HyperOS 风格）。 */
+/** MIUIX：全宽图标+文字底栏（HyperOS 风格），Android 13+ 可读页面 backdrop。 */
 @Composable
 internal fun MiuixBottomNav(selectedIndex: Int, onSelect: (Int) -> Unit) {
-    MiuixNavigationBar {
+    val backdrop = LocalMiuixBackdrop.current
+    val activeBackdrop = if (LocalMiuixBlurEnabled.current) backdrop else null
+    val blurActive = activeBackdrop != null
+    val modifier = if (activeBackdrop != null) {
+        Modifier.textureBlur(
+            backdrop = activeBackdrop,
+            shape = RectangleShape,
+            blurRadius = 22f,
+            colors = rememberMiuixSurfaceBlurColors(alpha = 0.82f),
+        )
+    } else {
+        Modifier
+    }
+    MiuixNavigationBar(
+        modifier = modifier,
+        color = if (blurActive) Color.Transparent else MiuixTheme.colorScheme.surface,
+    ) {
         MiuixMainTabs.forEachIndexed { index, tab ->
             val selected = index == selectedIndex
             MiuixNavigationBarItem(
@@ -173,10 +201,53 @@ internal fun MiuixBottomNav(selectedIndex: Int, onSelect: (Int) -> Unit) {
     }
 }
 
-/** MIUIX：居中悬浮底栏（仅图标）。 */
+/** MIUIX：居中悬浮底栏；阴影固定关闭，层次由稳定边缘/玻璃高光提供，避免显隐时阴影闪烁。 */
 @Composable
 internal fun MiuixFloatingNav(selectedIndex: Int, onSelect: (Int) -> Unit) {
-    MiuixFloatingNavigationBar {
+    val backdrop = LocalMiuixBackdrop.current
+    val activeBackdrop = if (LocalMiuixBlurEnabled.current) backdrop else null
+    val blurActive = activeBackdrop != null
+    val liquidGlass = blurActive && LocalMiuixLiquidGlassNavEnabled.current
+    val pillShape = remember { RoundedCornerShape(50.dp) }
+    val surfaceColor = MiuixTheme.colorScheme.surface
+    val edgeColor = MiuixTheme.colorScheme.dividerLine.copy(alpha = 0.58f)
+    val glassModifier = when {
+        liquidGlass && activeBackdrop != null -> Modifier.drawBackdrop(
+            backdrop = activeBackdrop,
+            shape = { pillShape },
+            effects = {
+                blur(radiusX = 4.dp.toPx())
+                liquidGlassPillLens(
+                    refractionHeight = 24.dp.toPx(),
+                    refractionAmount = 24.dp.toPx(),
+                )
+            },
+            highlight = { Highlight.GlassStrokeSmallLight },
+            onDrawSurface = { drawRect(surfaceColor.copy(alpha = 0.34f)) },
+        )
+        activeBackdrop != null -> Modifier.textureBlur(
+            backdrop = activeBackdrop,
+            shape = pillShape,
+            blurRadius = 22f,
+            colors = rememberMiuixSurfaceBlurColors(alpha = 0.72f),
+        )
+        else -> Modifier
+    }
+    val edgeModifier = if (liquidGlass) {
+        Modifier
+    } else {
+        Modifier.border(width = 0.8.dp, color = edgeColor, shape = pillShape)
+    }
+
+    MiuixFloatingNavigationBar(
+        modifier = glassModifier.then(edgeModifier),
+        color = if (blurActive) Color.Transparent else MiuixTheme.colorScheme.surfaceContainer,
+        cornerRadius = 50.dp,
+        // Miuix v0.9.4 draws this drop shadow outside the bar. Keeping it disabled for every
+        // animation frame removes the one-frame shadow fringe when AnimatedVisibility slides it.
+        shadowElevation = 0.dp,
+        showDivider = false,
+    ) {
         MiuixMainTabs.forEachIndexed { index, tab ->
             val selected = index == selectedIndex
             MiuixFloatingNavigationBarItem(

@@ -3,7 +3,8 @@ package com.agon.app.data
 import androidx.datastore.preferences.core.edit
 
 /**
- * 仓库的**设置写入域：外观、同步节奏、分类阈值、分类与位置清单（都只写自己那一两个 key）**（路线图 #5c，2026-09-18）。
+ * 仓库设置写入域：外观与 blur 偏好、同步节奏、分类阈值、分类与位置清单（路线图 #5c，2026-09-18）。
+ * blur / 液态玻璃两项会在一次 edit 内同步维护依赖 key。
  *
  * 形状为什么是「同包 `internal` 扩展函数」而不是类成员、以及为什么不选"门面转发"和"领域对象"，
  * 完整取舍写在 `RepositoryCore.kt` 的文件 KDoc 里（一次说清，别处只指路）。
@@ -50,6 +51,20 @@ internal suspend fun FoodRepository.setThemeStyle(name: String) {
 
 internal suspend fun FoodRepository.setFloatingNav(enabled: Boolean) {
     dataStore.edit { it[floatingNavKey] = enabled }
+}
+
+internal suspend fun FoodRepository.setMiuixBlurEnabled(enabled: Boolean) {
+    dataStore.edit { prefs ->
+        prefs[miuixBlurEnabledKey] = enabled
+        if (!enabled) prefs[liquidGlassNavEnabledKey] = false
+    }
+}
+
+internal suspend fun FoodRepository.setLiquidGlassNavEnabled(enabled: Boolean) {
+    dataStore.edit { prefs ->
+        prefs[liquidGlassNavEnabledKey] = enabled
+        if (enabled) prefs[miuixBlurEnabledKey] = true
+    }
 }
 
 internal suspend fun FoodRepository.setAutoSyncDays(days: Int) {

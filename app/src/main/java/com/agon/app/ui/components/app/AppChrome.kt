@@ -10,6 +10,7 @@ package com.agon.app.ui.components.app
 //
 // 2026-09-16 由 ConsumptionLogScreen + MiuixConsumptionLogScreen 合并时抽出。
 
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.RowScope
@@ -26,12 +27,19 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.text.font.FontWeight
 import com.agon.app.ui.theme.LocalThemeStyle
 import com.agon.app.ui.theme.ThemeStyle
 import top.yukonga.miuix.kmp.basic.Scaffold as MiuixScaffold
+import top.yukonga.miuix.kmp.blur.layerBackdrop
+import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
+import top.yukonga.miuix.kmp.blur.textureBlur
+import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.basic.TopAppBar as MiuixTopAppBar
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
@@ -71,8 +79,22 @@ fun AppTopBar(
     actions: @Composable RowScope.() -> Unit = {},
 ) {
     if (LocalThemeStyle.current == ThemeStyle.MIUIX) {
+        val activeBackdrop = if (LocalMiuixBlurEnabled.current) LocalMiuixBackdrop.current else null
+        val blurActive = activeBackdrop != null
+        val topBarModifier = if (activeBackdrop != null) {
+            Modifier.textureBlur(
+                backdrop = activeBackdrop,
+                shape = RectangleShape,
+                blurRadius = 22f,
+                colors = rememberMiuixSurfaceBlurColors(alpha = 0.82f),
+            )
+        } else {
+            Modifier
+        }
         MiuixTopAppBar(
             title = title,
+            modifier = topBarModifier,
+            color = if (blurActive) Color.Transparent else MiuixTheme.colorScheme.surface,
             subtitle = subtitle ?: "",
             navigationIcon = { AppBarNavIcon(onBack, onClose) },
             actions = actions,
@@ -172,23 +194,44 @@ fun AppScaffold(
     content: @Composable (PaddingValues) -> Unit,
 ) {
     if (LocalThemeStyle.current == ThemeStyle.MIUIX) {
-        MiuixScaffold(
-            modifier = modifier,
-            snackbarHost = {
-                if (snackbar != null) AppSnackbarHost(snackbar, snackbarModifier, snackbarPlacement, snackbarForm)
-            },
-            topBar = {
-                AppTopBar(
-                    title = title,
-                    onBack = onBack,
-                    onClose = onClose,
-                    selectionMode = selectionMode,
-                    subtitle = subtitle,
-                    actions = actions,
-                )
-            },
-            content = content,
-        )
+        val pageSurfaceColor = MiuixTheme.colorScheme.surface
+        val pageBackdrop = if (LocalMiuixBlurEnabled.current) {
+            rememberLayerBackdrop {
+                drawRect(pageSurfaceColor)
+                drawContent()
+            }
+        } else {
+            null
+        }
+        CompositionLocalProvider(LocalMiuixBackdrop provides pageBackdrop) {
+            MiuixScaffold(
+                modifier = modifier,
+                snackbarHost = {
+                    if (snackbar != null) {
+                        AppSnackbarHost(snackbar, snackbarModifier, snackbarPlacement, snackbarForm)
+                    }
+                },
+                topBar = {
+                    AppTopBar(
+                        title = title,
+                        onBack = onBack,
+                        onClose = onClose,
+                        selectionMode = selectionMode,
+                        subtitle = subtitle,
+                        actions = actions,
+                    )
+                },
+                content = { innerPadding ->
+                    if (pageBackdrop != null) {
+                        Box(Modifier.fillMaxSize().layerBackdrop(pageBackdrop)) {
+                            content(innerPadding)
+                        }
+                    } else {
+                        content(innerPadding)
+                    }
+                },
+            )
+        }
     } else {
         val scrollBehavior = if (subtitle != null) {
             TopAppBarDefaults.exitUntilCollapsedScrollBehavior()

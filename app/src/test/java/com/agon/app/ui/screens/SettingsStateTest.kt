@@ -45,6 +45,14 @@ class SettingsStateTest {
             calls += "setFloatingNav($enabled)"
         }
 
+        override fun setMiuixBlurEnabled(enabled: Boolean) {
+            calls += "setMiuixBlurEnabled($enabled)"
+        }
+
+        override fun setLiquidGlassNavEnabled(enabled: Boolean) {
+            calls += "setLiquidGlassNavEnabled($enabled)"
+        }
+
         override fun setAutoSyncDays(days: Int) {
             calls += "setAutoSyncDays($days)"
         }
@@ -107,6 +115,8 @@ class SettingsStateTest {
         paletteNameState = palette,
         themeStyleNameState = mutableStateOf("MATERIAL3"),
         floatingNavState = mutableStateOf(true),
+        miuixBlurEnabledState = mutableStateOf(true),
+        liquidGlassNavEnabledState = mutableStateOf(false),
         itemsState = mutableStateOf(emptyList<FoodItem>()),
         archivedState = mutableStateOf(emptyList<ArchivedItem>()),
         categoriesState = mutableStateOf(emptyList<CategoryDef>()),
@@ -191,6 +201,8 @@ class SettingsStateTest {
 
         state.setDarkMode(1)
         state.setFloatingNav(false)
+        state.setMiuixBlurEnabled(false)
+        state.setLiquidGlassNavEnabled(true)
         state.setAutoSyncDays(7)
         state.clearAll()
         // #4c 之后这 5 个不再要回调参数，可以直接调 ⇒ 顺手补上转发覆盖
@@ -203,7 +215,8 @@ class SettingsStateTest {
 
         assertEquals(
             listOf(
-                "setDarkMode(1)", "setFloatingNav(false)", "setAutoSyncDays(7)", "clearAll",
+                "setDarkMode(1)", "setFloatingNav(false)", "setMiuixBlurEnabled(false)",
+                "setLiquidGlassNavEnabled(true)", "setAutoSyncDays(7)", "clearAll",
                 "syncUpload", "loadCloudBackups",
                 "syncDownload(chileme_backup_20260918_090000.json)",
                 "restoreLocalSnapshot(snapshot-1.json)", "importBackupWithSnapshot",

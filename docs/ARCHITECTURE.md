@@ -19,6 +19,7 @@
 - ~~ML Kit OCR~~ 已于 v2.5 移除（识别率低），`DateOcr.kt` 已删除
 - MaterialKolor `com.materialkolor:material-kolor:4.0.1`（MD3 种子色生成主题，v2.2 起）
 - Miuix `miuix-ui` / `miuix-preference` / `miuix-icons` 0.9.4（common 坐标，Gradle 解析到 android 变体）；导航用 `miuix-nav-android:0.9.4`
+- Miuix blur `miuix-blur-android:0.9.4`（上游 API 33+；项目保持 minSdk 26，通过 `isRuntimeShaderSupported()` 在 API 26–32 使用实色回退，manifest override 只用于绕过 AAR 元数据的最低 SDK 声明）
 - OkHttp `com.squareup.okhttp3:okhttp:4.12.0`（坚果云 WebDAV 同步，v2.4 起；只声明一次）
 
 ## 2. 分层结构
@@ -26,14 +27,15 @@
 ```
 app/src/main/java/com/agon/app/
 ├─ MainActivity.kt              # 单 Activity：深浅色/风格分流、启动放行超时（READY_TIMEOUT_MS）、splash、CompositionLocalProvider
-├─ MainApp.kt                   # App 外壳：backStack / pagerState / 多选 / Snackbar 收集 / nestedScroll + Scaffold（底栏槽位、FAB）+ Snackbar 覆盖层
+├─ MainApp.kt                   # App 外壳：backStack / pagerState / 多选 / nestedScroll + Scaffold；MIUIX blur backdrop 只从页面内容采样，底栏不捕获自身
+├─ LiquidGlassLens.kt           # Miuix blur 公开 runtimeShaderEffect API 上的胶囊折射 lens（仅 API 33+ 液态玻璃底栏启用）
 ├─ AppNavGraph.kt               # 全 App 唯一的 NavDisplay + 8 个 entry<AppRoute.*>（外层 Box 限宽 840dp 居中）
 ├─ BatchBars.kt                 # 批量操作栏：悬浮 / 常驻两条（BatchActionBar + 3 个按钮）
 ├─ NavChrome.kt                 # TabSpec / MainTabs + MainTabsPager + 4 套底栏（MD3/MIUIX × 常驻/悬浮）
-#   ↑ 以上 5 个文件同属包 com.agon.app（App 外壳），2026-09-16 由原 MainActivity.kt（1,123 行）按职责拆出；
+#   ↑ 原始 5 个拆分文件（MainActivity / MainApp / AppNavGraph / BatchBars / NavChrome）同属包 com.agon.app，2026-09-16 由原 MainActivity.kt（1,123 行）按职责拆出；
 #     拆出的第 6 份是弹窗 AppDialogs.kt，2026-09-17 又搬去 ui/components/app/AppBatchMoveDialog.kt（见下）；
 #     跨文件引用的顶层声明由 private 放宽为 internal（模块内可见，非公开 API；R8 照常裁剪）
-#     ↑ 2026-09-18 #5a 起本包另有一个非拆分的文件 ChiliMeApp.kt（唯一的 Application 子类，73 行）。上面「以上 5 个文件」指 09-16 那次拆分的产物，不含它 ——这一行是 09-20 文档审计补的：#5a 当时只写了条目正文，没进目录树，doc-metrics 的「拆分后的机械账」抓出来的。
+#     ↑ 2026-09-18 #5a 起本包另有非拆分文件 ChiliMeApp.kt；2026-10-01 又加 LiquidGlassLens.kt。上面「原始 5 个文件」指 09-16 拆分产物，不含这两者；ChiliMeApp 是 Application 子类。
 ├─ data/                        # 数据层（无 UI 依赖）
 │   ├─ FoodModels.kt            # 数据模型 + 派生属性（过期计算/状态判定）+ 纯函数（compactConsumptionAt 等）
 │   ├─ FoodRepository.kt        # 唯一持久化入口（DataStore）；含 Decoded 三态、写守卫、DecodeCache
@@ -41,7 +43,7 @@ app/src/main/java/com/agon/app/
 │   ├─ FoodItems.kt             # 库存领域：种子数据、新增 / 编辑一条库存、批量改存放位置（#5c，106 行）
 │   ├─ FoodConsumption.kt       # 消耗与库存变动：改数量（含临期自动归档）、增删消耗记录、撤销、旧数据补 id（#5c，186 行）
 │   ├─ FoodArchive.kt           # 归档领域：归档、单条与批量恢复、删除归档条目、清空归档 + `ARCHIVE_RETENTION` 截断与溢出计数（#5c / M1-3，172 行）
-│   ├─ FoodSettings.kt          # 设置写入域：外观、同步节奏、分类阈值、分类与位置清单（都只写自己那一两个 key）（#5c，65 行）
+│   ├─ FoodSettings.kt          # 设置写入域：外观与 blur 偏好（玻璃/blur 两 key 原子维护）、同步节奏、分类阈值、分类与位置清单（#5c，80 行）
 │   ├─ FoodCredentials.kt       # 凭据域：坚果云账号与密码的加密写入、旧版明文密码的启动迁移、凭据文件搬迁（#5c；凭据独立 DataStore 为 M1-1，91 行）
 │   ├─ FoodBackup.kt            # 备份、导出与整体清空：这三类都要一次性读写全部 key（#5c，124 行）
 │   ├─ BackupFile.kt            # 备份文件读写：readBackupText（IO 线程 + 20MB 上限）/ previewBackup / fileStamp
@@ -61,7 +63,7 @@ app/src/main/java/com/agon/app/
 │   ├─ AppViewModelArchiveUndo.kt # VM 的归档与消耗撤销领域 6 个函数（单件归档/恢复 + 消耗记录删除与撤销；#10b-3，2026-09-19）
 │   ├─ AppViewModelFood.kt      # VM 的食物 CRUD 与批量领域 11 个函数（新增/编辑、数量增减、批量归档与恢复、清空与放弃损坏数据；#10b-4，2026-09-19）
 │   ├─ AppViewModelCategoryLocation.kt # VM 的分类与位置领域 7 个函数（分类增删改与阈值、位置增删与批量改位置；#10b-5，2026-09-19）
-│   ├─ AppViewModelSettings.kt   # VM 的设置领域 6 个一行体函数（自动同步天数 + 5 个外观/主题开关；6 个名字与 data/FoodSettings.kt 全撞；#10b-6，2026-09-19）
+│   ├─ AppViewModelSettings.kt   # VM 设置写入扩展；#10b-6 原 6 个函数，2026-10-01 增加 Miuix blur / liquid-glass 两项
 │   ├─ AppViewModelUiState.kt    # VM 的 UI 状态与事件领域 5 个函数（FAB 抑制 / 多选集三件套 / emit 唯一发送点；#10b-7，2026-09-19）
 │   └─ AppViewModelStartup.kt   # 启动编排（#11f，2026-09-19）：`runPantryStartup()` = 播种 → 凭据搬家 → 明文加密 → 消耗 ID 迁移 → 损坏态门内的孤儿封面清理 → 自动同步 → 自动快照；顺序即正确性，判据在 `AppViewModelStartupTest`
 └─ ui/
@@ -74,7 +76,7 @@ app/src/main/java/com/agon/app/
     │                           #   MiuixDialog.kt（WindowDialog 封装）；另有原本就独立的 UndoSnackbar.kt · ExpiryCalendar.kt
     │   ├─ StatsCharts.kt       # 统计页两个图表件（DonutChart / LegendRow，09-19 #11d ① 从 StatsScreen.kt 下沉；层界由 StatsChartsLocationTest 守住：ui/screens/ 下不得出现 Canvas( ）
     │   ├─ CalendarMonthLayout.kt # 月网格排版数学（leading / daysInMonth / cells / rows + 第几号），09-19 #11e 从 ExpiryCalendar 的 MonthGrid 抽出 ⇒ 渲染体里的算式变成可单测；真值表见 CalendarMonthLayoutTest
-    │   └─ app/                 # App 级双主题骨架（2026-09-16 第三批 #3 新建 10 个文件 2,746 行；2026-09-17 增至 12，09-19 #11a/#11b 各拆一刀 → 现 16 个）：
+    │   └─ app/                 # App 级双主题骨架（2026-09-16 第三批 #3 新建 10 个文件 2,746 行；2026-09-17 增至 12，09-19 #11a/#11b 各拆一刀 → 现 17 个）：
     │                           #   AppChrome.kt（AppScaffold / AppTopBar / AppBarNavIcon —— 11b 之后只剩这三件，其余在下面四行）
     │                           #   AppSnackbar.kt（AppSnackbarHost / rememberAppSnackbarHostState / AppSnackbarHostState + Placement / Form，11b 从 AppChrome.kt 拆出：235 行 7 个顶层声明）
     │                           #   AppMessageScreen.kt（通用「消息 + 单个动作」屏，导入成功页在用；11b 拆出）
@@ -84,6 +86,7 @@ app/src/main/java/com/agon/app/
     │                           #   AppSurface.kt · AppListRow.kt · AppControls.kt · AppButtons.kt · AppInfo.kt
     │                           #   AppConfirmDialog.kt · AppFormDialog.kt · AppOptionDialog.kt（确认 / 带输入框 / 选项列表 三类弹窗）
     │                           #   AppIme.kt（stickyImePadding()：MD3 输入弹窗的粘性键盘避让，2026-09-17 新增）
+    │                           #   MiuixBlurLocals.kt（页面 backdrop / blur 与液态玻璃导航的 CompositionLocal + surface tint）
     │                           #   AppBatchMoveDialog.kt（批量「移动存放位置」弹窗，2026-09-17 由包根 AppDialogs.kt 搬来）
     └─ screens/                 # 每屏一文件，自带 Scaffold。两层结构（2026-08-22 B-08 起）：
                                 # ① *State.kt 状态容器（8 个）：remember*UiState + 纯计算函数，双主题共用、单测覆盖
@@ -131,7 +134,7 @@ app/src/main/java/com/agon/app/
 | `Map<String,Int>` | `category_thresholds` | 分类临期阈值；key 为 `CategoryDef.id`（不是枚举名/显示名） |
 | `BackupData` | （导出文件） | 以上全部数据的聚合，version=`BACKUP_VERSION`(=2)（含 categories/locations；v1 文件可兼容导入）。导入前必须经 `previewBackup()` 校验（含 `items` 键） |
 
-其他 key：`seeded`(Boolean)、`dynamic_color`(Boolean)、`dark_mode`(Int: 0跟随/1浅/2深)、`palette`(String: AppPalette 枚举名，默认 "MINT")、`theme_style`(String: ThemeStyle 枚举名，默认 "MATERIAL3")、`floating_nav`(Boolean: 悬浮导航开关，默认 true)（v2.8）。
+其他 key：`seeded`(Boolean)、`dynamic_color`(Boolean)、`dark_mode`(Int: 0跟随/1浅/2深)、`palette`(String: AppPalette 枚举名，默认 "MINT")、`theme_style`(String: ThemeStyle 枚举名，默认 "MATERIAL3")、`floating_nav`(Boolean: 悬浮导航开关，默认 true)、`miuix_blur_enabled`(Boolean: Miuix 背景模糊偏好，默认 true，运行时仍需 API 33+)、`liquid_glass_nav_enabled`(Boolean: 液态玻璃悬浮底栏，默认 false；依赖 blur，开玻璃时原子开启 blur)（v2.8 / 2026-10-01）。
 
 **状态判定逻辑**（FoodModels.kt）：`statusForAt(thresholds, today)` — 过期: daysLeft<0；临期: daysLeft<=有效阈值；有效阈值 = 单条覆盖 ?: 分类设置 ?: 7。UI 一律用 `statusForAt`（`today` 取 `LocalToday`，跨零点才会刷新），不要自行比较天数，也不要再用内部取 `LocalDate.now()` 的旧属性。
 
@@ -206,7 +209,7 @@ app/src/main/java/com/agon/app/
 - **统计口径（2026-09-15）**：「过期浪费」= `calculateWastedTotal(archived)`，按**件数**（`sumOf { item.quantity }`）而非归档条数，与同屏按件求和的「本周消耗」保持一致。注意该指标仍受归档保留上限影响（`FoodArchive.ARCHIVE_RETENTION`，被挤掉的旧归档不计入，见 `StatsState` 的口径注释）；2026-09-19（M1-3）已把「静默截断」变成「有账可查」——上限抬高到常量所指的值，且每次挤掉的条数累计写入 `archive_overflow_total`（`FoodRepository.archiveOverflowFlow`，目前无 UI 消费，接提示时不必再动仓库层），长期不失真那一步（独立计数器）即由此达成
 - **「件」与「条」的用词规则（2026-09-15）**：写给用户的**带「件」的文案必须是 `quantity` 求和**（`BackupData.itemQuantity` / `HomeScreenState.quantityOfStatus` / `StatsState` 的按件字段），`items.size` 只能出现在「条/记录」语境或**不带单位**的筛选计数里（首页三张统计卡不带单位、点进去是记录列表）。归档/消耗/历史一律「条」。已按此修正：首页新鲜度横幅、一键清理按钮及其撤销提示、导入预览的库存位数
 - **屏幕只换外壳（2026-09-15 立规，2026-09-16 扩大范围）**：屏幕文件（`*Screen.kt` / `*Screens.kt`）必须调用 `remember*UiState` 复用已测状态容器，**禁止在 UI 文件里重写聚合计算**；`ScreenParityTest`（原名 `MiuixParityTest`，因双主题合并后文件名不再带 `Miuix` 前缀，按前缀枚举会漏掉刚合并的屏幕，故改为覆盖全部屏幕文件；⚠️ #10a-1 起两条规则的扫描面**不再同宽** —— 规则 1（必须调 `remember*UiState`）仍只按 `*Screen.kt` / `*Screens.kt` 点名，规则 2（禁止内联聚合）加宽到目录内除 `*State.kt` 的所有文件，否则搬进 `*Dialogs.kt` 的弹窗代码会静默逃出守卫）会静态拦截（此前 `MiuixStatsScreen` 手抄了一份统计逻辑，导致 `StatsStateTest` 测的是 MIUIX 下不执行的代码）
-- **App 级组件层（2026-09-16，第三批 #3）**：屏幕骨架下沉到 `ui/components/app/`（16 文件，#11a/#11b 各加过一刀；**行数不在本文件维护**，实测见 doc-metrics「App 级组件层」那行），屏幕本体只保留一份业务结构，主题分流全部发生在组件层内部（`LocalThemeStyle`）。**组件清单与每个组件的关键约定（含已踩过的坑）见 `docs/DESIGN_SPEC.md` §4.1 —— 那是唯一事实源**。本条此前是一份 4,254 字符的逐轮累加清单，与 `CLAUDE.md` §5、`DESIGN_SPEC.md` §7 的两份手抄清单互为重复（三份分别提到 56 / 43 / 55 个组件名，CLAUDE 那份 93% 与本文重叠，而本文这份还**漏了 `AppStatusCard`**），2026-09-17 合并为一处。这里只留**架构层**的三条约定：
+- **App 级组件层（2026-09-16，第三批 #3）**：屏幕骨架下沉到 `ui/components/app/`（现 17 文件，含 2026-10-01 新增的 Miuix blur CompositionLocal；**行数不在本文件维护**，实测见 doc-metrics「App 级组件层」那行），屏幕本体只保留一份业务结构，主题分流全部发生在组件层内部（`LocalThemeStyle`）。**组件清单与每个组件的关键约定（含已踩过的坑）见 `docs/DESIGN_SPEC.md` §4.1 —— 那是唯一事实源**。本条此前是一份 4,254 字符的逐轮累加清单，与 `CLAUDE.md` §5、`DESIGN_SPEC.md` §7 的两份手抄清单互为重复（三份分别提到 56 / 43 / 55 个组件名，CLAUDE 那份 93% 与本文重叠，而本文这份还**漏了 `AppStatusCard`**），2026-09-17 合并为一处。这里只留**架构层**的三条约定：
   - **为什么要有这一层**：合并前加一个功能要「改两个文件 + 一处 if/else」；组件层让主题差异只有一个合法落点，边际成本降到「改一个文件」。八对合并后 `AppNavGraph.kt` 与 `NavChrome.kt` 都已零主题分支，唯一保留双份的是设置页 body（理由见 `DESIGN_SPEC.md` §7）。
   - **跨主题的宿主对象不得漏回屏幕层**：MD3 与 Miuix 的 `SnackbarHostState` 是**两个不相干的类型**，故 `AppSnackbarHostState` 对外只暴露 `showUndoSnackbar(): Boolean`，免得两个主题的 `SnackbarResult` 顺着签名漏回屏幕层（`isMiuix` 参与 `remember` key 的坑见 §4.1）。
   - **取色例外只有一个**：`appChartColors()`（统计页图表调色板）是「屏幕侧取色」**唯一**被承认的例外，其余一律走组件层的取色访问器（这些访问器 2026-09-19 #11a 起全部集中在 `ui/components/app/AppColors.kt`，位置由 `AppColorLocationTest` 钉住）；Miuix 色板没有 `tertiary` / `inversePrimary`，两份 8 色清单照抄不统一。
