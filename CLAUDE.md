@@ -21,7 +21,7 @@
 | `docs/DESIGN_SPEC.md` | 设计规范：配色、圆角、间距、字体层级、组件规范、动效规范 | 新建/修改任何 UI 前必读 |
 | `docs/WORKFLOW.md` | 开发流程：从需求到交付的标准执行步骤、代码规范、构建与验证、**CI 静态门禁（ktlint + detekt）**、常见错误处理 | 每次开发任务开始前必读；提交前跑 `bash tools/ci-gates.sh` |
 | `docs/MIUIX_UPGRADE.md` | Miuix 版本升级操作手册（上游基线查询、Version Catalog 单一版本位点、API 核对、常见坑） | 只在升级 Miuix / 工具链时读 |
-| `docs/ROADMAP.md` | **结构性改造的执行顺序 + 每项的证据/验收/风险**（第三批 #1–#9；#1–#3 已完成） | 决定「下一项做什么」前必读；开工前核对该项的风险与守卫清单 |
+| `docs/ROADMAP.md` | **活得路线图**：还没做完的项的**顺序 + 证据出处 + 验收 + 风险**（#1–#5、#10a/10b/10e、#11、外部评审 M1 已完成；历史执行记录冻结在 `docs/audits/2026-10-01-roadmap-snapshot.md`） | 决定「下一项做什么」前必读；开工前核对该项的风险与守卫清单 |
 | `tools/doc-metrics.sh` | **所有文档数字的测量口径**（一键复跑；含作用域、计数单位与零结果的阳性对照） | 文档里要写任何数字前先跑它；不要再手抄第二份口径 |
 | `tools/bootstrap-build-env.sh` | **本地构建环境自检/引导**（JDK 21 + Android SDK 36 + 仓库侧配置；`--check` 只读，`--install-sdk`/`--verify`/`--bootstrap` 才动手） | 第一次在新机器上要本地编译时；CI 之外想知道「这台机器编得了吗」 |
 
@@ -29,9 +29,10 @@
 
 - `.claude/skills/material-3/`：Material Design 3 实现与审计 skill（hamen/material-3-skill v1.1.1）。做 UI 相关任务时可参考其 SKILL.md 与 references/。
 - `.claude/skills/miuix/`：Miuix（HyperOS）Compose UI skill（limczhh/miuix-skill，证据基线 v0.9.4-rc01 @ 4a6b750b）。做「主题风格切换 / Miuix 组件」相关任务时参考其 SKILL.md 与 references/（组件 API 一律以 pinned source 为准，禁止凭 MD3 记忆臆造 Miuix 参数）。
-- 审计报告存放于 `docs/audits/`（10 份，如 `2026-07-31-md3-audit.md`）。修复审计问题时对照报告的 file:line 引用与优先级列表。
+- 审计报告与历史快照存放于 `docs/audits/`（**份数不要手抄** —— 用 `ls docs/audits/*.md | wc -l`；例如 `2026-07-31-md3-audit.md`，
+  以及 2026-10-01 冻结的路线图全文快照 `2026-10-01-roadmap-snapshot.md`）。修复审计问题时对照报告的 file:line 引用与优先级列表。
   ⚠️ **这些是历史快照，`file:line` 一律按当时基线读**（`Common.kt` 与 8 个 `Miuix*Screen.kt` 等文件此后已删除）。
-  10 份全部已在标题下加「状态批注」——**覆盖率不在此处手抄份数**，由 `bash tools/doc-metrics.sh` 的
+  全部已在标题下加「状态批注」——**覆盖率不在此处手抄份数**，由 `bash tools/doc-metrics.sh` 的
   「顶部无任何状态批注的报告 = **0** 份」这条守着（上一版写「09-17 那轮 6 份」，实际是 **9 份**、横跨 3 个提交，
   写下它的下一个提交就让这个数字过期了 —— 这正是本仓禁止手抄计数的原因）；
   按本仓约定**只加批注、不改写原文**，故正文里的过期数字是刻意保留的，别当现状引用。
@@ -45,7 +46,7 @@
   2. 日志内容包含：✅ 已完成事项（具体到功能点和改动文件）、📋 待办事项、⚠️ 已知问题/技术债、💡 决策记录（为什么这么做）
   3. 同步更新 `devlog/INDEX.md`：**日志列表加一行**（一天一行，只写主题与状态，细节留在当日日志）+「当前待办」节
   4. 待办完成后：从 INDEX「当前待办」移除，并把**一句话结论**追加到 INDEX「已完成里程碑」；
-     若属结构性改造（`docs/ROADMAP.md` 里的 #1–#9），同步更新那份的进度总览与该项状态
+     若属结构性改造（`docs/ROADMAP.md` 进度总览表里的编号项），同步更新那份的进度总览与该项状态
   5. **写数字前先跑 `bash tools/doc-metrics.sh`**，文档里注明「实测 N（口径见该脚本）」。
      禁止在多处手抄同一个数字 —— 本仓曾因此让单测数在 91→116→117→119→120→121 之间被反复加注修正
   6. CI 结果按 run 记进当日日志（一个 push 里的多个提交共用一次 run ⇒ 记一行、其余标「同上」；
