@@ -187,14 +187,15 @@ class SnackbarCopyTest {
     fun `主壳覆盖层的落位不变`() {
         val src = source(mainApp)
         // 主壳这条不是 AppScaffold 里的宿主，而是一个自定义覆盖层：底部对齐 + 导航栏避让 + 键盘避让 +
-        // 跟随底栏可见状态的动画偏移。四项缺一不可 —— 少 imePadding 就点不到键盘上方的「撤销」，
-        // 少动画偏移就会被悬浮底栏盖住。
+        // 跟随有效底栏可见状态的动画偏移。普通 Miuix 毛玻璃浮栏在滚动时可能仍固定显示，
+        // 因此偏移跟随 showBottomNav，而不是供 FAB 自动隐藏使用的 showChrome。
+        // 四项缺一不可 —— 少 imePadding 就点不到键盘上方的「撤销」，少动画偏移就会被悬浮底栏盖住。
         mapOf(
             ".align(Alignment.BottomCenter)" to 1,
             ".navigationBarsPadding()" to 1,
             ".imePadding()" to 1,
             "padding(bottom = snackbarOffset)" to 1,
-            "if (showChrome) 84.dp else 8.dp" to 1,
+            "if (showBottomNav) 84.dp else 8.dp" to 1,
             // 宿主形态：MD3 侧是可滑掉的 SwipeDismissSnackbarHost，Miuix 侧是库自带宿主。
             "SwipeDismissSnackbarHost(snackbarHostState)" to 1,
             "MiuixSnackbarHost(miuixSnackbarHostState)" to 1,
