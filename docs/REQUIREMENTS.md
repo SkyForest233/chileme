@@ -1,6 +1,6 @@
 # 需求规格说明（REQUIREMENTS）
 
-> 版本：见 `devlog/INDEX.md` 的最新日志（截至 2026-09-15 全部条目均已实现并验收）
+> 版本：见 `devlog/INDEX.md` 的最新日志；截至 2026-10-03，功能清单已补登至 F44（Miuix 毛玻璃与液态玻璃导航）。
 > 本文档是功能范围的唯一事实源。新需求必须先在此登记再开发。
 > **2026-09-16 补登记**：§3.2 / §3.3 回填了 v2.5–v2.8 与 2026-08-22 / 2026-09-15 两轮已上线但此前未登记的功能（F22–F43），并修正 §4 中「云同步」与 F20 坚果云备份的自相矛盾。
 
@@ -79,6 +79,12 @@
 | F41 | IME 键盘避让 | 含输入框的屏幕一律 `Scaffold(modifier = Modifier.imePadding())`；App 级浮层用 `.navigationBarsPadding().imePadding()`；MD3 弹窗需 `DialogProperties(decorFitsSystemWindows = false)`；底栏按产品决定不跟随抬升。回归守卫 `ImeHandlingTest` |
 | F42 | 月度聚合记录保护 | 90 天前的消耗记录按「年×月×名称×单位」聚合为一条并标 `aggregated=true`；该记录代表整月合计，**不可单条删除**（仓库层拒删 + 两套 UI 不给按钮） |
 | F43 | 统计口径按件数 | 「过期浪费」= `sumOf { quantity }`（件数）而非归档条数；带「件」的文案必须是 quantity 求和，`items.size` 只能出现在「条/记录」语境 |
+
+## 3.4 2026-10-03 增量（Miuix 毛玻璃与液态玻璃导航）
+
+| 编号 | 功能 | 要点 |
+|---|---|---|
+| F44 | Miuix 毛玻璃顶栏 / 底栏与液态玻璃导航 | `miuix_blur_enabled` 默认开启，在 API 33+ 为 Miuix 顶栏、常驻底栏与悬浮底栏提供 backdrop blur；设置页条目及有结果时的食品/归档列表内容可滚到顶栏后方，食品列表搜索/筛选保持固定，MD3 布局不变。API 26–32 禁用 blur 开关并回退实色。`liquid_glass_nav_enabled` 默认关闭，只作用于 Miuix 悬浮底栏，依赖悬浮导航与 blur；开启液态玻璃时自动确保 blur 开启。|
 
 ## 4. 明确不做（需求边界，用户已确认）
 

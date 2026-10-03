@@ -102,6 +102,7 @@ grep -rn "top.yukonga.miuix.kmp" app/src/main/java | sed 's/.*import //' | sort 
 - squircle 圆角（需 API 33+ 设备）
 - 图标显示、底部导航分流
 - Miuix 背景模糊与 iOS-like 液态玻璃开关；玻璃悬浮底栏可点击/拖拽切换 Tab，跨多页的指示器与 Pager 连续平滑移动并自然回弹；上边缘阴影在显隐动画中同步显示、无裁切/闪边；API 26–32 实色回退、API 33+ backdrop/vibrancy/lens 显示正常
+- 顶栏玻璃的滚动交叠：设置页条目与有结果的食品列表条目可从 Miuix 顶栏后方经过；食品列表搜索/筛选保持固定，首屏位置不变；MD3 布局不变，底栏仍自动隐藏/显示
 
 ---
 
