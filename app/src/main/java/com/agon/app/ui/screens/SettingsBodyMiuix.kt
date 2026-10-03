@@ -48,10 +48,12 @@ internal fun MiuixSettingsBody(
     onOpenArchive: () -> Unit,
 ) {
     val blurSupported = isRuntimeShaderSupported()
+    // Keep the list viewport behind Miuix's transparent, blurred app bar. Passing the
+    // Scaffold insets as scroll content padding preserves the initial layout while
+    // allowing settings rows to move beneath the glass surface during scrolling.
     LazyColumn(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(padding),
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = padding,
     ) {
         item(key = "appearance") {
             SmallTitle(text = "外观")
