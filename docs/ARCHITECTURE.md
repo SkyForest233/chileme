@@ -163,6 +163,7 @@ app/src/main/java/com/agon/app/
 > `HomeScreen.kt` / `FoodListScreen.kt` / `StatsScreen.kt` / `SettingsScreen.kt`）。**除编辑页外，每个路由都有 Miuix 实现**，运行时按 `LocalThemeStyle` 分流；**除编辑页外的 8 对屏幕已于 2026-09-16 全数合并为单文件双主题**（`ConsumptionLogScreen` / `ArchiveScreen` / `FoodDetailScreen` / `HomeScreen` / `FoodListScreen` / `ManageScreens` / `StatsScreen` / `SettingsScreen`，外壳差异走 `ui/components/app/` 的骨架组件；首页 / 列表页 / 统计页 / 设置页这四份由 `NavChrome.kt` 的 pager 直接调用，其余由 `AppNavGraph.kt` 直接调用 —— **这两个文件都已不含任何 `LocalThemeStyle` 分支**，`Miuix*Screen.kt` 双胞胎全部删除）。合并后主题分支只剩两处合法落点：`ui/components/app/` 的骨架组件，以及设置页那种「两版排版习语根本不同」的 body（`Md3SettingsBody` / `MiuixSettingsBody`，见 `devlog/2026-09-16.md` §15–§22）。无论一份还是两份，业务数据都必须来自同一份 `*State.kt` 状态容器，禁止在 UI 文件里重写业务计算（`ScreenParityTest` 静态拦截）。
 
 - 底栏 Tab：`AppRoute.Main` 内 HorizontalPager（home → list → stats → settings）；点击 Tab 用 `folmeSpring` 连滑，跨页会经过中间页。二级页走 miuix-nav `NavDisplay` + `NavTransitions.MiuixDefault`（全宽卡片滑 + 1/4 视差 + 圆角 dim），隐藏底栏与 FAB（`showChrome`）
+- MIUIX 顶栏玻璃采样需要可滚动内容延伸到顶栏后方：`MiuixSettingsBody` 保持全高 `LazyColumn`，把 Scaffold insets 放进 `contentPadding`；食品列表的 MIUIX 分支将固定搜索/筛选区的测量高度计入结果列表顶部留白，让库存与归档结果从顶栏后滚过，同时保持搜索/筛选控件固定。MD3 布局不变，底栏继续沿用 nested-scroll 自动隐藏/显示。
 - FAB（添加食品）仅在 home 与 list（Pager 第 0/1 页）显示
 - 新增路由：在 `AppRoute` 加类型 + 在 `AppNavGraph.kt` 的 `NavDisplay` 里注册 `entry` + 按需更新 `onTabs`/`showChrome`（两者都在 `MainApp.kt`），并更新本表
 
