@@ -16,9 +16,16 @@ package com.agon.app
 // 的推断类型暴露，也必须 internal（见下方声明处注释）；MiuixMainTabs 只在本文件内使用 → 保持 private。
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.expandVertically
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerState
@@ -36,6 +43,8 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.PieChart
@@ -51,7 +60,13 @@ import top.yukonga.miuix.kmp.basic.FloatingNavigationBar as MiuixFloatingNavigat
 import top.yukonga.miuix.kmp.basic.FloatingNavigationBarItem as MiuixFloatingNavigationBarItem
 import top.yukonga.miuix.kmp.basic.NavigationBar as MiuixNavigationBar
 import top.yukonga.miuix.kmp.basic.NavigationBarItem as MiuixNavigationBarItem
+import top.yukonga.miuix.kmp.basic.NavigationItem
 import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.blur.BlendColorEntry
+import top.yukonga.miuix.kmp.blur.BlurDefaults
+import top.yukonga.miuix.kmp.blur.highlight.Highlight
+import top.yukonga.miuix.kmp.blur.textureBlur
+import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.icon.extended.GridView
 import top.yukonga.miuix.kmp.icon.extended.Home
 import top.yukonga.miuix.kmp.icon.extended.ListView
@@ -62,15 +77,22 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import com.agon.app.ui.screens.FoodListScreen
 import com.agon.app.ui.screens.HomeScreen
 import com.agon.app.ui.screens.SettingsScreen
 import com.agon.app.ui.screens.StatsScreen
+import com.agon.app.ui.components.app.LocalMiuixBackdrop
+import com.agon.app.ui.components.app.LocalMiuixBlurEnabled
+import com.agon.app.ui.components.app.LocalMiuixLiquidGlassNavEnabled
+import com.agon.app.ui.components.app.rememberMiuixSurfaceBlurColors
 import com.agon.app.ui.theme.MotionEasing
+import com.agon.app.ui.theme.MotionSpring
 import com.agon.app.viewmodel.AppViewModel
 import kotlin.math.roundToInt
 
@@ -99,15 +121,21 @@ private val MiuixMainTabs = listOf(
     TabSpec("settings", "设置", MiuixIcons.Settings),
 )
 
+/** Miuix liquid-glass demo model, keeping the app's existing Miuix icons and tab order. */
+private val MiuixLiquidGlassTabs = MiuixMainTabs.map { tab ->
+    NavigationItem(label = tab.label, icon = tab.icon)
+}
+
 /**
  * 四个底栏 Tab 用 HorizontalPager 按索引左右连滑。
  * Miuix-nav 的 MultiPush 是堆栈推进（中间页被盖住），Tab 切换要露出中间页，故用 Pager。
- * 关闭手势翻页，避免和列表里横向 Chip 抢手势；点击底栏 / 首页卡片驱动 animateScrollToPage。
+ * 关闭手势翻页，避免和列表里横向 Chip 抢手势；点击底栏 / 首页卡片走 MainTabsPagerState 的主题分流动画。
  */
 @Composable
 internal fun MainTabsPager(
     viewModel: AppViewModel,
     pagerState: PagerState,
+    selectedTabIndex: Int,
     listFilter: String?,
     onOpenList: (String?) -> Unit,
     onOpenItem: (String) -> Unit,
@@ -118,7 +146,7 @@ internal fun MainTabsPager(
     onOpenLocations: () -> Unit,
     onBackToHome: () -> Unit,
 ) {
-    BackHandler(enabled = pagerState.currentPage != 0) { onBackToHome() }
+    BackHandler(enabled = selectedTabIndex != 0) { onBackToHome() }
     HorizontalPager(
         state = pagerState,
         userScrollEnabled = false,
@@ -157,10 +185,26 @@ internal fun MainTabsPager(
     }
 }
 
-/** MIUIX：全宽图标+文字底栏（HyperOS 风格）。 */
+/** MIUIX：全宽图标+文字底栏（HyperOS 风格），Android 13+ 可读页面 backdrop。 */
 @Composable
 internal fun MiuixBottomNav(selectedIndex: Int, onSelect: (Int) -> Unit) {
-    MiuixNavigationBar {
+    val backdrop = LocalMiuixBackdrop.current
+    val activeBackdrop = if (LocalMiuixBlurEnabled.current) backdrop else null
+    val blurActive = activeBackdrop != null
+    val modifier = if (activeBackdrop != null) {
+        Modifier.textureBlur(
+            backdrop = activeBackdrop,
+            shape = RectangleShape,
+            blurRadius = 22f,
+            colors = rememberMiuixSurfaceBlurColors(alpha = 0.82f),
+        )
+    } else {
+        Modifier
+    }
+    MiuixNavigationBar(
+        modifier = modifier,
+        color = if (blurActive) Color.Transparent else MiuixTheme.colorScheme.surface,
+    ) {
         MiuixMainTabs.forEachIndexed { index, tab ->
             val selected = index == selectedIndex
             MiuixNavigationBarItem(
@@ -173,21 +217,84 @@ internal fun MiuixBottomNav(selectedIndex: Int, onSelect: (Int) -> Unit) {
     }
 }
 
-/** MIUIX：居中悬浮底栏（仅图标）。 */
+/** Miuix：常规悬浮栏的毛玻璃参数与 v0.9.4 演示 app 对齐；液态玻璃另走自定义栏。 */
 @Composable
 internal fun MiuixFloatingNav(selectedIndex: Int, onSelect: (Int) -> Unit) {
-    MiuixFloatingNavigationBar {
-        MiuixMainTabs.forEachIndexed { index, tab ->
-            val selected = index == selectedIndex
-            MiuixFloatingNavigationBarItem(
-                selected = selected,
-                onClick = { if (!selected) onSelect(index) },
-                icon = tab.icon,
-                label = tab.label,
+    val backdrop = LocalMiuixBackdrop.current
+    val activeBackdrop = if (LocalMiuixBlurEnabled.current) backdrop else null
+    val blurActive = activeBackdrop != null
+    val liquidGlass = blurActive && LocalMiuixLiquidGlassNavEnabled.current
+    val pillShape = remember { RoundedCornerShape(50.dp) }
+    val surfaceContainerColor = MiuixTheme.colorScheme.surfaceContainer
+
+    if (liquidGlass && activeBackdrop != null) {
+        MiuixLiquidGlassNavigationBar(
+            items = MiuixLiquidGlassTabs,
+            selectedIndex = selectedIndex,
+            onItemClick = onSelect,
+            backdrop = activeBackdrop,
+            isBlurActive = true,
+        )
+    } else {
+        val isDark = MiuixTheme.colorScheme.surface.luminance() < 0.5f
+        val floatingHighlight = remember(isDark) {
+            if (isDark) Highlight.GlassStrokeMiddleDark else Highlight.GlassStrokeMiddleLight
+        }
+        val edgeColor = MiuixTheme.colorScheme.dividerLine.copy(alpha = 0.58f)
+        val barModifier = if (activeBackdrop != null) {
+            Modifier.textureBlur(
+                backdrop = activeBackdrop,
+                shape = pillShape,
+                blurRadius = 25f,
+                colors = BlurDefaults.blurColors(
+                    blendColors = listOf(
+                        BlendColorEntry(color = surfaceContainerColor.copy(alpha = 0.6f)),
+                    ),
+                ),
+                highlight = floatingHighlight,
             )
+        } else {
+            Modifier.border(width = 0.8.dp, color = edgeColor, shape = pillShape)
+        }
+
+        // Reserve the built-in 10dp shadow above the row inside the Scaffold/visibility bounds.
+        Box(modifier = Modifier.padding(top = 12.dp)) {
+            MiuixFloatingNavigationBar(
+                modifier = barModifier,
+                color = if (blurActive) Color.Transparent else surfaceContainerColor,
+                cornerRadius = 50.dp,
+                // Positive values enable Miuix's built-in 10dp-radius drop shadow.
+                shadowElevation = 1.dp,
+                showDivider = false,
+            ) {
+                MiuixMainTabs.forEachIndexed { index, tab ->
+                    val selected = index == selectedIndex
+                    MiuixFloatingNavigationBarItem(
+                        selected = selected,
+                        onClick = { if (!selected) onSelect(index) },
+                        icon = tab.icon,
+                        label = tab.label,
+                    )
+                }
+            }
         }
     }
 }
+
+/** Keep the app's floating pill shadow visible during its expand/collapse transition. */
+internal fun miuixFloatingNavEnterTransition(): EnterTransition =
+    expandVertically(
+        animationSpec = MotionSpring.expand<IntSize>(),
+        expandFrom = Alignment.Bottom,
+        clip = false,
+    ) + fadeIn(MotionSpring.expand<Float>())
+
+internal fun miuixFloatingNavExitTransition(): ExitTransition =
+    shrinkVertically(
+        animationSpec = MotionSpring.collapse<IntSize>(),
+        shrinkTowards = Alignment.Bottom,
+        clip = false,
+    ) + fadeOut(MotionSpring.collapse<Float>())
 
 /** Material 3：全宽图标+文字底栏（非悬浮态）。 */
 @Composable

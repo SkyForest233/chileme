@@ -4,7 +4,9 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -16,11 +18,19 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.agon.app.data.byId
 import com.agon.app.data.statusForAt
@@ -38,18 +48,21 @@ import com.agon.app.ui.components.app.AppHistoryNote
 import com.agon.app.ui.components.app.AppScaffold
 import com.agon.app.ui.components.app.AppSearchField
 import com.agon.app.ui.components.app.AppSelectAllAction
+import com.agon.app.ui.theme.LocalThemeStyle
 import com.agon.app.ui.theme.MotionEasing
+import com.agon.app.ui.theme.ThemeStyle
 import com.agon.app.ui.theme.filterPanelEnter
 import com.agon.app.ui.theme.filterPanelExit
 import com.agon.app.viewmodel.AppViewModel
+import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /**
  * 食品列表页：搜索框 + 「筛选」胶囊 + 三排筛选 chip + 库存卡片（长按进多选）+ 搜索命中的归档条目。
  *
  * 2026-09-16 由 `FoodListScreen`(419) + `MiuixFoodListScreen`(411) 合并为单文件双主题（第三批 #3 第 5 对）。
- * 两版 830 行里只有 166 行不同，且差异**全在叶子上**：顶栏两态、搜索框、筛选胶囊与 chip 的取色/字形/弹簧、
- * 归档匹配行的外壳。库存卡片本来就是共用的 `FoodCard`，业务结构（BackHandler、筛选面板的
- * `AnimatedVisibility`、空态 `Crossfade`、`animateItem` 的 tween 规格）两版逐字相同。
+ * 两版 830 行里只有 166 行不同，差异集中在主题化控件与滚动容器：顶栏两态、搜索框、筛选胶囊与 chip 的
+ * 取色/字形/弹簧、归档匹配行的外壳。库存卡片本来就是共用的 `FoodCard`；搜索、筛选、空态转场与行操作仍共享，
+ * 仅 Miuix 将搜索/筛选保留为固定前景，并让全高列表在其下方延伸到顶栏后面；MD3 保持原来的固定搜索区布局。
  *
  * 几处照抄而非统一的地方：
  * - **顶栏多选态**：MD3 恒用 `SelectAll` 字形只换 contentDescription，Miuix 已全选时换成 `Close`
@@ -101,167 +114,300 @@ fun FoodListScreen(
             }
         },
     ) { padding ->
+        if (LocalThemeStyle.current == ThemeStyle.MIUIX) {
+            MiuixFoodListBody(
+                state = state,
+                padding = padding,
+                onOpenItem = onOpenItem,
+            )
+        } else {
+            Md3FoodListBody(
+                state = state,
+                padding = padding,
+                onOpenItem = onOpenItem,
+            )
+        }
+    }
+}
+
+/**
+ * Miuix: keep search/filters pinned while the full-height list scrolls beneath the app bar.
+ * The measured header inset preserves the initial layout and lets AppTopBar's backdrop sample
+ * moving food rows, making the glass effect visible just like it is on StatsScreen.
+ */
+@Composable
+private fun MiuixFoodListBody(
+    state: FoodListUiState,
+    padding: PaddingValues,
+    onOpenItem: (String) -> Unit,
+) {
+    Crossfade(
+        targetState = state.filtered.isEmpty() && state.archivedMatches.isEmpty(),
+        label = "foodListEmptyCrossfade",
+        modifier = Modifier.fillMaxSize(),
+    ) { isEmpty ->
+        if (isEmpty) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(top = padding.calculateTopPadding()),
+            ) {
+                FoodListControls(state)
+                Spacer(Modifier.height(8.dp))
+                FoodListEmptyState(state)
+            }
+        } else {
+            MiuixFoodListResultsBody(
+                state = state,
+                padding = padding,
+                onOpenItem = onOpenItem,
+            )
+        }
+    }
+}
+
+@Composable
+private fun MiuixFoodListResultsBody(
+    state: FoodListUiState,
+    padding: PaddingValues,
+    onOpenItem: (String) -> Unit,
+) {
+    val density = LocalDensity.current
+    var controlsHeightPx by remember { mutableIntStateOf(0) }
+    val controlsHeight = with(density) { controlsHeightPx.toDp() }
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        if (controlsHeightPx > 0) {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(
+                    top = padding.calculateTopPadding() + controlsHeight + 4.dp,
+                    bottom = padding.calculateBottomPadding() + 96.dp,
+                ),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                foodListRows(state, onOpenItem, horizontalInset = 20.dp)
+            }
+        }
+
         Column(
             modifier = Modifier
-                .fillMaxSize()
+                .fillMaxWidth()
                 .padding(top = padding.calculateTopPadding()),
         ) {
-            Row(
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 20.dp),
-                verticalAlignment = Alignment.CenterVertically,
+                    .background(MiuixTheme.colorScheme.surface)
+                    .onSizeChanged { size ->
+                        if (controlsHeightPx != size.height) controlsHeightPx = size.height
+                    },
             ) {
-                AppSearchField(
-                    value = state.query,
-                    onValueChange = { state.setQuery(it) },
-                    label = "搜索食品…",
-                    modifier = Modifier.weight(1f),
-                )
-                Spacer(Modifier.width(10.dp))
-                AppFilterToggle(
-                    expanded = state.filtersExpanded,
-                    activeCount = state.activeFilterCount,
-                    onClick = { state.setFiltersExpanded(!state.filtersExpanded) },
-                )
+                FoodListControls(state)
+                Spacer(Modifier.height(8.dp))
             }
+        }
+    }
+}
 
-            AnimatedVisibility(
-                visible = state.filtersExpanded,
-                enter = filterPanelEnter(),
-                exit = filterPanelExit(),
-            ) {
-                Column(Modifier.padding(top = 10.dp)) {
-                    AppFilterSectionLabel("状态")
-                    LazyRow(
-                        contentPadding = PaddingValues(horizontal = 20.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        items(FoodStatusFilter.entries.toList()) { f ->
-                            AppFilterChip(
-                                selected = state.statusFilter == f,
-                                onClick = { state.setStatusFilter(f) },
-                                label = f.label,
-                            )
-                        }
+/** MD3 keeps its existing fixed search/filter column and content layout unchanged. */
+@Composable
+private fun Md3FoodListBody(
+    state: FoodListUiState,
+    padding: PaddingValues,
+    onOpenItem: (String) -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(top = padding.calculateTopPadding()),
+    ) {
+        FoodListControls(state)
+        Spacer(Modifier.height(8.dp))
+        Crossfade(
+            targetState = state.filtered.isEmpty() && state.archivedMatches.isEmpty(),
+            label = "foodListEmptyCrossfade",
+            modifier = Modifier.fillMaxSize(),
+        ) { isEmpty ->
+            if (isEmpty) {
+                FoodListEmptyState(state)
+            } else {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(
+                        start = 20.dp,
+                        end = 20.dp,
+                        top = 4.dp,
+                        bottom = padding.calculateBottomPadding() + 96.dp,
+                    ),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    foodListRows(state, onOpenItem, horizontalInset = 0.dp)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun FoodListControls(
+    state: FoodListUiState,
+    modifier: Modifier = Modifier,
+) {
+    Column(modifier = modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            AppSearchField(
+                value = state.query,
+                onValueChange = { state.setQuery(it) },
+                label = "搜索食品…",
+                modifier = Modifier.weight(1f),
+            )
+            Spacer(Modifier.width(10.dp))
+            AppFilterToggle(
+                expanded = state.filtersExpanded,
+                activeCount = state.activeFilterCount,
+                onClick = { state.setFiltersExpanded(!state.filtersExpanded) },
+            )
+        }
+
+        AnimatedVisibility(
+            visible = state.filtersExpanded,
+            enter = filterPanelEnter(),
+            exit = filterPanelExit(),
+        ) {
+            Column(Modifier.padding(top = 10.dp)) {
+                AppFilterSectionLabel("状态")
+                LazyRow(
+                    contentPadding = PaddingValues(horizontal = 20.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    items(FoodStatusFilter.entries.toList()) { filter ->
+                        AppFilterChip(
+                            selected = state.statusFilter == filter,
+                            onClick = { state.setStatusFilter(filter) },
+                            label = filter.label,
+                        )
                     }
+                }
+                Spacer(Modifier.height(4.dp))
+                AppFilterSectionLabel("分类")
+                LazyRow(
+                    contentPadding = PaddingValues(horizontal = 20.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    items(state.categories, key = { it.id }) { category ->
+                        AppFilterChip(
+                            selected = state.categoryFilter == category.id,
+                            onClick = {
+                                state.setCategoryFilter(
+                                    if (state.categoryFilter == category.id) null else category.id,
+                                )
+                            },
+                            label = "${category.emoji} ${category.label}",
+                            tone = AppChipTone.Secondary,
+                        )
+                    }
+                }
+                if (state.usedLocations.isNotEmpty()) {
                     Spacer(Modifier.height(4.dp))
-                    AppFilterSectionLabel("分类")
+                    AppFilterSectionLabel("位置")
                     LazyRow(
                         contentPadding = PaddingValues(horizontal = 20.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                        items(state.categories, key = { it.id }) { c ->
+                        items(state.usedLocations, key = { it }) { location ->
                             AppFilterChip(
-                                selected = state.categoryFilter == c.id,
-                                onClick = { state.setCategoryFilter(if (state.categoryFilter == c.id) null else c.id) },
-                                label = "${c.emoji} ${c.label}",
-                                tone = AppChipTone.Secondary,
-                            )
-                        }
-                    }
-                    if (state.usedLocations.isNotEmpty()) {
-                        Spacer(Modifier.height(4.dp))
-                        AppFilterSectionLabel("位置")
-                        LazyRow(
-                            contentPadding = PaddingValues(horizontal = 20.dp),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        ) {
-                            items(state.usedLocations, key = { it }) { loc ->
-                                AppFilterChip(
-                                    selected = state.locationFilter == loc,
-                                    onClick = { state.setLocationFilter(if (state.locationFilter == loc) null else loc) },
-                                    label = loc,
-                                    tone = AppChipTone.Tertiary,
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-            Spacer(Modifier.height(8.dp))
-
-            Crossfade(
-                targetState = state.filtered.isEmpty() && state.archivedMatches.isEmpty(),
-                label = "foodListEmptyCrossfade",
-                modifier = Modifier.fillMaxSize(),
-            ) { isEmpty ->
-                if (isEmpty) {
-                    EmptyState(
-                        emoji = if (state.items.isEmpty()) "🧺" else "🔍",
-                        title = if (state.items.isEmpty()) "零食柜还是空的" else "没有符合条件的食品",
-                        subtitle = if (state.items.isEmpty()) "点击下方“添加”开始记录吧" else "换个关键词或筛选条件试试",
-                    )
-                } else {
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(
-                            start = 20.dp,
-                            end = 20.dp,
-                            top = 4.dp,
-                            bottom = padding.calculateBottomPadding() + 96.dp,
-                        ),
-                        verticalArrangement = Arrangement.spacedBy(12.dp),
-                    ) {
-                        items(state.filtered, key = { it.id }) { item ->
-                            FoodCard(
-                                item = item,
-                                category = state.categories.byId(item.category),
-                                status = item.statusForAt(state.today, state.thresholds),
-                                selectionMode = state.selectionMode,
-                                selected = item.id in state.selectedIds,
+                                selected = state.locationFilter == location,
                                 onClick = {
-                                    if (state.selectionMode) {
-                                        state.toggleSelection(item.id)
-                                    } else {
-                                        onOpenItem(item.id)
-                                    }
+                                    state.setLocationFilter(
+                                        if (state.locationFilter == location) null else location,
+                                    )
                                 },
-                                onLongClick = {
-                                    state.toggleSelection(item.id)
-                                },
-                                onQuantityChange = { delta -> state.changeQuantity(item.id, delta) },
-                                modifier = Modifier.animateItem(
-                                    fadeInSpec = tween(280, easing = MotionEasing.EmphasizedDecelerate),
-                                    fadeOutSpec = tween(200, easing = MotionEasing.EmphasizedAccelerate),
-                                ),
+                                label = location,
+                                tone = AppChipTone.Tertiary,
                             )
-                        }
-
-                        // 归档中的搜索结果
-                        if (state.archivedMatches.isNotEmpty()) {
-                            item(key = "archive_header") {
-                                AppHistoryNote(
-                                    text = "归档中找到 ${state.archivedMatches.size} 条",
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(top = 8.dp)
-                                        .animateItem(),
-                                )
-                            }
-                            items(state.archivedMatches, key = { "arch_${it.item.id}" }) { entry ->
-                                AppActionRow(
-                                    title = entry.item.name,
-                                    subtitle = "${entry.reason.emoji} ${entry.reason.label}",
-                                    tone = AppCardTone.ContainerLow,
-                                    modifier = Modifier.animateItem(),
-                                    leading = {
-                                        FoodAvatar(
-                                            entry.item,
-                                            state.categories.byId(entry.item.category).emoji,
-                                            size = 40.dp,
-                                        )
-                                    },
-                                    onRestore = { state.restoreArchivedWithUndo(entry) },
-                                    restoreDescription = "恢复 ${entry.item.name}",
-                                    onDelete = { state.deleteArchived(entry.item.id) },
-                                    deleteDescription = "彻底删除 ${entry.item.name}",
-                                )
-                            }
                         }
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun FoodListEmptyState(state: FoodListUiState) {
+    EmptyState(
+        emoji = if (state.items.isEmpty()) "🧺" else "🔍",
+        title = if (state.items.isEmpty()) "零食柜还是空的" else "没有符合条件的食品",
+        subtitle = if (state.items.isEmpty()) "点击下方“添加”开始记录吧" else "换个关键词或筛选条件试试",
+    )
+}
+
+/** Shared food/archive rows so the theme-specific scroll layouts don't fork behavior. */
+private fun LazyListScope.foodListRows(
+    state: FoodListUiState,
+    onOpenItem: (String) -> Unit,
+    horizontalInset: Dp,
+) {
+    val itemInset =
+        if (horizontalInset == 0.dp) Modifier else Modifier.padding(horizontal = horizontalInset)
+    items(state.filtered, key = { it.id }) { item ->
+        FoodCard(
+            item = item,
+            category = state.categories.byId(item.category),
+            status = item.statusForAt(state.today, state.thresholds),
+            selectionMode = state.selectionMode,
+            selected = item.id in state.selectedIds,
+            onClick = {
+                if (state.selectionMode) {
+                    state.toggleSelection(item.id)
+                } else {
+                    onOpenItem(item.id)
+                }
+            },
+            onLongClick = { state.toggleSelection(item.id) },
+            onQuantityChange = { delta -> state.changeQuantity(item.id, delta) },
+            modifier = itemInset.animateItem(
+                fadeInSpec = tween(280, easing = MotionEasing.EmphasizedDecelerate),
+                fadeOutSpec = tween(200, easing = MotionEasing.EmphasizedAccelerate),
+            ),
+        )
+    }
+
+    // 归档中的搜索结果
+    if (state.archivedMatches.isNotEmpty()) {
+        item(key = "archive_header") {
+            AppHistoryNote(
+                text = "归档中找到 ${state.archivedMatches.size} 条",
+                modifier = itemInset
+                    .fillMaxWidth()
+                    .padding(top = 8.dp)
+                    .animateItem(),
+            )
+        }
+        items(state.archivedMatches, key = { "arch_${it.item.id}" }) { entry ->
+            AppActionRow(
+                title = entry.item.name,
+                subtitle = "${entry.reason.emoji} ${entry.reason.label}",
+                tone = AppCardTone.ContainerLow,
+                modifier = itemInset.animateItem(),
+                leading = {
+                    FoodAvatar(
+                        entry.item,
+                        state.categories.byId(entry.item.category).emoji,
+                        size = 40.dp,
+                    )
+                },
+                onRestore = { state.restoreArchivedWithUndo(entry) },
+                restoreDescription = "恢复 ${entry.item.name}",
+                onDelete = { state.deleteArchived(entry.item.id) },
+                deleteDescription = "彻底删除 ${entry.item.name}",
+            )
         }
     }
 }

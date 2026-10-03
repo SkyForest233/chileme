@@ -76,6 +76,7 @@ internal fun AppNavHost(
     chromeScrollConnection: NestedScrollConnection,
     viewModel: AppViewModel,
     pagerState: PagerState,
+    selectedTabIndex: Int,
     listFilter: String?,
     callbacks: AppNavCallbacks,
 ) {
@@ -117,6 +118,7 @@ internal fun AppNavHost(
                 MainTabsPager(
                     viewModel = viewModel,
                     pagerState = pagerState,
+                    selectedTabIndex = selectedTabIndex,
                     listFilter = listFilter,
                     onOpenList = { openList(it) },
                     onOpenItem = { navigate(AppRoute.Detail(it)) },

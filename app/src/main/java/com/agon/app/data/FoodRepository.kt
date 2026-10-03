@@ -115,6 +115,8 @@ class FoodRepository internal constructor(
     internal val paletteKey = stringPreferencesKey("palette")
     internal val themeStyleKey = stringPreferencesKey("theme_style")
     internal val floatingNavKey = booleanPreferencesKey("floating_nav")
+    internal val miuixBlurEnabledKey = booleanPreferencesKey("miuix_blur_enabled")
+    internal val liquidGlassNavEnabledKey = booleanPreferencesKey("liquid_glass_nav_enabled")
 
     // ⚠️ 下面 3 个是**凭据 key，住在 `credentialsStore`（`credentials_store.preferences_pb`）里、不在 `dataStore`**：
     // 业务数据那份文件随系统备份走，密钥一个字都不能进。读写两侧都必须显式带 `store = credentialsStore`
@@ -208,6 +210,12 @@ class FoodRepository internal constructor(
 
     val floatingNavFlow: Flow<Boolean> =
         lightFlow("floating_nav", fallback = true) { it[floatingNavKey] ?: true }
+
+    val miuixBlurEnabledFlow: Flow<Boolean> =
+        lightFlow("miuix_blur_enabled", fallback = true) { it[miuixBlurEnabledKey] ?: true }
+
+    val liquidGlassNavEnabledFlow: Flow<Boolean> =
+        lightFlow("liquid_glass_nav_enabled", fallback = false) { it[liquidGlassNavEnabledKey] ?: false }
 
     val nutstoreAccountFlow: Flow<String> =
         lightFlow("nutstore_account", fallback = "", store = credentialsStore) { it[nutstoreAccountKey] ?: "" }

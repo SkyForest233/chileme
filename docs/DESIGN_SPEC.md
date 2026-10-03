@@ -79,7 +79,7 @@ StatusUi 提供三个颜色槽位，按用途严格区分：
 | 列表项间距 | 10~12dp；分组间距 16dp |
 | 卡片内边距 | 16~20dp |
 | 列表底部 contentPadding | +96dp（避免 FAB/底栏遮挡） |
-| 阴影 | 主卡片 elevation ≤ 1dp，其余 0dp（靠色彩分层）；悬浮导航栏 shadowElevation 6dp |
+| 阴影 | 主卡片 elevation ≤ 1dp，其余 0dp（靠色彩分层）；MD3 悬浮导航 shadowElevation 6dp；Miuix 常规悬浮栏 `shadowElevation=1dp` 启用库内置阴影；液态玻璃分支在 backdrop 之前自绘 10dp drop shadow（浅色 alpha 0.1、深色 0.2），跟随栏体显隐/拖拽变换 |
 | 柱状图柱子 | 胶囊形（RoundedCornerShape(50)），宽度约列宽 62%，最小高度 14dp（无数据 8dp 底座） |
 | 排行榜进度条 | 胶囊，高 10dp，primaryContainer 色 |
 
@@ -203,7 +203,7 @@ StatusUi 提供三个颜色槽位，按用途严格区分：
   - `AppHistoryNote` = 「归档中找到 N 条」这类带图标的弱化说明（图标 MD3 `History` / Miuix `Recent`）。
   - `AppLinearProgress`：**两侧宽度处理方式不同，都按合并前的原样保留** —— MD3 调用处原本显式
     `fillMaxWidth() + height(8.dp) + clip(圆角 50)`，故这三项收进组件；Miuix 上游 `LinearProgressIndicator`
-    （v0.9.4-rc01，`ProgressIndicator.kt:88-91`）**内部自带** `.fillMaxWidth().height(height)`，
+    （v0.9.4，`ProgressIndicator.kt` 的 `LinearProgressIndicator`）**内部自带** `.fillMaxWidth().height(height)`，
     调用方不传宽度也是满宽 ⇒ 抽象前后一致，不会变宽变窄。
     ⚠️ `FoodCard.kt` 的两处进度条（Miuix 侧 `MiuixLinearProgressIndicator` / MD3 侧 `LinearProgressIndicator`）仍自己分流且参数不同（**6dp** + `weight(1f)`），属未收编的重复；
     收编会改变视觉，是行为改动而非纯重构，需两主题真机复测（登记在 `devlog/INDEX.md` 待办）。
@@ -275,7 +275,8 @@ StatusUi 提供三个颜色槽位，按用途严格区分：
     - **逐对过程、行数账、「哪一对带来了哪个组件」都不在本文件维护**：过程见 `devlog/2026-09-16.md` §15–§22（含每对净行数与预测漂移复盘），组件清单与关键约定见**本文 §4.1**（唯一事实源）。
   - **刻意保留 MD3+桥接**：编辑页（`DatePicker` 为 MD3 特有、无 Miuix 对应）、`CheckSwitch`（项目特色打勾/打叉，规范禁止 material3 Switch，自绘且颜色桥接）。
   - **单实现铁律（2026-09-16 起取代「双实现铁律」）**：屏幕文件（`*Screen.kt` / `*Screens.kt`）必须调 `remember*UiState` 复用状态容器，**禁止在 UI 文件里重写聚合计算**（`ScreenParityTest` 静态拦截，原名 `MiuixParityTest`——合并后文件名不再带 `Miuix` 前缀，按前缀枚举会让刚合并的屏幕逃出守卫，故扩到全部屏幕文件；此前 `MiuixStatsScreen` 手抄过一份统计逻辑，导致 `StatsStateTest` 测的是 MIUIX 下不执行的代码）。**新屏幕不再建 `Miuix*Screen.kt` 双胞胎**，主题差异一律走 `ui/components/app/` 的骨架组件；已合并的屏幕由该测试的 `MergedScreens` 守着不许回退。
-  - **已知缺口**：MIUIX 风格下**没有配色方案入口**（设置页 Miuix 分支 `MiuixSettingsBody`，`ui/screens/SettingsBodyMiuix.kt`，只有深色模式/动态取色/悬浮导航），15 套 `AppPalette` 选不了，且 MD3 下选好的配色切到 Miuix 后无提示地失效——根因是 `MiuixRootTheme` 只消费 `darkMode` + `dynamicColor`，没有种子色通道。2026-09-16 第 8 对合并后，这条非对等已写进 `SettingsScreen.kt` 的文件头 KDoc（「已知非对等…勿再声明完全对等」），不再靠两份文件各自的措辞表达；功能本身**用户已指示暂缓**（见 `devlog/INDEX.md`）。
+  - **已知缺口**：MIUIX 风格下**没有配色方案入口**（设置页 Miuix 分支 `MiuixSettingsBody`，`ui/screens/SettingsBodyMiuix.kt`，含深色模式/动态取色/悬浮导航/背景模糊/液态玻璃开关），15 套 `AppPalette` 选不了，且 MD3 下选好的配色切到 Miuix 后无提示地失效——根因是 `MiuixRootTheme` 只消费 `darkMode` + `dynamicColor`，没有种子色通道。2026-09-16 第 8 对合并后，这条非对等已写进 `SettingsScreen.kt` 的文件头 KDoc（「已知非对等…勿再声明完全对等」），不再靠两份文件各自的措辞表达；功能本身**用户已指示暂缓**（见 `devlog/INDEX.md`）。
   - **导航双形态**：新增「悬浮导航」开关（`floating_nav`，默认 true）。MD3 悬浮=自绘 `FloatingPillNav`（图标+标签）、非悬浮=MD3 `NavigationBar`；MIUIX 悬浮=Miuix `FloatingNavigationBar`（仅图标）、非悬浮=Miuix `NavigationBar`（全宽图标+文字）。
+  - **MIUIX 玻璃效果（2026-10-01）**：`miuix_blur_enabled` 默认 true，为 MIUIX 顶栏、常驻底栏与悬浮底栏启用 backdrop blur；`liquid_glass_nav_enabled` 默认 false，仅作用于 MIUIX 悬浮底栏，开启时自动确保 blur 开启。玻璃分支采用 Miuix v0.9.4 demo 的拖拽导航：阻尼跟手、选中后回弹、按压缩放/高光、折射 pill 指示器与重力方向高光；在 backdrop 外层绘制 10dp 阴影（浅色 alpha 0.1、深色 0.2），并在底栏测量区域预留 12dp 阴影空间。MIUIX 悬浮栏显隐改用 demo 的 fade + expand/shrink（不裁剪阴影），避免 slide 进入时上缘被父层延后揭示。表面链路为 vibrancy（saturation 1.5）→ 4dp blur → 24dp lens，surfaceContainer tint alpha 0.24。Tab 页选择对齐 demo 的 `MainPagerState`：选中目标与 `PagerState.currentPage` 分离，并用 `springAnimateToPage()` 做单次跨页弹簧动画，避免途中经过中间页时反向重启指示器。`miuix-blur-android` 需要 API 33+；API 26–32 设置项禁用、导航自动回退实色，`minSdk=26` 不变。
 - Miuix 主题由 `ThemeController` 驱动，语义对齐 MD3 侧：动态取色→Monet（keyColor=null 跟随壁纸），否则按 darkMode 映射 System/Light/Dark。
-- Miuix 组件 API 一律以 `.claude/skills/miuix` pinned source（v0.9.4-rc01）为准，禁止凭 MD3 记忆臆造参数/颜色 token。
+- Miuix 组件 API 一律以**目标项目实际 Miuix 版本**（现为 `gradle/libs.versions.toml` 的 `0.9.4`）的 pinned source 为准，禁止凭 MD3 记忆臆造参数/颜色 token；`.claude/skills/miuix` 基线同为 stable `v0.9.4`；后续版本不一致时先声明再使用。
