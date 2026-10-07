@@ -1,0 +1,950 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>吃了么 · 到期进度 → 整卡水波纹（MD3 Demo）</title>
+<style>
+  /* ============================================================
+     颜色：MD3 薄荷绿（AppPalette.MINT 种子 #1F5C46）近似色板
+     状态色直接用 Color.kt 里的语义色，不随主题种子色变化
+     ============================================================ */
+  :root {
+    --bg: #F5FAF6;
+    --surface: #FFFFFF;
+    --surface-container-lowest: #FFFFFF;
+    --surface-container-low: #F1F7F2;
+    --surface-container: #ECF3EE;
+    --surface-container-high: #E3EDE6;
+    --on-surface: #171D19;
+    --on-surface-variant: #414A44;
+    --outline: #717A73;
+    --outline-variant: #C1C9C3;
+    --primary: #2A6B52;
+    --on-primary: #FFFFFF;
+    --primary-container: #AEF2D2;
+    --on-primary-container: #00210F;
+    --scrim: rgba(0, 0, 0, 0.32);
+    --ripple: rgba(0, 0, 0, 0.11);
+    --state-layer: rgba(0, 0, 0, 0.08);
+    --shadow: 0 1px 2px rgba(16, 40, 28, 0.10), 0 1px 3px rgba(16, 40, 28, 0.06);
+    --shadow-panel: 0 1px 2px rgba(16, 40, 28, 0.06);
+  }
+  html[data-theme="dark"] {
+    --bg: #0D1411;
+    --surface: #141A16;
+    --surface-container-lowest: #0A100D;
+    --surface-container-low: #171D19;
+    --surface-container: #1B211D;
+    --surface-container-high: #252C27;
+    --on-surface: #DFE4DE;
+    --on-surface-variant: #BEC9C1;
+    --outline: #8B958D;
+    --outline-variant: #3F4943;
+    --primary: #8FD5B4;
+    --on-primary: #003824;
+    --primary-container: #135139;
+    --on-primary-container: #AEF2D2;
+    --ripple: rgba(255, 255, 255, 0.16);
+    --state-layer: rgba(255, 255, 255, 0.10);
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.35), 0 1px 3px rgba(0, 0, 0, 0.25);
+    --shadow-panel: 0 1px 2px rgba(0, 0, 0, 0.3);
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--on-surface);
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC",
+                 "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif;
+    font-size: 14px;
+    line-height: 1.45;
+    -webkit-font-smoothing: antialiased;
+    transition: background-color .45s cubic-bezier(.2, 0, 0, 1), color .45s cubic-bezier(.2, 0, 0, 1);
+    padding: 24px 16px 96px;
+  }
+  .app { max-width: 1120px; margin: 0 auto; }
+
+  /* ---------------- 页头 ---------------- */
+  .page-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px; margin-bottom: 4px; }
+  .page-head h1 { font-size: 21px; font-weight: 700; margin: 0; letter-spacing: .2px; }
+  .page-head .tag {
+    font-size: 11px; font-weight: 700; letter-spacing: .4px;
+    background: var(--primary-container); color: var(--on-primary-container);
+    padding: 3px 10px; border-radius: 999px;
+  }
+  .page-sub { color: var(--on-surface-variant); font-size: 12.5px; margin: 6px 0 18px; }
+  .page-sub code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px;
+    background: var(--surface-container-high); padding: 1px 5px; border-radius: 5px; }
+
+  /* ---------------- 控制面板 ---------------- */
+  .panel {
+    background: var(--surface-container);
+    border-radius: 20px;
+    padding: 14px 16px 16px;
+    box-shadow: var(--shadow-panel);
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 14px 22px;
+    margin-bottom: 22px;
+    transition: background-color .45s cubic-bezier(.2, 0, 0, 1);
+  }
+  .field { display: flex; flex-direction: column; gap: 7px; min-width: 0; }
+  .field > label { font-size: 11.5px; font-weight: 700; letter-spacing: .3px; color: var(--on-surface-variant); }
+  .field .val { font-variant-numeric: tabular-nums; font-weight: 600; color: var(--on-surface); }
+
+  /* M3 分段按钮 */
+  .seg { display: inline-flex; border: 1px solid var(--outline); border-radius: 999px; padding: 2px; gap: 2px; width: fit-content; }
+  .seg button {
+    appearance: none; border: 0; background: transparent; color: var(--on-surface);
+    font: inherit; font-size: 13px; font-weight: 600; padding: 6px 14px; border-radius: 999px;
+    cursor: pointer; transition: background-color .2s cubic-bezier(.2, 0, 0, 1), color .2s cubic-bezier(.2, 0, 0, 1);
+    position: relative; overflow: hidden;
+  }
+  .seg button[aria-pressed="true"] { background: var(--primary-container); color: var(--on-primary-container); }
+  .seg button:hover:not([aria-pressed="true"]) { background: var(--state-layer); }
+
+  input[type="range"] { width: 100%; accent-color: var(--primary); height: 22px; margin: 0; }
+  .row-inline { display: flex; align-items: center; gap: 10px; }
+  .hint { font-size: 11.5px; color: var(--on-surface-variant); }
+
+  .btn {
+    appearance: none; border: 1px solid var(--outline); background: transparent; color: var(--primary);
+    font: inherit; font-size: 13px; font-weight: 700; padding: 8px 16px; border-radius: 999px; cursor: pointer;
+    position: relative; overflow: hidden;
+  }
+  .btn:hover { background: var(--state-layer); }
+
+  .chip-toggle {
+    display: inline-flex; align-items: center; gap: 8px; cursor: pointer; user-select: none;
+    font-size: 12.5px; font-weight: 600; color: var(--on-surface);
+  }
+  .chip-toggle input { position: absolute; opacity: 0; pointer-events: none; }
+  .chip-toggle .box {
+    width: 18px; height: 18px; border-radius: 6px; border: 1.5px solid var(--outline); flex: none;
+    display: grid; place-items: center; font-size: 12px; line-height: 1; color: transparent;
+    transition: background-color .2s, border-color .2s, color .2s;
+  }
+  .chip-toggle input:checked + .box { background: var(--primary); border-color: var(--primary); color: var(--on-primary); }
+
+  /* ---------------- 列表区 ---------------- */
+  .stage { margin-top: 4px; }
+  .cols { display: grid; gap: 22px; }
+  .cols.compare { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  @media (max-width: 880px) { .cols.compare { grid-template-columns: minmax(0, 1fr); } }
+  .col { min-width: 0; }
+  .col-head {
+    display: flex; align-items: center; gap: 8px; margin: 0 4px 10px;
+    font-size: 12.5px; font-weight: 700; color: var(--on-surface-variant);
+  }
+  .col-head .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--primary); flex: none; }
+  .col-head.alt .dot { background: var(--outline); }
+  .list { display: flex; flex-direction: column; gap: 12px; padding-bottom: 8px; }
+
+  /* ---------------- 食品卡片（对齐 FoodCard.kt 的 MD3 分支）---------------- */
+  .card {
+    position: relative;
+    border-radius: 24px;
+    padding: 16px;
+    overflow: hidden;
+    background: var(--surface-container);
+    box-shadow: var(--shadow);
+    cursor: pointer;
+    isolation: isolate;
+    transition: background-color .45s cubic-bezier(.2, 0, 0, 1), box-shadow .2s;
+    -webkit-tap-highlight-color: transparent;
+    outline: none;
+  }
+  .card.track-status { background: var(--track); }
+
+  .card .wave {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    display: block; z-index: 0; pointer-events: none;
+  }
+  .card .state-layer {
+    position: absolute; inset: 0; background: var(--state-layer); opacity: 0;
+    transition: opacity .12s linear; pointer-events: none; z-index: 1;
+  }
+  .card.pressed .state-layer { opacity: 1; }
+  .card .ripple-host { position: absolute; inset: 0; overflow: hidden; z-index: 2; pointer-events: none; border-radius: inherit; }
+  .card .ripple { position: absolute; border-radius: 50%; display: block; pointer-events: none; }
+
+  .card .content { position: relative; z-index: 3; }
+  .card .row-top { display: flex; align-items: flex-start; gap: 12px; }
+  .card .avatar {
+    width: 48px; height: 48px; border-radius: 50%; flex: none;
+    display: grid; place-items: center; font-size: 23px; line-height: 1;
+    background: var(--avatar-bg);
+  }
+  .card .meta { flex: 1 1 auto; min-width: 0; }
+  .card .name { font-size: 16px; font-weight: 600; letter-spacing: .1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .card .sub { font-size: 12px; color: var(--on-surface-variant); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .card .right { flex: none; display: flex; flex-direction: column; align-items: flex-end; gap: 5px; padding-left: 6px; }
+
+  .badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-size: 11.5px; font-weight: 700; padding: 3px 9px 3px 7px; border-radius: 999px;
+    background: var(--badge-bg); color: var(--status-content);
+    border: 1px solid var(--badge-border);
+    transition: background-color .45s cubic-bezier(.2, 0, 0, 1), color .45s cubic-bezier(.2, 0, 0, 1);
+    white-space: nowrap;
+  }
+  .badge svg { width: 13px; height: 13px; display: block; }
+  .loctag {
+    font-size: 11px; font-weight: 600; color: var(--on-surface-variant);
+    background: var(--surface-container-high); padding: 2px 8px; border-radius: 999px; white-space: nowrap;
+  }
+
+  /* 原版：卡片内线性进度条 */
+  .row-progress { display: flex; align-items: center; gap: 12px; margin-top: 14px; }
+  .bar { flex: 1 1 auto; height: 6px; border-radius: 999px; background: var(--track); overflow: hidden; }
+  .bar > i { display: block; height: 100%; border-radius: 999px; background: var(--status-content); width: 0; }
+  .remain { font-size: 12px; font-weight: 600; color: var(--status-content); white-space: nowrap;
+    transition: color .45s cubic-bezier(.2, 0, 0, 1); }
+
+  /* 新方案：底行（剩余天数 + 步进器） */
+  .row-bottom { display: flex; align-items: center; gap: 12px; margin-top: 14px; }
+  .row-bottom .label { font-size: 12px; color: var(--on-surface-variant); flex: 1 1 auto; }
+  .card-new .row-bottom { margin-top: 16px; }
+
+  /* 数量步进器（胶囊） */
+  .stepper {
+    display: inline-flex; align-items: center; gap: 2px; flex: none;
+    background: var(--surface-container-high); border-radius: 999px; padding: 3px;
+    transition: background-color .45s cubic-bezier(.2, 0, 0, 1);
+  }
+  .stepper button {
+    appearance: none; border: 0; background: transparent; color: var(--on-surface);
+    width: 30px; height: 30px; border-radius: 50%; font-size: 17px; line-height: 1; cursor: pointer;
+    display: grid; place-items: center; position: relative; overflow: hidden;
+  }
+  .stepper button:hover { background: var(--state-layer); }
+  .stepper button:disabled { color: var(--outline-variant); cursor: default; background: transparent; }
+  .stepper .qty {
+    min-width: 46px; text-align: center; font-size: 13px; font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+  .stepper .qty .num { display: inline-block; }
+  .stepper .qty .unit { font-size: 11.5px; font-weight: 600; color: var(--on-surface-variant); margin-left: 2px; }
+  @keyframes qtySlide { from { opacity: 0; transform: translateY(7px); } to { opacity: 1; transform: none; } }
+  @keyframes qtySlideDown { from { opacity: 0; transform: translateY(-7px); } to { opacity: 1; transform: none; } }
+  .qty .num.up { animation: qtySlide .18s cubic-bezier(.2, 0, 0, 1); }
+  .qty .num.down { animation: qtySlideDown .18s cubic-bezier(.2, 0, 0, 1); }
+
+  /* 波前标签（可选） */
+  .front-label {
+    position: absolute; z-index: 4; transform: translate(-50%, -50%); pointer-events: none;
+    font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px;
+    background: var(--surface-container-lowest); color: var(--status-content);
+    border: 1px solid var(--badge-border); white-space: nowrap; opacity: .95;
+  }
+
+  /* ---------------- 页脚 / 说明 ---------------- */
+  .notes {
+    margin-top: 26px; background: var(--surface-container-low); border-radius: 20px;
+    padding: 16px 18px; color: var(--on-surface-variant); font-size: 12.5px;
+    box-shadow: var(--shadow-panel);
+    transition: background-color .45s cubic-bezier(.2, 0, 0, 1);
+  }
+  .notes h2 { font-size: 13.5px; color: var(--on-surface); margin: 0 0 8px; }
+  .notes ul { margin: 0; padding-left: 18px; }
+  .notes li { margin: 4px 0; }
+  .notes code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11.5px;
+    background: var(--surface-container-high); padding: 1px 5px; border-radius: 5px; }
+
+  /* ---------------- Toast ---------------- */
+  .toast {
+    position: fixed; left: 50%; bottom: 26px; transform: translate(-50%, 14px);
+    background: var(--on-surface); color: var(--bg); font-size: 12.5px; font-weight: 600;
+    padding: 10px 18px; border-radius: 12px; box-shadow: 0 6px 18px rgba(0, 0, 0, .25);
+    opacity: 0; pointer-events: none; transition: opacity .22s, transform .22s cubic-bezier(.2, 0, 0, 1);
+    z-index: 99; max-width: 82vw; text-align: center;
+  }
+  .toast.show { opacity: 1; transform: translate(-50%, 0); }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="page-head">
+    <h1>食品列表 · 到期进度改造预览</h1>
+    <span class="tag">MATERIAL 3 · DEMO</span>
+  </div>
+  <p class="page-sub">
+    把「到期时间进度条」换成<b>整张食品卡片的水波纹进度</b>：水波推进的位置 = 保质期已过去的比例
+    （正相关，与现在 <code>FoodCard.kt</code> 里 <code>elapsedRatioAt()</code> 驱动进度条完全一致）。
+    点卡片可看水波上的按压涟漪，拖时间轴可看水位上涨与状态变色。
+  </p>
+
+  <section class="panel">
+    <div class="field">
+      <label>显示方式</label>
+      <div class="seg" data-group="mode">
+        <button data-val="old">原版</button>
+        <button data-val="new" aria-pressed="true">新方案</button>
+        <button data-val="compare">并排对比</button>
+      </div>
+      <div class="hint">「原版」= 现在 App 里的卡片内线性进度条</div>
+    </div>
+
+    <div class="field">
+      <label>卡片底色（水波的「河床」）</label>
+      <div class="seg" data-group="track">
+        <button data-val="status" aria-pressed="true">状态色容器</button>
+        <button data-val="surface">卡片原底色</button>
+      </div>
+      <div class="hint">状态色容器 = 直接把原来的进度条底色铺满整卡；卡片原底色 = 卡片外观不变，只叠一层水波</div>
+    </div>
+
+    <div class="field">
+      <label>主题</label>
+      <div class="seg" data-group="theme">
+        <button data-val="light" aria-pressed="true">浅色</button>
+        <button data-val="dark">深色</button>
+      </div>
+      <div class="hint">深浅两套都用 <code>Color.kt</code> 的状态语义色</div>
+    </div>
+
+    <div class="field" style="grid-column: 1 / -1;">
+      <label>模拟「今天」· <span class="val" id="todayLabel">2026.10.07</span></label>
+      <input type="range" id="todayRange" min="-10" max="60" step="1" value="0">
+      <div class="hint">拖动可看水位推进、剩余天数与三态（安全 → 临期 → 已过期）的切换；卡片颜色按 450ms 渐变过渡</div>
+    </div>
+
+    <div class="field">
+      <label>波幅 · <span class="val" id="ampLabel">5 px</span></label>
+      <input type="range" id="ampRange" min="0" max="14" step="1" value="5">
+    </div>
+
+    <div class="field">
+      <label>波速 · <span class="val" id="speedLabel">1.0×</span></label>
+      <input type="range" id="speedRange" min="0" max="25" step="1" value="10">
+    </div>
+
+    <div class="field" style="justify-content: flex-end;">
+      <div class="row-inline">
+        <label class="chip-toggle">
+          <input type="checkbox" id="frontLabelToggle">
+          <span class="box">✓</span>
+          波前显示剩余天数
+        </label>
+        <button class="btn" id="replayBtn">重播填充</button>
+      </div>
+    </div>
+  </section>
+
+  <main class="stage" id="stage"></main>
+
+  <section class="notes">
+    <h2>这版 Demo 说明</h2>
+    <ul>
+      <li>数据用真应用的算法：<code>elapsedRatio = 1 - clamp(剩余天数 / 保质期, 0, 1)</code>；文案「已过期 N 天 / 今天到期 / 还剩 N 天」；三态按分类阈值判定。卡片字段（生产日、到期日、分类、存放位置、库存数量）与 <code>FoodCard.kt</code> 一致。</li>
+      <li>水波由 Canvas 2D 逐帧绘制：竖直波面 + 随波面推进的回声涟漪 + 波面描边与发光 + 前缘水光；波面位置<b>线性映射</b>到进度，所以「水位」就是进度本身（不是拿循环动画冒充）。</li>
+      <li>填充沿用 App 的动效规范：400ms + <code>MotionEasing.Standard</code>（cubic-bezier .2,0,0,1）；按压涟漪沿用 M3 ripple；<code>prefers-reduced-motion</code> 下停止水波摆动，只留静态水位。</li>
+      <li>「波幅 / 波速」滑杆只为方便你调观感；「重播填充」可重看一次水位上涨。</li>
+      <li>真要落地的话，改动点在 <code>ui/components/FoodCard.kt</code>：把两处进度条行撤掉，在卡片背景层加一个 <code>Canvas</code>（或 <code>drawWithContent</code> + 波浪 path），进度源仍是 <code>animateFloatAsState(item.elapsedRatioAt(LocalToday.current))</code>，配色走 <code>rememberStatusUi(status)</code> 的 container/content。要注意卡片内容需要描边或提亮以保证文字对比度（尤其整卡状态底色 + 水体同色系时）。</li>
+      <li>这是观感预览，仓库里没有改动 <code>app/</code> 下的任何 Compose 代码。</li>
+    </ul>
+  </section>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function () {
+  "use strict";
+
+  /* ============================================================
+     1. 数据（字段与 FoodItem 对齐：生产日 + 保质期天数 → 到期日）
+     ============================================================ */
+  var ITEMS = [
+    { id: "yogurt",  name: "原味酸奶",   emoji: "🥛", category: "乳制品", location: "冰箱冷藏", prod: "2026-09-24", shelf: 18,  qty: 6,  unit: "杯" },
+    { id: "bread",   name: "全麦吐司",   emoji: "🍞", category: "烘焙",   location: "储物柜",   prod: "2026-10-02", shelf: 10,  qty: 3,  unit: "袋" },
+    { id: "ham",     name: "火腿切片",   emoji: "🌭", category: "生鲜",   location: "冰箱冷藏", prod: "2026-09-28", shelf: 8,   qty: 1,  unit: "包" },
+    { id: "spinach", name: "菠菜",       emoji: "🥬", category: "果蔬",   location: "冰箱保鲜", prod: "2026-10-04", shelf: 6,   qty: 2,  unit: "把" },
+    { id: "egg",     name: "土鸡蛋",     emoji: "🥚", category: "生鲜",   location: "冰箱冷藏", prod: "2026-09-26", shelf: 30,  qty: 12, unit: "个" },
+    { id: "blueberry", name: "蓝莓",     emoji: "🫐", category: "果蔬",   location: "冰箱保鲜", prod: "2026-10-05", shelf: 7,   qty: 1,  unit: "盒" },
+    { id: "dumpling", name: "速冻饺子",  emoji: "🥟", category: "冷冻",   location: "冷冻室",   prod: "2026-08-20", shelf: 90,  qty: 2,  unit: "袋" },
+    { id: "choco",   name: "黑巧克力",   emoji: "🍫", category: "零食",   location: "零食抽屉", prod: "2026-09-01", shelf: 120, qty: 4,  unit: "块" }
+  ];
+
+  var CATEGORY_THRESHOLD = { "乳制品": 7, "烘焙": 3, "生鲜": 5, "果蔬": 4, "冷冻": 15, "零食": 30 };
+  var DEFAULT_THRESHOLD = 5;
+
+  var STATUS = {
+    SAFE:     { key: "SAFE",     label: "安全",  light: { container: "#BDEBD1", content: "#12503A", dot: "#2E9E5B" }, dark: { container: "#1C4A38", content: "#A5E8C6", dot: "#4ADE80" } },
+    EXPIRING: { key: "EXPIRING", label: "临期",  light: { container: "#FFE1B3", content: "#7A4A00", dot: "#F59E0B" }, dark: { container: "#5A4218", content: "#FFDDA8", dot: "#FBBF24" } },
+    EXPIRED:  { key: "EXPIRED",  label: "已过期", light: { container: "#FFD9D4", content: "#8C1D18", dot: "#E5484D" }, dark: { container: "#5C2320", content: "#FFB4AB", dot: "#FF6B6B" } }
+  };
+
+  var ICON = {
+    SAFE: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8.2 12.4l2.6 2.6 5-5.4"/></svg>',
+    EXPIRING: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7.4V12l3.2 2"/></svg>',
+    EXPIRED: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7.6v5.1"/><circle cx="12" cy="16.4" r="1.05" fill="currentColor" stroke="none"/></svg>'
+  };
+
+  /* ============================================================
+     2. 日期工具（按 epoch day 计算，避免时区/DST 干扰）
+     ============================================================ */
+  function epochDay(iso) {
+    var p = iso.split("-");
+    return Math.round(Date.UTC(+p[0], +p[1] - 1, +p[2]) / 86400000);
+  }
+  function dayToIso(d) {
+    var t = new Date(d * 86400000);
+    return t.getUTCFullYear() + "-" + pad(t.getUTCMonth() + 1) + "-" + pad(t.getUTCDate());
+  }
+  function pad(n) { return (n < 10 ? "0" : "") + n; }
+  function dotDate(iso) { return iso.replace(/-/g, "."); }
+
+  var TODAY_BASE = epochDay("2026-10-07");   // Demo 基准「今天」
+
+  /* ============================================================
+     3. 全局状态
+     ============================================================ */
+  var state = {
+    mode: "new",        // old | new | compare
+    track: "status",    // status | surface
+    theme: "light",     // light | dark
+    offset: 0,          // 相对基准日期的天数
+    amp: 5,
+    speed: 1,
+    frontLabel: false
+  };
+  var todayEpoch = TODAY_BASE;
+
+  var reduceMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var clock = 0;                 // 水波相位用时间（秒）
+  var lastFrame = 0;
+  var cards = [];                // 当前 DOM 里的卡片记录
+  var qtyOverride = {};          // id -> 数量（可被步进器改）
+
+  /* ============================================================
+     4. 计算：完全对齐 FoodModels.kt
+     ============================================================ */
+  function itemView(it) {
+    var prodE = epochDay(it.prod);
+    var expE = prodE + it.shelf;
+    var daysLeft = expE - todayEpoch;
+    var threshold = it.threshold != null ? it.threshold : (CATEGORY_THRESHOLD[it.category] != null ? CATEGORY_THRESHOLD[it.category] : DEFAULT_THRESHOLD);
+    var status = daysLeft < 0 ? STATUS.EXPIRED : (daysLeft <= threshold ? STATUS.EXPIRING : STATUS.SAFE);
+    // freshness = clamp(daysLeft / shelf, 0, 1) → elapsed = 1 - freshness
+    var freshness = it.shelf <= 0 ? 0 : Math.min(1, Math.max(0, daysLeft / it.shelf));
+    var progress = 1 - freshness;
+    var remain = daysLeft < 0 ? "已过期 " + (-daysLeft) + " 天" : (daysLeft === 0 ? "今天到期" : "还剩 " + daysLeft + " 天");
+    return {
+      item: it,
+      daysLeft: daysLeft,
+      threshold: threshold,
+      status: status,
+      progress: progress,
+      remain: remain,
+      prodIso: dayToIso(prodE),
+      expIso: dayToIso(expE),
+      qty: qtyOverride[it.id] != null ? qtyOverride[it.id] : it.qty
+    };
+  }
+
+  function hexToRgba(hex, a) {
+    var h = hex.replace("#", "");
+    var n = parseInt(h, 16);
+    return "rgba(" + ((n >> 16) & 255) + "," + ((n >> 8) & 255) + "," + (n & 255) + "," + a + ")";
+  }
+
+  /* ============================================================
+     5. 卡片 DOM
+     ============================================================ */
+  function escapeHtml(s) { return String(s).replace(/[&<>"]/g, function (c) { return ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]; }); }
+
+  function statusColors(v) {
+    var slot = v.status[state.theme === "dark" ? "dark" : "light"];
+    return { container: slot.container, content: slot.content, dot: slot.dot };
+  }
+
+  function statusBadgeHtml(v) {
+    var c = statusColors(v);
+    return '<span class="badge">' + ICON[v.status.key] + escapeHtml(v.status.label) + "</span>";
+    void c;
+  }
+
+  // 每张卡片要写入的 CSS 变量（底色 / 徽章 / 头像 / 水波色）
+  function paintCard(rec) {
+    var v = rec.view, c = statusColors(v);
+    var el = rec.el;
+    var trackColor = state.track === "status" ? c.container : "var(--surface-container)";
+    el.style.setProperty("--track", trackColor);
+    el.style.setProperty("--status-content", c.content);
+    el.style.setProperty("--badge-bg", hexToRgba(c.content, state.theme === "dark" ? 0.20 : 0.16));
+    el.style.setProperty("--badge-border", hexToRgba(c.content, 0.28));
+    el.style.setProperty("--avatar-bg", hexToRgba(c.content, state.theme === "dark" ? 0.24 : 0.18));
+    el.classList.toggle("track-status", state.track === "status");
+    // 水波配色：整卡底色用状态容器色时，水体用状态 content 色（读起来像「同色系水位」）；
+    // 卡片保持原底色时，水体改用高饱和 dot 色并压低透明度，避免显得脏。
+    var onStatusTrack = state.track === "status";
+    var dark = state.theme === "dark";
+    rec.wave = {
+      color: onStatusTrack ? c.content : c.dot,
+      alphaTop: onStatusTrack ? (dark ? 0.18 : 0.17) : (dark ? 0.10 : 0.085),
+      alphaBottom: onStatusTrack ? (dark ? 0.27 : 0.27) : (dark ? 0.16 : 0.14),
+      echo: onStatusTrack ? (dark ? 0.11 : 0.10) : (dark ? 0.085 : 0.07),
+      lineAlpha: onStatusTrack ? (dark ? 0.55 : 0.50) : (dark ? 0.45 : 0.38),
+      expired: v.status.key === "EXPIRED"
+    };
+    var badge = el.querySelector(".badge");
+    if (badge) badge.innerHTML = statusBadgeHtml(v);
+    var av = el.querySelector(".avatar");
+    if (av) av.style.background = hexToRgba(c.content, state.theme === "dark" ? 0.24 : 0.18);
+  }
+
+  function cardHtml(v, mode) {
+    var label = "📍 " + escapeHtml(v.item.location);
+    var head =
+      '<div class="row-top">' +
+        '<div class="avatar">' + escapeHtml(v.item.emoji) + "</div>" +
+        '<div class="meta">' +
+          '<div class="name">' + escapeHtml(v.item.name) + "</div>" +
+          '<div class="sub">' + escapeHtml(v.item.category) + " · 生产 " + dotDate(v.prodIso) + "</div>" +
+          '<div class="sub">到期 ' + dotDate(v.expIso) + "</div>" +
+        "</div>" +
+        '<div class="right">' +
+          statusBadgeHtml(v) +
+          '<span class="loctag">' + label + "</span>" +
+        "</div>" +
+      "</div>";
+
+    var stepper =
+      '<div class="stepper">' +
+        '<button data-act="dec" data-id="' + v.item.id + '" aria-label="减少数量">−</button>' +
+        '<span class="qty"><span class="num">' + v.qty + '</span><span class="unit">' + escapeHtml(v.item.unit) + "</span></span>" +
+        '<button data-act="inc" data-id="' + v.item.id + '" aria-label="增加数量">+</button>' +
+      "</div>";
+
+    if (mode === "old") {
+      return (
+        '<article class="card card-old" data-id="' + v.item.id + '" role="button" tabindex="0">' +
+          '<div class="state-layer"></div><div class="ripple-host"></div>' +
+          '<div class="content">' + head +
+            '<div class="row-progress">' +
+              '<div class="bar"><i></i></div>' +
+              '<div class="remain">' + escapeHtml(v.remain) + "</div>" +
+            "</div>" +
+            '<div class="row-bottom"><div class="label">库存数量</div>' + stepper + "</div>" +
+          "</div>" +
+        "</article>"
+      );
+    }
+    return (
+      '<article class="card card-new" data-id="' + v.item.id + '" role="button" tabindex="0">' +
+        '<canvas class="wave"></canvas>' +
+        '<div class="state-layer"></div><div class="ripple-host"></div>' +
+        '<div class="content">' + head +
+          '<div class="row-bottom"><div class="label remain">' + escapeHtml(v.remain) + "</div>" + stepper + "</div>" +
+        "</div>" +
+      "</article>"
+    );
+  }
+
+  /* ============================================================
+     6. 渲染
+     ============================================================ */
+  var stage = document.getElementById("stage");
+
+  function render() {
+    cards = [];
+    var html = "";
+    if (state.mode === "compare") {
+      html +=
+        '<div class="cols compare">' +
+          column("原版 · 卡片内线性进度条", "alt", "old") +
+          column("新方案 · 整卡水波纹进度", "", "new") +
+        "</div>";
+    } else {
+      html += '<div class="cols">' + column(
+        state.mode === "old" ? "原版 · 卡片内线性进度条" : "新方案 · 整卡水波纹进度",
+        state.mode === "old" ? "alt" : "", state.mode) + "</div>";
+    }
+    stage.innerHTML = html;
+    initCards();
+    window.requestAnimationFrame(tick);
+  }
+
+  function column(title, cls, mode) {
+    var body = ITEMS.map(function (it) { return cardHtml(itemView(it), mode); }).join("");
+    return '<div class="col">' +
+      '<div class="col-head ' + cls + '"><span class="dot"></span>' + escapeHtml(title) + "</div>" +
+      '<div class="list">' + body + "</div>" +
+    "</div>";
+  }
+
+  function initCards() {
+    var nodes = stage.querySelectorAll(".card");
+    for (var i = 0; i < nodes.length; i++) {
+      var el = nodes[i];
+      var it = ITEMS.filter(function (x) { return x.id === el.getAttribute("data-id"); })[0];
+      var isNew = el.classList.contains("card-new");
+      var rec = {
+        el: el,
+        item: it,
+        view: itemView(it),
+        isNew: isNew,
+        canvas: isNew ? el.querySelector("canvas.wave") : null,
+        ctx: null,
+        cssW: 0,
+        cssH: 0,
+        disp: 0,
+        from: 0,
+        to: 0,
+        t0: 0,
+        frontLabelEl: null
+      };
+      if (rec.canvas) rec.ctx = rec.canvas.getContext("2d");
+      if (isNew && state.frontLabel) {
+        var fl = document.createElement("div");
+        fl.className = "front-label";
+        el.appendChild(fl);
+        rec.frontLabelEl = fl;
+      }
+      paintCard(rec);
+      cards.push(rec);
+      bindCard(rec);
+    }
+    // 入场动画：水位从 0 涨到目标（400ms / MotionEasing.Standard）
+    var now = performance.now();
+    cards.forEach(function (r) {
+      r.from = 0; r.disp = 0; r.t0 = now;
+      r.to = r.view.progress;
+      if (r.mode_isOld_bar) r.mode_isOld_bar = false;
+    });
+  }
+
+  /* ============================================================
+     7. 交互：按压涟漪 + 步进器 + toast
+     ============================================================ */
+  var toastEl = document.getElementById("toast");
+  var toastTimer = null;
+  function toast(msg) {
+    toastEl.textContent = msg;
+    toastEl.classList.add("show");
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { toastEl.classList.remove("show"); }, 1800);
+  }
+
+  function spawnRipple(host, x, y) {
+    var rect = host.getBoundingClientRect();
+    var r = Math.max(
+      Math.hypot(x, y),
+      Math.hypot(rect.width - x, y),
+      Math.hypot(x, rect.height - y),
+      Math.hypot(rect.width - x, rect.height - y)
+    );
+    var el = document.createElement("span");
+    el.className = "ripple";
+    el.style.left = x + "px";
+    el.style.top = y + "px";
+    el.style.width = el.style.height = (r * 2) + "px";
+    el.style.marginLeft = el.style.marginTop = (-r) + "px";
+    el.style.background = "var(--ripple)";
+    host.appendChild(el);
+    if (typeof el.animate !== "function") { setTimeout(function () { el.remove(); }, 320); return; }
+    var anim = el.animate(
+      [{ transform: "scale(0)", opacity: 0.85 }, { transform: "scale(1)", opacity: 0.45 }],
+      { duration: reduceMotion ? 1 : 420, easing: "cubic-bezier(.2,0,0,1)", fill: "forwards" }
+    );
+    anim.onfinish = function () {
+      var fade = el.animate([{ opacity: 0.45 }, { opacity: 0 }],
+        { duration: reduceMotion ? 1 : 260, easing: "cubic-bezier(.2,0,0,1)", fill: "forwards" });
+      fade.onfinish = function () { el.remove(); };
+    };
+  }
+
+  function bindCard(rec) {
+    var el = rec.el;
+
+    el.addEventListener("pointerdown", function (e) {
+      if (e.target.closest(".stepper")) return;
+      el.classList.add("pressed");
+      var rect = el.getBoundingClientRect();
+      var host = el.querySelector(".ripple-host");
+      spawnRipple(host, e.clientX - rect.left, e.clientY - rect.top);
+    });
+    el.addEventListener("pointerup", function () { el.classList.remove("pressed"); });
+    el.addEventListener("pointercancel", function () { el.classList.remove("pressed"); });
+    el.addEventListener("pointerleave", function () { el.classList.remove("pressed"); });
+
+    el.addEventListener("click", function (e) {
+      var btn = e.target.closest(".stepper button");
+      if (btn) {
+        var id = btn.getAttribute("data-id");
+        var dir = btn.getAttribute("data-act") === "inc" ? 1 : -1;
+        var cur = qtyOverride[id] != null ? qtyOverride[id] : ITEMS.filter(function (x) { return x.id === id; })[0].qty;
+        var next = Math.max(0, cur + dir);
+        qtyOverride[id] = next;
+        var num = btn.parentNode.querySelector(".num");
+        num.textContent = next;
+        num.classList.remove("up", "down");
+        void num.offsetWidth;
+        num.classList.add(dir > 0 ? "up" : "down");
+        btn.parentNode.querySelector('[data-act="dec"]').disabled = next === 0;
+        e.stopPropagation();
+        return;
+      }
+      toast("打开详情：" + rec.item.name + "（Demo）");
+    });
+
+    el.addEventListener("keydown", function (e) {
+      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toast("打开详情：" + rec.item.name + "（Demo）"); }
+    });
+  }
+
+  /* ============================================================
+     8. 水波绘制
+     ============================================================ */
+  /**
+   * 波面路径：竖直方向的正弦波，向右闭合出整个「水体」。
+   * axisX = 波面的基准位置；amp 为波幅（0 时退化为一条直线）。
+   */
+  function buildFrontPath(ctx, W, H, axisX, amp, ph1, ph2) {
+    var k1 = (Math.PI * 2) / 92;
+    var k2 = (Math.PI * 2) / 43;
+    var pad = amp * 2 + 6;
+    var waveX = function (y) {
+      return axisX + amp * 0.72 * Math.sin(k1 * y + ph1) + amp * 0.28 * Math.sin(k2 * y + ph2);
+    };
+    ctx.beginPath();
+    ctx.moveTo(-pad, -pad);
+    ctx.lineTo(waveX(-pad), -pad);
+    var steps = Math.max(24, Math.ceil((H + pad * 2) / 5));
+    for (var i = 1; i <= steps; i++) {
+      var y = -pad + (H + pad * 2) * i / steps;
+      ctx.lineTo(waveX(y), y);
+    }
+    ctx.lineTo(-pad, H + pad);
+    ctx.closePath();
+  }
+
+  function drawWave(rec, t) {
+    var ctx = rec.ctx;
+    if (!ctx) return;
+    var W = rec.cssW, H = rec.cssH;
+    if (W <= 0 || H <= 0) return;
+    var cfg = rec.wave;
+    var p = rec.disp;
+    var amp = state.amp;
+    ctx.clearRect(0, 0, W, H);
+    if (p <= 0.0005) return;   // 进度为 0：卡片保持「河床」底色
+
+    // 波面基准线：进度线性映射到 x；两端各留 1.6 倍波幅，保证 0%/100% 时波面完整出画
+    var axisX = -amp * 1.6 + p * (W + amp * 3.2);
+    if (axisX < -amp * 2.6) return;
+
+    var ph1 = t * 1.05 * state.speed;
+    var ph2 = -t * 0.66 * state.speed;
+    var dark = state.theme === "dark";
+    // 过期提醒：整体透明度极缓慢呼吸（±0.02），不改变进度语义
+    var breathe = cfg.expired ? 0.02 * Math.sin(t * 1.1) : 0;
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(0, 0, W, H);
+    ctx.clip();
+
+    // ① 水体：竖直方向微微加深（越深越浓），整体克制，让卡片内容保持可读
+    var body = ctx.createLinearGradient(0, 0, 0, H);
+    body.addColorStop(0, hexToRgba(cfg.color, Math.max(0, cfg.alphaTop + breathe)));
+    body.addColorStop(1, hexToRgba(cfg.color, Math.max(0, cfg.alphaBottom + breathe)));
+    buildFrontPath(ctx, W, H, axisX, amp, ph1, ph2);
+    ctx.fillStyle = body;
+    ctx.fill();
+
+    // ② 回声波纹：与波面同形、随波面一起向左推进的两三条细线（水面涟漪感）
+    ctx.lineWidth = 1.2;
+    for (var j = 1; j <= 3; j++) {
+      var back = j * (26 + amp * 0.9);
+      if (axisX - back < -amp * 2) break;
+      ctx.strokeStyle = hexToRgba(cfg.color, cfg.echo * (1 - (j - 1) * 0.3));
+      buildFrontPath(ctx, W, H, axisX - back, amp * (1 - j * 0.12), ph1 + j * 0.55, ph2 - j * 0.45);
+      ctx.stroke();
+    }
+
+    // ③ 波峰：一条清晰的波面线 + 柔和外发光（水的表面张力感）
+    ctx.beginPath();
+    ctx.rect(0, -amp * 3, W + amp * 3, H + amp * 6);   // 限制发光不越过波面太多
+    ctx.clip();
+    ctx.strokeStyle = hexToRgba(cfg.color, cfg.lineAlpha);
+    ctx.lineWidth = 1.7;
+    ctx.shadowColor = hexToRgba(cfg.color, 0.5);
+    ctx.shadowBlur = 6;
+    buildFrontPath(ctx, W, H, axisX, amp, ph1, ph2);
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+
+    // ④ 前缘水光：贴着波面的一层薄亮边（source-over，避免整片发白）
+    var band = 10;
+    var foam = ctx.createLinearGradient(axisX - band, 0, axisX, 0);
+    foam.addColorStop(0, "rgba(255,255,255,0)");
+    foam.addColorStop(1, dark ? "rgba(255,255,255,0.07)" : "rgba(255,255,255,0.22)");
+    buildFrontPath(ctx, W, H, axisX, amp, ph1, ph2);
+    ctx.fillStyle = foam;
+    ctx.fill();
+
+    ctx.restore();
+
+    rec.frontX = axisX;
+  }
+
+  /* ============================================================
+     9. 主循环：进度补间（400ms / Standard）+ 持续水波
+     ============================================================ */
+  var EASE = function (k) { // cubic-bezier(.2,0,0,1) 近似（Newton 迭代求解）
+    var x1 = 0.2, y1 = 0, x2 = 0, y2 = 1;
+    if (k <= 0) return 0;
+    if (k >= 1) return 1;
+    var t = k;
+    for (var i = 0; i < 6; i++) {
+      var mt = 1 - t;
+      var x = 3 * mt * mt * t * x1 + 3 * mt * t * t * x2 + t * t * t;
+      var dx = x - k;
+      if (Math.abs(dx) < 1e-4) break;
+      var d = 3 * mt * mt * x1 + 6 * mt * t * (x2 - x1) + 3 * t * t * (1 - x2);
+      if (Math.abs(d) < 1e-6) break;
+      t -= dx / d;
+    }
+    var m = 1 - t;
+    return 3 * m * m * t * y1 + 3 * m * t * t * y2 + t * t * t;
+  };
+  var DURATION = 400;
+
+  function tick(now) {
+    if (!lastFrame) lastFrame = now;
+    var dt = Math.min(64, now - lastFrame);
+    lastFrame = now;
+    if (!reduceMotion) clock += dt / 1000;
+
+    for (var i = 0; i < cards.length; i++) {
+      var rec = cards[i];
+
+      // 进度补间
+      var k = (now - rec.t0) / DURATION;
+      rec.disp = k >= 1 ? rec.to : rec.from + (rec.to - rec.from) * EASE(k);
+
+      // 原版：线性进度条宽度
+      if (!rec.isNew) {
+        var fill = rec.el.querySelector(".bar > i");
+        if (fill) fill.style.width = (rec.disp * 100).toFixed(2) + "%";
+        continue;
+      }
+
+      // 新方案：canvas 尺寸跟随（含 DPR）
+      if (!rec.ctx && rec.canvas) rec.ctx = rec.canvas.getContext("2d");
+      if (!rec.ctx) continue;
+      var w = rec.el.clientWidth;
+      var h = rec.el.clientHeight;
+      if (w !== rec.cssW || h !== rec.cssH) {
+        var dpr = Math.min(window.devicePixelRatio || 1, 2.5);
+        rec.cssW = w; rec.cssH = h;
+        rec.canvas.width = Math.max(1, Math.round(w * dpr));
+        rec.canvas.height = Math.max(1, Math.round(h * dpr));
+        rec.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      }
+      drawWave(rec, clock);
+
+      // 波前标签
+      if (rec.frontLabelEl) {
+        var show = state.frontLabel && rec.disp > 0.04 && rec.disp < 0.995 && rec.frontX < rec.cssW - 26;
+        rec.frontLabelEl.style.display = show ? "block" : "none";
+        if (show) {
+          rec.frontLabelEl.style.left = rec.frontX + "px";
+          rec.frontLabelEl.style.top = (rec.cssH - 26) + "px";
+          rec.frontLabelEl.textContent = rec.view.remain;
+        }
+      }
+    }
+    window.requestAnimationFrame(tick);
+  }
+
+  /* ============================================================
+     10. 状态更新（时间轴 / 主题 / 配色模式）
+     ============================================================ */
+  function refreshData(animateProgress) {
+    var now = performance.now();
+    todayEpoch = TODAY_BASE + state.offset;
+    document.getElementById("todayLabel").textContent = dotDate(dayToIso(todayEpoch)) +
+      (state.offset === 0 ? "（今天）" : "（" + (state.offset > 0 ? "+" : "") + state.offset + " 天）");
+
+    cards.forEach(function (rec) {
+      var v = itemView(rec.item);
+      rec.view = v;
+      var remainEl = rec.el.querySelector(".remain");
+      if (remainEl) remainEl.textContent = v.remain;
+      paintCard(rec);
+      if (animateProgress) {
+        rec.from = rec.disp; rec.t0 = now; rec.to = v.progress;
+      } else {
+        rec.disp = v.progress; rec.from = v.progress; rec.to = v.progress; rec.t0 = now;
+      }
+    });
+  }
+
+  function setSeg(group, val) {
+    var seg = document.querySelector('.seg[data-group="' + group + '"]');
+    if (!seg) return;
+    var btns = seg.querySelectorAll("button");
+    for (var i = 0; i < btns.length; i++) {
+      btns[i].setAttribute("aria-pressed", btns[i].getAttribute("data-val") === val ? "true" : "false");
+    }
+  }
+
+  function bindSeg(group, onChange) {
+    var seg = document.querySelector('.seg[data-group="' + group + '"]');
+    seg.addEventListener("click", function (e) {
+      var btn = e.target.closest("button[data-val]");
+      if (!btn) return;
+      var val = btn.getAttribute("data-val");
+      if (state[group] === val) return;
+      state[group] = val;
+      setSeg(group, val);
+      onChange(val);
+    });
+  }
+
+  /* ---------------- 初始化 ---------------- */
+  bindSeg("mode", function () { render(); });
+  bindSeg("track", function () { render(); });
+  bindSeg("theme", function (val) {
+    document.documentElement.setAttribute("data-theme", val);
+    render();
+  });
+
+  var todayRange = document.getElementById("todayRange");
+  todayRange.addEventListener("input", function () {
+    state.offset = +todayRange.value;
+    refreshData(true);
+  });
+
+  var ampRange = document.getElementById("ampRange");
+  ampRange.addEventListener("input", function () {
+    state.amp = +ampRange.value;
+    document.getElementById("ampLabel").textContent = state.amp + " px";
+  });
+
+  var speedRange = document.getElementById("speedRange");
+  speedRange.addEventListener("input", function () {
+    state.speed = +speedRange.value / 10;
+    document.getElementById("speedLabel").textContent = state.speed.toFixed(1) + "×";
+  });
+
+  document.getElementById("frontLabelToggle").addEventListener("change", function (e) {
+    state.frontLabel = e.target.checked;
+    render();
+  });
+
+  document.getElementById("replayBtn").addEventListener("click", function () {
+    var now = performance.now();
+    cards.forEach(function (r) { r.from = 0; r.disp = 0; r.t0 = now; r.to = r.view.progress; });
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>
