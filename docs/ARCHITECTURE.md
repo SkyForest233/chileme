@@ -18,7 +18,7 @@
 - DataStore Preferences 1.2.0 + kotlinx-serialization-json 1.13.0（与 Miuix nav back-stack serializer 基线对齐）
 - Coil 3.3.0（照片封面加载）
 - ~~ML Kit OCR~~ 已于 v2.5 移除（识别率低），`DateOcr.kt` 已删除
-- MaterialKolor `com.materialkolor:material-kolor:4.1.1`（MD3 种子色生成主题，v2.2 起）
+- MaterialKolor `com.materialkolor:material-kolor:5.0.1`（MD3 种子色生成主题，v2.2 起）
 - Miuix 0.9.5-rc01（候选版）Android artifacts：`miuix-ui-android` / `miuix-preference-android` / `miuix-icons-android` / `miuix-material-android` / `miuix-nav-android` / `miuix-blur-android`
 - Miuix blur `miuix-blur-android` 的 shader 效果仅 API 33+；项目保持 minSdk 26，通过 `miuix-material` 的 `isRuntimeShaderSupported()` 与已门控 backdrop 在 API 26–32 回退实色，manifest override 只用于绕过 AAR 元数据的最低 SDK 声明。RC01 将 `Highlight` 迁移为 `miuix-material` 的 `EdgeStroke`，`textureBlur` 不再接收 `highlight` 参数。
 - OkHttp `com.squareup.okhttp3:okhttp:4.12.0`（坚果云 WebDAV 同步，v2.4 起；只声明一次）
