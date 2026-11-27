@@ -228,6 +228,9 @@ dependencies {
     implementation(libs.miuix.glass.icons.android)
 
     implementation(libs.material.kolor)
+    // MaterialKolor's Compose API has runtime signatures/defaults that use this class.
+    // Declare the multiplatform utilities artifact directly so Android APK variants package it.
+    implementation(libs.material.kolor.utilities)
 
     implementation(libs.okhttp)
 
