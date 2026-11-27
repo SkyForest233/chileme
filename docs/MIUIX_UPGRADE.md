@@ -8,10 +8,10 @@
 ## 0. 升级前必读的前提
 
 1. **Miuix 是 KMP 库，版本与工具链强绑定**。升级时需核对产物 metadata / Android AAR 要求与上游构建基线；上游构建版本不全等于消费者最低要求，不应盲目复制所有工具。
-2. **本项目当前锁定在 `0.9.4`（稳定版）**，工具链为 Kotlin 2.4.20 / AGP 9.4.1 / **Gradle 9.7.1** / compileSdk 37 / **minSdk 26** / JDK 21。（2026-09-16 校正：此前本文写 Gradle 9.6.1、minSdk 24，均已过期）
-3. **优先升级到稳定版**（如 `0.9.4` 正式 tag），候选版/快照版风险高。
+2. **本项目当前锁定在 `0.9.5-rc01`（候选版，非稳定版）**，工具链为 Kotlin 2.4.21 / AGP 9.5.2 / **Gradle 9.9.2** / compileSdk API 37 extension level 2 / **minSdk 26** / JDK 21。
+3. **未来升级优先选择稳定版**；本次按用户明确选择使用 `0.9.5-rc01`，需将候选版风险保留在变更说明中。
 4. **升级前确保工作区干净、PR 已合并**，避免在未合并改动上叠加升级。
-5. **严禁凭记忆臆造 Miuix API**。本项目已安装 skill（`.claude/skills/miuix/`）；所有组件签名一律以**目标项目实际 Miuix 版本**的 pinned source 为准，升级后需用**新版本的 source** 重新核对。当前 skill 证据基线已随上游更新为 stable `v0.9.4`，本项目依赖已对齐 `0.9.4`。
+5. **严禁凭记忆臆造 Miuix API**。本项目安装 `.claude/skills/miuix-components/` 与 `.claude/skills/miuix-guidelines/`；组件 skill 固定到 Miuix `v0.9.5-rc01` source commit `542463a0863b393a3d6052237daae6c3da217e70`，skill 内容同步自 `limczhh/miuix-skill` commit `2694ee277fc64156331a992efc9e21e7d212b1ce`。升级后仍须用目标版本 pinned source 逐一核对，不得只凭 skill 或旧版记忆。
 
 ---
 
@@ -45,42 +45,45 @@ https://raw.githubusercontent.com/compose-miuix-ui/miuix/<tag>/gradle/libs.versi
 
 ```toml
 [versions]
-miuix = "0.9.4"     # ← 只改这一行
+miuix = "0.9.5-rc01"     # 当前按用户选择使用的候选版
 ```
 
-五个坐标都 `version.ref = "miuix"`，改一处即可全部对齐（`miuix-ui` / `miuix-preference` / `miuix-icons` 保持 **common 坐标**；导航与 blur 使用 Android artifact，其中 blur 的 API 33+ gate 见下）：
+Miuix 0.9.5-rc01 的 Android-only app 使用 `-android` artifacts；这些坐标共用同一 `version.ref`（blur 的 API 33+ gate 见下）：
 
 ```toml
 miuix-nav-android = { module = "top.yukonga.miuix.kmp:miuix-nav-android", version.ref = "miuix" }
-miuix-ui          = { module = "top.yukonga.miuix.kmp:miuix-ui",          version.ref = "miuix" }
-miuix-preference  = { module = "top.yukonga.miuix.kmp:miuix-preference",  version.ref = "miuix" }
-miuix-icons       = { module = "top.yukonga.miuix.kmp:miuix-icons",       version.ref = "miuix" }
+miuix-ui-android = { module = "top.yukonga.miuix.kmp:miuix-ui-android", version.ref = "miuix" }
+miuix-preference-android = { module = "top.yukonga.miuix.kmp:miuix-preference-android", version.ref = "miuix" }
+miuix-icons-android = { module = "top.yukonga.miuix.kmp:miuix-icons-android", version.ref = "miuix" }
+miuix-material-android = { module = "top.yukonga.miuix.kmp:miuix-material-android", version.ref = "miuix" }
 miuix-blur-android = { module = "top.yukonga.miuix.kmp:miuix-blur-android", version.ref = "miuix" }
 ```
 
-`app/build.gradle.kts` 里只写 `implementation(libs.miuix.ui)` 这类别名，**不要再写死坐标字符串**。
+`app/build.gradle.kts` 里只写 `implementation(libs.miuix.*.android)` 这类别名，**不要再写死坐标字符串**。
 
-**minSdk 例外必须双重门控**：stable `miuix-blur-android` 的 Android 运行时能力为 API 33+，但项目 `minSdk` 保持 26。manifest 用 `tools:overrideLibrary="top.yukonga.miuix.kmp.blur"` 仅覆盖 AAR SDK 元数据；所有 blur / lens 入口必须先由 `isRuntimeShaderSupported()` 或已门控的 backdrop CompositionLocal 保证旧系统回退实色。不要把 manifest override 当成 API 兼容证明。
+**minSdk 例外必须双重门控**：`miuix-blur-android` 的 Android 运行时能力为 API 33+，但项目 `minSdk` 保持 26。manifest 用 `tools:overrideLibrary="top.yukonga.miuix.kmp.blur"` 仅覆盖 AAR SDK 元数据；所有 blur / lens / edge-stroke 入口必须由 `miuix-material.isRuntimeShaderSupported()` 或已门控的 backdrop CompositionLocal 保证 API 26–32 回退实色。不要把 manifest override 当成 API 兼容证明。RC01 中 `RuntimeShader` / `isRuntimeShaderSupported`、`EdgeStroke` 与 tilt sensor API 在 `miuix-material`；`textureBlur` 不再有 `highlight` 参数。
 
 ### 第 3 步：连带升级工具链（若基线变化）
 
 - `gradle/libs.versions.toml` 的 `[versions]`：`agp`、`kotlin`、`composeBom`（`[plugins]` 里 `kotlin-compose` / `kotlin-serialization` 的版本都 `version.ref = "kotlin"`，改 `kotlin` 一处即可；根 `build.gradle.kts` 与 `app/build.gradle.kts` 均用 `alias(libs.plugins.*)` 引用）。**注意：本项目是 AGP 9 内置 Kotlin，勿重新加 `org.jetbrains.kotlin.android`**。
 - `gradle/wrapper/gradle-wrapper.properties`：Gradle distributionUrl。
 - `app/build.gradle.kts`：`compileSdk`（如需更高）。
-- ⚠️ Miuix 0.9.4 使用 Compose Multiplatform 1.12.0；本项目现有 BOM 2026.08.00 已约束 AndroidX Compose 1.12.0，本轮保持不变。以后升级需分别核对 KMP 与 AndroidX 产物，**不要和功能改动混在同一个 PR**，保证能独立回滚。
+- ⚠️ Miuix 0.9.5-rc01 上游使用 Compose Multiplatform 1.13.0-rc01；本项目 AndroidX Compose BOM 仍为 2026.08.00。两者是不同发布轴，不能只凭版本号推断兼容性。本次保留 BOM，须用 Gradle dependency insight / CI 编译核实实际解析版本；若出现 API/二进制不兼容，再单独调整 BOM。
 
 ### 第 4 步：扫描并核对受影响的 API
 
-1. 读 skill 的迁移笔记（当前为 `.claude/skills/miuix/references/release-v0.9.4.md`；上游已删除 rc01/0.9.3 两份迁移笔记），以及**目标版本**的官方 release notes。
+1. 读 `.claude/skills/miuix-components/references/rc01-migration.md` 与目标版本的官方 release notes；页面结构任务另读 `.claude/skills/miuix-guidelines/` 对应规则。
 2. 扫描本项目所有 Miuix 调用点，重点核对易变组件：
    - 弹窗：`OverlayDialog` / `WindowDialog`（`maxWidth` / `largeScreen` / `cornerRadius` 等参数）
    - Preference：`SwitchPreference` / `ArrowPreference` / `RadioButtonPreference` / `OverlayDropdownPreference`
    - 主题：`MiuixTheme` / `ThemeController` / `ColorSchemeMode` / `Colors` 字段
    - 基础：`Button` / `TextButton` / `TextField` / `InputField` / `Card` / `Snackbar`
    - squircle：`squircleBorder` / `squircleSurface`
-   - blur：`textureBlur` / `drawBackdrop` / `isRuntimeShaderSupported`；重点复核 backdrop 捕获边界，不能采样浮栏自身
-   - 图标：`MiuixIcons.Regular.*` 的图标名是否仍存在
+   - blur/glass：`textureBlur` / `drawBackdrop` / runtime shader / tilt / custom `Backdrop`；重点复核 backdrop 捕获边界，不能采样浮栏自身
+   - 图标：`MiuixIcons.*` 的图标名是否仍存在
 3. 用新版本的 pinned source 逐一核对签名，不要凭旧版本记忆。
+
+**0.9.4 → 0.9.5-rc01 的本仓实际迁移点**：`Highlight` / `BloomStroke` 迁为 `miuix-material` 的 `EdgeStroke`；原 `BloomStroke(dualPeak = true)` 对应 `EdgePeak.Dual`，继续旋转 primary light 并保留 secondary light；`Highlight.alpha` 改为 `drawEdgeStroke(alpha = ...)`。`textureBlur` 不再接受 `highlight`，边缘描光改为独立 `Modifier.edgeStroke` 或 `drawBackdrop(onDrawFront = ...)`；`RuntimeShader` / `asBrush` / `isRuntimeShaderSupported` 与 `rememberDeviceTilt` 移到 `miuix-material`（sensor 子包）；`Backdrop.downscaleFactor` 从 `Int` 改为 `Float`。自定义 lens 与 `CombinedBackdrop` 均需同步签名/缩放处理。未使用的 `GlassBottomSheet`、RC01 重命名图标、dropdown popup `onDismissFinished` 调用点已扫描确认无本仓调用。
 
 扫描命令参考：
 ```bash
@@ -162,7 +165,7 @@ grep -rn "top.yukonga.miuix.kmp" app/src/main/java | sed 's/.*import //' | sort 
 | `app/build.gradle.kts` | 依赖别名引用（`libs.miuix.*`）+ compileSdk / minSdk / targetSdk |
 | `app/src/main/AndroidManifest.xml` | API 33+ `miuix-blur` 的受控 `overrideLibrary`；需与 `isRuntimeShaderSupported()` fallback 一起审计 |
 | `app/src/main/java/com/agon/app/LiquidGlassLens.kt` | 基于 Miuix 公共 `runtimeShaderEffect` 的圆角折射 lens，支持色散 |
-| `app/src/main/java/com/agon/app/LiquidGlassNavigationBar.kt` | Miuix v0.9.4 demo 风格的可拖拽玻璃底栏：Tab 选择、弹性指示器、按压缩放与传感器高光 |
+| `app/src/main/java/com/agon/app/LiquidGlassNavigationBar.kt` | Miuix v0.9.5-rc01 demo 风格的可拖拽玻璃底栏：Tab 选择、弹性指示器、按压缩放与 EdgeStroke 传感器高光 |
 | `app/src/main/java/com/agon/app/MainTabsPagerState.kt` | 对齐 Miuix demo 的跨页协调器：目标页与 Pager 中间页分离；MIUIX 用 `springAnimateToPage()` 连续跨页，MD3 保留原动画 |
 | `app/src/main/java/com/agon/app/DampedDragAnimation.kt` / `InteractiveHighlight.kt` | 阻尼拖拽回弹与交互高光 |
 | `app/src/main/java/com/agon/app/CombinedBackdrop.kt` / `InnerShadow.kt` / `LiquidGlassVibrancy.kt` | 多层 backdrop 采样、指示器内阴影及 vibrancy 辅助效果 |
@@ -175,7 +178,7 @@ grep -rn "top.yukonga.miuix.kmp" app/src/main/java | sed 's/.*import //' | sort 
 | `app/src/main/java/com/agon/app/ui/components/*.kt` | 复用组件（12 个文件 —— 09-19 #11d① 加 `StatsCharts.kt`、#11e 加 `CalendarMonthLayout.kt`；现值 = `ls app/src/main/java/com/agon/app/ui/components/*.kt | wc -l`，**单文件双主题** —— 分流在组件内部走 `LocalThemeStyle`，不是两份实现）；2026-09-16 由**已删除**的 `Common.kt` 拆出 8 个，另有原本就独立的 `UndoSnackbar.kt` / `ExpiryCalendar.kt` |
 | `app/src/main/java/com/agon/app/ui/screens/*.kt` | 屏幕：9 个渲染文件 + 3 个设置页弹窗文件（`Settings*Dialogs.kt`，#10a-1 起，不是新增屏幕）+ 8 个 `*State.kt`。⚠️ **`Miuix*Screen.kt` 双胞胎已于 2026-09-16 全部删除**，别照旧清单去找「各页 Miuix 实现」—— Miuix 分支现在就写在同一个屏幕文件里 |
 | 包根 `app/src/main/java/com/agon/app/*.kt` | `MainActivity` / `MainApp` / `AppNavGraph` / `NavChrome` / `BatchBars` —— 底栏四套形态、`NavDisplay` 转场与系统圆角、Snackbar / FAB / 批量栏都在这层调 Miuix API |
-| `.claude/skills/miuix/` | skill（证据路由；上游基线 stable `v0.9.4`，已与 App 对齐；具体依赖以 `libs.versions.toml` 为准） |
+| `.claude/skills/miuix-components/` + `.claude/skills/miuix-guidelines/` | 上游双 skill；组件证据锁定 Miuix `v0.9.5-rc01`，与 App 依赖一致（候选版；具体依赖以 `libs.versions.toml` 为准） |
 | `docs/audits/2026-08-20-miuix-review.md` | 设计审查报告 |
 
 > ⚠️ **本表刻意不写「各层有多少处 Miuix 调用」** —— 这类数字会随重构悄悄过期（本表此前就指着

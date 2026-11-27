@@ -17,11 +17,11 @@ package com.agon.app.ui.components.app
 // `layout/DialogContentLayout.kt` 的 `DialogContent` 内部，应用层唯一的开关是
 // `WindowDialog(defaultWindowInsetsPadding = false)`，而它是**三件套一起关**
 // （`.imePadding().navigationBarsPadding().captionBarPadding()`）—— 关掉后弹窗底边会掉到导航栏/手势条下面、
-// squircle 圆角被压住，是所有 Miuix 弹窗的视觉回退。查过上游 pinned tag v0.9.4-rc01：全库只有两处用到 ime，
-// 即 `DialogContentLayout` 的 `.imePadding()` 与「弹窗关闭时 `keyboardController.hide()`」
-// （`DialogContentLayout` + `utils/MiuixPopupUtils.kt:332`），**没有任何 IME 平滑/粘性能力**；
-// `.claude/skills/miuix` 里也没有（release note 提到的 "search-bar inset timing" 明确标注为 Example-only、
-// 不是库的公开 API，且嘱咐不要照抄）。Miuix 侧要根治只能等上游，可考虑提 issue。
+// squircle 圆角被压住，是所有 Miuix 弹窗的视觉回退。查过上游 pinned tag v0.9.5-rc01：
+// `DialogContentLayout` 与 `BottomSheetContentLayout` 在默认 inset 开关下都使用 `.imePadding()`；
+// 关闭弹层时，`DialogContentLayout` 与 `utils/MiuixPopupUtils.kt` 会调用 `keyboardController.hide()`。
+// 上游没有输入框切焦时的 IME 平滑/粘性能力；`.claude/skills/miuix-components/` 也没有对应的公开 API。
+// Miuix 侧要根治只能等上游，可考虑提 issue。
 //
 // 适用范围：**只有带输入框的 MD3 弹窗**（三处：`AppFormDialog` / `AppBatchMoveDialog` 批量移动位置 /
 // `SettingsScreen` 坚果云，正是 `ImeHandlingTest` 第 3 条点名那三个文件）。

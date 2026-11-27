@@ -64,8 +64,9 @@ import top.yukonga.miuix.kmp.basic.NavigationItem
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.blur.BlendColorEntry
 import top.yukonga.miuix.kmp.blur.BlurDefaults
-import top.yukonga.miuix.kmp.blur.highlight.Highlight
 import top.yukonga.miuix.kmp.blur.textureBlur
+import top.yukonga.miuix.kmp.material.EdgeStrokes
+import top.yukonga.miuix.kmp.material.edgeStroke
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.icon.extended.GridView
 import top.yukonga.miuix.kmp.icon.extended.Home
@@ -217,7 +218,7 @@ internal fun MiuixBottomNav(selectedIndex: Int, onSelect: (Int) -> Unit) {
     }
 }
 
-/** Miuix：常规悬浮栏的毛玻璃参数与 v0.9.4 演示 app 对齐；液态玻璃另走自定义栏。 */
+/** Miuix：常规悬浮栏的毛玻璃参数与 v0.9.5-rc01 演示 app 对齐；液态玻璃另走自定义栏。 */
 @Composable
 internal fun MiuixFloatingNav(selectedIndex: Int, onSelect: (Int) -> Unit) {
     val backdrop = LocalMiuixBackdrop.current
@@ -237,22 +238,23 @@ internal fun MiuixFloatingNav(selectedIndex: Int, onSelect: (Int) -> Unit) {
         )
     } else {
         val isDark = MiuixTheme.colorScheme.surface.luminance() < 0.5f
-        val floatingHighlight = remember(isDark) {
-            if (isDark) Highlight.GlassStrokeMiddleDark else Highlight.GlassStrokeMiddleLight
+        val floatingEdgeStroke = remember(isDark) {
+            if (isDark) EdgeStrokes.MiddleDark else EdgeStrokes.MiddleLight
         }
         val edgeColor = MiuixTheme.colorScheme.dividerLine.copy(alpha = 0.58f)
         val barModifier = if (activeBackdrop != null) {
-            Modifier.textureBlur(
-                backdrop = activeBackdrop,
-                shape = pillShape,
-                blurRadius = 25f,
-                colors = BlurDefaults.blurColors(
-                    blendColors = listOf(
-                        BlendColorEntry(color = surfaceContainerColor.copy(alpha = 0.6f)),
+            Modifier
+                .textureBlur(
+                    backdrop = activeBackdrop,
+                    shape = pillShape,
+                    blurRadius = 25f,
+                    colors = BlurDefaults.blurColors(
+                        blendColors = listOf(
+                            BlendColorEntry(color = surfaceContainerColor.copy(alpha = 0.6f)),
+                        ),
                     ),
-                ),
-                highlight = floatingHighlight,
-            )
+                )
+                .edgeStroke(shape = pillShape, stroke = floatingEdgeStroke)
         } else {
             Modifier.border(width = 0.8.dp, color = edgeColor, shape = pillShape)
         }

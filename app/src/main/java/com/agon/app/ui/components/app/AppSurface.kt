@@ -72,7 +72,7 @@ fun AppCard(
  * 带库默认内衬的卡片：MD3 侧与 [AppCard] **完全相同**（`shapes.large` + `surfaceContainer`），
  * Miuix 侧用官方 `Card` 而不是 `Surface`。
  *
- * 为什么两种卡片都要留着（上游 v0.9.4-rc01 `Card.kt:50` 已核对）：Miuix `Card` 的圆角默认值
+ * 为什么两种卡片都要留着（上游 v0.9.5-rc01 `Card.kt:50` 已核对）：Miuix `Card` 的圆角默认值
  * `CardDefaults.CornerRadius` 也是 16dp，与 `AppCard` 的 Miuix 分支一致，但它还会把内容套进
  * `Column(Modifier.padding(CardDefaults.InsideMargin))`，且 content 接收者是 `ColumnScope`。
  * 合并前归档行与详情页两张信息卡用的都是 `Card`（= 内容自带 padding 之外**再多一层内衬**），

@@ -69,7 +69,7 @@ fun AppDivider(modifier: Modifier = Modifier) {
  *
  * 两侧宽度处理方式不同，都按合并前的原样保留：
  * - MD3：调用处显式 `fillMaxWidth() + height(8.dp) + clip(圆角 50)`，故这三项收在组件里；
- * - Miuix：上游 `LinearProgressIndicator`（v0.9.4-rc01，`ProgressIndicator.kt:88-91`）**内部自带**
+ * - Miuix：上游 `LinearProgressIndicator`（v0.9.5-rc01，`ProgressIndicator.kt:50-65`）**内部自带**
  *   `.fillMaxWidth().height(height)`，所以调用方不传宽度也是满宽 —— 抽象前后一致，不会变宽变窄。
  */
 @Composable

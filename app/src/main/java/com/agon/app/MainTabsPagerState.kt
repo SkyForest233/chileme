@@ -1,5 +1,5 @@
 // Copyright 2026, compose-miuix-ui contributors
-// Adapted by chileme contributors from the Miuix v0.9.4 example's MainPagerState.
+// Adapted by chileme contributors from the Miuix v0.9.5-rc01 example's MainPagerState.
 // SPDX-License-Identifier: Apache-2.0
 
 package com.agon.app

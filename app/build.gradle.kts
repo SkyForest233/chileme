@@ -45,9 +45,13 @@ val projectDebugKeystore = rootProject.file("debug.keystore")
 
 android {
     namespace = "com.agon.app"
-    // Miuix 0.9.4 及其传递依赖（Compose 1.12.0 等）要求 compileSdk ≥ 37。
-    // compileSdk 与 targetSdk/minSdk 相互独立，仅此一项升级即可。
-    compileSdk = 37
+    // Miuix 0.9.5-rc01 Android AAR metadata requires API 37 extension 2.
+    // compileSdk 与 targetSdk/minSdk 相互独立；minSdk 仍为 26，blur 旧系统走实色回退。
+    compileSdk {
+        version = release(37) {
+            minorApiLevel = 2
+        }
+    }
 
     defaultConfig {
         applicationId = "com.chileme.pantry"
@@ -210,12 +214,13 @@ dependencies {
 
     implementation(libs.androidx.datastore.preferences)
 
-    // Miuix（HyperOS 风格 Compose 组件库），版本对齐 skill 基线 v0.9.4。
-    // 使用 common 坐标，Gradle Module Metadata 会自动解析到 android 变体。
-    implementation(libs.miuix.ui)
-    implementation(libs.miuix.preference)
+    // Miuix 0.9.5-rc01（纯 Android AAR；组件 API 见 miuix-components skill）。
+    implementation(libs.miuix.ui.android)
+    implementation(libs.miuix.preference.android)
     // 图标库：仅 MIUIX 主题使用（MD3 主题继续用 material-icons-extended）。
-    implementation(libs.miuix.icons)
+    implementation(libs.miuix.icons.android)
+    // 自定义液态玻璃边缘描光与 RuntimeShader capability API。
+    implementation(libs.miuix.material.android)
     // Backdrop 模糊 / 液态玻璃；API 33 以下由 runtime shader capability gate 回退到实色组件。
     implementation(libs.miuix.blur.android)
 

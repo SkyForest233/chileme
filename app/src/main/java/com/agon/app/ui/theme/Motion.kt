@@ -33,7 +33,7 @@ object MotionEasing {
  * 展开略快（0.2s），收起略慢（0.3s）。
  *
  * 二级页进出由 miuix-nav NavDisplay 的 NavTransitions.MiuixDefault 驱动，不要把
- * 弹簧套进已废弃的 NavHost enter/exit。MIUIX Tab pager 使用 Miuix v0.9.4 的
+ * 弹簧套进已废弃的 NavHost enter/exit。MIUIX Tab pager 使用 Miuix v0.9.5-rc01 的
  * `PagerState.springAnimateToPage()`；MD3 保留按距离调参的 [page]。
  */
 object MotionSpring {

@@ -34,7 +34,7 @@ import androidx.compose.ui.unit.dp
 import com.agon.app.ui.components.CheckSwitch
 import com.agon.app.ui.theme.AppPalette
 import com.agon.app.ui.theme.ThemeStyle
-import top.yukonga.miuix.kmp.blur.isRuntimeShaderSupported
+import top.yukonga.miuix.kmp.material.isRuntimeShaderSupported
 
 /**
  * MD3 版设置节：滚动 `Column` + `Surface` 分组卡片（外观 / 物品管理 / 备份与数据 / 关于）。

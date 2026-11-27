@@ -9,7 +9,7 @@ package com.agon.app.ui.components.app
 // 两主题的档位不是一一对应：Miuix 的 body1 同时承接 MD3 的 titleMedium 与 bodyLarge。这不是偷懒，
 // 合并前 MiuixFoodDetailScreen 本来就这么用（剩余天数 / DetailRow 的值 / 按钮文案全是 body1），照抄。
 //
-// 默认值与两主题的 Text 完全对齐（已核对上游 v0.9.4-rc01 的 Text.kt 与 material3 的 Text）：
+// 默认值与两主题的 Text 完全对齐（已核对上游 v0.9.5-rc01 的 Text.kt 与 material3 的 Text）：
 // color = Color.Unspecified（两边都表示「用默认内容色」）、fontWeight = null、
 // fontSize = TextUnit.Unspecified、maxLines = Int.MAX_VALUE、overflow = TextOverflow.Clip。
 //

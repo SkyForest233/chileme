@@ -75,7 +75,7 @@ import java.time.LocalDate
  * 两版**逐段同构**——连 `LazyColumn` 的 contentPadding、`AnimatedVisibility` 的 tween 时长、
  * 「件数口径」的注释都一样——差异全在外壳与叶子上，逐项落位到 `ui/components/app/`：
  *
- * - **顶栏**：一个 `subtitle` 参数喂两边。Miuix 直接吃（上游 v0.9.4-rc01 `TopAppBar.kt:100` 已核对
+ * - **顶栏**：一个 `subtitle` 参数喂两边。Miuix 直接吃（上游 v0.9.5-rc01 `TopAppBar.kt:122` 已核对
  *   `subtitle: String = ""`，传空串与不传等价）；MD3 侧「带副标题」即折叠式 `LargeTopAppBar` +
  *   `nestedScroll` + `fillMaxSize`（合并前 MD3 首页就是这么写的，Miuix 首页的 Scaffold 没有 modifier，
  *   所以也不替它加）。Miuix 同样有 `largeTitle` + `scrollBehavior` 可做折叠顶栏，但合并前没用，不替它开。

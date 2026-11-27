@@ -50,11 +50,11 @@ import top.yukonga.miuix.kmp.icon.extended.Close
  *
  * 两主题的返回图标字形不同（MD3 `ArrowBack` / Miuix `Back`），标题排版也不同
  * （MD3 传 composable 并加粗 / Miuix 直接吃 String），差异都收在这里。
- * `actions` 两主题同为 `@Composable RowScope.() -> Unit`（上游 v0.9.4-rc01 的
+ * `actions` 两主题同为 `@Composable RowScope.() -> Unit`（上游 v0.9.5-rc01 的
  * `TopAppBar` 签名已核对），可直传；动作里的图标请用 [AppDestructiveAction] 这类
  * 已分流的组件，别在屏幕里再写 `if (isMiuix)`。
- * `subtitle` 两侧都吃得到，不存在「一个主题静默忽略参数」：Miuix 直接传（上游 v0.9.4-rc01
- * `TopAppBar.kt:100` 已核对 `subtitle: String = ""`，所以传空串与不传逐字等价）；MD3 的 `TopAppBar`
+ * `subtitle` 两侧都吃得到，不存在「一个主题静默忽略参数」：Miuix 直接传（上游 v0.9.5-rc01
+ * `TopAppBar.kt:122` 已核对 `subtitle: String = ""`，所以传空串与不传逐字等价）；MD3 的 `TopAppBar`
  * 没有这个参数，改用 `LargeTopAppBar` 把标题排成两行 —— 这正是合并前 MD3 首页的写法，
  * 顺带带来折叠效果（见 [scrollBehavior]）。
  *
