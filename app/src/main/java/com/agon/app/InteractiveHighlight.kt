@@ -5,6 +5,7 @@ package com.agon.app
 
 // Adapted from Kyant0/AndroidLiquidGlass — https://github.com/Kyant0/AndroidLiquidGlass (Apache 2.0).
 
+import android.os.Build
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.VectorConverter
 import androidx.compose.animation.core.VisibilityThreshold
@@ -35,7 +36,7 @@ internal class InteractiveHighlight(
     private val positionAnimation = Animatable(Offset.Zero, Offset.VectorConverter, Offset.VisibilityThreshold)
     private var startPosition = Offset.Zero
 
-    // Smoothstep press spot; without runtime shader support, falls back to a radialGradient
+    // asBrush() requires API 33; older devices and unsupported environments use a radialGradient
     // approximation (linear instead of S-curve falloff — barely distinguishable).
     private val spotShader: RuntimeShader? =
         if (isRuntimeShaderSupported()) RuntimeShader(SPOT_SHADER) else null
@@ -54,7 +55,7 @@ internal class InteractiveHighlight(
                 y = pos.y.coerceIn(0f, size.height),
             )
             val spotColor = Color.White.copy(alpha = 0.12f * progress)
-            if (spotShader != null) {
+            if (spotShader != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 spotShader.setColorUniform("color", spotColor)
                 spotShader.setFloatUniform("radius", radius)
                 spotShader.setFloatUniform("position", center.x, center.y)
