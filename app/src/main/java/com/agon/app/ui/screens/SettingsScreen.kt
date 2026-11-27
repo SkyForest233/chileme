@@ -10,9 +10,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.ui.platform.LocalContext
 import com.agon.app.data.readBackupText
 import com.agon.app.ui.components.app.AppScaffold
+import com.agon.app.ui.components.app.rememberAppMiuixScrollBehavior
 import com.agon.app.ui.components.app.AppSnackbarForm
 import com.agon.app.ui.components.app.AppSnackbarPlacement
 import com.agon.app.ui.components.app.rememberAppSnackbarHostState
@@ -47,7 +49,7 @@ import kotlinx.coroutines.launch
  * `.typography.`↔`.textStyles.`、`Miuix` 前缀归一化后是 311 行）—— **八对里最低的一对**（第 7 对统计页 271/294）。
  * 原因不是抄漏了，而是两版的排版习语根本不同：MD3 是「滚动 `Column` + `Surface` 分组卡片 + 手写行」，
  * Miuix 是「`LazyColumn` + 库的 Preference 组件（`SmallTitle`/`Card`/`RadioButtonPreference`/
- * `SwitchPreference`/`ArrowPreference`/`OverlayDropdownPreference`）」。所以 body 保留两套
+ * `SwitchPreference`/`ArrowPreference`/`GlassDropdownPreference`）」。所以 body 保留两套
  * （[Md3SettingsBody] / [MiuixSettingsBody]，都是逐字搬运；#10a-2 起分别在 `SettingsBodyMd3.kt` /
  * `SettingsBodyMiuix.kt`），去重收益来自下面三处：
  *
@@ -62,9 +64,10 @@ import kotlinx.coroutines.launch
  * 照抄而非统一的地方：
  * - **坚果云账号弹窗**：MD3 是 `AlertDialog` 的 title/text/confirmButton 槽位 + `DialogProperties(decorFitsSystemWindows = false)`
  *   + `stickyImePadding`（2026-09-15 的键盘避让修复 + 2026-09-17 改粘性避让，`ImeHandlingTest` 第 3 条按文件点名），Miuix 是 `MiuixDialog` +
- *   `Column(spacedBy 12.dp)` + 自己排一行两个等宽按钮。**两版的输入框都是 MD3 `OutlinedTextField`**
- *   （Miuix 的 `TextField` 没有 `visualTransformation` 参数，做不了密码遮蔽，合并前就是刻意妥协），
- *   且值直接读写 `state.accountInput` / `state.passwordInput`。`AppFormDialog` 是「本地字段 + `onConfirm(values)`」
+ *   `Column(spacedBy 12.dp)` + 自己排一行两个等宽按钮。MD3 用 `OutlinedTextField`，Miuix 用
+ *   `GlassTextField(value, onValueChange)` 兼容重载并通过 `visualTransformation` 遮蔽密码；当前保留该重载，
+ *   后续可按上游迁移指南改用 state-based API。两者都直接读写 `state.accountInput` / `state.passwordInput`。
+ *   `AppFormDialog` 是「本地字段 + `onConfirm(values)`」
  *   的口径，硬套进来要改它的字段所有权并加密码/说明文槽位，风险大于收益 —— 判定不并（已回写 `AppFormDialog.kt` 头注释）。
  * - **导入预览弹窗**：正文是 `buildString` 拼的多行摘要 + 版本告警，MD3 放 `text` 槽、Miuix 放 `summary`，
  *   按钮文案同为「取消 / 覆盖导入」但排布不同（MD3 槽位 vs Miuix 一行两个等宽）。摘要文本只写一份（`M_sum` 那段）。
@@ -79,7 +82,7 @@ import kotlinx.coroutines.launch
  *
  * 三处非等价改动（都是收敛到更好的一边，刻意）：
  * ① Miuix 的「导入预览」由 `pendingImport?.let { MiuixDialog(show = true) }` 改成无条件调用 +
- *   `show = pendingImport != null`（库的硬约束，见 `MiuixDialog.kt` KDoc 与 `docs/MIUIX_UPGRADE.md` §2.3），
+ *   `show = pendingImport != null`（库的硬约束，见 `MiuixDialog.kt` KDoc 与 `docs/MIUIX_UPGRADE.md` §2 第 3 条），
  *   关闭时才有淡出动画；摘要文本用 `?.let { … }.orEmpty()` 计算，内容逐字不变。
  * ② 「恢复二次确认」「快照还原确认」两版原本一份 `?.let { AlertDialog }`、一份无条件 `MiuixDialog`，
  *   统一走 [AppConfirmDialog]（MD3 分支内部 `if (show)`，行为不变），确认动作抽成 `confirmRestore` /
@@ -237,8 +240,14 @@ fun SettingsScreen(
         }
     }
 
+    // The Miuix list state is the source of both top-bar collapse events and Glass overlap state.
+    val miuixSettingsListState = rememberLazyListState()
+    val miuixScrollBehavior = rememberAppMiuixScrollBehavior()
+
     AppScaffold(
         title = "设置",
+        miuixScrollBehavior = miuixScrollBehavior,
+        miuixContentScrolled = miuixSettingsListState.canScrollBackward,
         snackbar = snackbar,
         snackbarPlacement = AppSnackbarPlacement.FloatingNav,
         snackbarForm = AppSnackbarForm.Plain,
@@ -248,6 +257,8 @@ fun SettingsScreen(
             MiuixSettingsBody(
                 state = state,
                 padding = padding,
+                scrollState = miuixSettingsListState,
+                scrollBehavior = miuixScrollBehavior,
                 onUpload = onUpload,
                 onCloudRestore = onCloudRestore,
                 onOpenThresholds = onOpenThresholds,

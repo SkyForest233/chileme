@@ -6,10 +6,14 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.agon.app.data.CLOUD_BACKUP_KEEP
+import com.agon.app.ui.components.app.LocalMiuixBlurEnabled
+import com.agon.app.ui.components.app.LocalMiuixRootBackdrop
+import com.agon.app.ui.components.app.appMiuixNestedScroll
 import com.agon.app.ui.theme.ThemeStyle
 import top.yukonga.miuix.kmp.basic.BasicComponentDefaults
 import top.yukonga.miuix.kmp.material.isRuntimeShaderSupported
@@ -22,13 +26,14 @@ import top.yukonga.miuix.kmp.icon.extended.Download
 import top.yukonga.miuix.kmp.icon.extended.FileDownloads
 import top.yukonga.miuix.kmp.icon.extended.UploadCloud
 import top.yukonga.miuix.kmp.preference.ArrowPreference
-import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
+import top.yukonga.miuix.kmp.glass.GlassDropdownPreference
+import top.yukonga.miuix.kmp.basic.ScrollBehavior as MiuixScrollBehaviorType
 import top.yukonga.miuix.kmp.preference.RadioButtonPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /**
- * Miuix 版设置节：`LazyColumn` + 库的 Preference 组件（外观 / 物品管理 / 备份与数据 / 关于）。
+ * Miuix 版设置节：Glass `LazyColumn` + Preference 组件（外观 / 物品管理 / 备份与数据 / 关于）。
  * 合并前 `MiuixSettingsScreen` 的 Scaffold 内容，逐字搬运（`innerPadding` 改名 `padding`，
  * 备份节两行的 onClick 换成 [onUpload] / [onCloudRestore]）；裸 `Text`/`Surface`/`TextButton`
  * 一律换成带 `Miuix` 别名的库控件，以免与 material3 同名符号混淆。
@@ -40,6 +45,8 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 internal fun MiuixSettingsBody(
     state: SettingsUiState,
     padding: PaddingValues,
+    scrollState: LazyListState,
+    scrollBehavior: MiuixScrollBehaviorType?,
     onUpload: () -> Unit,
     onCloudRestore: () -> Unit,
     onOpenThresholds: () -> Unit,
@@ -48,11 +55,12 @@ internal fun MiuixSettingsBody(
     onOpenArchive: () -> Unit,
 ) {
     val blurSupported = isRuntimeShaderSupported()
-    // Keep the list viewport behind Miuix's transparent, blurred app bar. Passing the
-    // Scaffold insets as scroll content padding preserves the initial layout while
-    // allowing settings rows to move beneath the glass surface during scrolling.
+    // The list owns both collapse events and the explicit Glass overlap state; the root capture
+    // is distinct from the page-only backdrop consumed by GlassTopAppBar.
+    val rootBackdrop = LocalMiuixRootBackdrop.current.takeIf { LocalMiuixBlurEnabled.current }
     LazyColumn(
-        modifier = Modifier.fillMaxSize(),
+        state = scrollState,
+        modifier = Modifier.fillMaxSize().appMiuixNestedScroll(scrollBehavior),
         contentPadding = padding,
     ) {
         item(key = "appearance") {
@@ -70,11 +78,13 @@ internal fun MiuixSettingsBody(
                     selected = state.themeStyleName == ThemeStyle.MIUIX.name,
                     onClick = { state.setThemeStyle(ThemeStyle.MIUIX.name) },
                 )
-                OverlayDropdownPreference(
+                GlassDropdownPreference(
                     title = "深色模式",
                     items = listOf("跟随系统", "浅色", "深色"),
                     selectedIndex = state.darkMode.coerceIn(0, 2),
                     onSelectedIndexChange = { state.setDarkMode(it) },
+                    backdrop = rootBackdrop,
+                    renderInRootScaffold = true,
                 )
                 SwitchPreference(
                     title = "动态取色 (Material You)",
@@ -84,7 +94,7 @@ internal fun MiuixSettingsBody(
                 )
                 SwitchPreference(
                     title = "悬浮导航",
-                    summary = "关闭后底部导航改为全宽常驻底栏",
+                    summary = "关闭后 Material 3 改为全宽常驻底栏；Miuix 仍使用 Glass 胶囊",
                     checked = state.floatingNav,
                     onCheckedChange = { state.setFloatingNav(it) },
                 )
@@ -103,9 +113,9 @@ internal fun MiuixSettingsBody(
                 SwitchPreference(
                     title = "iOS-like 液态玻璃底栏",
                     summary = when {
-                        !blurSupported -> "需要 Android 13+；此设备使用普通悬浮底栏"
-                        !state.floatingNav -> "请先开启悬浮导航；仅影响 Miuix 悬浮底栏"
-                        !state.miuixBlurEnabled -> "请先开启 Miuix 背景模糊；仅影响悬浮底栏"
+                        !blurSupported -> "需要 Android 13+；此设备使用标准 Glass 胶囊"
+                        !state.floatingNav -> "请先开启悬浮导航；关闭时 Miuix 使用标准 Glass 胶囊"
+                        !state.miuixBlurEnabled -> "请先开启 Miuix 背景模糊；当前使用标准 Glass 胶囊"
                         else -> "折射与高光效果；仅影响 Miuix 悬浮底栏"
                     },
                     checked = state.liquidGlassNavEnabled,
@@ -214,7 +224,7 @@ internal fun MiuixSettingsBody(
                         onClick = onCloudRestore,
                     )
                 }
-                OverlayDropdownPreference(
+                GlassDropdownPreference(
                     title = "自动同步",
                     items = listOf("关闭", "每天", "3 天", "每周"),
                     selectedIndex = when (state.autoSyncDays) {
@@ -226,6 +236,8 @@ internal fun MiuixSettingsBody(
                     onSelectedIndexChange = { idx ->
                         state.setAutoSyncDays(listOf(0, 1, 3, 7)[idx])
                     },
+                    backdrop = rootBackdrop,
+                    renderInRootScaffold = true,
                 )
                 ArrowPreference(
                     title = "清空库存记录",

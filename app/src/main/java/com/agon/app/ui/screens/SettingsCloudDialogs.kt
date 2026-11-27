@@ -35,13 +35,14 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
 import com.agon.app.ui.components.MiuixDialog
+import com.agon.app.ui.components.MiuixGlassDialogButton
 import com.agon.app.ui.components.app.AppConfirmDialog
 import com.agon.app.ui.components.app.stickyImePadding
-import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Icon as MiuixIcon
 import top.yukonga.miuix.kmp.basic.Surface as MiuixSurface
 import top.yukonga.miuix.kmp.basic.Text as MiuixText
-import top.yukonga.miuix.kmp.basic.TextButton as MiuixTextButton
+import top.yukonga.miuix.kmp.glass.GlassDialogButtonRole
+import top.yukonga.miuix.kmp.glass.GlassTextField
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.CloudFill
 import top.yukonga.miuix.kmp.icon.extended.Download
@@ -55,6 +56,7 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
  * 内容与合并史见原文件头 KDoc 的「照抄而非统一的地方」：Miuix 与 MD3 两套排版**刻意保留**
  * `isMiuix` 分支，2026-09-16 已评估过并判定不硬并（理由逐条写在那里），本次不做去重。
  */
+@Suppress("DEPRECATION")
 @Composable
 internal fun SettingsCloudDialogs(
     state: SettingsUiState,
@@ -75,39 +77,38 @@ internal fun SettingsCloudDialogs(
                     style = MiuixTheme.textStyles.footnote2,
                     color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                 )
-                OutlinedTextField(
+                GlassTextField(
                     value = state.accountInput,
                     onValueChange = { state.setAccountInput(it) },
-                    label = { MiuixText("账号（邮箱）") },
+                    label = "账号（邮箱）",
                     singleLine = true,
-                    shape = RoundedCornerShape(16.dp),
+                    cornerRadius = 16.dp,
                     modifier = Modifier.fillMaxWidth(),
                 )
-                OutlinedTextField(
+                GlassTextField(
                     value = state.passwordInput,
                     onValueChange = { state.setPasswordInput(it) },
-                    label = { MiuixText("应用密码") },
+                    label = "应用密码",
                     singleLine = true,
                     visualTransformation = PasswordVisualTransformation(),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                    shape = RoundedCornerShape(16.dp),
+                    cornerRadius = 16.dp,
                     modifier = Modifier.fillMaxWidth(),
                 )
                 // 按钮区与表单区之间额外留白，避免紧贴密码框
                 Spacer(Modifier.height(4.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    MiuixTextButton(
+                    MiuixGlassDialogButton(
                         text = "取消",
                         onClick = { state.setShowNutstoreDialog(false) },
+                        role = GlassDialogButtonRole.Normal,
                         modifier = Modifier.weight(1f),
                     )
-                    MiuixTextButton(
+                    MiuixGlassDialogButton(
                         text = "保存",
                         onClick = saveNutstore,
+                        role = GlassDialogButtonRole.Primary,
                         modifier = Modifier.weight(1f),
-                        // 主要动作用蓝底白字胶囊：库的 TextButton 默认容器色是 secondaryVariant（浅灰），
-                        // 不传 colors 就和「取消」同色。写法依据见 AppConfirmDialog.MiuixConfirmButton 的 KDoc。
-                        colors = ButtonDefaults.textButtonColorsPrimary(),
                     )
                 }
             }
@@ -277,9 +278,10 @@ internal fun SettingsCloudDialogs(
                 }
 
                 // 底部取消按钮，与上方列表保持 16dp 间距，不重叠
-                MiuixTextButton(
+                MiuixGlassDialogButton(
                     text = "取消",
                     onClick = { state.setShowBackupPicker(false) },
+                    role = GlassDialogButtonRole.Normal,
                     modifier = Modifier.fillMaxWidth(),
                 )
             }

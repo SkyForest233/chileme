@@ -223,6 +223,9 @@ dependencies {
     implementation(libs.miuix.material.android)
     // Backdrop 模糊 / 液态玻璃；API 33 以下由 runtime shader capability gate 回退到实色组件。
     implementation(libs.miuix.blur.android)
+    // 官方 Glass 顶栏、浮动导航、弹窗、按钮与对应图标；无 backdrop 时组件走不透明 fallback。
+    implementation(libs.miuix.glass.android)
+    implementation(libs.miuix.glass.icons.android)
 
     implementation(libs.material.kolor)
 

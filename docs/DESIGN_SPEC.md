@@ -7,7 +7,7 @@
 1. **单色系**：整个 App 以"深森林绿 → 薄荷绿 → 浅绿白"的同色阶梯为主，仅用少量浅蓝作对比点缀，拒绝多彩
 2. **背景是极浅绿白**（非纯白），卡片用近白色浮起，靠色差而非阴影分层
 3. **胶囊无处不在**：柱状图是两端全圆的胶囊柱、进度条是胶囊、按钮/Chip/导航全部胶囊
-4. **悬浮胶囊导航**：底部导航不是全宽 NavigationBar，而是居中悬浮的薄荷绿胶囊，选中项为深绿胶囊（图标+文字），未选中仅图标
+4. **Material 3 悬浮胶囊导航**：MD3 默认底部导航是居中悬浮的薄荷绿胶囊，选中项为深绿胶囊（图标+文字），未选中仅图标；关闭悬浮偏好时 MD3 改用全宽 NavigationBar。Miuix 始终使用官方 Glass 胶囊（液态玻璃变体另受设置门控）
 5. **数据可视化风格**：粗胶囊柱状图、分段胶囊条、日历色块热力图；图表色一律使用绿色深浅阶梯
 
 ## 1. 配色
@@ -79,7 +79,7 @@ StatusUi 提供三个颜色槽位，按用途严格区分：
 | 列表项间距 | 10~12dp；分组间距 16dp |
 | 卡片内边距 | 16~20dp |
 | 列表底部 contentPadding | +96dp（避免 FAB/底栏遮挡） |
-| 阴影 | 主卡片 elevation ≤ 1dp，其余 0dp（靠色彩分层）；MD3 悬浮导航 shadowElevation 6dp；Miuix 常规悬浮栏 `shadowElevation=1dp` 启用库内置阴影；液态玻璃分支在 backdrop 之前自绘 10dp drop shadow（浅色 alpha 0.1、深色 0.2），跟随栏体显隐/拖拽变换 |
+| 阴影 | 主卡片 elevation ≤ 1dp，其余 0dp（靠色彩分层）；MD3 悬浮导航 shadowElevation 6dp；Miuix Glass 胶囊统一使用 `GlassShadows.Float`；液态玻璃分支在 backdrop 之前自绘 10dp drop shadow（浅色 alpha 0.1、深色 0.2），跟随栏体显隐/拖拽变换 |
 | 柱状图柱子 | 胶囊形（RoundedCornerShape(50)），宽度约列宽 62%，最小高度 14dp（无数据 8dp 底座） |
 | 排行榜进度条 | 胶囊，高 10dp，primaryContainer 色 |
 
@@ -102,15 +102,15 @@ StatusUi 提供三个颜色槽位，按用途严格区分：
 | `FoodCard` | `FoodCard.kt` | 列表主卡片 | 头像+名称+位置标签+日期+新鲜度条+数量步进器 |
 | `QuantityStepper` | `QuantityStepper.kt` | 数量增减 | 胶囊容器；仅数字 AnimatedContent 竖直滑，单位固定 |
 | `SelectIndicator` | `Controls.kt` | 多选勾选指示 | 长按进入多选时列表项左侧的勾选圈 |
-| `CheckSwitch` | `Controls.kt` | 布尔开关 | 项目特色打勾/打叉样式；**全项目布尔开关一律用它，禁用 material3 Switch** |
+| `CheckSwitch` | `Controls.kt` | 布尔开关 | Material 3 路径使用项目特色打勾/打叉样式；Miuix 路径使用 Miuix 原生 `Switch` |
 | `EmptyState` | `Controls.kt` | 空态 | 大 emoji + 标题 + 副标题，居中 |
 | `rememberStatusUi` / `urgencyDotColor` | `StatusUi.kt` | 状态色源 | 三态与四档紧急度的唯一取色入口，屏幕代码禁止写死状态色 |
 | `DataCorruptBanner` | `DataCorrupt.kt` | 数据损坏告警条 | 首页顶部；按 key 粒度说明影响 + 恢复/放弃入口 |
-| `MiuixDialog` | `MiuixDialog.kt` | Miuix 弹窗封装 | 基于 `WindowDialog`；**不要传 `defaultWindowInsetsPadding = false`**（库已处理 IME） |
+| `MiuixDialog` | `MiuixDialog.kt` | Miuix Glass 弹窗封装 | 基于根级 Miuix Scaffold 托管的 `GlassDialog`；页面 scaffold 不另建 popup host，保持 `defaultWindowInsetsPadding = true`（库处理系统栏与 IME） |
 
 新建可复用 UI 时先查本表，避免重复实现。新组件按职责放进 `ui/components/` 下对应文件（状态色 → `StatusUi.kt`、小胶囊 → `Badges.kt`、通用控件 → `Controls.kt`……），**不要再新建大杂烩文件**（原 `Common.kt` 已于 2026-09-16 拆完），并同步更新本表。
 
-**悬浮胶囊导航（FloatingPillNav，NavChrome.kt，v2.6 规范）**：居中悬浮、primaryContainer 胶囊容器；内部 4 个等宽槽位（76dp × 48dp，满足最小触摸目标）；背后一枚 primary 胶囊指示器用 spring(dampingRatio=0.8) 滑到选中槽位；**所有 Tab 常显标签**（MD3 always show labels）：图标 20dp 上、labelSmall 标签下竖排，选中项加粗；颜色用 MotionEasing.Standard 250ms 渐变。FAB 为 primary 实心圆胶囊（仅图标）。
+**Material 3 悬浮胶囊导航（`FloatingPillNav`，`NavChrome.kt`，v2.6 规范）**：居中悬浮、primaryContainer 胶囊容器；内部 4 个等宽槽位（76dp × 48dp，满足最小触摸目标）；背后一枚 primary 胶囊指示器用 spring(dampingRatio=0.8) 滑到选中槽位；**所有 Tab 常显标签**（MD3 always show labels）：图标 20dp 上、labelSmall 标签下竖排，选中项加粗；颜色用 MotionEasing.Standard 250ms 渐变。FAB 为 primary 实心圆胶囊（仅图标）。Miuix 的 Glass 胶囊与液态玻璃变体见 §7。
 
 **动效缓动（v2.6 起强制）**：全项目 tween 一律引用 `ui/theme/Motion.kt` 的 MotionEasing token，禁止无缓动 tween 与散落 CubicBezierEasing 字面量。约定：进入 = EmphasizedDecelerate（250~400ms）、退出 = EmphasizedAccelerate（200ms）、屏内状态变化 = Standard；指示器/物理位移可用 spring。
 
@@ -132,36 +132,40 @@ StatusUi 提供三个颜色槽位，按用途严格区分：
 > ```
 > **新增/删除组件时同批更新本表**（`CLAUDE.md` §3 记录规则已立此条）。
 > ⚠️ 括号里的行数一律 **`wc -l` 口径**（2026-09-19 起与表头那句话统一，此前 #11a 两行写的是 +1 的数，已改）；且它是**快照**：`AppText.kt` / `AppColors.kt` / `AppChrome.kt` / `AppSnackbar.kt` / `AppBarActions.kt` /
-> `AppMessageScreen.kt` 六行为 2026-09-19 #11a、#11b 当天实测，其余行仍是 09-17 的数
+> `AppMessageScreen.kt` 五行为 2026-09-19 #11a、#11b 当天实测；`AppChrome.kt` 行数于 2026-10-01 更新，其余行仍是 09-17 的数
 > ⇒ 全目录现值一律看 `tools/doc-metrics.sh` 的「App 级组件层」那行，本表这一列别拿来当结论引用。
 
 | 文件 | 组件（多数行生成于 2026-09-17；#11a、#11b 碰过的行是当天现跑上面那条命令） | 用途 |
 |---|---|---|
-| `AppChrome.kt` (224 行) | `AppScaffold` `AppTopBar` | 页面骨架与顶栏（含多选态的关闭/返回分流）。09-19 #11b 把撤销条宿主、顶栏动作族、整屏消息页各拆成一个文件；`AppBarIconButton` 跟着动作族走了 —— 它是 `private fun`，同包跨文件不可见，留在原地就是编译失败 |
-| `AppSnackbar.kt` (128 行) | `AppSnackbarForm` `AppSnackbarHost` `AppSnackbarHostState` `AppSnackbarPlacement` `rememberAppSnackbarHostState` | 撤销/提示条：双主题宿主容器、落点与形态。`UndoSnackbar.kt` 的 `SwipeDismissSnackbarHost` **没有**一起搬：它被 `MainApp.kt` 与 4 个屏幕直接 import，搬它要改 6 处 import，与「同包零改动」不是一回事（记在 ROADMAP #11 备注）（09-19 #11b 拆出） |
+| `AppChrome.kt` (303 行) | `AppScaffold` `AppTopBar` | 双主题页面骨架与顶栏；保留可选页面 `bottomBar` 槽位供编辑页使用，Miuix 页面 scaffold 不重复安装 popup host。09-19 #11b 把撤销条宿主、顶栏动作族、整屏消息页各拆成一个文件；`AppBarIconButton` 跟着动作族走了 —— 它是 `private fun`，同包跨文件不可见，留在原地就是编译失败 |
+| `AppSnackbar.kt` | `AppSnackbarForm` `AppSnackbarHost` `AppSnackbarHostState` `AppSnackbarPlacement` `rememberAppSnackbarHostState` | 撤销/提示条：双主题宿主容器、落点与形态；`ScaffoldDefault` 让编辑页交由当前 Scaffold 原生定位。`UndoSnackbar.kt` 的 `SwipeDismissSnackbarHost` **没有**一起搬：它被 `MainApp.kt` 与屏幕直接 import，搬它要改多处 import，与「同包零改动」不是一回事（09-19 #11b 拆出） |
 | `AppBarActions.kt` (123 行) | `AppArchiveAction` `AppBarIconButton` `AppDeleteAction` `AppDestructiveAction` `AppEditAction` `AppSelectAllAction` | 顶栏 5 个动作入口 + 它们共用的 `AppBarIconButton` 底座（`AppChrome.kt` 的 `AppBarNavIcon` 也调它）。行内动作 `AppEditRowAction` / `AppDeleteRowAction` 仍在 `AppListRow.kt`：它们长在卡片行上，不是顶栏槽位（09-19 #11b 拆出） |
 | `AppMessageScreen.kt` (76 行) | `AppMessageScreen` | 整屏消息页（自带标题栏 + 一个动作按钮），被当导航目标用。**刻意不与 `EmptyState` 合并** —— 后者是嵌在列表末尾的引导块（判定见 ROADMAP #11「明确不做」）（09-19 #11b 拆出） |
 | `AppSurface.kt` (353 行) | `AppCard` `AppPaddedCard` `AppCardTone` `AppStatusCard` `AppStatCard` `AppStatTone` `AppSection` `AppHintText` `AppStatsListMetrics` `appStatsListMetrics` | 卡片与分区外壳、统计卡、列表度量 |
 | `AppListRow.kt` (406 行) | `AppListRow` `AppActionRow` `AppCardRow` `AppSectionHeader` `AppLocationIcon` `AppEditRowAction` `AppDeleteRowAction` | 列表行（三种形态）、分区标题、行内动作 |
 | `AppControls.kt` (376 行) | `AppSearchField` `AppFilterChip` `AppChipTone` `AppFilterToggle` `AppFilterSectionLabel` `AppStepperPill` | 搜索框、筛选胶囊/开关、数量步进器 |
 | `AppText.kt` (212 行) | `AppTextScale` `AppText` `AppEmojiText` `AppMutedText` | 语义字号档位 + 文字组件；**取色访问器已于 09-19 #11a 移出去**，别再往这里加 |
-| `AppColors.kt` (164 行) | `appSurfaceColor` `appMutedColor` `appErrorColor` `appPrimaryContainerColor` `appOnPrimaryContainerColor` `appPrimaryColor` `appFaintColor` `appHighestContainerColor` `appChartColors` | 跨主题取色口子（一个语义角色一个函数）；守卫 `AppColorLocationTest` 钉住「只此一个文件」 || `AppButtons.kt` (188 行) | `AppBigButton` `AppEditButton` `AppWideButton` `AppAddItemButton` | 大按钮（emoji + 文案 + 角标）、整宽按钮、新增入口 |
+| `AppColors.kt` (164 行) | `appSurfaceColor` `appMutedColor` `appErrorColor` `appPrimaryContainerColor` `appOnPrimaryContainerColor` `appPrimaryColor` `appFaintColor` `appHighestContainerColor` `appChartColors` | 跨主题取色口子（一个语义角色一个函数）；守卫 `AppColorLocationTest` 钉住「只此一个文件」 |
+| `AppButtons.kt` (188 行) | `AppBigButton` `AppEditButton` `AppWideButton` `AppAddItemButton` | 大按钮（emoji + 文案 + 角标）、整宽按钮、新增入口 |
 | `AppOptionDialog.kt` (188 行) | `AppOptionDialog` `AppOptionSpec` | 选项弹窗（导出格式选择 / 恢复来源选择） |
 | `AppFormDialog.kt` (173 行) | `AppFormDialog` `AppFormFieldSpec` | 带输入框的表单弹窗 |
-| `AppConfirmDialog.kt` (134 行) | `AppConfirmDialog` | 确认弹窗（MD3 `AlertDialog` 槽位 / Miuix `WindowDialog` + 等宽两个 `TextButton`） |
+| `AppConfirmDialog.kt` | `AppConfirmDialog` | 确认弹窗（MD3 `AlertDialog` / Miuix `GlassDialog` + 按 `Normal` / `Primary` / `Destructive` 显式选角色的 `GlassDialogButton`） |
 | `AppInfo.kt` (133 行) | `AppDetailRow` `AppDivider` `AppLinearProgress` `AppHistoryNote` | 详情行、分隔线、进度条、带图标的弱化说明 |
 | `AppIme.kt` (85 行) | `stickyImePadding` | **粘性 IME 避让**（MD3 输入弹窗焦点切换时不坠） |
 | `AppBatchMoveDialog.kt` (211 行) | `BatchMoveLocationDialog` | 批量「移动存放位置」弹窗（原包根 `AppDialogs.kt`，09-17 搬入本层） |
 
 **关键约定（为什么这么设计 / 已踩过的坑）** —— 按文件分组，改这些组件前先读对应那条：
 
-- **`AppChrome.kt`**
+- **`AppSnackbar.kt`**
   - `AppSnackbarHostState`：MD3 与 Miuix 的 `SnackbarHostState` 是**两个不相干的类型**，容器对外只暴露
     `showUndoSnackbar(): Boolean` —— 免得两个主题的 `SnackbarResult` 顺着签名漏回屏幕层。
     `isMiuix` 参与 `remember` key：切主题时换容器并让 `LaunchedEffect` 重启，否则撤销条会弹到**已卸载**的宿主上。
-  - `AppSnackbarPlacement`：`SystemBars` = 二级页（`navigationBarsPadding()` + 24dp）；
-    `FloatingNav` = 带悬浮导航栏的 Tab 页（抬 **84dp**）。`AppSnackbarForm`：`UndoCountdown` = 可滑掉 + 倒计时环 /
+  - `AppSnackbarPlacement`：`SystemBars` 用于二级页（MD3 `navigationBarsPadding() + 24dp`，Miuix 不额外抬升）；
+    `FloatingNav` 用于带悬浮导航栏的 Tab 页（两主题均抬 **84dp**，MD3 不叠加 `navigationBarsPadding()`）；
+    `ScaffoldDefault` 用于编辑页，不加页面级 padding，交给当前主题的 Scaffold 原生定位（MD3 避开保存栏，Miuix 使用库默认定位）。
+    `AppSnackbarForm`：`UndoCountdown` = 可滑掉 + 倒计时环 /
     `Plain` = 朴素 MD3 `SnackbarHost`（`AppScaffold` 另有 `snackbarForm` 参数把它传下去）。落位**只算一次**（原本三个分支各写一遍，再加形态维度就成 2×2 四份，分散写容易漏改）。
+- **`AppChrome.kt`**
   - `AppScaffold` 已取代 `ManageScreens.kt` / `MiuixManageScreens.kt` 里那两份私有的 `*ManageScaffold`（09-16 第 6 对时删除）。
   - `AppTopBar` 的 `onClose` / `selectionMode`（多选态顶栏）：私有 `AppBarNavIcon` 里 **`onClose` 优先于 `onBack`**，
     两者皆 null 时导航槽**不渲染任何东西**（与两版原来的空槽逐字等价）；`selectionMode` **只让 MD3 换底色** `surfaceContainer`。
@@ -210,9 +214,10 @@ StatusUi 提供三个颜色槽位，按用途严格区分：
 - **`AppFormDialog.kt` / `AppOptionDialog.kt` / `AppBatchMoveDialog.kt`（弹窗三条铁律）**
   - **Miuix 侧 `content` 必须是单一根节点**：库把 title / summary / `content()` 放进一个**不带
     `verticalArrangement` 的 Column**，两个平级节点之间是 **0dp**（2026-09-17 真机复测踩到）。
-  - **Miuix 弹窗动作按钮一律 `TextButton`，主要动作传 `textButtonColorsPrimary()`**（蓝底白字胶囊）：
-    不传 colors 会和「取消」同为浅灰。上游 `DialogSection.kt` 7/7 弹窗都是这个写法。
-  - 以上两条由 `MiuixDialogContentTest` 静态拦截。
+  - **Miuix Glass 弹窗动作统一经 `MiuixGlassDialogButton` 调用 `GlassDialogButton`，并显式指定角色**：
+    `Normal` 用于取消/返回，`Primary` 用于主要确认，`Destructive` 用于危险操作；不要混用普通 `Button` / `TextButton`。
+    封装提供 `MiuixTheme.textStyles.button` 字型，Glass 组件按角色处理容器/文字色、禁用态与按压反馈。
+  - 两条弹窗约定由 `MiuixDialogContentTest` 静态拦截。
   - `AppFormDialog` + `AppFormFieldSpec`：两主题的**截断时机不同、刻意不桥接**。
   - `AppOptionSpec` 刻意**不是 data class**（它带 lambda，`equals` 无意义）；图标分 `md3Icon` / `miuixIcon`
     两个参数，因为两套图标库没有对应关系。`AppOptionDialog` 一次吸收了「导出格式选择」「恢复来源选择」
@@ -266,17 +271,17 @@ StatusUi 提供三个颜色槽位，按用途严格区分：
 - 切换入口：设置页「外观」分组的「主题风格」——MD3 侧用 SegmentedButton，Miuix 侧用 RadioButtonPreference。
 - **根级主题切换 + MaterialTheme 桥接（阶段二起）**：MainActivity 在 MIUIX 模式下包 `MiuixRootTheme`（`MiuixTheme` + 桥接 `MaterialTheme`），让未迁移的 MD3 页面与 `ui/components/` 复用组件仍可经 `MaterialTheme.colorScheme` 取到 Miuix 配色；桥接映射见 `ui/theme/MiuixRootTheme.kt`（缺失角色用最接近角色近似）。
 - 迁移进度（v2.8 起，2026-09-16 校正）：
-  - **已 Miuix 化（全部屏幕除编辑页）**：设置页、首页、食品列表、食品详情、归档页、管理三页（阈值/分类/位置）、**统计页**，以及底部导航（悬浮/全宽）、FAB、`ui/components/` 复用组件（StatusBadge/LocationTag/QuantityStepper/EmptyState/FoodCard/DataCorruptBanner）。统计页的**图表是 `Canvas` + `layout` 自绘**（与主题无关，两版逐字相同，合并后只有一份），外壳与组件（Scaffold/TopAppBar/Card/Text/Icon/SmallTitle）走 Miuix。
+  - **已 Miuix 化（全部屏幕）**：设置页、首页、食品列表、食品详情、归档页、管理三页（阈值/分类/位置）、**统计页**与**编辑页**，以及底部导航、FAB、`ui/components/` 复用组件（StatusBadge/LocationTag/QuantityStepper/EmptyState/FoodCard/DataCorruptBanner）。编辑页在 Miuix 下使用 Glass 顶栏、GlassTextField 与原生 Miuix 控件；0.9.5-rc01 没有对应日期选择器，故仅日期弹窗继续走 Material3 + 根主题桥接。统计页的**图表是 `Canvas` + `layout` 自绘**（与主题无关，两版逐字相同，合并后只有一份），外壳与组件（Scaffold/TopAppBar/Card/Text/Icon/SmallTitle）走 Miuix。
   - **已合并为单文件双主题（2026-09-16，第三批 #3；八对收官）**：消耗记录页 / 归档页 / 食品详情页 / 首页 / 食品列表页 / 管理页三合一 / 统计页 / 设置页 —— `Miuix*Screen.kt` 双胞胎 **8 → 0**；`screens/` 下**当时**为 **9 个屏幕文件**（含从未有双胞胎的编辑页）+ **8 个 `*State.kt`**。第 6 对之后 `AppNavGraph.kt` 已不含主题分支，第 8 对之后 `NavChrome.kt` 也不含了。
-    - **口径（复核跑 `bash tools/doc-metrics.sh`）**：⚠️ **本行的三个数是 2026-09-17 的快照，#10a-1 后又变了** （10a-1 弹窗抽到同包 3 个新文件 ⇒ 除 `*State.kt` 的文件从 9 个变 12 个；**10a-2 又加 4 个**（两套 body / 备份节 / 两个 MD3 专用小组件）⇒ **#10e 又加 5 个**（编辑页的封面 / 名称 / 字段 / 阈值 / 底栏五个区块文件）⇒ 现 **24 个**（其中 **15 个**不是屏幕））。现值一律看 doc-metrics 的「屏幕目录 ui/screens（不含 *State.kt）」「App 级组件层」两行，本行只作历史快照保留：屏幕本体（不含 `*State.kt`）**9 文件 4,209 行**、组件层 `ui/components/app/` **12 文件 3,075 行**、渲染层合计 **7,284 行**；相对 09-16 之前的基线（17 文件 7,541 行）：屏幕本体 **-44%**、渲染层合计 **-3.4%**（2026-09-17 实测）。
+    - **口径（复核跑 `bash tools/doc-metrics.sh`）**：⚠️ **本行的三个数是 2026-09-17 的快照，#10a-1 后又变了** （10a-1 弹窗抽到同包 3 个新文件 ⇒ 除 `*State.kt` 的文件从 9 个变 12 个；**10a-2 又加 4 个**（两套 body / 备份节 / 两个 MD3 专用小组件）⇒ **#10e 又加 5 个**（编辑页的封面 / 名称 / 字段 / 阈值 / 底栏区块）⇒ 本轮又新增 `EditFoodControls.kt` +1 ⇒ 现 **25 个**（其中 **16 个**不是屏幕））。现值一律看 doc-metrics 的「屏幕目录 ui/screens（不含 *State.kt）」「App 级组件层」两行，本行只作历史快照保留：屏幕本体（不含 `*State.kt`）**9 文件 4,209 行**、组件层 `ui/components/app/` **12 文件 3,075 行**、渲染层合计 **7,284 行**；相对 09-16 之前的基线（17 文件 7,541 行）：屏幕本体 **-44%**、渲染层合计 **-3.4%**（2026-09-17 实测）。
       09-16 收官时记的是 4,204 / 2,746 / 6,950（-8%）—— **当时记得没错**（在 `5788ae2` 上复核即为这三个数），是此后变了：09-17 的 IME 修复与弹窗搬家让渲染层净增 **334** 行（新增 `AppIme.kt` 85 + `AppBatchMoveDialog.kt` 211，改动 `AppFormDialog` / `AppConfirmDialog` / `SettingsScreen`；`git diff --stat 5788ae2 HEAD -- app/src/main/java/com/agon/app/ui/` 可复核）。
 ⚠️ 原验收「4,500 量级 / -24%」**不成立**；「-24%」「4,500 量级」「7,205 行 / 16 文件」「7,541 行 / 17 文件」四个数字**均已作废且彼此不可换算**（后两者是同日两个不同文件集口径）。复盘见 `devlog/2026-09-16.md` §22 与 `docs/ROADMAP.md`「#3 收官」。
     - **两个刻意的例外（别当缺陷去「修」）**：① **设置页 body 保留两套**（`Md3SettingsBody` → `ui/screens/SettingsBodyMd3.kt`；`MiuixSettingsBody` → `ui/screens/SettingsBodyMiuix.kt`；#10a-2 起各自一个文件）—— 两版排版习语根本不同（MD3 是滚动 `Column` + `Surface` 分组卡片，Miuix 是 `LazyColumn` + 库的 Preference 组件；664 行里只有 **287 行逐字相同**，八对最低），去重发生在 9 个弹窗（其中 5 个收进 `AppConfirmDialog` / `AppOptionDialog`）与骨架上，故该对收缩率只有 **-20%**；② **统计页图表**是 `Canvas` + `layout` 自绘、与主题无关（合并前就是一份语义两份拷贝，合并只删拷贝、无处可缩 ⇒ 该对 **-55%**），且只此一屏用 ⇒ **不进通用组件层**。
     - **逐对过程、行数账、「哪一对带来了哪个组件」都不在本文件维护**：过程见 `devlog/2026-09-16.md` §15–§22（含每对净行数与预测漂移复盘），组件清单与关键约定见**本文 §4.1**（唯一事实源）。
-  - **刻意保留 MD3+桥接**：编辑页（`DatePicker` 为 MD3 特有、无 Miuix 对应）、`CheckSwitch`（项目特色打勾/打叉，规范禁止 material3 Switch，自绘且颜色桥接）。
+  - **刻意保留 MD3+桥接**：编辑页仅日期选择弹窗继续用 Material3 `DatePicker`（Miuix 0.9.5-rc01 无对应控件）；`CheckSwitch` 仍用于 Material3 设置项与编辑页 MD3 分支，Miuix 编辑页使用原生 `Switch`。
   - **单实现铁律（2026-09-16 起取代「双实现铁律」）**：屏幕文件（`*Screen.kt` / `*Screens.kt`）必须调 `remember*UiState` 复用状态容器，**禁止在 UI 文件里重写聚合计算**（`ScreenParityTest` 静态拦截，原名 `MiuixParityTest`——合并后文件名不再带 `Miuix` 前缀，按前缀枚举会让刚合并的屏幕逃出守卫，故扩到全部屏幕文件；此前 `MiuixStatsScreen` 手抄过一份统计逻辑，导致 `StatsStateTest` 测的是 MIUIX 下不执行的代码）。**新屏幕不再建 `Miuix*Screen.kt` 双胞胎**，主题差异一律走 `ui/components/app/` 的骨架组件；已合并的屏幕由该测试的 `MergedScreens` 守着不许回退。
   - **已知缺口**：MIUIX 风格下**没有配色方案入口**（设置页 Miuix 分支 `MiuixSettingsBody`，`ui/screens/SettingsBodyMiuix.kt`，含深色模式/动态取色/悬浮导航/背景模糊/液态玻璃开关），15 套 `AppPalette` 选不了，且 MD3 下选好的配色切到 Miuix 后无提示地失效——根因是 `MiuixRootTheme` 只消费 `darkMode` + `dynamicColor`，没有种子色通道。2026-09-16 第 8 对合并后，这条非对等已写进 `SettingsScreen.kt` 的文件头 KDoc（「已知非对等…勿再声明完全对等」），不再靠两份文件各自的措辞表达；功能本身**用户已指示暂缓**（见 `devlog/INDEX.md`）。
-  - **导航双形态**：新增「悬浮导航」开关（`floating_nav`，默认 true）。MD3 悬浮=自绘 `FloatingPillNav`（图标+标签）、非悬浮=MD3 `NavigationBar`；MIUIX 悬浮=Miuix `FloatingNavigationBar`（仅图标）、非悬浮=Miuix `NavigationBar`（全宽图标+文字）。
-  - **MIUIX 玻璃效果（2026-10-01；2026-10-03 补充顶栏滚动行为）**：`miuix_blur_enabled` 默认 true，为 MIUIX 顶栏、常驻底栏与悬浮底栏启用 backdrop blur；`liquid_glass_nav_enabled` 默认 false，仅作用于 MIUIX 悬浮底栏，开启时自动确保 blur 开启。玻璃分支采用 Miuix v0.9.5-rc01 demo 的拖拽导航：阻尼跟手、选中后回弹、按压缩放/高光、折射 pill 指示器与重力方向高光；在 backdrop 外层绘制 10dp 阴影（浅色 alpha 0.1、深色 0.2），并在底栏测量区域预留 12dp 阴影空间。MIUIX 悬浮栏显隐改用 demo 的 fade + expand/shrink（不裁剪阴影），避免 slide 进入时上缘被父层延后揭示。表面链路为 vibrancy（saturation 1.5）→ 4dp blur → 24dp lens，surfaceContainer tint alpha 0.24。Tab 页选择对齐 demo 的 `MainPagerState`：选中目标与 `PagerState.currentPage` 分离，并用 `springAnimateToPage()` 做单次跨页弹簧动画，避免途中经过中间页时反向重启指示器。`miuix-blur-android` 需要 API 33+；API 26–32 设置项禁用、导航自动回退实色，`minSdk=26` 不变。毛玻璃顶栏还需有内容在其后方滚动：Miuix 设置项以及食品列表有结果时的库存/归档条目可从顶栏后经过；食品列表搜索/筛选控件保持固定在前景，MD3 原布局不变，底栏仍按现有滚动行为自动隐藏/显示。
+  - **导航形态**：新增「悬浮导航」开关（`floating_nav`，默认 true）。MD3 保留自绘 `FloatingPillNav`（图标+标签）与全宽 `NavigationBar` 两种布局；Miuix 始终使用 Glass 胶囊，悬浮开关关闭时也不回退到全宽栏。iOS-like 液态玻璃实现仍只在悬浮导航开启、背景模糊可用时启用。
+  - **MIUIX 玻璃效果（2026-10-01）**：`miuix_blur_enabled` 默认 true，为 MIUIX 顶栏与 Glass 胶囊导航启用 backdrop blur（`floating_nav=false` 时仍是胶囊）；`liquid_glass_nav_enabled` 默认 false，仅在悬浮导航开启时切换到独立的 Miuix 液态玻璃底栏，开启时自动确保 blur 开启。玻璃分支采用 Miuix v0.9.5-rc01 demo 的拖拽导航：阻尼跟手、选中后回弹、按压缩放/高光、折射 pill 指示器与重力方向高光；在 backdrop 外层绘制 10dp 阴影（浅色 alpha 0.1、深色 0.2），并在底栏测量区域预留 12dp 阴影空间。MIUIX 底栏显隐使用 demo 的 fade + expand/shrink（不裁剪阴影），避免 slide 进入时上缘被父层延后揭示。表面链路为 vibrancy（saturation 1.5）→ 4dp blur → 24dp lens，surfaceContainer tint alpha 0.24。Tab 页选择对齐 demo 的 `MainPagerState`：选中目标与 `PagerState.currentPage` 分离，并用 `springAnimateToPage()` 做单次跨页弹簧动画，避免途中经过中间页时反向重启指示器。`miuix-blur-android` 需要 API 33+；API 26–32 设置项禁用、导航自动回退实色，`minSdk=26` 不变。毛玻璃顶栏还需有内容在其后方滚动：Miuix 设置项以及食品列表有结果时的库存/归档条目可从顶栏后经过；食品列表搜索/筛选控件保持固定在前景，MD3 原布局不变，底栏仍按现有滚动行为自动隐藏/显示。
 - Miuix 主题由 `ThemeController` 驱动，语义对齐 MD3 侧：动态取色→Monet（keyColor=null 跟随壁纸），否则按 darkMode 映射 System/Light/Dark。
 - Miuix 组件 API 一律以**目标项目实际 Miuix 版本**（现为 `gradle/libs.versions.toml` 的 `0.9.5-rc01`）的 pinned source 为准，禁止凭 MD3 记忆臆造参数/颜色 token；`.claude/skills/miuix-components` 的证据基线同为 `v0.9.5-rc01`（候选版，非稳定版）；后续版本不一致时先声明再使用。

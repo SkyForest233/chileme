@@ -30,17 +30,16 @@ import com.agon.app.data.cn
 import com.agon.app.data.fileStamp
 import com.agon.app.data.itemQuantity
 import com.agon.app.ui.components.MiuixDialog
+import com.agon.app.ui.components.MiuixGlassDialogButton
 import com.agon.app.ui.components.app.AppConfirmDialog
 import com.agon.app.ui.components.app.AppOptionDialog
 import com.agon.app.ui.components.app.AppOptionSpec
 import kotlinx.coroutines.launch
-import top.yukonga.miuix.kmp.basic.ButtonDefaults
-import top.yukonga.miuix.kmp.basic.TextButton as MiuixTextButton
+import top.yukonga.miuix.kmp.glass.GlassDialogButtonRole
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Download
 import top.yukonga.miuix.kmp.icon.extended.FileDownloads
 import top.yukonga.miuix.kmp.icon.extended.UploadCloud
-import top.yukonga.miuix.kmp.theme.MiuixTheme
 import java.time.LocalDate
 import java.time.LocalDateTime
 
@@ -156,16 +155,17 @@ internal fun SettingsBackupDialogs(
                 modifier = Modifier.padding(top = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                MiuixTextButton(
+                MiuixGlassDialogButton(
                     text = "取消",
                     onClick = { pendingImport = null },
+                    role = GlassDialogButtonRole.Normal,
                     modifier = Modifier.weight(1f),
                 )
-                MiuixTextButton(
+                MiuixGlassDialogButton(
                     text = "覆盖导入",
                     onClick = { pendingImport?.let { confirmImport(it) } },
+                    role = GlassDialogButtonRole.Destructive,
                     modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.textButtonColors(textColor = MiuixTheme.colorScheme.error),
                 )
             }
         }

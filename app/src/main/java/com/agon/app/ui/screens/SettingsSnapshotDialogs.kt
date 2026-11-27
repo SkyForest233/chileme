@@ -28,11 +28,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.agon.app.ui.components.MiuixDialog
+import com.agon.app.ui.components.MiuixGlassDialogButton
 import com.agon.app.ui.components.app.AppConfirmDialog
 import top.yukonga.miuix.kmp.basic.Icon as MiuixIcon
 import top.yukonga.miuix.kmp.basic.Surface as MiuixSurface
 import top.yukonga.miuix.kmp.basic.Text as MiuixText
-import top.yukonga.miuix.kmp.basic.TextButton as MiuixTextButton
+import top.yukonga.miuix.kmp.glass.GlassDialogButtonRole
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Download
 import top.yukonga.miuix.kmp.icon.extended.Forward
@@ -129,9 +130,10 @@ internal fun SettingsSnapshotDialogs(
                     }
                 }
 
-                MiuixTextButton(
+                MiuixGlassDialogButton(
                     text = "关闭",
                     onClick = { state.setShowSnapshotPicker(false) },
+                    role = GlassDialogButtonRole.Normal,
                     modifier = Modifier.fillMaxWidth(),
                 )
             }

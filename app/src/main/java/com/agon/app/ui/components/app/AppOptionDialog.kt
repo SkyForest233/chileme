@@ -33,11 +33,12 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.agon.app.ui.components.MiuixDialog
+import com.agon.app.ui.components.MiuixGlassDialogButton
 import com.agon.app.ui.theme.LocalThemeStyle
 import com.agon.app.ui.theme.ThemeStyle
 import top.yukonga.miuix.kmp.basic.Icon as MiuixIcon
 import top.yukonga.miuix.kmp.basic.Surface as MiuixSurface
-import top.yukonga.miuix.kmp.basic.TextButton as MiuixTextButton
+import top.yukonga.miuix.kmp.glass.GlassDialogButtonRole
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /**
@@ -66,7 +67,7 @@ class AppOptionSpec(
  * - MD3：`AlertDialog` 的 `text` 槽里放一列选项行（间距 8dp），取消按钮在 `confirmButton` 槽（右下角）。
  *   选项行用 material3 的**可点 `Surface`**（`onClick` 重载自带涟漪与 button 语义）。
  * - Miuix：`MiuixDialog` 的 content 里放一列选项行（间距 10dp、整列 `padding(top = 8.dp)`），
- *   取消按钮是**整宽** `TextButton`，排在选项下面。选项行的图标不是裸图标，而是 36dp 的
+ *   取消按钮是**整宽** `GlassDialogButton`，排在选项下面。选项行的图标不是裸图标，而是 36dp 的
  *   `primaryContainer` 圆盒 + 18dp `onPrimaryContainer` 字形；行本身用 `Surface` + `.clip().clickable`
  *   （Miuix 的 `Surface` 没有 `onClick` 重载）。
  *
@@ -102,9 +103,10 @@ fun AppOptionDialog(
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 options.forEach { OptionRow(it) }
-                MiuixTextButton(
+                MiuixGlassDialogButton(
                     text = cancelText,
                     onClick = onDismissRequest,
+                    role = GlassDialogButtonRole.Normal,
                     modifier = Modifier.fillMaxWidth(),
                 )
             }

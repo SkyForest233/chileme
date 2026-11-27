@@ -3,8 +3,8 @@ package com.agon.app.ui.components
 // 通用交互控件：SelectIndicator（多选勾选指示）、CheckSwitch（项目特色打勾/打叉开关）、
 // EmptyState（空态）。
 //
-// CheckSwitch 是硬约定：全项目所有布尔开关一律用它，禁止 material3 Switch
-// （CLAUDE.md §5）。它刻意保留 MD3 自绘 + 颜色桥接，不做 Miuix 版本——打勾/打叉是项目特色，
+// CheckSwitch 是 MD3 路径的硬约定：Material 3 布尔开关使用项目特色的打勾/打叉样式；Miuix 路径用
+// Miuix 原生 Switch，避免把 MD3 控件桥接到 Miuix。它刻意保留 MD3 自绘 + 颜色桥接，不做 Miuix 版本，
 // 且已带 toggleable(Role.Switch) 语义与 minimumInteractiveComponentSize（≥48dp 触摸目标）。
 //
 // 2026-09-16 由 Common.kt 拆分而来（纯搬运，签名与实现未改）。
@@ -96,7 +96,7 @@ fun SelectIndicator(selected: Boolean, modifier: Modifier = Modifier) {
 /**
  * 打勾/打叉样式开关（参考 Focus 类 App 设计截图）：
  * ON = primary 胶囊轨道 + 白色圆形滑块内打勾；OFF = 灰色轨道 + 深灰滑块内打叉。
- * 项目内所有开关统一使用本组件，禁止使用 material3 Switch。
+ * Material 3 路径统一使用本组件；Miuix 页面使用 Miuix 原生 Switch。
  */
 @Composable
 fun CheckSwitch(

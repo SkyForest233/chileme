@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.CleaningServices
@@ -50,6 +51,8 @@ import com.agon.app.ui.components.StatusBadge
 import com.agon.app.ui.components.app.AppConfirmDialog
 import com.agon.app.ui.components.app.AppPaddedCard
 import com.agon.app.ui.components.app.AppScaffold
+import com.agon.app.ui.components.app.appMiuixNestedScroll
+import com.agon.app.ui.components.app.rememberAppMiuixScrollBehavior
 import com.agon.app.ui.components.app.AppSectionHeader
 import com.agon.app.ui.components.app.AppSnackbarPlacement
 import com.agon.app.ui.components.app.AppStatCard
@@ -75,10 +78,10 @@ import java.time.LocalDate
  * 两版**逐段同构**——连 `LazyColumn` 的 contentPadding、`AnimatedVisibility` 的 tween 时长、
  * 「件数口径」的注释都一样——差异全在外壳与叶子上，逐项落位到 `ui/components/app/`：
  *
- * - **顶栏**：一个 `subtitle` 参数喂两边。Miuix 直接吃（上游 v0.9.5-rc01 `TopAppBar.kt:122` 已核对
- *   `subtitle: String = ""`，传空串与不传等价）；MD3 侧「带副标题」即折叠式 `LargeTopAppBar` +
- *   `nestedScroll` + `fillMaxSize`（合并前 MD3 首页就是这么写的，Miuix 首页的 Scaffold 没有 modifier，
- *   所以也不替它加）。Miuix 同样有 `largeTitle` + `scrollBehavior` 可做折叠顶栏，但合并前没用，不替它开。
+ * - **顶栏**：一个 `subtitle` 参数喂两边。Miuix 直接吃（上游 v0.9.5-rc01 `TopAppBar.kt` 的
+ *   `subtitle: String = ""`，传空串与不传等价）；MD3 侧使用折叠式 `LargeTopAppBar` + `nestedScroll`。
+ *   Miuix Glass 顶栏也接收本页的 `MiuixScrollBehavior`，同一行为同时接在实际列表上，因此标题随页面滚动折叠；
+ *   外层全局 `chromeScrollConnection` 仍只负责底栏显隐。
  * - **撤销条**：`AppSnackbarPlacement.FloatingNav`——两版都抬 84dp 避开悬浮导航栏，与二级页的
  *   `SystemBars`（MD3 侧 `navigationBarsPadding() + 24dp`）不是一回事。
  * - **叶子**：统计卡 [AppStatCard]、分区标题 [AppSectionHeader]、整宽按钮 [AppWideButton]、
@@ -98,6 +101,8 @@ fun HomeScreen(
     val snackbar = rememberAppSnackbarHostState()
     val scope = rememberCoroutineScope()
     var showDiscardCorruptDialog by remember { mutableStateOf(false) }
+    val listState = rememberLazyListState()
+    val scrollBehavior = rememberAppMiuixScrollBehavior()
 
     // 启动自动同步完成后提示一次（#4a：改收 Channel）。
     // key 用 snackbar 而不是事件值：切换主题会换一个新的宿主容器，旧协程必须停掉。
@@ -116,9 +121,12 @@ fun HomeScreen(
         subtitle = state.today.cnDay(),
         snackbar = snackbar,
         snackbarPlacement = AppSnackbarPlacement.FloatingNav,
+        miuixScrollBehavior = scrollBehavior,
+        miuixContentScrolled = listState.canScrollBackward,
     ) { padding ->
         LazyColumn(
-            modifier = Modifier.fillMaxSize(),
+            state = listState,
+            modifier = Modifier.fillMaxSize().appMiuixNestedScroll(scrollBehavior),
             contentPadding = PaddingValues(
                 start = 20.dp,
                 end = 20.dp,

@@ -31,8 +31,8 @@ class ScreenParityTest {
     private companion object {
         /**
          * 规则 1 的豁免位：编辑页是表单，字段本身就是 `rememberSaveable` 的本地编辑态，
-         * 没有也不需要共享状态容器（它也没有 Miuix 双胞胎，见 `docs/DESIGN_SPEC.md` §7
-         * 「刻意保留 MD3+桥接」）。规则 2（禁止内联聚合）对它照样生效。
+         * 没有也不需要共享状态容器。它现在在同一屏幕文件内分流 Material3 与 Miuix/Glass，
+         * 但 DatePicker 仍是 Material3 fallback；规则 2（禁止内联聚合）对它照样生效。
          */
         val NoSharedStateScreens = setOf("EditFoodScreen.kt")
 

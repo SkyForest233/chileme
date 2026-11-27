@@ -20,7 +20,7 @@ import java.io.File
  *    （两段式等价于旧的 `navigationBarsWithImePadding()` = max(导航栏, 键盘)，不会叠加）；
  * 3. MD3 弹窗是独立浮动窗口，必须 `DialogProperties(decorFitsSystemWindows = false)`
  *    才会把 IME inset 透给内容，**且拿到 inset 之后必须真的避让**（`imePadding()` 或
- *    `stickyImePadding()`，两者都认，见下）；Miuix 的 `WindowDialog` 由库内部处理
+ *    `stickyImePadding()`，两者都认，见下）；Miuix 的 `GlassDialog` 由库内部处理
  *    （见 `MiuixDialog` 的 KDoc），不在守卫范围内。
  *
  * **2026-09-17 起第 2、3 条都认两种写法**：带输入框的 MD3 弹窗从 `Modifier.imePadding()` 换成了

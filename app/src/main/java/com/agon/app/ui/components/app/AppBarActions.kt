@@ -23,20 +23,44 @@ import androidx.compose.material.icons.rounded.SelectAll
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import com.agon.app.ui.theme.LocalThemeStyle
 import com.agon.app.ui.theme.ThemeStyle
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Close
-import top.yukonga.miuix.kmp.icon.extended.Delete
-import top.yukonga.miuix.kmp.icon.extended.Edit
-import top.yukonga.miuix.kmp.icon.extended.Recent
-import top.yukonga.miuix.kmp.icon.extended.SelectAll
+import top.yukonga.miuix.kmp.icon.glass.Close
+import top.yukonga.miuix.kmp.icon.glass.Delete
+import top.yukonga.miuix.kmp.icon.glass.Edit
+import top.yukonga.miuix.kmp.icon.glass.RecentTasks
+import top.yukonga.miuix.kmp.icon.glass.SelectAll
 import top.yukonga.miuix.kmp.basic.Icon as MiuixIcon
-import top.yukonga.miuix.kmp.basic.IconButton as MiuixIconButton
+import top.yukonga.miuix.kmp.glass.GlassIconButton
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 
-/** 顶栏「编辑」入口：MD3 `Edit` / Miuix `Edit`，都用默认内容色（详情页在用）。 */
+/** Glass icon action with the inherited top-bar material and explicit button semantics. */
+@Composable
+private fun MiuixGlassIconAction(
+    onClick: () -> Unit,
+    contentDescription: String,
+    icon: ImageVector,
+    tint: Color? = null,
+) {
+    GlassIconButton(
+        onClick = onClick,
+        modifier = Modifier.semantics { role = Role.Button },
+    ) {
+        if (tint != null) {
+            MiuixIcon(icon, contentDescription = contentDescription, tint = tint)
+        } else {
+            MiuixIcon(icon, contentDescription = contentDescription)
+        }
+    }
+}
+
+/** 顶栏「编辑」入口：MD3 `Edit` / Miuix Glass `Edit`，都用默认内容色（详情页在用）。 */
 /**
  * 顶栏图标按钮的共用实现：字形由各语义入口传进来（本文件那五个 + `AppChrome.kt` 的 `AppBarNavIcon`），
  * 两主题各挑各的。
@@ -56,13 +80,7 @@ internal fun AppBarIconButton(
     tint: Color? = null,
 ) {
     if (LocalThemeStyle.current == ThemeStyle.MIUIX) {
-        MiuixIconButton(onClick = onClick) {
-            if (tint != null) {
-                MiuixIcon(miuixIcon, contentDescription = contentDescription, tint = tint)
-            } else {
-                MiuixIcon(miuixIcon, contentDescription = contentDescription)
-            }
-        }
+        MiuixGlassIconAction(onClick, contentDescription, miuixIcon, tint)
     } else {
         IconButton(onClick = onClick) {
             if (tint != null) {
@@ -76,19 +94,19 @@ internal fun AppBarIconButton(
 
 @Composable
 fun AppEditAction(onClick: () -> Unit, contentDescription: String = "编辑") {
-    AppBarIconButton(onClick, contentDescription, Icons.Rounded.Edit, MiuixIcons.Edit)
+    AppBarIconButton(onClick, contentDescription, Icons.Rounded.Edit, MiuixIcons.Glass.Edit)
 }
 
-/** 顶栏「删除这一条」入口：MD3 `Delete` / Miuix `Delete`，error 色（详情页在用）。 */
+/** 顶栏「删除这一条」入口：MD3 `Delete` / Miuix Glass `Delete`，error 色（详情页在用）。 */
 @Composable
 fun AppDeleteAction(onClick: () -> Unit, contentDescription: String = "删除") {
-    AppBarIconButton(onClick, contentDescription, Icons.Rounded.Delete, MiuixIcons.Delete, appErrorColor())
+    AppBarIconButton(onClick, contentDescription, Icons.Rounded.Delete, MiuixIcons.Glass.Delete, appErrorColor())
 }
 
-/** 顶栏「归档历史」入口：MD3 `History` / Miuix `Recent`，primary 色（列表页在用）。 */
+/** 顶栏「归档历史」入口：MD3 `History` / Miuix Glass `RecentTasks`，primary 色（列表页在用）。 */
 @Composable
 fun AppArchiveAction(onClick: () -> Unit, contentDescription: String = "归档历史") {
-    AppBarIconButton(onClick, contentDescription, Icons.Rounded.History, MiuixIcons.Recent, appPrimaryColor())
+    AppBarIconButton(onClick, contentDescription, Icons.Rounded.History, MiuixIcons.Glass.RecentTasks, appPrimaryColor())
 }
 
 /**
@@ -102,13 +120,12 @@ fun AppArchiveAction(onClick: () -> Unit, contentDescription: String = "归档�
 fun AppSelectAllAction(allSelected: Boolean, onClick: () -> Unit) {
     val description = if (allSelected) "取消全选" else "全选"
     if (LocalThemeStyle.current == ThemeStyle.MIUIX) {
-        MiuixIconButton(onClick = onClick) {
-            MiuixIcon(
-                if (allSelected) MiuixIcons.Close else MiuixIcons.SelectAll,
-                contentDescription = description,
-                tint = appPrimaryColor(),
-            )
-        }
+        MiuixGlassIconAction(
+            onClick = onClick,
+            contentDescription = description,
+            icon = if (allSelected) MiuixIcons.Glass.Close else MiuixIcons.Glass.SelectAll,
+            tint = appPrimaryColor(),
+        )
     } else {
         IconButton(onClick = onClick) {
             Icon(Icons.Rounded.SelectAll, contentDescription = description, tint = appPrimaryColor())
@@ -116,8 +133,8 @@ fun AppSelectAllAction(allSelected: Boolean, onClick: () -> Unit) {
     }
 }
 
-/** 顶栏「清空 / 删除全部」入口：MD3 `DeleteForever` / Miuix `Delete`，error 色（归档页在用）。 */
+/** 顶栏「清空 / 删除全部」入口：MD3 `DeleteForever` / Miuix Glass `Delete`，error 色（归档页在用）。 */
 @Composable
 fun AppDestructiveAction(onClick: () -> Unit, contentDescription: String) {
-    AppBarIconButton(onClick, contentDescription, Icons.Rounded.DeleteForever, MiuixIcons.Delete, appErrorColor())
+    AppBarIconButton(onClick, contentDescription, Icons.Rounded.DeleteForever, MiuixIcons.Glass.Delete, appErrorColor())
 }

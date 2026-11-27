@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
@@ -20,6 +21,8 @@ import com.agon.app.ui.components.EmptyState
 import com.agon.app.ui.components.app.AppHintText
 import com.agon.app.ui.components.app.AppListRow
 import com.agon.app.ui.components.app.AppScaffold
+import com.agon.app.ui.components.app.appMiuixNestedScroll
+import com.agon.app.ui.components.app.rememberAppMiuixScrollBehavior
 import com.agon.app.ui.components.app.rememberAppSnackbarHostState
 import com.agon.app.ui.theme.MotionEasing
 import com.agon.app.viewmodel.AppViewModel
@@ -42,6 +45,8 @@ fun ConsumptionLogScreen(
 ) {
     val state = rememberConsumptionLogUiState(viewModel)
     val snackbar = rememberAppSnackbarHostState()
+    val listState = rememberLazyListState()
+    val scrollBehavior = rememberAppMiuixScrollBehavior()
 
     // 删除后的撤销提示（#4a：改收 Channel，接收即出队，不再需要 consume）。
     // key 用 snackbar：切换主题会换一个新的宿主容器，旧协程必须停掉，
@@ -59,7 +64,13 @@ fun ConsumptionLogScreen(
         }
     }
 
-    AppScaffold(title = "消耗记录", onBack = onBack, snackbar = snackbar) { padding ->
+    AppScaffold(
+        title = "消耗记录",
+        onBack = onBack,
+        snackbar = snackbar,
+        miuixScrollBehavior = scrollBehavior,
+        miuixContentScrolled = state.sortedRecords.isNotEmpty() && listState.canScrollBackward,
+    ) { padding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -77,7 +88,8 @@ fun ConsumptionLogScreen(
                 )
             } else {
                 LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
+                    state = listState,
+                    modifier = Modifier.fillMaxSize().appMiuixNestedScroll(scrollBehavior),
                     contentPadding = PaddingValues(
                         start = 20.dp,
                         end = 20.dp,

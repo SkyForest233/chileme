@@ -1,8 +1,8 @@
 package com.agon.app.ui.components.app
 
 // 确认弹窗（标题 + 正文 + 取消/确认两个按钮）。两主题的结构差异最大：
-// MD3 是 AlertDialog 的 confirmButton/dismissButton 槽位；Miuix 是 WindowDialog + 自己排一行
-// 两个等宽 TextButton。收在这里，屏幕层只写一次文案与回调。
+// MD3 是 AlertDialog 的 confirmButton/dismissButton 槽位；Miuix 是 GlassDialog + 自己排一行
+// 两个等宽 GlassDialogButton。收在这里，屏幕层只写一次文案与回调。
 //
 // 2026-09-16 由 ArchiveScreen + MiuixArchiveScreen 合并时抽出（原来两版各写两个弹窗，共 4 份）。
 
@@ -18,15 +18,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.agon.app.ui.components.MiuixDialog
+import com.agon.app.ui.components.MiuixGlassDialogButton
 import com.agon.app.ui.theme.LocalThemeStyle
 import com.agon.app.ui.theme.ThemeStyle
-import top.yukonga.miuix.kmp.basic.ButtonDefaults as MiuixButtonDefaults
-import top.yukonga.miuix.kmp.basic.TextButton as MiuixTextButton
-import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.yukonga.miuix.kmp.glass.GlassDialogButtonRole
 
 /**
  * @param show 是否显示。**Miuix 分支必须无条件调用 `MiuixDialog` 并靠 show 控制**（库的硬约束，
- *   见 `MiuixDialog.kt` 的 KDoc 与 `docs/MIUIX_UPGRADE.md` §2.3），所以这个参数不能省成
+ *   见 `MiuixDialog.kt` 的 KDoc 与 `docs/MIUIX_UPGRADE.md` §2 第 3 条），所以这个参数不能省成
  *   「调用方自己 if」；MD3 分支在内部 `if (show)`，因为 `AlertDialog` 一组合就是独立窗口。
  *   也因此：**本组件必须放在 `AppScaffold` 的 content lambda 里面调用**。
  * @param destructive 确认按钮是否用 error 色（彻底删除、清空这类不可撤销操作）。
@@ -35,7 +34,7 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
  *   `padding(top = 8.dp)`，归档页/详情页的两个弹窗没有 —— 所以默认 0，谁原来有就谁传。
  *
  * IME：本组件不含输入框，所以不需要 `DialogProperties(decorFitsSystemWindows = false)`
- * （Miuix 的 `WindowDialog` 由库自理 IME）。将来若要加带输入框的弹窗，MD3 分支必须补这个属性，
+ * （Miuix 的 `GlassDialog` 由库自理 IME）。将来若要加带输入框的弹窗，MD3 分支必须补这个属性，
  * 并把宿主文件加进 `ImeHandlingTest` 第 3 条的清单。
  */
 @Composable
@@ -61,16 +60,17 @@ fun AppConfirmDialog(
                 modifier = Modifier.padding(top = contentTopPadding),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                MiuixTextButton(
+                MiuixGlassDialogButton(
                     text = dismissText,
                     onClick = onDismiss,
+                    role = GlassDialogButtonRole.Normal,
                     modifier = Modifier.weight(1f),
                 )
-                MiuixConfirmButton(
+                MiuixGlassDialogButton(
                     text = confirmText,
                     onClick = onConfirm,
+                    role = if (destructive) GlassDialogButtonRole.Destructive else GlassDialogButtonRole.Primary,
                     modifier = Modifier.weight(1f),
-                    destructive = destructive,
                 )
             }
         }
@@ -91,44 +91,6 @@ fun AppConfirmDialog(
             dismissButton = {
                 TextButton(onClick = onDismiss) { Text(dismissText) }
             },
-        )
-    }
-}
-
-/**
- * Miuix 侧的确认按钮：危险操作传 error 色（本仓约定，上游示例没有危险动作先例），
- * 非危险操作传 `textButtonColorsPrimary()` ⇒ 蓝底白字胶囊。
- *
- * 2026-09-17 真机复测**反转了本函数原先的决定**（原先写的是「非危险分支不传 colors、照库默认走最稳」）。
- * 反转依据是源码而非观感：库的 `TextButton` 并不是 MD3 那种无底文字按钮 —— 它内部就是 `Button`，
- * 而 `Button` 用 `.squircleSurface(color = containerColor)` 实心填充；默认 `textButtonColors()` 的容器色是
- * `secondaryVariant`（浅灰），所以「不传 colors」= 主要动作与「取消」完全同色。上游
- * `example/shared/src/commonMain/kotlin/component/DialogSection.kt` 的 7 个弹窗，主要动作一律
- * `colors = ButtonDefaults.textButtonColorsPrimary()`（容器 `primary` + 文字 `onPrimary`）。
- * 用户真机报告的「确定 / 保存 / 添加不应该是蓝底的吗」正是这处缺漏。
- */
-@Composable
-private fun MiuixConfirmButton(
-    text: String,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    destructive: Boolean = false,
-) {
-    if (destructive) {
-        MiuixTextButton(
-            text = text,
-            onClick = onClick,
-            modifier = modifier,
-            colors = MiuixButtonDefaults.textButtonColors(
-                textColor = MiuixTheme.colorScheme.error,
-            ),
-        )
-    } else {
-        MiuixTextButton(
-            text = text,
-            onClick = onClick,
-            modifier = modifier,
-            colors = MiuixButtonDefaults.textButtonColorsPrimary(),
         )
     }
 }

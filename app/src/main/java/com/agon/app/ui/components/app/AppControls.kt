@@ -110,7 +110,7 @@ enum class AppChipTone { Primary, Secondary, Tertiary }
  * @param tone 选中态容器色。**只有 [AppChipTone.Primary] 两版都额外指定了选中态文字色**
  *   （`onPrimaryContainer`）；Secondary / Tertiary 两版都只指定容器色、文字色留给库默认
  *   （material3 `filterChipColors` 的默认 `selectedLabelColor` = `onSecondaryContainer`）。
- *   不替库猜默认值 —— 与 `MiuixConfirmButton` 同一原则。
+ *   不额外覆盖两版原来交给库默认处理的颜色。
  */
 @Composable
 fun AppFilterChip(

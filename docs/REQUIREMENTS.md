@@ -1,6 +1,6 @@
 # 需求规格说明（REQUIREMENTS）
 
-> 版本：见 `devlog/INDEX.md` 的最新日志；截至 2026-10-03，功能清单已补登至 F44（Miuix 毛玻璃与液态玻璃导航）。
+> 版本：见 `devlog/INDEX.md` 的最新日志；截至 2026-10-01，功能清单已补登至 F44（Miuix 毛玻璃与液态玻璃导航）。
 > 本文档是功能范围的唯一事实源。新需求必须先在此登记再开发。
 > **2026-09-16 补登记**：§3.2 / §3.3 回填了 v2.5–v2.8 与 2026-08-22 / 2026-09-15 两轮已上线但此前未登记的功能（F22–F43），并修正 §4 中「云同步」与 F20 坚果云备份的自相矛盾。
 
@@ -56,8 +56,8 @@
 | F23 | 消耗记录页 | `AppRoute.Consumption`（统计页二级）：列出全部消耗流水，可删单条修正统计（删除不回滚库存）；删除后按原下标插回并支持撤销 |
 | F24 | 归档搜索 | 归档页支持关键词搜索；食品列表搜索无结果时提示「归档中找到 X 条」并可就地恢复（带 6 秒撤销） |
 | F25 | 自定义矢量图标 | launcher 前景/单色层由用户 SVG 处理而来（去黑边、主体缩放至 66dp 安全区）；legacy `mipmap-*/ic_launcher.png` 已删（minSdk 26） |
-| F26 | 悬浮胶囊导航 + 开关 | `floating_nav`（默认 true）：MD3 悬浮=自绘 `FloatingPillNav`（图标+标签），非悬浮=MD3 `NavigationBar`；MIUIX 悬浮=`FloatingNavigationBar`（仅图标），非悬浮=Miuix `NavigationBar` |
-| F27 | 双主题风格 | `ThemeStyle` 枚举（MATERIAL3 / MIUIX）+ DataStore `theme_style`；除编辑页外 8 对屏幕各有 MD3 与 Miuix 实现，共用 `*State.kt` 状态容器；MIUIX 下未迁移组件经 `MiuixRootTheme` 桥接 `MaterialTheme.colorScheme` |
+| F26 | 悬浮胶囊导航 + 开关 | `floating_nav`（默认 true）：MD3 在自绘 `FloatingPillNav`（图标+标签）与全宽 `NavigationBar` 间切换；Miuix 始终使用 Glass 胶囊（关闭时也不回退全宽），液态玻璃变体仅在悬浮导航与 blur 都开启时启用 |
+| F27 | 双主题风格 | `ThemeStyle` 枚举（MATERIAL3 / MIUIX）+ DataStore `theme_style`；所有路由均有 MD3 / Miuix 路径，8 对共享状态屏幕已合并为单文件，编辑页也以单文件双主题渲染并保留本地表单状态；MIUIX 日期选择器经 `MiuixRootTheme` 桥接 Material3 `DatePicker` |
 | F28 | 15 套配色方案 | `AppPalette` 枚举（薄荷/抹茶/蜜橘/蜜桃/蓝莓/香芋/可可/草莓/蜂蜜/橄榄/薰衣草/苏打/鲑鱼/葡萄/黑芝麻），MaterialKolor 由种子色生成全套 ColorScheme；优先级：动态取色 > 用户选择 > 默认 MINT。**MIUIX 风格下暂无入口（已知缺口，用户指示暂缓）** |
 | F29 | 预测性返回 | 二级页走 miuix-nav `NavDisplay` + `NavTransitions.MiuixDefault`（全宽卡片滑 + 1/4 视差 + 圆角 dim）；Manifest 开 `enableOnBackInvokedCallback` |
 | F30 | 名称联想扩面 | v2.5.2 起联想覆盖全部食品（含归档），不只历史条目 |
@@ -71,7 +71,7 @@
 | F33 | 本地滚动快照 | `filesDir/snapshots/` 每日自动留一份全量库存 JSON，保留最近 3 份；设置页可手动留存与还原（还原前先读目标、再写前置快照，避免挤掉目标） |
 | F34 | 卡片紧凑布局 + 日期格式 | 食品卡片紧凑排版，日期统一 `yyyy.MM.dd`（`LocalDate.dot()`） |
 | F35 | 首页清理撤销 + 触感振动 | 一键清理过期项支持撤销；步进器等交互带 `HapticFeedback` |
-| F36 | MIUIX 独立 Window 弹窗 | Miuix 侧弹窗用库的 `WindowDialog`（独立窗口），库内已处理 IME，本项目不再叠加 padding |
+| F36 | Miuix Scaffold 托管的 Glass 弹窗 | Miuix 侧使用根级 Scaffold popup host 托管 `GlassDialog` / Glass dropdown；页面级 Scaffold 不另建 popup host。弹窗保持组合并用 `show` 控制显隐，以保留关闭动画；库默认处理系统栏与 IME inset，不要关闭 `defaultWindowInsetsPadding` |
 | F37 | 数据损坏守卫与自救 | 解码三态 `Ok/Empty/Corrupt`；资产型 key 写路径按 **key 粒度**守卫（主数据先判、辅助数据按需判）；损坏时首页显示 `DataCorruptBanner`，提供「放弃这部分数据」入口（`discardCorrupt`，不动 `corrupt/` 留档）；损坏原文留档 `filesDir/corrupt/`（有保留上限）；损坏态不导出备份、不清理封面 |
 | F38 | 导入备份加固 | SAF 选文件 → IO 线程读取（20 MB 上限）→ `previewBackup()` 校验（必须含 `items` 键）→ 二次确认弹窗（导出日期/各表条数/schema 版本）→ 导入前自动留一份本地快照 |
 | F39 | 恢复路径前置快照 | 文件导入 / 坚果云整版本恢复 / 本地快照还原三条路径统一先 `snapshotBeforeRestore()` |
@@ -80,11 +80,11 @@
 | F42 | 月度聚合记录保护 | 90 天前的消耗记录按「年×月×名称×单位」聚合为一条并标 `aggregated=true`；该记录代表整月合计，**不可单条删除**（仓库层拒删 + 两套 UI 不给按钮） |
 | F43 | 统计口径按件数 | 「过期浪费」= `sumOf { quantity }`（件数）而非归档条数；带「件」的文案必须是 quantity 求和，`items.size` 只能出现在「条/记录」语境 |
 
-## 3.4 2026-10-03 增量（Miuix 毛玻璃与液态玻璃导航）
+## 3.4 2026-10-01 增量（Miuix 毛玻璃与液态玻璃导航）
 
 | 编号 | 功能 | 要点 |
 |---|---|---|
-| F44 | Miuix 毛玻璃顶栏 / 底栏与液态玻璃导航 | `miuix_blur_enabled` 默认开启，在 API 33+ 为 Miuix 顶栏、常驻底栏与悬浮底栏提供 backdrop blur；设置页条目及有结果时的食品/归档列表内容可滚到顶栏后方，食品列表搜索/筛选保持固定，MD3 布局不变。API 26–32 禁用 blur 开关并回退实色。`liquid_glass_nav_enabled` 默认关闭，只作用于 Miuix 悬浮底栏，依赖悬浮导航与 blur；开启液态玻璃时自动确保 blur 开启。|
+| F44 | Miuix 毛玻璃顶栏 / Glass 胶囊与液态玻璃导航 | `miuix_blur_enabled` 默认开启，在 API 33+ 为 Miuix 顶栏与 Glass 胶囊导航提供 backdrop blur；关闭 `floating_nav` 时 Miuix 仍使用 Glass 胶囊，MD3 仍切换到全宽底栏。设置页条目及有结果时的食品/归档列表内容可滚到顶栏后方，食品列表搜索/筛选保持固定，MD3 布局不变。API 26–32 禁用 blur 开关并回退实色。`liquid_glass_nav_enabled` 默认关闭，仅在悬浮导航开启且 blur 可用时作用于 Miuix 悬浮底栏；开启液态玻璃时自动确保 blur 开启。|
 
 ## 4. 明确不做（需求边界，用户已确认）
 

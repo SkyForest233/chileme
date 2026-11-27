@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.rememberCoroutineScope
@@ -27,6 +28,8 @@ import com.agon.app.ui.components.app.AppConfirmDialog
 import com.agon.app.ui.components.app.AppDestructiveAction
 import com.agon.app.ui.components.app.AppFilterChip
 import com.agon.app.ui.components.app.AppScaffold
+import com.agon.app.ui.components.app.appMiuixNestedScroll
+import com.agon.app.ui.components.app.rememberAppMiuixScrollBehavior
 import com.agon.app.ui.components.app.AppSearchField
 import com.agon.app.ui.components.app.rememberAppSnackbarHostState
 import com.agon.app.viewmodel.AppViewModel
@@ -50,10 +53,14 @@ fun ArchiveScreen(
     val state = rememberArchiveUiState(viewModel)
     val snackbar = rememberAppSnackbarHostState()
     val scope = rememberCoroutineScope()
+    val listState = rememberLazyListState()
+    val scrollBehavior = rememberAppMiuixScrollBehavior()
 
     AppScaffold(
         title = "归档历史",
         onBack = onBack,
+        miuixScrollBehavior = scrollBehavior,
+        miuixContentScrolled = state.filtered.isNotEmpty() && listState.canScrollBackward,
         // 键盘避让：同 FoodListScreen（搜索框在顶部，列表末尾此前够不到键盘之上）。
         // 两版原来都写在各自 Scaffold 的 modifier 上；合并后仍由屏幕自己声明，
         // 这一行就是 ImeHandlingTest 第 1 条要看的证据（合并后一个条目覆盖两套主题）。
@@ -111,7 +118,8 @@ fun ArchiveScreen(
                     )
                 } else {
                     LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
+                        state = listState,
+                        modifier = Modifier.fillMaxSize().appMiuixNestedScroll(scrollBehavior),
                         contentPadding = PaddingValues(
                             start = 20.dp,
                             end = 20.dp,
@@ -155,7 +163,7 @@ fun ArchiveScreen(
             }
         }
 
-        // 两个弹窗都放在 content lambda 内：Miuix 的 WindowDialog 必须无条件调用、靠 show 控制显隐，
+        // 两个弹窗都放在 content lambda 内：Miuix 的 GlassDialog 必须无条件调用、靠 show 控制显隐，
         // 否则不显示（库的硬约束，见 MiuixDialog.kt 的 KDoc）；MD3 的 AlertDialog 在内部 if (show)，
         // 放里放外都是独立窗口、渲染无差别，所以统一按 Miuix 的要求落位。
         AppConfirmDialog(

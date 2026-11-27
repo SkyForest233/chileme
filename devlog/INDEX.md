@@ -102,7 +102,7 @@
   ⚠️ 落地那一刻 `doc-metrics` 的 `WhileSubscribed` 写死数会有 **4 行**报不符（含 1 行在"只加批注不改写"的
   历史审计报告里 ⇒ 得靠把 `docs/audits/` 排除出这项比对的工具改动解决），必须与第一档同批处理。
 - ⏳ **#7 字符串资源化 + 无障碍** —— `strings.xml` **1** 条 vs 源码中文字面量的处数（**不在此手抄**：`bash tools/doc-metrics.sh` 的「strings.xml 条目」与「含中文的字符串字面量」两行，两个数一比就是规模）；
-  `contentDescription = null` **51** 处、`semantics` **2** 处。
+  `contentDescription = null` **52** 处、`semantics` **4** 处。
   （09-16 记的 61 / 7 已随双主题去重下降；本行 09-18 复跑，原写 583 ⇒ **核查第 19 处**，
   该数已进 `tools/doc-metrics.sh` 的比对清单。）
 - ⏳ **#8 诊断包 + 许可清单**（**范围已缩小**）—— ⚠️ 旧写法「`corruptedKeys` 没有任何页面消费、用户看不到哪些数据坏了」

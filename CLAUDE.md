@@ -84,14 +84,14 @@
 
 - 只用 **material3 + Miuix** 两套 UI 体系（v2.8 起），**禁止混入 material2 导入**；风格由 `ui/theme/ThemeStyle.kt` 的 `ThemeStyle` 枚举（MATERIAL3 / MIUIX）控制、经 `LocalThemeStyle` 下发，设置页据此切换两套实现
 - 配色是 MD3 种子色方案（MaterialKolor 生成）：方案定义在 `ui/theme/Palettes.kt`（`AppPalette` 枚举）；`Color.kt` **仅**保留状态语义色；状态色（安全/临期/过期）通过 `rememberStatusUi()` 获取
-- 所有布尔开关一律用 `ui/components/Controls.kt` 的 `CheckSwitch`（打勾/打叉样式），**禁用 material3 `Switch`**
+- Material 3 路径的布尔开关用 `ui/components/Controls.kt` 的 `CheckSwitch`（打勾/打叉样式）；Miuix 路径用 Miuix 原生 `Switch`，不要把 MD3 开关桥接过去
 - **新屏幕一律写单文件双主题**：外壳用 `ui/components/app/` 的组件 —— **清单与每个组件的关键约定见 `docs/DESIGN_SPEC.md` §4.1（唯一事实源，本节不再复述）**；**不要再新建 `Miuix*Screen.kt`**；**别在屏幕里写 `if (isMiuix)`**，缺哪块就按同一套分流样板补进组件层
 - 屏幕文件（`*Screen.kt` / `*Screens.kt`）**必须调 `remember*UiState`** 复用状态容器，**禁止在 UI 文件里重写业务/聚合计算**（`ScreenParityTest` 静态拦截，原名 `MiuixParityTest`、已扩围到全部屏幕文件；表单类本地编辑态的豁免位是该测试里的 **`NoSharedStateScreens`**，现只有 `EditFoodScreen.kt`）
 - 已合并的 8 个屏幕由 `ScreenParityTest.MergedScreens` 守着：既拦「双胞胎被加回来」，也拦「合并后把屏幕本体删掉」
 - 含输入框的屏幕**必须消费 IME inset**（`ImeHandlingTest` 拦）：屏幕级用 `Scaffold(modifier = Modifier.imePadding())`；**MD3 输入弹窗用 `stickyImePadding()`**（`ui/components/app/AppIme.kt`）；**Miuix 弹窗不要传 `defaultWindowInsetsPadding = false`**（库已处理 IME，传了会连带关掉 `navigationBarsPadding`）。细则见 `docs/ARCHITECTURE.md` §5「键盘避让」
-- Miuix 弹窗两条铁律（`MiuixDialogContentTest` 拦）：`content` **必须单一根节点**（库把 title/summary/content 放进不带 `verticalArrangement` 的 Column，平级节点之间是 **0dp**）；动作按钮一律 `TextButton`，**主要动作传 `textButtonColorsPrimary()`**（不传就和「取消」同为浅灰）
+- Miuix Glass 弹窗两条铁律（`MiuixDialogContentTest` 拦）：`content` **必须单一根节点**（库把 title/summary/content 放进不带 `verticalArrangement` 的 Column，平级节点之间是 **0dp**）；动作统一经 `MiuixGlassDialogButton` 并显式指定 `GlassDialogButtonRole`（Normal / Primary / Destructive），不要在 GlassDialog 中混用普通 Miuix `Button` / `TextButton`
 - **动屏幕文件前先 `grep -rn "<屏幕名>" app/src/test/`** —— 点名屏幕文件的静态守卫不止 `ScreenParityTest` / `ImeHandlingTest`，还有 `CorruptGuardTest`、`CompactConsumptionTest`（2026-09-16 第 4 对合并就撞上过；`CorruptGuardTest` 是**按 4 空格缩进截函数体**的，函数一搬家就红）
-- **刻意保留 MD3 的只有三处，勿擅自迁移**：编辑页（`DatePicker` 无 Miuix 对应）、`CheckSwitch`（项目特色打勾/打叉）、设置页 body（`Md3SettingsBody` / `MiuixSettingsBody`，两版排版习语根本不同）
+- **双主题中明确保留的 MD3 专属实现**：① 编辑页仅生产日期 `DatePicker`（Miuix 0.9.5-rc01 无对应组件）；② `CheckSwitch` 仅用于 MD3 路径，Miuix 使用原生 `Switch`；③ 设置页 body 保留 `Md3SettingsBody` / `MiuixSettingsBody` 两套布局（排版习语根本不同）。不要据此把整个编辑页视为 MD3-only。
 - 统计页图表是 `Canvas` + `layout` 自绘、与主题无关，只此一屏用 ⇒ **不进组件层**；`appChartColors()` 是「屏幕侧取色」**唯一**被承认的例外（取色口子集中在 `ui/components/app/AppColors.kt`，2026-09-19 #11a 起；位置由 `AppColorLocationTest` 守）
 - Miuix 组件 API 一律以**目标项目实际 Miuix 版本**（现为 `gradle/libs.versions.toml` 的 `0.9.5-rc01`）的 pinned source 为准，**不得凭 MD3 记忆臆造**参数或颜色 token；`.claude/skills/miuix-components` 与 `.claude/skills/miuix-guidelines` 已同步上游，组件 skill 的源代码基线是 `v0.9.5-rc01`；该版本仍是候选版。后续版本不一致时先声明再使用。
 - 迁移进度、已知缺口（MIUIX 侧无配色入口，用户已指示暂缓）与导航双形态见 `docs/DESIGN_SPEC.md` §7

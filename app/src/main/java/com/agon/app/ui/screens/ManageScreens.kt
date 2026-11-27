@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -21,6 +22,8 @@ import com.agon.app.ui.components.app.AppFormFieldSpec
 import com.agon.app.ui.components.app.AppHintText
 import com.agon.app.ui.components.app.AppLocationIcon
 import com.agon.app.ui.components.app.AppScaffold
+import com.agon.app.ui.components.app.appMiuixNestedScroll
+import com.agon.app.ui.components.app.rememberAppMiuixScrollBehavior
 import com.agon.app.ui.components.app.AppStepperPill
 import com.agon.app.viewmodel.AppViewModel
 
@@ -39,7 +42,7 @@ import com.agon.app.viewmodel.AppViewModel
  *
  * 几处照抄而非统一的地方（细节在各组件的 KDoc 里）：
  * - **输入弹窗**：MD3 边打字边截断，Miuix 允许超长、点确认才截断 → [AppFormDialog] 保留两套机制。
- *   `AppFormFieldSpec.placeholder` 只在 MD3 侧生效（Miuix 的 `TextField` 用 `useLabelAsPlaceholder`）。
+ *   `AppFormFieldSpec.placeholder` 只在 MD3 侧生效（Miuix 的 `GlassTextField` 用 `useLabelAsPlaceholder`）。
  * - **添加按钮**：MD3 是 `OutlinedButton` 胶囊 + 加号图标，Miuix 是库的 `TextButton`（无图标）→ [AppAddItemButton]。
  * - **步进器的减号**：两版都用 material 的 `Remove`（Miuix 的 `Remove` 是「移除/退出」形状，
  *   合并前 Miuix 版明确回退了 material 字形），只有加号分主题 → [AppStepperPill]。
@@ -49,7 +52,7 @@ import com.agon.app.viewmodel.AppViewModel
  * - 阈值行的行内上下留白是 8dp，分类/位置行是 6dp（两版一致）→ [AppCardRow] 留 `verticalPadding` 参数。
  *
  * **两处非等价改动（刻意，与第 2/3/4/5 对同一处理）**：
- * ① 三个弹窗全部挪进 `AppScaffold` 的 content lambda —— Miuix `WindowDialog` 要求无条件调用 + `show`
+ * ① 三个弹窗全部挪进 `AppScaffold` 的 content lambda —— Miuix `GlassDialog` 要求无条件调用 + `show`
  *   控制（见 `MiuixDialog.kt`）；合并前 MD3 版把弹窗写在 Scaffold 外面、Miuix 版把「编辑分类」写成
  *   `state.editing?.let { MiuixCategoryEditDialog(show = true, …) }`，两边都不合这条规矩，现在自动满足。
  *   MD3 的 `AlertDialog` 放里放外都是独立窗口、渲染无差别。
@@ -65,10 +68,18 @@ import com.agon.app.viewmodel.AppViewModel
 @Composable
 fun ThresholdManageScreen(viewModel: AppViewModel, onBack: () -> Unit) {
     val state = rememberThresholdManageUiState(viewModel)
+    val listState = rememberLazyListState()
+    val scrollBehavior = rememberAppMiuixScrollBehavior()
 
-    AppScaffold(title = "临期提醒阈值", onBack = onBack) { padding ->
+    AppScaffold(
+        title = "临期提醒阈值",
+        onBack = onBack,
+        miuixScrollBehavior = scrollBehavior,
+        miuixContentScrolled = listState.canScrollBackward,
+    ) { padding ->
         LazyColumn(
-            modifier = Modifier.fillMaxSize(),
+            state = listState,
+            modifier = Modifier.fillMaxSize().appMiuixNestedScroll(scrollBehavior),
             contentPadding = PaddingValues(
                 start = 20.dp, end = 20.dp,
                 top = padding.calculateTopPadding() + 4.dp,
@@ -116,10 +127,18 @@ fun CategoryManageScreen(viewModel: AppViewModel, onBack: () -> Unit) {
     val state = rememberCategoryManageUiState(viewModel)
     val editing = state.editing
     val deleting = state.deleting
+    val listState = rememberLazyListState()
+    val scrollBehavior = rememberAppMiuixScrollBehavior()
 
-    AppScaffold(title = "分类管理", onBack = onBack) { padding ->
+    AppScaffold(
+        title = "分类管理",
+        onBack = onBack,
+        miuixScrollBehavior = scrollBehavior,
+        miuixContentScrolled = listState.canScrollBackward,
+    ) { padding ->
         LazyColumn(
-            modifier = Modifier.fillMaxSize(),
+            state = listState,
+            modifier = Modifier.fillMaxSize().appMiuixNestedScroll(scrollBehavior),
             contentPadding = PaddingValues(
                 start = 20.dp, end = 20.dp,
                 top = padding.calculateTopPadding() + 4.dp,
@@ -227,10 +246,18 @@ fun CategoryManageScreen(viewModel: AppViewModel, onBack: () -> Unit) {
 @Composable
 fun LocationManageScreen(viewModel: AppViewModel, onBack: () -> Unit) {
     val state = rememberLocationManageUiState(viewModel)
+    val listState = rememberLazyListState()
+    val scrollBehavior = rememberAppMiuixScrollBehavior()
 
-    AppScaffold(title = "存放位置管理", onBack = onBack) { padding ->
+    AppScaffold(
+        title = "存放位置管理",
+        onBack = onBack,
+        miuixScrollBehavior = scrollBehavior,
+        miuixContentScrolled = listState.canScrollBackward,
+    ) { padding ->
         LazyColumn(
-            modifier = Modifier.fillMaxSize(),
+            state = listState,
+            modifier = Modifier.fillMaxSize().appMiuixNestedScroll(scrollBehavior),
             contentPadding = PaddingValues(
                 start = 20.dp, end = 20.dp,
                 top = padding.calculateTopPadding() + 4.dp,

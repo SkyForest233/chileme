@@ -1,10 +1,10 @@
 package com.agon.app.ui.components.app
 
 // 带输入框的弹窗：管理页的「添加/编辑分类」（两个字段）与「添加存放位置」（一个字段）。
-// 设置页的坚果云账号 / 应用密码弹窗看着是同一形态，**第 8 对（2026-09-16）判定不并**：那两个输入框
-// 两版都用 MD3 `OutlinedTextField`（Miuix 的 `TextField` 没有 `visualTransformation`，做不了密码遮蔽），
-// 且值直接读写 `state.accountInput` / `state.passwordInput`；本组件是「本地字段 + onConfirm(values)」的
-// 口径，硬套要改字段所有权，还要新增密码遮蔽与说明文槽位 —— 为一个弹窗动三个在用的调用方，不划算。
+// 设置页的坚果云账号 / 应用密码弹窗看着是同一形态，**第 8 对（2026-09-16）判定不并**：Miuix 侧为
+// 保持 ViewModel 直接持有的账号/密码值与密码遮蔽，使用 GlassTextField 的 value/onValueChange 兼容重载；
+// 本组件使用 state-based TextFieldState + `onConfirm(values)`。硬套要改字段所有权、输入 API 与说明文槽位，
+// 为一个弹窗动三个在用的调用方，不划算。
 // 那个弹窗留在 `SettingsScreen.kt` 里按 `isMiuix` 分支（`ImeHandlingTest` 第 3 条仍点名该文件）。
 //
 // ⚠️ MD3 分支的 `DialogProperties(decorFitsSystemWindows = false)` + `stickyImePadding()` 是
@@ -29,18 +29,18 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
 import com.agon.app.ui.components.MiuixDialog
+import com.agon.app.ui.components.MiuixGlassDialogButton
 import com.agon.app.ui.theme.LocalThemeStyle
 import com.agon.app.ui.theme.ThemeStyle
-import top.yukonga.miuix.kmp.basic.ButtonDefaults as MiuixButtonDefaults
-import top.yukonga.miuix.kmp.basic.TextButton as MiuixTextButton
-import top.yukonga.miuix.kmp.basic.TextField as MiuixTextField
+import top.yukonga.miuix.kmp.glass.GlassDialogButtonRole
+import top.yukonga.miuix.kmp.glass.GlassTextField
 
 /**
  * 弹窗里一个输入框的规格。
  *
  * @param maxLength 最多接受多少字符（分类名 8 / emoji 4 / 位置名 12，合并前两版一致）。
  *   **两主题的截断时机不同**，见 [AppFormDialog] 的 KDoc。
- * @param placeholder **只在 MD3 侧生效**：Miuix 的 `TextField` 合并前传的是
+ * @param placeholder **只在 MD3 侧生效**：Miuix `GlassTextField` 合并前传的是
  *   `useLabelAsPlaceholder = true`（拿 label 当占位符），没有独立占位符形参 —— 按
  *   `docs/ARCHITECTURE.md` 的约束 ⑥ 点名哪边不生效，不替 Miuix 造一个它没有的槽。
  */
@@ -57,7 +57,7 @@ data class AppFormFieldSpec(
  * **两主题的输入机制根本不同，这里各走各的、不做桥接**：
  * - MD3 用 `OutlinedTextField(value, onValueChange)`，**边打字边截断**（`take(maxLength)`），
  *   所以用户根本打不进第 9 个字符；
- * - Miuix 用 `TextField(state: TextFieldState)`，**允许超长输入，点确认时才 `take(maxLength)`**。
+ * - Miuix 用 `GlassTextField(state: TextFieldState)`，**允许超长输入，点确认时才 `take(maxLength)`**。
  *
  * 把两者塞进同一个「value + onValueChange」外壳，需要在 Miuix 侧用 `LaunchedEffect` 把截断后的文本
  * 回写 `TextFieldState` —— 那会动到光标位置与状态重建时机，是只有真机看得出来的行为改动。
@@ -97,7 +97,7 @@ fun AppFormDialog(
             // 按钮区再额外留 8.dp（合计 20.dp，与 AppBatchMoveDialog.kt 完全一致）。
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 states.forEachIndexed { index, fieldState ->
-                    MiuixTextField(
+                    GlassTextField(
                         state = fieldState,
                         label = fields[index].label,
                         useLabelAsPlaceholder = true,
@@ -107,12 +107,13 @@ fun AppFormDialog(
                     modifier = Modifier.padding(top = 8.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    MiuixTextButton(
+                    MiuixGlassDialogButton(
                         text = dismissText,
                         onClick = onDismiss,
+                        role = GlassDialogButtonRole.Normal,
                         modifier = Modifier.weight(1f),
                     )
-                    MiuixTextButton(
+                    MiuixGlassDialogButton(
                         text = confirmText,
                         onClick = {
                             onConfirm(
@@ -121,15 +122,9 @@ fun AppFormDialog(
                                 },
                             )
                         },
+                        role = GlassDialogButtonRole.Primary,
                         modifier = Modifier.weight(1f),
                         enabled = states.firstOrNull()?.text?.isNotBlank() == true,
-                        // Miuix 的 TextButton 不是 MD3 那种无底文字按钮：Button 内部是
-                        // .squircleSurface(color = containerColor) 实心填充，默认 textButtonColors() 的
-                        // 容器色是 secondaryVariant（浅灰）⇒ 不传 colors 时「添加」和「取消」长得一样。
-                        // 主要动作用 textButtonColorsPrimary()（容器 primary 蓝 + 文字 onPrimary 白），
-                        // 与上游 example/.../component/DialogSection.kt 里 7 个弹窗的写法一致；
-                        // 该工厂自带 disabledPrimaryButton / disabledOnPrimaryButton，故 enabled=false 时也对。
-                        colors = MiuixButtonDefaults.textButtonColorsPrimary(),
                     )
                 }
             }

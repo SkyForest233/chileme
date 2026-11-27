@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
@@ -14,6 +15,8 @@ import androidx.compose.ui.unit.sp
 import com.agon.app.ui.components.ExpiryCalendarCard
 import com.agon.app.ui.components.app.AppArchiveAction
 import com.agon.app.ui.components.app.AppScaffold
+import com.agon.app.ui.components.app.appMiuixNestedScroll
+import com.agon.app.ui.components.app.rememberAppMiuixScrollBehavior
 import com.agon.app.ui.components.app.AppStatCard
 import com.agon.app.ui.components.app.AppStatTone
 import com.agon.app.ui.components.app.AppTextScale
@@ -67,15 +70,20 @@ fun StatsScreen(
     val state = rememberStatsUiState(viewModel)
     val metrics = appStatsListMetrics()
     val chartColors = appChartColors()
+    val listState = rememberLazyListState()
+    val scrollBehavior = rememberAppMiuixScrollBehavior()
 
     AppScaffold(
         title = "统计",
+        miuixScrollBehavior = scrollBehavior,
+        miuixContentScrolled = listState.canScrollBackward,
         actions = {
             AppArchiveAction(onClick = onOpenConsumption, contentDescription = "消耗记录")
         },
     ) { padding ->
         LazyColumn(
-            modifier = Modifier.fillMaxSize(),
+            state = listState,
+            modifier = Modifier.fillMaxSize().appMiuixNestedScroll(scrollBehavior),
             contentPadding = PaddingValues(
                 start = metrics.contentPaddingHorizontal,
                 end = metrics.contentPaddingHorizontal,

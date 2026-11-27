@@ -78,13 +78,15 @@ fun rememberAppSnackbarHostState(): AppSnackbarHostState {
  *   Miuix 侧不额外抬（原版就没抬）。
  * - [FloatingNav]：带悬浮导航栏的 Tab 页（首页 / 设置）。两版都抬 `84dp` 到悬浮栏之上，且 MD3 侧
  *   **不再**叠加 `navigationBarsPadding()` —— 原版本来就没叠，叠上去会把条推得更高。
+ * - [ScaffoldDefault]：编辑页保留 Material3 Scaffold 原生的 snackbar 定位（由 Scaffold 避开 bottomBar），
+ *   不额外叠加页面级导航栏 / 24dp padding；Miuix 侧仍用库默认定位。
  *
  * 第 8 对（设置页）核过了：两版设置页都抬 84dp，正是 [FloatingNav]；**但那条 ⚠️ 警告不能「默认套用就算完」** ——
  * MD3 设置页用的是普通 `SnackbarHost`，而 MD3 侧默认宿主是可滑掉的 `SwipeDismissSnackbarHost`。
  * 处置是给宿主**形态**另开一个维度 [AppSnackbarForm]：落位与形态是两件正交的事，塞进同一个枚举会变成
  * `SystemBarsPlain` / `FloatingNavUndo` 这种四个字的名字，而且四种组合里有三种本来就合法。
  */
-enum class AppSnackbarPlacement { SystemBars, FloatingNav }
+enum class AppSnackbarPlacement { SystemBars, FloatingNav, ScaffoldDefault }
 
 /**
  * 撤销条宿主**形态**（与 [AppSnackbarPlacement] 的「落位」正交）。
@@ -117,7 +119,7 @@ internal fun AppSnackbarHost(
     // 落位先算一次：原本三个分支各写一遍，再加形态维度就成 2×2 四份，分散写容易漏改其中一份
     val placed = when {
         placement == AppSnackbarPlacement.FloatingNav -> modifier.padding(bottom = 84.dp)
-        isMiuix -> modifier
+        placement == AppSnackbarPlacement.ScaffoldDefault || isMiuix -> modifier
         else -> modifier.navigationBarsPadding().padding(bottom = 24.dp)
     }
     when {

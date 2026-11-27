@@ -167,7 +167,7 @@ internal fun Md3SettingsBody(
                             fontWeight = FontWeight.Medium,
                         )
                         Text(
-                            "关闭后底部导航改为全宽常驻底栏",
+                            "关闭后 Material 3 改为全宽常驻底栏；Miuix 仍使用 Glass 胶囊",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -208,9 +208,9 @@ internal fun Md3SettingsBody(
                         )
                         Text(
                             when {
-                                !blurSupported -> "需要 Android 13+；此设备使用普通悬浮底栏"
-                                !state.floatingNav -> "请先开启悬浮导航；仅影响 Miuix 悬浮底栏"
-                                !state.miuixBlurEnabled -> "请先开启 Miuix 背景模糊；仅影响悬浮底栏"
+                                !blurSupported -> "需要 Android 13+；此设备使用标准 Glass 胶囊"
+                                !state.floatingNav -> "请先开启悬浮导航；关闭时 Miuix 使用标准 Glass 胶囊"
+                                !state.miuixBlurEnabled -> "请先开启 Miuix 背景模糊；当前使用标准 Glass 胶囊"
                                 else -> "折射与高光效果；仅影响 Miuix 悬浮底栏"
                             },
                             style = MaterialTheme.typography.bodySmall,

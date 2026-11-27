@@ -36,13 +36,11 @@ import java.io.File
  * 算法先用 Python 实现同一套状态机在真源码上验证过：当前 8 个调用点全部判为单一根节点；
  * 把 `AppFormDialog.kt` 换回修复前（`git show HEAD~1:`）的版本，被准确判为 2 个顶层节点（见 [parserFlagsTheRealBug]）。
  *
- * 另有一组**按钮惯例**不变量（见 [dialogActionsFollowMiuixButtonConvention]）：弹窗动作不得用实心
- * `Button` + `buttonColorsPrimary()`；content 里有 2 个及以上 `TextButton(` 时至少一个要显式传 `colors =`。
- * 依据是上游 `example/shared/src/commonMain/kotlin/component/DialogSection.kt` 的 7 个弹窗一律
- * `TextButton` + 主要动作 `textButtonColorsPrimary()`（蓝底白字胶囊），以及库源码 `basic/Button.kt`：
- * `TextButton` 内部就是 `Button`，而 `Button` 用 `.squircleSurface(color = containerColor)` 实心填充，
- * 默认 `textButtonColors()` 的容器色是 `secondaryVariant`（浅灰）—— 所以「不传 colors」的主要动作
- * 会和「取消」完全同色（2026-09-17 真机复测发现 4 处这样的偏离）。
+ * 另有一组**Glass 动作按钮**不变量（见 [dialogActionsUseGlassButtons]）：每个 Miuix
+ * dialog content 不得残留 Miuix/Material `TextButton`，所有 Glass 动作均通过
+ * `MiuixGlassDialogButton` 并显式声明 `GlassDialogButtonRole`（Normal / Primary / Destructive）。
+ * 这样 disabled 样式、对比度和玻璃表面上的按压反馈都由官方 `GlassDialogButton` 统一负责；MD3
+ * 的 `AlertDialog` 按钮布局与样式不受此规则影响。
  *
  * 实现上刻意让 [Walker] **只对外暴露 Int / Boolean**：`Frame` 是 private 类型，一旦出现在 public 成员的
  * 签名或推断类型里就会撞上「public 暴露 private 类型」的编译错误 —— 本仓 CI 为此红过一次
@@ -120,11 +118,9 @@ class MiuixDialogContentTest {
         assertEquals(2L, contentBodyOfFirstSite(bad)?.let { topLevelStatements(it).size }?.toLong() ?: -1L)
     }
 
-    /**
-     * 弹窗动作按钮的两条惯例。都是「偏离了也不报错、只有真机看得出来」的那一类，故一并做成静态守卫。
-     */
+    /** Glass 弹窗动作应全部使用显式角色的 Glass 按钮；MD3 AlertDialog 不受此守卫影响。 */
     @Test
-    fun dialogActionsFollowMiuixButtonConvention() {
+    fun dialogActionsUseGlassButtons() {
         val root = sourceRoot()
         assumeTrue("找不到主源码目录（工作目录既不是模块目录也不是仓库根目录）", root != null)
         val violations = mutableListOf<String>()
@@ -144,13 +140,13 @@ class MiuixDialogContentTest {
     // ------------------------------------------------------------------ 扫描
 
     /**
-     * 剥掉注释、保留代码与字符串，供按钮惯例那类**原文匹配**的断言使用。
+     * 剥掉注释、保留代码与字符串，供 Glass 按钮守卫这类**原文匹配**的断言使用。
      *
      * 必须走 [Walker] 而不是正则：`ImeHandlingTest.codeOnly()` 用正则剥块注释，被 `SettingsScreen.kt`
      * 里 MIME 通配符（星号斜杠星号那种写法）反咬一口 —— 约 600 行真实代码被当成注释吞掉
      * （见 `devlog/2026-09-17.md`）。本守卫手上已经有词法器，没理由再踩一遍。
      * 反过来，注释里写「原先这里是 Button + 那个实心配色工厂」这类说明也不该触发断言
-     * （第一版就是这么误报的），剥掉注释正好两头都解决。
+     * （旧版实心按钮守卫曾因此误报），剥掉注释正好两头都解决。
      */
     private fun codeOnly(src: String): String {
         val walker = Walker(src)
@@ -163,28 +159,34 @@ class MiuixDialogContentTest {
     }
 
     /**
-     * A. 不得用实心 `Button` + `buttonColorsPrimary()` 当弹窗动作（上游一律 `TextButton`）；
-     * B. content 里出现 2 个及以上 `TextButton(` 时，至少一个必须显式传 `colors =` ——
-     *    静态判不出「哪个是主要动作」，所以只约束「不许全是库默认色」：默认容器色是
-     *    `secondaryVariant` 浅灰，全默认时用户分不出主要动作与「取消」。
-     *    危险动作传 error 色同样满足 B（`SettingsBackupDialogs` 的「覆盖导入」就是这种；#10a-1 前在 `SettingsScreen`）。
+     * Glass dialogs use the explicit Glass button adapter for every action; MD3 AlertDialogs are untouched.
+     * Fail closed if a dialog call can no longer be parsed, since otherwise new action styles can slip through.
      */
     private fun scanButtons(file: File, violations: MutableList<String>) {
         val src = file.readText()
         if (!src.contains(CallName)) return
         val name = file.name
+        val legacyButtonCall = Regex("""(?<![A-Za-z0-9_])(?:Miuix)?(?:TextButton|Button)\s*\(""")
+        val glassButtonCall = Regex("""(?<![A-Za-z0-9_])MiuixGlassDialogButton\s*\(""")
+        val glassRole = Regex("""\brole\s*=\s*(?:if\s*\([^)]*\)\s*)?GlassDialogButtonRole\.(?:Normal|Primary|Destructive)\b""")
         for (pos in callSites(src)) {
-            val body = contentBody(src, pos) ?: continue
-            val code = codeOnly(body)
+            val body = contentBody(src, pos)
             val line = src.substring(0, pos).count { it == '\n' } + 1
-            if (code.contains("buttonColorsPrimary(")) {
-                violations += "$name:$line 弹窗动作用了实心 Button(buttonColorsPrimary()) —— " +
-                    "上游 DialogSection.kt 的 7 个弹窗一律 TextButton + textButtonColorsPrimary()"
+            if (body == null) {
+                violations += "$name:$line MiuixDialog 调用无法解析，Glass 动作按钮守卫无法检查"
+                continue
             }
-            val buttons = code.split("TextButton(").size - 1
-            if (buttons >= 2 && !code.contains("colors =")) {
-                violations += "$name:$line 弹窗里有 $buttons 个 TextButton 却没有一个显式传 colors = —— " +
-                    "主要动作应是 textButtonColorsPrimary()（蓝底白字），库默认是 secondaryVariant 浅灰"
+            val code = codeOnly(body)
+            if (legacyButtonCall.containsMatchIn(code)) {
+                violations += "$name:$line MiuixDialog 内残留了 Miuix/Material 按钮，请改用 MiuixGlassDialogButton"
+            }
+            for (call in glassButtonCall.findAll(code)) {
+                val openParen = code.indexOf('(', call.range.first)
+                val closeParen = matchParen(code, openParen)
+                val arguments = if (closeParen > openParen) code.substring(openParen + 1, closeParen) else ""
+                if (!glassRole.containsMatchIn(arguments)) {
+                    violations += "$name:$line MiuixGlassDialogButton 未显式声明 GlassDialogButtonRole"
+                }
             }
         }
     }

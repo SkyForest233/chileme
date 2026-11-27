@@ -482,15 +482,22 @@ for d in DOCS:
 print('%d 处写死的五文件行数被比对，不符 %d 处（实测 %s）' % (hits, bad, real))
 PY
 )" '这五个数在 ROADMAP 的 10e 行与 INDEX 的日志表行各写了一遍；行数会变（改一行代码就变），故纳入比对'
-row '同文件内重复的长句（>=40 字符）' "$(python3 - <<'PY' 2>/dev/null || echo '需 python3'
+row '同文件内重复的长句（>=40 字符，忽略代码围栏）' "$(python3 - <<'PY' 2>/dev/null || echo '需 python3'
 import glob, io, re
 from collections import Counter
 groups = 0
 for f in glob.glob('**/*.md', recursive=True):
     if f.startswith('.git/') or f.startswith('.claude/'):
         continue
+    prose = []
+    in_fence = False
+    for line in io.open(f, encoding='utf-8').read().splitlines():
+        if line.strip().startswith('```'):
+            in_fence = not in_fence
+        elif not in_fence:
+            prose.append(line)
     c = Counter()
-    for s in re.split(r'[。；\n|]', io.open(f, encoding='utf-8').read()):
+    for s in re.split(r'[。；\n|]', '\n'.join(prose)):
         s = re.sub(r'\s+', '', s).lstrip('->*#0123456789. ')
         if len(s) >= 40:
             c[s] += 1
@@ -501,7 +508,7 @@ for f in glob.glob('**/*.md', recursive=True):
             print('     ✗ %s ×%d「%s…」' % (f, n, s[:60]))
 print('%d 组' % groups)
 PY
-)" '替换/追加段落时最容易留下的残留（本日「单测数变化」就曾因此出现 2 份）。**现存的 1 组是刻意的、不要清**：`devlog/2026-09-16.md` §13 的「实际结果表」（`MainActivity.kt` 118 行）与路线图的「计划表」（同文件 ~120 行）用了同一句内容描述，是计划 vs 实际的对照 ⇒ 目标值是 1 组，多于 1 组才需要查'
+)" '重复长句扫描只看文档正文与表格；代码围栏中的原始日志/示例不属于重复散文。唯一预期的 1 组是 `devlog/2026-09-16.md` §13 计划表与结果表的对照；多于 1 组才需要查'
 row '计数句自洽性（N run = X 绿 + Y 红）' "$(python3 - <<'PY' 2>/dev/null || echo '需 python3'
 import glob, io, re
 # 认两种写法：「N run：X 绿 Y 红」与「N run —— X 绿 · Y 红 · Z 被( concurrency )取消」

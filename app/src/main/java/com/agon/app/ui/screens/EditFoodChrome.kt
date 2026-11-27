@@ -23,22 +23,25 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.agon.app.ui.theme.LocalThemeStyle
+import com.agon.app.ui.theme.ThemeStyle
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
+import top.yukonga.miuix.kmp.basic.Button as MiuixButton
+import top.yukonga.miuix.kmp.basic.ButtonDefaults as MiuixButtonDefaults
+import top.yukonga.miuix.kmp.basic.Icon as MiuixIcon
+import top.yukonga.miuix.kmp.basic.Surface as MiuixSurface
+import top.yukonga.miuix.kmp.basic.Text as MiuixText
+import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.extended.Ok
+import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /**
- * 编辑页底栏的保存按钮（#10e 从 `EditFoodScreen` 抽出）。
+ * 编辑页底栏保存按钮。
  *
- * 只搬**渲染**：`onClick` 里那段「校验名称 → 组装 FoodItem → 等落盘 → 返回」留在入口的
- * `onSave`（它要读全部 12 个表单状态与 `existing`，抽出来会变成十几个参数）。
- * 原来用 `return@Button` 提前返回，入口改成 if/else 后行为等价（`onSave` 是独立 lambda，
- * 标签名不再是 Button）。底栏仍在入口的 `Scaffold(bottomBar = …)` 里 ⇒
- * `ImeHandlingTest` 点名的 `imePadding()` 位置没变。
- *
- * `enabled` 是 M1-2 加的：保存现在要**等 DataStore 写完**才导航返回，那段时间里按钮必须不再受理
- * 第二次点击 —— 连点两下在新增模式里会生成两个 UUID，库里就多出两条重复记录。
- * 默认 `true`，所以除编辑页之外的调用方（若有）行为不变。
+ * 保存校验与等 DataStore 写完后返回的逻辑留在入口；Material3 保留原按钮，Miuix 使用原生 Button。
+ * `enabled` 在保存期间挡住二次点击，避免新增模式下连点生成重复记录。
  */
 @Composable
 internal fun EditFoodSaveBar(
@@ -46,37 +49,57 @@ internal fun EditFoodSaveBar(
     onSave: () -> Unit,
     enabled: Boolean = true,
 ) {
-    Surface(color = MaterialTheme.colorScheme.background) {
-        Button(
-            onClick = onSave,
-            enabled = enabled,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 12.dp)
-                .height(56.dp),
-            shape = RoundedCornerShape(50),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = MaterialTheme.colorScheme.primary,
-            ),
-        ) {
-            Icon(Icons.Rounded.Check, contentDescription = null)
-            Spacer(Modifier.width(8.dp))
-            Text(
-                if (isEdit) "保存修改" else "添加到零食柜",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-            )
+    val label = if (isEdit) "保存修改" else "添加到零食柜"
+    if (LocalThemeStyle.current == ThemeStyle.MIUIX) {
+        MiuixSurface(color = MiuixTheme.colorScheme.surface) {
+            MiuixButton(
+                onClick = onSave,
+                enabled = enabled,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 12.dp)
+                    .height(56.dp),
+                cornerRadius = 50.dp,
+                colors = MiuixButtonDefaults.buttonColorsPrimary(),
+            ) {
+                MiuixIcon(MiuixIcons.Ok, contentDescription = null)
+                Spacer(Modifier.width(8.dp))
+                MiuixText(
+                    label,
+                    style = MiuixTheme.textStyles.button,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            }
+        }
+    } else {
+        Surface(color = MaterialTheme.colorScheme.background) {
+            Button(
+                onClick = onSave,
+                enabled = enabled,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 12.dp)
+                    .height(56.dp),
+                shape = RoundedCornerShape(50),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.primary,
+                ),
+            ) {
+                Icon(Icons.Rounded.Check, contentDescription = null)
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    label,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            }
         }
     }
 }
 
 /**
- * 生产日期选择弹窗（#10e 从 `EditFoodScreen` 抽出）。
- *
- * 「毫秒 → epochDay」的换算留在弹窗内部，只把结果用 `onConfirmDay` 抛回去 ⇒
- * `Instant` / `ZoneOffset` 两个 import 跟着搬走，入口不再需要。
- * 弹窗内没有输入框，所以不在 `ImeHandlingTest` 第 3 条那份「带输入框的 MD3 弹窗」清单里。
- * `DatePicker` 三件套仍是 Material3 实验 API，而本仓没有全局 opt-in ⇒ 这里自带 `@OptIn`。
+ * Production date picker. Miuix 0.9.5-rc01 has no corresponding date picker, so this isolated dialog
+ * remains Material3 (using the root Miuix theme bridge when opened from the Miuix editor).
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

@@ -54,6 +54,8 @@ miuix-preference-android = { module = "top.yukonga.miuix.kmp:miuix-preference-an
 miuix-icons-android = { module = "top.yukonga.miuix.kmp:miuix-icons-android", version.ref = "miuix" }
 miuix-material-android = { module = "top.yukonga.miuix.kmp:miuix-material-android", version.ref = "miuix" }
 miuix-blur-android = { module = "top.yukonga.miuix.kmp:miuix-blur-android", version.ref = "miuix" }
+miuix-glass-android = { module = "top.yukonga.miuix.kmp:miuix-glass-android", version.ref = "miuix" }
+miuix-glass-icons-android = { module = "top.yukonga.miuix.kmp:miuix-glass-icons-android", version.ref = "miuix" }
 
 # Coil
 coil-compose = { module = "io.coil-kt.coil3:coil-compose", version.ref = "coil" }

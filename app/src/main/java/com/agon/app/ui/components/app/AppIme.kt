@@ -15,7 +15,7 @@ package com.agon.app.ui.components.app
 //
 // **为什么不修 Miuix 侧**（用户 2026-09-17 决定：Miuix 不动，只修 MD3）：库的 `imePadding()` 在
 // `layout/DialogContentLayout.kt` 的 `DialogContent` 内部，应用层唯一的开关是
-// `WindowDialog(defaultWindowInsetsPadding = false)`，而它是**三件套一起关**
+// `GlassDialog(defaultWindowInsetsPadding = false)`，而它是**三件套一起关**
 // （`.imePadding().navigationBarsPadding().captionBarPadding()`）—— 关掉后弹窗底边会掉到导航栏/手势条下面、
 // squircle 圆角被压住，是所有 Miuix 弹窗的视觉回退。查过上游 pinned tag v0.9.5-rc01：
 // `DialogContentLayout` 与 `BottomSheetContentLayout` 在默认 inset 开关下都使用 `.imePadding()`；

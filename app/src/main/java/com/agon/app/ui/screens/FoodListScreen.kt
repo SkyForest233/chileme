@@ -19,7 +19,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -46,6 +48,8 @@ import com.agon.app.ui.components.app.AppFilterSectionLabel
 import com.agon.app.ui.components.app.AppFilterToggle
 import com.agon.app.ui.components.app.AppHistoryNote
 import com.agon.app.ui.components.app.AppScaffold
+import com.agon.app.ui.components.app.appMiuixNestedScroll
+import com.agon.app.ui.components.app.rememberAppMiuixScrollBehavior
 import com.agon.app.ui.components.app.AppSearchField
 import com.agon.app.ui.components.app.AppSelectAllAction
 import com.agon.app.ui.theme.LocalThemeStyle
@@ -54,6 +58,7 @@ import com.agon.app.ui.theme.ThemeStyle
 import com.agon.app.ui.theme.filterPanelEnter
 import com.agon.app.ui.theme.filterPanelExit
 import com.agon.app.viewmodel.AppViewModel
+import top.yukonga.miuix.kmp.basic.ScrollBehavior as MiuixScrollBehaviorType
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /**
@@ -82,6 +87,9 @@ fun FoodListScreen(
     onOpenArchive: () -> Unit,
 ) {
     val state = rememberFoodListUiState(viewModel, initialFilter)
+    val miuixListState = rememberLazyListState()
+    val miuixScrollBehavior = rememberAppMiuixScrollBehavior()
+    val hasMiuixResults = state.filtered.isNotEmpty() || state.archivedMatches.isNotEmpty()
 
     // 系统返回键：多选时只退出多选，不切页（在 NavHost 内部，优先级高于导航返回）
     BackHandler(enabled = state.selectionMode) {
@@ -92,6 +100,8 @@ fun FoodListScreen(
         title = if (state.selectionMode) "已选 ${state.selectedIds.size} 项" else "食品列表",
         onClose = if (state.selectionMode) state::clearSelection else null,
         selectionMode = state.selectionMode,
+        miuixScrollBehavior = miuixScrollBehavior,
+        miuixContentScrolled = hasMiuixResults && miuixListState.canScrollBackward,
         // 键盘避让：搜索框聚焦后列表可视区止于键盘顶边，末尾条目才滚得出来
         //（原先底部留白只算了导航栏 + 96dp，不含 IME）。两版原来都写在各自 Scaffold 的 modifier 上；
         // 合并后这一行就是 ImeHandlingTest 第 1 条要看的证据（一个条目覆盖两套主题）。
@@ -118,6 +128,8 @@ fun FoodListScreen(
             MiuixFoodListBody(
                 state = state,
                 padding = padding,
+                listState = miuixListState,
+                scrollBehavior = miuixScrollBehavior,
                 onOpenItem = onOpenItem,
             )
         } else {
@@ -139,6 +151,8 @@ fun FoodListScreen(
 private fun MiuixFoodListBody(
     state: FoodListUiState,
     padding: PaddingValues,
+    listState: LazyListState,
+    scrollBehavior: MiuixScrollBehaviorType?,
     onOpenItem: (String) -> Unit,
 ) {
     Crossfade(
@@ -160,6 +174,8 @@ private fun MiuixFoodListBody(
             MiuixFoodListResultsBody(
                 state = state,
                 padding = padding,
+                listState = listState,
+                scrollBehavior = scrollBehavior,
                 onOpenItem = onOpenItem,
             )
         }
@@ -170,6 +186,8 @@ private fun MiuixFoodListBody(
 private fun MiuixFoodListResultsBody(
     state: FoodListUiState,
     padding: PaddingValues,
+    listState: LazyListState,
+    scrollBehavior: MiuixScrollBehaviorType?,
     onOpenItem: (String) -> Unit,
 ) {
     val density = LocalDensity.current
@@ -179,7 +197,8 @@ private fun MiuixFoodListResultsBody(
     Box(modifier = Modifier.fillMaxSize()) {
         if (controlsHeightPx > 0) {
             LazyColumn(
-                modifier = Modifier.fillMaxSize(),
+                state = listState,
+                modifier = Modifier.fillMaxSize().appMiuixNestedScroll(scrollBehavior),
                 contentPadding = PaddingValues(
                     top = padding.calculateTopPadding() + controlsHeight + 4.dp,
                     bottom = padding.calculateBottomPadding() + 96.dp,

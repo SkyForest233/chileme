@@ -1,6 +1,6 @@
 package com.agon.app.ui.components.app
 
-// App 级弹窗组件。目前只有一个：批量「移动存放位置」（MD3 AlertDialog / Miuix WindowDialog 双实现）。
+// App 级弹窗组件。目前只有一个：批量「移动存放位置」（MD3 AlertDialog / Miuix GlassDialog 双实现）。
 //
 // 位置沿革：2026-09-16 从 MainActivity.kt 拆出时落在包根 `com/agon/app/AppDialogs.kt`（那会儿 `ui/components/app/`
 // 这层还没建）；2026-09-17 形参收窄到 5 个、不再含任何 ViewModel / CoroutineScope / Snackbar 依赖之后，
@@ -10,7 +10,7 @@ package com.agon.app.ui.components.app
 //
 // ⚠️ MD3 分支必须保留 properties = DialogProperties(decorFitsSystemWindows = false) + stickyImePadding()：
 // MD3 弹窗是独立浮动窗口，不关这个开关 IME inset 传不进内容，键盘会盖住「确定移动」按钮
-// （2026-09-16 修，用户真机复测通过）。Miuix 分支不需要 —— WindowDialog 的 DialogContent 由库自理
+// （2026-09-16 修，用户真机复测通过）。Miuix 分支不需要 —— GlassDialog 的 DialogContent 由库自理
 // IME，**不要**给它传 defaultWindowInsetsPadding = false。ImeHandlingTest 第 3 条按文件清单守卫这一点，
 // 弹窗再搬家时同步改清单 —— 2026-09-17 起漏改会**直接红**（该测试补了「清单里的文件必须存在」断言），
 // 不再像从前那样静默少覆盖：`read()` 对不存在的文件返回 null、断言在更小的集合上照常全绿。
@@ -47,14 +47,16 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import top.yukonga.miuix.kmp.basic.ButtonDefaults as MiuixButtonDefaults
-import top.yukonga.miuix.kmp.basic.TextButton as MiuixTextButton
+import top.yukonga.miuix.kmp.glass.GlassDialogButtonRole
+import top.yukonga.miuix.kmp.glass.GlassTextField
 import com.agon.app.ui.components.MiuixDialog
+import com.agon.app.ui.components.MiuixGlassDialogButton
 import com.agon.app.ui.theme.LocalThemeStyle
 import com.agon.app.ui.theme.ThemeStyle
 import kotlinx.coroutines.flow.StateFlow
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -65,6 +67,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
+@Suppress("DEPRECATION")
 @Composable
 internal fun BatchMoveLocationDialog(
     show: Boolean,
@@ -73,12 +76,19 @@ internal fun BatchMoveLocationDialog(
     onDismiss: () -> Unit,
     onConfirm: (String) -> Unit,
 ) {
-    // ---- 批量修改存放位置：MD3 AlertDialog / Miuix WindowDialog 双实现 ----
+    // ---- 批量修改存放位置：MD3 AlertDialog / Miuix GlassDialog 双实现 ----
     val isMiuix = LocalThemeStyle.current == ThemeStyle.MIUIX
-    if (show) {
+    // Miuix must stay composed while hidden for GlassDialog's exit animation.
+    if (show || isMiuix) {
         val locations by locationsFlow.collectAsStateWithLifecycle()
         var selectedLocation by remember { mutableStateOf(locations.firstOrNull() ?: "零食柜") }
         var customLocation by remember { mutableStateOf("") }
+        LaunchedEffect(show) {
+            if (show) {
+                selectedLocation = locationsFlow.value.firstOrNull() ?: "零食柜"
+                customLocation = ""
+            }
+        }
 
         if (isMiuix) {
             MiuixDialog(
@@ -108,36 +118,32 @@ internal fun BatchMoveLocationDialog(
                             )
                         }
                     }
-                    OutlinedTextField(
+                    GlassTextField(
                         value = customLocation,
                         onValueChange = { customLocation = it },
-                        label = { Text("或输入新位置（如：书房）") },
+                        label = "或输入新位置（如：书房）",
                         singleLine = true,
-                        shape = RoundedCornerShape(16.dp),
+                        cornerRadius = 16.dp,
                         modifier = Modifier.fillMaxWidth(),
                     )
                     Row(
                         modifier = Modifier.padding(top = 8.dp),
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
-                        MiuixTextButton(
+                        MiuixGlassDialogButton(
                             text = "取消",
-                            onClick = { onDismiss() },
+                            onClick = onDismiss,
+                            role = GlassDialogButtonRole.Normal,
                             modifier = Modifier.weight(1f),
                         )
-                        // 弹窗动作一律用库的 TextButton（它本身就是填充胶囊，不是无底文字按钮），
-                        // 主要动作传 textButtonColorsPrimary()。原先这里是 Button + buttonColorsPrimary()
-                        // 再手写 Text(color = onPrimary, fontWeight = SemiBold)：颜色虽然对，但要自己补文字色
-                        // 与字重、拿不到 MiuixTheme.textStyles.button 与 disabled 角色，也不是上游
-                        // DialogSection.kt 里 7 个弹窗的统一写法。
-                        MiuixTextButton(
+                        MiuixGlassDialogButton(
                             text = "确定移动",
                             onClick = {
                                 val target = customLocation.trim().ifBlank { selectedLocation.trim() }
                                 if (target.isNotBlank()) onConfirm(target)
                             },
+                            role = GlassDialogButtonRole.Primary,
                             modifier = Modifier.weight(1f),
-                            colors = MiuixButtonDefaults.textButtonColorsPrimary(),
                         )
                     }
                 }
@@ -151,7 +157,7 @@ internal fun BatchMoveLocationDialog(
                 // 关掉 decorFits 拿到 inset，再由粘性避让把弹窗整体上移到键盘之上。
                 // 用 stickyImePadding() 而非 imePadding()：2026-09-17 真机复测发现焦点在输入框之间切换时
                 // IME inset 会瞬时归零、居中弹窗跟着坠一下（见 ui/components/app/AppIme.kt）。
-                // Miuix 分支不需要：WindowDialog 的 DialogContent 由库自理 IME（见 MiuixDialog 的 KDoc）。
+                // Miuix 分支不需要：GlassDialog 的 DialogContent 由库自理 IME（见 MiuixDialog 的 KDoc）。
                 properties = DialogProperties(decorFitsSystemWindows = false),
                 modifier = stickyImePadding(),
                 title = { Text("批量修改存放位置") },

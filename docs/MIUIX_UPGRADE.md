@@ -57,6 +57,8 @@ miuix-preference-android = { module = "top.yukonga.miuix.kmp:miuix-preference-an
 miuix-icons-android = { module = "top.yukonga.miuix.kmp:miuix-icons-android", version.ref = "miuix" }
 miuix-material-android = { module = "top.yukonga.miuix.kmp:miuix-material-android", version.ref = "miuix" }
 miuix-blur-android = { module = "top.yukonga.miuix.kmp:miuix-blur-android", version.ref = "miuix" }
+miuix-glass-android = { module = "top.yukonga.miuix.kmp:miuix-glass-android", version.ref = "miuix" }
+miuix-glass-icons-android = { module = "top.yukonga.miuix.kmp:miuix-glass-icons-android", version.ref = "miuix" }
 ```
 
 `app/build.gradle.kts` 里只写 `implementation(libs.miuix.*.android)` 这类别名，**不要再写死坐标字符串**。
@@ -74,13 +76,14 @@ miuix-blur-android = { module = "top.yukonga.miuix.kmp:miuix-blur-android", vers
 
 1. 读 `.claude/skills/miuix-components/references/rc01-migration.md` 与目标版本的官方 release notes；页面结构任务另读 `.claude/skills/miuix-guidelines/` 对应规则。
 2. 扫描本项目所有 Miuix 调用点，重点核对易变组件：
-   - 弹窗：`OverlayDialog` / `WindowDialog`（`maxWidth` / `largeScreen` / `cornerRadius` 等参数）
-   - Preference：`SwitchPreference` / `ArrowPreference` / `RadioButtonPreference` / `OverlayDropdownPreference`
+   - 弹窗与下拉：`GlassDialog` / `GlassDropdownPreference`（页面级 Scaffold 不安装第二个 popup host；由根级 Miuix Scaffold 托管，核对 `renderInRootScaffold` / `defaultWindowInsetsPadding` 与 root backdrop 边界）
+   - Preference：`SwitchPreference` / `ArrowPreference` / `RadioButtonPreference` / `GlassDropdownPreference`（需要标准非玻璃样式时再用 `OverlayDropdownPreference`）
    - 主题：`MiuixTheme` / `ThemeController` / `ColorSchemeMode` / `Colors` 字段
    - 基础：`Button` / `TextButton` / `TextField` / `InputField` / `Card` / `Snackbar`
    - squircle：`squircleBorder` / `squircleSurface`
    - blur/glass：`textureBlur` / `drawBackdrop` / runtime shader / tilt / custom `Backdrop`；重点复核 backdrop 捕获边界，不能采样浮栏自身
-   - 图标：`MiuixIcons.*` 的图标名是否仍存在
+   - Glass 组件：`GlassTopAppBar` / `GlassNavigationBar` / `GlassFloatingActionButton` / `GlassIconButton` / `GlassTextField` / `GlassDialogButton`，以及 `MiuixIcons.Glass.*` 图标是否仍存在
+   - 图标：`MiuixIcons.*`（含 `Glass` 命名空间）的图标名是否仍存在
 3. 用新版本的 pinned source 逐一核对签名，不要凭旧版本记忆。
 
 **0.9.4 → 0.9.5-rc01 的本仓实际迁移点**：`Highlight` / `BloomStroke` 迁为 `miuix-material` 的 `EdgeStroke`；原 `BloomStroke(dualPeak = true)` 对应 `EdgePeak.Dual`，继续旋转 primary light 并保留 secondary light；`Highlight.alpha` 改为 `drawEdgeStroke(alpha = ...)`。`textureBlur` 不再接受 `highlight`，边缘描光改为独立 `Modifier.edgeStroke` 或 `drawBackdrop(onDrawFront = ...)`；`RuntimeShader` / `asBrush` / `isRuntimeShaderSupported` 与 `rememberDeviceTilt` 移到 `miuix-material`（sensor 子包）；`Backdrop.downscaleFactor` 从 `Int` 改为 `Float`。自定义 lens 与 `CombinedBackdrop` 均需同步签名/缩放处理。未使用的 `GlassBottomSheet`、RC01 重命名图标、dropdown popup `onDismissFinished` 调用点已扫描确认无本仓调用。
@@ -104,8 +107,9 @@ grep -rn "top.yukonga.miuix.kmp" app/src/main/java | sed 's/.*import //' | sort 
 - 弹窗显示与返回、深浅色切换、动态取色（Android 12+）
 - squircle 圆角（需 API 33+ 设备）
 - 图标显示、底部导航分流
-- Miuix 背景模糊与 iOS-like 液态玻璃开关；玻璃悬浮底栏可点击/拖拽切换 Tab，跨多页的指示器与 Pager 连续平滑移动并自然回弹；上边缘阴影在显隐动画中同步显示、无裁切/闪边；API 26–32 实色回退、API 33+ backdrop/vibrancy/lens 显示正常
+- Miuix 导航偏好分流：关闭 `floating_nav` 时仍显示标准 Glass 胶囊；开启时才允许 `liquid_glass_nav_enabled` 切换到 iOS-like 液态玻璃。检查胶囊/拖拽栏点击、跨页指示器与 Pager 回弹、显隐阴影无裁切；API 26–32 实色回退、API 33+ backdrop/vibrancy/lens 正常
 - 顶栏玻璃的滚动交叠：设置页条目与有结果的食品列表条目可从 Miuix 顶栏后方经过；食品列表搜索/筛选保持固定，首屏位置不变；MD3 布局不变，底栏仍自动隐藏/显示
+- 编辑页：在 Material3 与 Miuix 下分别新增/编辑、滚动表单、保存防重复点击、相册/相机封面、键盘遮挡与 DatePicker 确认/取消；Miuix 仍使用 Material3 DatePicker + 根主题桥接，其余控件走 Miuix/Glass。MD3 表单外观与保存逻辑不得回退
 
 ---
 
@@ -115,13 +119,13 @@ grep -rn "top.yukonga.miuix.kmp" app/src/main/java | sed 's/.*import //' | sort 
 
 1. **双主题**：`ThemeStyle`（MATERIAL3 / MIUIX）+ `LocalThemeStyle`，MD3 与 MIUIX 两套实现分流。MD3 侧**只动 Miuix 不碰 MD3**。
 2. **根级主题**：MIUIX 用 `MiuixRootTheme`（`MiuixTheme` + 桥接 `MaterialTheme`），页面内不再重复包 `MiuixTheme`。
-3. **弹窗必须在 Miuix Scaffold 的 content lambda 内**（无条件调用 + `show` 参数），否则不显示（历史踩坑）。
-4. **图标分流**：MIUIX 用 `MiuixIcons.Regular.*`，MD3 用 material 图标；`CleaningServices`/`Inventory2` 无 Miuix 对应，保留 material。
+3. **Glass 弹窗与下拉必须由根 Miuix Scaffold 的 popup host 托管**：`MainApp` 在 Miuix 模式安装唯一 root host，页面级 `AppScaffold` 将 `popupHost` 留空；调用点保持组合、用 `show` 控制显隐以保留退出动画，并传正确的 root backdrop。
+4. **图标分流**：Miuix 使用 `MiuixIcons.*`（含 `Regular` / `Extended` / `Glass` 命名空间），MD3 使用 Material 图标；没有对应 Miuix glyph 时才保留 Material 图标。
 5. **桥接层**：`MiuixRootTheme.kt` 的 `miuixColorsToMd3ColorScheme` 是「MD3 页面取色」的过渡层，升级时若 Miuix `Colors` 字段变化，需同步修正映射。
 6. **状态色**：安全/临期/过期是硬编码语义色（`Color.kt`），不随主题/版本变。
 7. **minSdk 26 不变**（2026-08-21 由 24 提升：全项目 28 处 `java.time` 未开脱糖，API 24/25 会 `NoClassDefFoundError`）。`miuix-blur-android` 的 API 33+ 限制只能在确认所有入口都有 runtime gate + 实色 fallback 后，通过 manifest `tools:overrideLibrary` 接入；不能因此提高 app minSdk。
 8. **Miuix 弹窗的 `content` 必须是单一根节点**（2026-09-17 真机复测踩坑）：库 `DialogContent` 把 `title` / `summary` / `content()` 依次放进一个**不带 `verticalArrangement` 的 Column**（间距只由 title、summary 各自的 `padding(bottom = 12.dp)` 提供），所以 content 里两个平级节点之间是 **0dp**。标准写法：单一 `Column(verticalArrangement = Arrangement.spacedBy(12.dp))`，按钮区再额外留 4~8.dp（上游示例 `example/shared/.../component/DialogSection.kt:351`；本仓 `app/AppBatchMoveDialog.kt` / `AppFormDialog.kt` / `SettingsCloudDialogs.kt` 坚果云弹窗 —— #10a-1 前在 `SettingsScreen.kt`）。静态守卫：`MiuixDialogContentTest`。
-9. **Miuix 弹窗的动作按钮一律用 `TextButton`，主要动作传 `ButtonDefaults.textButtonColorsPrimary()`**（2026-09-17 真机复测踩坑）：库的 `TextButton` **不是**无底文字按钮 —— 它内部就是 `Button`，用 `.squircleSurface(color = containerColor)` 实心填充（`basic/Button.kt:76`）；默认 `textButtonColors()` 的容器色是 `secondaryVariant`（浅灰），所以不传 `colors` 时「确定 / 保存 / 添加」和「取消」完全同色。`textButtonColorsPrimary()` = 容器 `primary` 蓝 + 文字 `onPrimary` 白 + 对应 disabled 角色 ⇒ 蓝底白字胶囊（上游 `DialogSection.kt` 的 7 个弹窗一律如此）。弹窗里**不要**用 `Button` + `buttonColorsPrimary()`：颜色虽同，但要自己补文字色与字重、拿不到 `textStyles.button` 与 disabled 角色。静态守卫：`MiuixDialogContentTest.dialogActionsFollowMiuixButtonConvention`。
+9. **Miuix Glass 弹窗动作统一使用 `GlassDialogButton` 并显式指定角色**：`Normal` 用于取消/返回，`Primary` 用于主要确认，`Destructive` 用于危险操作；不要在 GlassDialog 中混用普通 `Button` / `TextButton`。适配封装 `MiuixGlassDialogButton` 设置 Miuix 按钮字型，官方组件负责对比度、disabled 状态与按压反馈。静态守卫：`MiuixDialogContentTest.dialogActionsUseGlassButtons`。
 
 ---
 
@@ -132,9 +136,9 @@ grep -rn "top.yukonga.miuix.kmp" app/src/main/java | sed 's/.*import //' | sort 
 | `checkDebugAarMetadata` 报 compileSdk 不足 | Miuix 依赖要求更高 compileSdk | 升 `compileSdk` |
 | `Unresolved reference 'kotlin.android'` 或内置 Kotlin 冲突 | AGP 9 内置 Kotlin | 移除 `org.jetbrains.kotlin.android` 插件 |
 | Maven Central 403 | CI 共享 IP 被限流 | gradle.properties 已加重试，若仍失败重跑 |
-| OverlayDialog 不显示 | 弹窗在 Scaffold content 外 | 移入 content lambda |
+| GlassDialog / dropdown 不显示或 backdrop 自采样 | 根级 popup host 缺失，或页面级 Scaffold 又安装了第二个 host / capture 含浮层自身 | Miuix 模式由 MainApp 外层 Scaffold 托管；页面级 Scaffold 设 `popupHost = {}`，玻璃浮层传 root backdrop 并用 `renderInRootScaffold = true` |
 | 弹窗里输入框与「取消/确定」上下边重合（零间距） | `content` 写了两个平级节点（字段 Column + 按钮 Row），而库的弹窗根 Column 不带 `verticalArrangement` | 合成单一 `Column(spacedBy(12.dp))`，按钮 Row 再加 `padding(top = 8.dp)`（见 §2 第 8 条） |
-| 弹窗里「确定 / 保存 / 添加」和「取消」同色，看不出主次 | `TextButton` 不传 `colors` 时用库默认 `textButtonColors()`，容器色是 `secondaryVariant` 浅灰（Miuix 的 TextButton 是填充胶囊，不是无底文字按钮） | 主要动作传 `ButtonDefaults.textButtonColorsPrimary()`（蓝底白字）；见 §2 第 9 条 |
+| Glass 弹窗按钮层级或 disabled 样式不一致 | 使用通用 Miuix `Button` / `TextButton`，绕过 Glass 动作语义 | 所有动作经 `MiuixGlassDialogButton`，显式传 `Normal` / `Primary` / `Destructive`，见 §2 第 9 条 |
 | `Key was already used` 闪退 | LazyColumn key 冲突 | 用 `itemsIndexed` + index 兜底 |
 | 注释里 `*/` 导致编译错误 | 块注释被 `*/` 提前闭合 | 避免在注释里写 `inverse*/` 这类 |
 | 同包同名枚举 Redeclaration | MD3/MIUIX 文件重名 | 用 `MiuixXxx` 前缀区分 |

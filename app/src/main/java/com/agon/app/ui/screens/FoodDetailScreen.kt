@@ -44,6 +44,8 @@ import com.agon.app.ui.components.app.AppLinearProgress
 import com.agon.app.ui.components.app.AppMessageScreen
 import com.agon.app.ui.components.app.AppPaddedCard
 import com.agon.app.ui.components.app.AppScaffold
+import com.agon.app.ui.components.app.appMiuixNestedScroll
+import com.agon.app.ui.components.app.rememberAppMiuixScrollBehavior
 import com.agon.app.ui.components.app.AppStatusCard
 import com.agon.app.ui.components.app.AppText
 import com.agon.app.ui.components.app.AppTextScale
@@ -93,10 +95,14 @@ fun FoodDetailScreen(
 
     val ui = rememberStatusUi(state.status)
     val surface = appSurfaceColor()
+    val scrollState = rememberScrollState()
+    val scrollBehavior = rememberAppMiuixScrollBehavior()
 
     AppScaffold(
         title = "食品详情",
         onBack = onBack,
+        miuixScrollBehavior = scrollBehavior,
+        miuixContentScrolled = scrollState.value > 0,
         actions = {
             AppEditAction(onClick = { onEdit(item.id) })
             AppDeleteAction(onClick = { state.setShowDeleteDialog(true) })
@@ -106,7 +112,8 @@ fun FoodDetailScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .verticalScroll(rememberScrollState())
+                .appMiuixNestedScroll(scrollBehavior)
+                .verticalScroll(scrollState)
                 .padding(horizontal = 20.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
@@ -252,7 +259,7 @@ fun FoodDetailScreen(
             Spacer(Modifier.height(24.dp))
         }
 
-        // 弹窗放在 content lambda 内：Miuix 的 WindowDialog 必须无条件调用、靠 show 控制（库的硬约束）
+        // 弹窗放在 content lambda 内：Miuix 的 GlassDialog 必须无条件调用、靠 show 控制（库的硬约束）
         AppConfirmDialog(
             show = state.showDeleteDialog,
             title = "移入归档",

@@ -11,21 +11,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -35,13 +22,18 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.agon.app.data.FoodItem
 import com.agon.app.data.HistoryEntry
 import com.agon.app.data.copyImageToCovers
+import com.agon.app.ui.components.app.AppSnackbarForm
+import com.agon.app.ui.components.app.AppSnackbarPlacement
+import com.agon.app.ui.components.app.AppScaffold
+import com.agon.app.ui.components.app.appMiuixNestedScroll
+import com.agon.app.ui.components.app.rememberAppMiuixScrollBehavior
+import com.agon.app.ui.components.app.rememberAppSnackbarHostState
 import com.agon.app.viewmodel.AppViewModel
 import com.agon.app.viewmodel.upsertAndAwait
 import java.io.File
@@ -54,7 +46,6 @@ import kotlinx.coroutines.withContext
 /** 相机临时原图保留时长：超过就当作「拍完被取消/没走完流程」的残留清掉。 */
 private const val CAMERA_TEMP_TTL_MS = 24L * 60 * 60 * 1000
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EditFoodScreen(
     viewModel: AppViewModel,
@@ -96,7 +87,9 @@ fun EditFoodScreen(
 
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val snackbarHostState = remember { SnackbarHostState() }
+    val snackbar = rememberAppSnackbarHostState()
+    val scrollState = rememberScrollState()
+    val miuixScrollBehavior = rememberAppMiuixScrollBehavior()
 
     // 名称联想：数据源含录入历史 + 库存 + 归档（全部食品）；
     // 空白时展示最近若干条，输入时匹配全部、不截断（LazyRow 可横向滚动）
@@ -118,7 +111,7 @@ fun EditFoodScreen(
             scope.launch {
                 val saved = copyImageToCovers(context, uri)
                 if (saved != null) photoPath = saved
-                else snackbarHostState.showSnackbar("图片保存失败")
+                else snackbar.showMessage("图片保存失败")
             }
         }
     }
@@ -133,7 +126,7 @@ fun EditFoodScreen(
             scope.launch {
                 val saved = copyImageToCovers(context, uri)
                 if (saved != null) photoPath = saved
-                else snackbarHostState.showSnackbar("照片保存失败")
+                else snackbar.showMessage("照片保存失败")
                 // 原图已经拷进 covers/（或已失败），临时文件没用了，立刻删掉。
                 cameraTempFile?.let { temp -> withContext(Dispatchers.IO) { runCatching { temp.delete() } } }
                 cameraTempFile = null
@@ -214,33 +207,25 @@ fun EditFoodScreen(
         showSuggestions = false
     }
 
-    Scaffold(
-        // 键盘避让（2026-09-15）：Android 15+ 强制 edge-to-edge 后 adjustResize 已不再缩窗口，
-        // 必须自己消费 IME inset。整屏缩到键盘之上后，底部「保存/添加到零食柜」贴着键盘顶边，
-        // 滚动区同步变矮，任意输入框都能滚到可见位置。
+    AppScaffold(
+        title = if (isEdit) "编辑食品" else "添加食品",
+        onBack = onBack,
+        // Keep the explicit screen-level IME handling on both theme paths so the scrollable form
+        // and the save bar stay above the keyboard after edge-to-edge enforcement.
         modifier = Modifier.imePadding(),
-        containerColor = MaterialTheme.colorScheme.background,
-        snackbarHost = { SnackbarHost(snackbarHostState) },
-        topBar = {
-            TopAppBar(
-                title = { Text(if (isEdit) "编辑食品" else "添加食品", fontWeight = FontWeight.Bold) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "返回")
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background,
-                ),
-            )
-        },
+        snackbar = snackbar,
+        snackbarPlacement = AppSnackbarPlacement.ScaffoldDefault,
+        snackbarForm = AppSnackbarForm.Plain,
         bottomBar = { EditFoodSaveBar(isEdit = isEdit, onSave = onSave, enabled = !saving) },
+        miuixScrollBehavior = miuixScrollBehavior,
+        miuixContentScrolled = scrollState.value > 0,
     ) { padding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .appMiuixNestedScroll(miuixScrollBehavior)
                 .padding(padding)
-                .verticalScroll(rememberScrollState())
+                .verticalScroll(scrollState)
                 .padding(horizontal = 20.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
@@ -318,13 +303,12 @@ fun EditFoodScreen(
 
             Spacer(Modifier.height(8.dp))
         }
-    }
-
-    if (showDatePicker) {
-        EditFoodDatePickerDialog(
-            production = production,
-            onDismiss = { showDatePicker = false },
-            onConfirmDay = { day -> productionDay = day },
-        )
+        if (showDatePicker) {
+            EditFoodDatePickerDialog(
+                production = production,
+                onDismiss = { showDatePicker = false },
+                onConfirmDay = { day -> productionDay = day },
+            )
+        }
     }
 }
