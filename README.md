@@ -55,7 +55,7 @@
 
 ### 环境要求
 - JDK 17+（构建脚本用 `jvmToolchain(21)`，Gradle 会自行拉取 JDK 21 编译；CI 直接用 Temurin 21）
-- Android SDK (compileSdk API 37 extension level 2, minSdk 26, targetSdk 36)
+- Android SDK (compileSdk API 37 extension level 2, minSdk 26, targetSdk 37 / Android 17)
 
 ### 构建 Debug 包
 ```bash

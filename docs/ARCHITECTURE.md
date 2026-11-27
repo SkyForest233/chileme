@@ -4,7 +4,8 @@
 
 - Kotlin 2.4.21 / AGP 9.5.2 / Gradle 9.9.2 / **JDK 21**（Miuix 0.9.5-rc01 的 Kotlin/AGP/Gradle 构建基线；miuix-nav inline 函数为 JVM 21 bytecode，本模块必须同目标；Gradle `jvmToolchain(21)` 可在 CI Java 17 镜像上自拉 21）
 - **依赖管理（v2.8.1 起）**：全项目依赖与插件统一收拢至 `gradle/libs.versions.toml`（Version Catalog）
-- compileSdk API 37 extension level 2（Miuix 0.9.5-rc01 AAR metadata 要求 `minCompileSdk=37`、`minCompileMinorSdk=2`）、**minSdk 26**、targetSdk 36
+- compileSdk API 37 extension level 2（Miuix 0.9.5-rc01 AAR metadata 要求 `minCompileSdk=37`、`minCompileMinorSdk=2`）、**minSdk 26**、targetSdk 37（Android 17）
+  - **targetSdk 36 → 37（2026-10-01，用户决策）**：编译门槛与安装下限分开；minSdk 仍为 26。Android 17 面向 `sw >= 600dp` 的 API 37 应用忽略方向/可调整大小/纵横比限制；Manifest 未锁定方向，但当前壳仍只有底部导航，平板、折叠屏和桌面自由窗口的布局需另做实机验证 / 适配评估。
   - **minSdk 24 → 26（2026-08-21）**：全项目 28 处 `java.time`（API 26 引入）此前未开启 core library desugaring，API 24/25 设备进首页即 `NoClassDefFoundError`（`daysLeft` 走 `ChronoUnit`）。选择提升 minSdk 而非加脱糖，省去包体与构建开销
   - **签名凭据**：优先读环境变量（`RELEASE_KEYSTORE_PATH` / `RELEASE_KEYSTORE_PASSWORD` / `RELEASE_KEY_ALIAS` / `RELEASE_KEY_PASSWORD`），回退根目录 `keystore.properties`（均不入库）。**四项缺一则 release 构建直接失败**，不再静默回退 debug 签名；本地仅做构建验证可加 `-PallowUnsignedRelease=true`
   - **versionCode / versionName**：由 CI 注入（`APP_VERSION_CODE` = `github.run_number`，`APP_VERSION_NAME` = tag 名），本地回落 `1` / `"1.0"`。设置页「关于」展示的 `吃了么 v1.0` 是硬编码字符串、不读 `BuildConfig`，故与 `CLAUDE.md` §5 的展示版本号锁定不冲突

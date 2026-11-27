@@ -60,7 +60,7 @@ android {
         // NoClassDefFoundError（daysLeft 走 ChronoUnit）。2026 年 Android 7.x 存量可忽略，
         // 故直接提升到 26，省去脱糖的包体与构建开销。详见 fix-plan 阶段 2。
         minSdk = 26
-        targetSdk = 36
+        targetSdk = 37
         // versionCode 由 CI 注入（GITHUB_RUN_NUMBER 单调递增），本地开发回落 1。
         // 此前恒为 1，配合 debug 签名导致已发布的三个 tag 对系统而言是同一版本、无法升级。
         // 注意：设置页「关于」展示的 "吃了么 v1.0" 是硬编码字符串，不读 BuildConfig，
