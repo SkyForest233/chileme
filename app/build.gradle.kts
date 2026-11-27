@@ -151,6 +151,11 @@ android {
     }
 }
 
+// Surface the MaterialKolor runtime probe's `::error` line as a GitHub annotation if it fails.
+tasks.withType<org.gradle.api.tasks.testing.Test>().configureEach {
+    testLogging.showStandardStreams = true
+}
+
 // ---- Release 签名凭据缺失时的拦截 ----
 // 放在 taskGraph.whenReady（执行阶段前）而非 buildTypes 块内：
 // 后者属配置阶段，assembleDebug 也会求值，会误伤无密钥的 debug 构建。
