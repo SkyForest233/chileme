@@ -229,8 +229,8 @@ dependencies {
 
     implementation(libs.material.kolor)
     // MaterialKolor's Compose API has runtime signatures/defaults that use this class.
-    // Declare the multiplatform utilities artifact directly so Android APK variants package it.
-    implementation(libs.material.kolor.utilities)
+    // Pin its Android KMP publication explicitly so the enum is present in the APK's dex files.
+    implementation(libs.material.kolor.utilities.android)
 
     implementation(libs.okhttp)
 
