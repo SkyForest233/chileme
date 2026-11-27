@@ -46,7 +46,7 @@ internal fun BackdropEffectScope.liquidGlassLens(
         }
     val key = if (dispersionEnabled) "ChilemeLiquidGlassLensDispersion" else "ChilemeLiquidGlassLens"
 
-    val sf = downscaleFactor.coerceAtLeast(1).toFloat()
+    val sf = downscaleFactor.coerceAtLeast(1f)
     val scaledSizeW = size.width / sf
     val scaledSizeH = size.height / sf
     val scaledPadding = padding / sf
