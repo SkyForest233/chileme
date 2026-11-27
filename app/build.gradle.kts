@@ -194,6 +194,7 @@ val inspectMaterialKolorRuntimeArtifacts = tasks.register("inspectMaterialKolorR
 val verifyMaterialKolorDebugApk = tasks.register<org.gradle.api.tasks.Exec>("verifyMaterialKolorDebugApk") {
     group = "verification"
     description = "Checks that MaterialKolor's Platform enum is defined in the debug APK."
+    dependsOn(inspectMaterialKolorRuntimeArtifacts)
     commandLine(
         "python3",
         rootProject.file("tools/verify-dex-class.py").absolutePath,
