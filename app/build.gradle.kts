@@ -1,4 +1,7 @@
 import java.util.Properties
+import java.util.zip.ZipFile
+import java.util.zip.ZipInputStream
+import org.gradle.api.artifacts.component.ModuleComponentIdentifier
 
 plugins {
     alias(libs.plugins.android.application)
@@ -151,9 +154,61 @@ android {
     }
 }
 
-// Surface the MaterialKolor runtime probe's `::error` line as a GitHub annotation if it fails.
+// The current unit-test probe cannot tell which resolved MaterialKolor artifact omitted the class.
+// Report the selected runtime artifacts and whether their AAR/JAR actually defines the enum.
+val inspectMaterialKolorRuntimeArtifacts = tasks.register("inspectMaterialKolorRuntimeArtifacts") {
+    group = "verification"
+    description = "Reports which MaterialKolor artifacts are present on the debug runtime classpath."
+    doLast {
+        val platformClass = "com/materialkolor/scheme/DynamicScheme\$Platform.class"
+        val artifacts = configurations.getByName("debugRuntimeClasspath")
+            .incoming.artifacts.artifacts
+            .mapNotNull { artifact ->
+                val component = artifact.id.componentIdentifier as? ModuleComponentIdentifier
+                    ?: return@mapNotNull null
+                if (component.group != "com.materialkolor") return@mapNotNull null
+
+                val definesPlatform = when (artifact.file.extension) {
+                    "jar" -> ZipFile(artifact.file).use { it.getEntry(platformClass) != null }
+                    "aar" -> ZipFile(artifact.file).use { aar ->
+                        val classesJar = aar.getEntry("classes.jar")
+                        if (classesJar == null) {
+                            false
+                        } else {
+                            ZipInputStream(aar.getInputStream(classesJar)).use { classes ->
+                                generateSequence { classes.nextEntry }
+                                    .any { it.name == platformClass }
+                            }
+                        }
+                    }
+                    else -> false
+                }
+                "${component.displayName} (${artifact.file.name}, definesPlatform=$definesPlatform)"
+            }
+        val artifactSummary = artifacts.joinToString(separator = "; ")
+        println("::notice title=MaterialKolor runtime artifacts::$artifactSummary")
+    }
+}
+
+// Also verify the final debug DEX, which is the classpath Android actually loads at runtime.
+val verifyMaterialKolorDebugApk = tasks.register<org.gradle.api.tasks.Exec>("verifyMaterialKolorDebugApk") {
+    group = "verification"
+    description = "Checks that MaterialKolor's Platform enum is defined in the debug APK."
+    commandLine(
+        "python3",
+        rootProject.file("tools/verify-dex-class.py").absolutePath,
+        layout.buildDirectory.file("outputs/apk/debug/app-debug.apk").get().asFile.absolutePath,
+        "Lcom/materialkolor/scheme/DynamicScheme\$Platform;",
+    )
+}
 tasks.withType<org.gradle.api.tasks.testing.Test>().configureEach {
     testLogging.showStandardStreams = true
+}
+tasks.configureEach {
+    when (name) {
+        "assembleDebug" -> finalizedBy(verifyMaterialKolorDebugApk)
+        "testDebugUnitTest" -> finalizedBy(inspectMaterialKolorRuntimeArtifacts)
+    }
 }
 
 // ---- Release 签名凭据缺失时的拦截 ----
