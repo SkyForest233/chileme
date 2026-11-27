@@ -12,8 +12,8 @@ coreKtx = "1.19.0"
 coreSplashscreen = "1.2.0"
 datastore = "1.2.0"
 
-# Miuix (HyperOS Style Compose, 对齐 skill 基线)
-miuix = "0.9.4"
+# Miuix (HyperOS Style Compose, 对齐 skill 基线 v0.9.5-rc01)
+miuix = "0.9.5-rc01"
 
 # Third-party Libraries
 coil = "3.3.0"
