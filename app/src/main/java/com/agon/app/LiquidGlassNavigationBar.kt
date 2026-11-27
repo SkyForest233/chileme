@@ -83,13 +83,13 @@ import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.blur.LayerBackdrop
 import top.yukonga.miuix.kmp.blur.blur
 import top.yukonga.miuix.kmp.blur.drawBackdrop
-import top.yukonga.miuix.kmp.blur.highlight.BloomStroke
-import top.yukonga.miuix.kmp.blur.highlight.Highlight
-import top.yukonga.miuix.kmp.blur.highlight.LightPosition
-import top.yukonga.miuix.kmp.blur.highlight.LightSource
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
-import top.yukonga.miuix.kmp.blur.sensor.rememberDeviceTilt
+import top.yukonga.miuix.kmp.material.EdgeLightSource
+import top.yukonga.miuix.kmp.material.EdgePeak
+import top.yukonga.miuix.kmp.material.EdgeStroke
+import top.yukonga.miuix.kmp.material.drawEdgeStroke
+import top.yukonga.miuix.kmp.material.sensor.rememberDeviceTilt
 import top.yukonga.miuix.kmp.theme.LocalContentColor
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.Platform
@@ -104,27 +104,18 @@ import kotlin.math.sin
 
 private val LocalIosTabScale = staticCompositionLocalOf { { 1f } }
 
-private val iosIndicatorSpecular: Highlight = Highlight(
+// 旧 Highlight(BloomStroke) 已在 miuix 0.9.5-beta01 移除，改用 EdgeStroke：
+// width/color 直接对应；innerBlurRadius → bevel；dualPeak → EdgePeak.Dual。
+private val iosIndicatorSpecular: EdgeStroke = EdgeStroke(
     width = 1.dp,
-    alpha = 1f,
-    style = BloomStroke(
-        color = Color.White.copy(alpha = 0.12f),
-        innerBlurRadius = 2.0.dp,
-        primaryLight = LightSource(
-            position = LightPosition(0.5f, -0.3f, -0.05f),
-            color = Color.White,
-            intensity = 1f,
-        ),
-        secondaryLight = LightSource(
-            position = LightPosition(0.5f, 0.8f, -0.5f),
-            color = Color.White,
-            intensity = 0.4f,
-        ),
-        dualPeak = true,
-    ),
+    bevel = 2.0.dp,
+    color = Color.White.copy(alpha = 0.12f),
+    primary = EdgeLightSource(x = 0.5f, y = -0.3f, z = -0.05f, color = Color.White, intensity = 1f),
+    secondary = EdgeLightSource(x = 0.5f, y = 0.8f, z = -0.5f, color = Color.White, intensity = 0.4f),
+    peak = EdgePeak.Dual,
 )
 
-// Mirrors HighlightStyle.kt's LIGHT_REF — keep in sync.
+// Mirrors miuix-material EdgeStroke's light reference (0.5, 0.7) — keep in sync.
 private const val LIGHT_REF_X = 0.5f
 private const val LIGHT_REF_Y = 0.7f
 private const val GRAVITY_DIR_THRESHOLD_SQ = 0.01f // |g_xy| > 0.1, ≈ 6° tilt
@@ -165,25 +156,18 @@ private fun rememberQuantizedGravityAngle(): State<Float> {
  * cached, re-allocating only when the angle crosses a quantization step.
  */
 @Composable
-private fun rememberGravityRotatedHighlight(
-    base: Highlight,
+private fun rememberGravityRotatedStroke(
+    base: EdgeStroke,
     extraDegrees: Float,
-): State<Highlight> {
+): State<EdgeStroke> {
     val gravityAngle = rememberQuantizedGravityAngle()
     return remember(gravityAngle, base, extraDegrees) {
         derivedStateOf {
-            val baseStyle = base.style as BloomStroke
-            val basePrimary = baseStyle.primaryLight
             val rad = gravityAngle.value + (extraDegrees * PI / 180.0).toFloat()
             base.copy(
-                style = baseStyle.copy(
-                    primaryLight = basePrimary.copy(
-                        position = LightPosition(
-                            x = LIGHT_REF_X + cos(rad),
-                            y = LIGHT_REF_Y + sin(rad),
-                            z = basePrimary.position.z,
-                        ),
-                    ),
+                primary = base.primary.copy(
+                    x = LIGHT_REF_X + cos(rad),
+                    y = LIGHT_REF_Y + sin(rad),
                 ),
             )
         }
@@ -319,8 +303,8 @@ internal fun MiuixLiquidGlassNavigationBar(
     }
 
     // Read .value only inside highlight lambdas (draw phase), never in composition.
-    val baseHighlight = rememberGravityRotatedHighlight(iosIndicatorSpecular, extraDegrees = -45f)
-    val pillHighlight = rememberGravityRotatedHighlight(iosIndicatorSpecular, extraDegrees = 90f)
+    val baseStroke = rememberGravityRotatedStroke(iosIndicatorSpecular, extraDegrees = -45f)
+    val pillStroke = rememberGravityRotatedStroke(iosIndicatorSpecular, extraDegrees = 90f)
 
     val combinedBackdrop = backdrop?.let { rememberCombinedBackdrop(it, tabsBackdrop) }
 
@@ -434,7 +418,7 @@ internal fun MiuixLiquidGlassNavigationBar(
                                             refractionAmount = 24.dp.toPx(),
                                         )
                                     },
-                                    highlight = { baseHighlight.value.copy(alpha = 0.75f) },
+                                    onDrawFront = { drawEdgeStroke(shape = pillShape, stroke = baseStroke.value, alpha = 0.75f) },
                                     layerBlock = {
                                         val width = size.width.coerceAtLeast(1f)
                                         val s = lerp(1f, 1f + 16.dp.toPx() / width, dampedDrag.pressProgress)
@@ -519,7 +503,7 @@ internal fun MiuixLiquidGlassNavigationBar(
                                         chromaticAberration = 0.5f,
                                     )
                                 },
-                                highlight = { pillHighlight.value.copy(alpha = dampedDrag.pressProgress) },
+                                onDrawFront = { drawEdgeStroke(shape = pillShape, stroke = pillStroke.value, alpha = dampedDrag.pressProgress) },
                                 layerBlock = {
                                     scaleX = dampedDrag.scaleX
                                     scaleY = dampedDrag.scaleY

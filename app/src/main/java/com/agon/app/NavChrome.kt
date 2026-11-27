@@ -62,9 +62,10 @@ import top.yukonga.miuix.kmp.basic.NavigationBar as MiuixNavigationBar
 import top.yukonga.miuix.kmp.basic.NavigationBarItem as MiuixNavigationBarItem
 import top.yukonga.miuix.kmp.basic.NavigationItem
 import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.material.GlassEdgeStrokes
+import top.yukonga.miuix.kmp.material.edgeStroke
 import top.yukonga.miuix.kmp.blur.BlendColorEntry
 import top.yukonga.miuix.kmp.blur.BlurDefaults
-import top.yukonga.miuix.kmp.blur.highlight.Highlight
 import top.yukonga.miuix.kmp.blur.textureBlur
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.icon.extended.GridView
@@ -237,22 +238,23 @@ internal fun MiuixFloatingNav(selectedIndex: Int, onSelect: (Int) -> Unit) {
         )
     } else {
         val isDark = MiuixTheme.colorScheme.surface.luminance() < 0.5f
-        val floatingHighlight = remember(isDark) {
-            if (isDark) Highlight.GlassStrokeMiddleDark else Highlight.GlassStrokeMiddleLight
+        val floatingStroke = remember(isDark) {
+            if (isDark) GlassEdgeStrokes.MiddleDark else GlassEdgeStrokes.MiddleLight
         }
         val edgeColor = MiuixTheme.colorScheme.dividerLine.copy(alpha = 0.58f)
         val barModifier = if (activeBackdrop != null) {
-            Modifier.textureBlur(
-                backdrop = activeBackdrop,
-                shape = pillShape,
-                blurRadius = 25f,
-                colors = BlurDefaults.blurColors(
-                    blendColors = listOf(
-                        BlendColorEntry(color = surfaceContainerColor.copy(alpha = 0.6f)),
+            Modifier
+                .textureBlur(
+                    backdrop = activeBackdrop,
+                    shape = pillShape,
+                    blurRadius = 25f,
+                    colors = BlurDefaults.blurColors(
+                        blendColors = listOf(
+                            BlendColorEntry(color = surfaceContainerColor.copy(alpha = 0.6f)),
+                        ),
                     ),
-                ),
-                highlight = floatingHighlight,
-            )
+                )
+                .edgeStroke(shape = pillShape, stroke = { floatingStroke })
         } else {
             Modifier.border(width = 0.8.dp, color = edgeColor, shape = pillShape)
         }

@@ -373,7 +373,10 @@ row 'AGP' "$(grep -oE 'agp = "[^"]+"' gradle/libs.versions.toml | head -1 | cut 
 row 'composeBom' "$(grep -oE 'composeBom = "[^"]+"' gradle/libs.versions.toml | head -1 | cut -d'"' -f2)" 'libs.versions.toml'
 row 'miuix' "$(grep -oE 'miuix = "[^"]+"' gradle/libs.versions.toml | head -1 | cut -d'"' -f2)" '上游 pinned tag，技能库证据基线'
 row 'Gradle wrapper' "$(grep -oE 'gradle-[0-9.]+' gradle/wrapper/gradle-wrapper.properties | head -1 | sed 's/gradle-//')" 'gradle-wrapper.properties'
-row 'compileSdk / minSdk / targetSdk' "$(grep -oE '(compileSdk|minSdk|targetSdk) = [0-9]+' app/build.gradle.kts | awk '{printf "%s ", $3}')" 'app/build.gradle.kts'
+# compileSdk 是 block 形式 `release(37) { minorApiLevel = 2 }`，按「37.2」口径取值
+compile_sdk="$(grep -oE 'release\([0-9]+\)' app/build.gradle.kts | head -1 | grep -oE '[0-9]+')"
+compile_minor="$(grep -oE 'minorApiLevel = [0-9]+' app/build.gradle.kts | head -1 | grep -oE '[0-9]+$')"
+row 'compileSdk / minSdk / targetSdk' "${compile_sdk}.${compile_minor:-0} $(grep -oE '(minSdk|targetSdk) = [0-9]+' app/build.gradle.kts | awk '{printf "%s ", $3}')" 'app/build.gradle.kts'
 row 'detekt 模式' "$(grep -oE 'DETEKT_MODE="\$\{DETEKT_MODE:-[a-z]+\}"' tools/ci-gates.sh | grep -oE ':-[a-z]+' | tr -d ':-')" 'tools/ci-gates.sh（block = 真拦）'
 row 'ktlint 模式' "$(grep -oE 'KTLINT_MODE="\$\{KTLINT_MODE:-[a-z]+\}"' tools/ci-gates.sh | grep -oE ':-[a-z]+' | tr -d ':-')" 'tools/ci-gates.sh'
 

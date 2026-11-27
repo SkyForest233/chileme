@@ -29,7 +29,7 @@ set -uo pipefail
 #   ANDROID_PLATFORM ← gradle/libs.versions.toml 的 compileSdk
 #   CMDLINE_TOOLS_BUILD ← https://developer.android.com/studio#command-line-tools-only
 REQUIRED_JDK=21
-ANDROID_PLATFORM="android-36"
+ANDROID_PLATFORM="android-37.2"
 CMDLINE_TOOLS_BUILD="${CMDLINE_TOOLS_BUILD:-13114758}" # 404 就说明有新版，去上面那页抄个号
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
