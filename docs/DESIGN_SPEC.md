@@ -12,7 +12,7 @@
 
 ## 1. 配色
 
-**主题采用 MD3 种子色方案（v2.2 起）**：主题不再手写完整 ColorScheme，由 MaterialKolor（`com.materialkolor:material-kolor:4.0.1`）从种子色生成：`rememberDynamicColorScheme(seed, isDark, PaletteStyle.TonalSpot)`。屏幕代码一律引用 `MaterialTheme.colorScheme.*`，不得写死主题色值。
+**主题采用 MD3 种子色方案（v2.2 起）**：主题不再手写完整 ColorScheme，由 MaterialKolor（`com.materialkolor:material-kolor:4.1.1`）从种子色生成：`rememberDynamicColorScheme(seed, isDark, PaletteStyle.TonalSpot)`。屏幕代码一律引用 `MaterialTheme.colorScheme.*`，不得写死主题色值。
 
 **15 套配色方案（`ui/theme/Palettes.kt` · AppPalette 枚举，食物主题命名）**
 

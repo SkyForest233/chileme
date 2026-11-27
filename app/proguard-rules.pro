@@ -30,9 +30,9 @@
 -dontwarn org.openjsse.**
 
 # ---- MaterialKolor ----
-# The 4.0.1 Compose API's `rememberDynamicColorScheme` default arguments reference this
-# nested enum. R8's release shrinker can otherwise strip it even though palette previews call
-# that API at runtime, causing NoClassDefFoundError when switching to Material 3.
+# The Compose API's `rememberDynamicColorScheme` default arguments reference this nested enum.
+# R8's release shrinker can otherwise strip it even though palette previews call that API at
+# runtime, causing NoClassDefFoundError when switching to Material 3.
 -keep class com.materialkolor.scheme.DynamicScheme$Platform { *; }
 -keep class com.materialkolor.scheme.DynamicScheme$Platform$Companion { *; }
 
