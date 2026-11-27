@@ -41,9 +41,9 @@
 
 ## 🛠️ 技术栈
 
-- **语言 / 工具链**：Kotlin 2.4.20 / Gradle 9.7.1 (Version Catalog)
-- **UI 框架**：Jetpack Compose (BOM 2026.08.00)
-- **设计系统**：Material 3 / Miuix KMP (`top.yukonga.miuix.kmp`) / MaterialKolor
+- **语言 / 工具链**：Kotlin 2.4.21 / Gradle 9.9.2 (Version Catalog)
+- **UI 框架**：Jetpack Compose (BOM 2026.11.01)
+- **设计系统**：Material 3 / Miuix KMP 0.9.5-rc01 (`top.yukonga.miuix.kmp`) / MaterialKolor
 - **持久化**：AndroidX DataStore Preferences + Kotlinx Serialization
 - **网络与安全**：OkHttp 4.12.0（坚果云 WebDAV，可选功能）+ AndroidKeyStore AES-GCM（自实现 `SecureStore`，未引入 security-crypto 依赖）
 - **图片加载**：Coil 3
@@ -54,7 +54,7 @@
 
 ### 环境要求
 - JDK 17+（构建脚本用 `jvmToolchain(21)`，Gradle 会自行拉取 JDK 21 编译；CI 直接用 Temurin 21）
-- Android SDK (compileSdk 37, minSdk 26, targetSdk 36)
+- Android SDK (compileSdk 37.2, minSdk 26, targetSdk 36)
 
 ### 构建 Debug 包
 ```bash
