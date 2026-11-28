@@ -11,8 +11,8 @@ import androidx.compose.foundation.shape.CornerBasedShape
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.util.fastCoerceAtMost
 import top.yukonga.miuix.kmp.blur.BackdropEffectScope
-import top.yukonga.miuix.kmp.blur.isRuntimeShaderSupported
 import top.yukonga.miuix.kmp.blur.runtimeShaderEffect
+import top.yukonga.miuix.kmp.material.isRuntimeShaderSupported
 
 /**
  * Rounded-rect refraction lens with optional chromatic dispersion.
@@ -46,13 +46,15 @@ internal fun BackdropEffectScope.liquidGlassLens(
         }
     val key = if (dispersionEnabled) "ChilemeLiquidGlassLensDispersion" else "ChilemeLiquidGlassLens"
 
-    val sf = downscaleFactor.coerceAtLeast(1).toFloat()
+    val sf = downscaleFactor.coerceAtLeast(1f)
     val scaledSizeW = size.width / sf
     val scaledSizeH = size.height / sf
     val scaledPadding = padding / sf
     val scaledRefractionHeight = refractionHeight / sf
     val scaledRefractionAmount = refractionAmount / sf
-    val scaledRadii = FloatArray(radii.size) { radii[it] / sf }
+    for (i in radii.indices) {
+        radii[i] /= sf
+    }
 
     runtimeShaderEffect(
         key = key,
@@ -61,7 +63,7 @@ internal fun BackdropEffectScope.liquidGlassLens(
     ) {
         setFloatUniform("size", scaledSizeW, scaledSizeH)
         setFloatUniform("offset", -scaledPadding, -scaledPadding)
-        setFloatUniform("cornerRadii", scaledRadii)
+        setFloatUniform("cornerRadii", radii)
         setFloatUniform("refractionHeight", scaledRefractionHeight)
         setFloatUniform("refractionAmount", -scaledRefractionAmount)
         setFloatUniform("depthEffect", if (depthEffect) 1f else 0f)

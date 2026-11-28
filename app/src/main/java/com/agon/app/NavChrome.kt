@@ -64,8 +64,10 @@ import top.yukonga.miuix.kmp.basic.NavigationItem
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.blur.BlendColorEntry
 import top.yukonga.miuix.kmp.blur.BlurDefaults
-import top.yukonga.miuix.kmp.blur.highlight.Highlight
 import top.yukonga.miuix.kmp.blur.textureBlur
+import top.yukonga.miuix.kmp.material.EdgeStroke
+import top.yukonga.miuix.kmp.material.EdgeStrokes
+import top.yukonga.miuix.kmp.material.edgeStroke
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.icon.extended.GridView
 import top.yukonga.miuix.kmp.icon.extended.Home
@@ -237,8 +239,8 @@ internal fun MiuixFloatingNav(selectedIndex: Int, onSelect: (Int) -> Unit) {
         )
     } else {
         val isDark = MiuixTheme.colorScheme.surface.luminance() < 0.5f
-        val floatingHighlight = remember(isDark) {
-            if (isDark) Highlight.GlassStrokeMiddleDark else Highlight.GlassStrokeMiddleLight
+        val floatingStroke: EdgeStroke = remember(isDark) {
+            if (isDark) EdgeStrokes.MiddleDark else EdgeStrokes.MiddleLight
         }
         val edgeColor = MiuixTheme.colorScheme.dividerLine.copy(alpha = 0.58f)
         val barModifier = if (activeBackdrop != null) {
@@ -251,8 +253,7 @@ internal fun MiuixFloatingNav(selectedIndex: Int, onSelect: (Int) -> Unit) {
                         BlendColorEntry(color = surfaceContainerColor.copy(alpha = 0.6f)),
                     ),
                 ),
-                highlight = floatingHighlight,
-            )
+            ).edgeStroke(shape = pillShape, stroke = floatingStroke)
         } else {
             Modifier.border(width = 0.8.dp, color = edgeColor, shape = pillShape)
         }

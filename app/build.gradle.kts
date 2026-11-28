@@ -45,9 +45,13 @@ val projectDebugKeystore = rootProject.file("debug.keystore")
 
 android {
     namespace = "com.agon.app"
-    // Miuix 0.9.4 及其传递依赖（Compose 1.12.0 等）要求 compileSdk ≥ 37。
+    // Miuix 0.9.5-rc02 的 AAR 元数据要求 compileSdk ≥ 37.2（minCompileSdk=37 / minCompileMinorSdk=2）。
     // compileSdk 与 targetSdk/minSdk 相互独立，仅此一项升级即可。
-    compileSdk = 37
+    compileSdk {
+        version = release(37) {
+            minorApiLevel = 2
+        }
+    }
 
     defaultConfig {
         applicationId = "com.chileme.pantry"
@@ -210,7 +214,7 @@ dependencies {
 
     implementation(libs.androidx.datastore.preferences)
 
-    // Miuix（HyperOS 风格 Compose 组件库），版本对齐 skill 基线 v0.9.4。
+    // Miuix（HyperOS 风格 Compose 组件库），版本对齐 skill 基线 v0.9.5-rc02。
     // 使用 common 坐标，Gradle Module Metadata 会自动解析到 android 变体。
     implementation(libs.miuix.ui)
     implementation(libs.miuix.preference)
@@ -218,6 +222,8 @@ dependencies {
     implementation(libs.miuix.icons)
     // Backdrop 模糊 / 液态玻璃；API 33 以下由 runtime shader capability gate 回退到实色组件。
     implementation(libs.miuix.blur.android)
+    // RuntimeShader / isRuntimeShaderSupported / 设备倾斜传感器 / EdgeLightSource 等在 rc02 迁入 miuix-material。
+    implementation(libs.miuix.material.android)
 
     implementation(libs.material.kolor)
 

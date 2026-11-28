@@ -20,7 +20,7 @@ package com.agon.app.ui.components.app
 // squircle 圆角被压住，是所有 Miuix 弹窗的视觉回退。查过上游 pinned tag v0.9.4-rc01：全库只有两处用到 ime，
 // 即 `DialogContentLayout` 的 `.imePadding()` 与「弹窗关闭时 `keyboardController.hide()`」
 // （`DialogContentLayout` + `utils/MiuixPopupUtils.kt:332`），**没有任何 IME 平滑/粘性能力**；
-// `.claude/skills/miuix` 里也没有（release note 提到的 "search-bar inset timing" 明确标注为 Example-only、
+// `.claude/skills/miuix-*` 里也没有（release note 提到的 "search-bar inset timing" 明确标注为 Example-only、
 // 不是库的公开 API，且嘱咐不要照抄）。Miuix 侧要根治只能等上游，可考虑提 issue。
 //
 // 适用范围：**只有带输入框的 MD3 弹窗**（三处：`AppFormDialog` / `AppBatchMoveDialog` 批量移动位置 /

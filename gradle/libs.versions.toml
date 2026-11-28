@@ -1,7 +1,7 @@
 [versions]
 # Build & Toolchain
-agp = "9.4.1"
-kotlin = "2.4.20"
+agp = "9.5.3"
+kotlin = "2.4.21"
 foojay = "0.10.0"
 
 # AndroidX & Compose (BOM 2026.08.00 跨 7 个月升级)
@@ -12,12 +12,12 @@ coreKtx = "1.19.0"
 coreSplashscreen = "1.2.0"
 datastore = "1.2.0"
 
-# Miuix (HyperOS Style Compose, 对齐 skill 基线)
-miuix = "0.9.4"
+# Miuix (HyperOS Style Compose, 对齐 skill 基线 0.9.5-rc02)
+miuix = "0.9.5-rc02"
 
 # Third-party Libraries
 coil = "3.3.0"
-kotlinxSerialization = "1.11.0"
+kotlinxSerialization = "1.13.0"
 materialKolor = "4.0.1"
 okhttp = "4.12.0"
 
@@ -53,6 +53,7 @@ miuix-ui = { module = "top.yukonga.miuix.kmp:miuix-ui", version.ref = "miuix" }
 miuix-preference = { module = "top.yukonga.miuix.kmp:miuix-preference", version.ref = "miuix" }
 miuix-icons = { module = "top.yukonga.miuix.kmp:miuix-icons", version.ref = "miuix" }
 miuix-blur-android = { module = "top.yukonga.miuix.kmp:miuix-blur-android", version.ref = "miuix" }
+miuix-material-android = { module = "top.yukonga.miuix.kmp:miuix-material-android", version.ref = "miuix" }
 
 # Coil
 coil-compose = { module = "io.coil-kt.coil3:coil-compose", version.ref = "coil" }

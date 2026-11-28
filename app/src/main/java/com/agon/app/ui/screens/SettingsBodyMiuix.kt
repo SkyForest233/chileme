@@ -12,7 +12,7 @@ import androidx.compose.ui.unit.dp
 import com.agon.app.data.CLOUD_BACKUP_KEEP
 import com.agon.app.ui.theme.ThemeStyle
 import top.yukonga.miuix.kmp.basic.BasicComponentDefaults
-import top.yukonga.miuix.kmp.blur.isRuntimeShaderSupported
+import top.yukonga.miuix.kmp.material.isRuntimeShaderSupported
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon as MiuixIcon
 import top.yukonga.miuix.kmp.basic.SmallTitle
