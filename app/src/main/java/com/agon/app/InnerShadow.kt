@@ -114,14 +114,9 @@ private class InnerShadowNode(
         val offsetX = shadow.offset.x.toPx()
         val offsetY = shadow.offset.y.toPx()
 
-        val outline = if (
-            cachedOutline != null &&
-            prevShape == shape &&
-            prevSize == size &&
-            prevLayoutDirection == layoutDirection
-        ) {
-            cachedOutline!!
-        } else {
+        val outline = cachedOutline.takeIf {
+            prevShape == shape && prevSize == size && prevLayoutDirection == layoutDirection
+        } ?: run {
             val created = shape.createOutline(size, layoutDirection, this)
             cachedOutline = created
             prevShape = shape
