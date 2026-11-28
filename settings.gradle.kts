@@ -22,3 +22,18 @@ dependencyResolutionManagement {
 
 rootProject.name = "AgonApp"
 include(":app")
+
+// TEMP-DIAG (revert after diagnosis): 构建失败时把异常链以 ::error:: 注解回传
+gradle.buildFinished {
+    val f = it.failure
+    if (f != null) {
+        var t: Throwable? = f
+        var depth = 0
+        while (t != null && depth < 10) {
+            val msg = (t.message ?: t.javaClass.name).replace("\n", " | ").take(900)
+            println("::error title=gradle-diag-$depth::${t.javaClass.simpleName}: $msg")
+            t = t.cause
+            depth++
+        }
+    }
+}
