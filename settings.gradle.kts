@@ -1,4 +1,5 @@
 pluginManagement {
+    println("::notice title=diag-settings::DIAG settings pluginManagement reached")
     repositories {
         google()
         mavenCentral()
@@ -23,8 +24,15 @@ dependencyResolutionManagement {
 rootProject.name = "AgonApp"
 include(":app")
 
-// TEMP-DIAG (revert after diagnosis): 构建失败时把异常链以 ::error:: 注解回传
+// TEMP-DIAG (revert after diagnosis)
+gradle.projectsEvaluated {
+    println("::notice title=diag-evaluated::DIAG projects evaluated")
+}
+gradle.taskGraph.whenReady {
+    println("::notice title=diag-graph::DIAG task graph: " + allTasks.map { it.path }.take(20).joinToString(","))
+}
 gradle.buildFinished {
+    println("::notice title=diag-finished::DIAG buildFinished failure=" + (it.failure != null))
     val f = it.failure
     if (f != null) {
         var t: Throwable? = f
